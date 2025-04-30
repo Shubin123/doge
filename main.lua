@@ -1,18 +1,6 @@
---[[
-
-    Wed Apr 30th #Andrew
-
-- Refactored the code
-- Changed stats display method
-- created a initalize_game function --> works towards a loading screen method
-- improved performance of game somehow it feels smoother
-- cleaned up a lot of the code and random spacing/commenting
-- "smoothed" a lot of the movement. 
-
-
-]]
-
 math.randomseed(os.time())
+
+local MainMenu = require("menu")
 
 ScreenInfo = {
     screen_height = 600,
@@ -58,16 +46,41 @@ StatsDisplay = {
 Points = {}
 State = nil
 
+world = nil
+fence_body = nil
+fence_shape = nil
+fence_fixture = nil
+body = nil
+shape = nil
+fixture = nil
+joint = nil
+coin_shape = nil
+enemy_shape = nil
+character = nil
+image = nil
+enemy_image = nil
+animation = nil
+character_width = 0
+character_height = 0
+png_width = 0
+png_height = 0
+enemy_width = 0
+enemy_height = 0
+
 function love.load()
     success = love.window.setMode(ScreenInfo.screen_width, ScreenInfo.screen_height, ScreenInfo.screen_flags)
-    State = "loading"
-    LoadingInfo.images_to_load = {"doge.png", "coin.png", "enemy.png", "oldHero.png"}
-    LoadingInfo.loading_index = 1
-    LoadingInfo.assets = {}
+    State = "menu"
 end
 
 function love.update(dt)
-    if State == "loading" then
+    if State == "menu" then
+        MainMenu.update(dt)
+    elseif State == "loading" then
+        if not LoadingInfo.images_to_load then
+             LoadingInfo.images_to_load = {"doge.png", "coin.png", "enemy.png", "oldHero.png"}
+             LoadingInfo.loading_index = 1
+             LoadingInfo.assets = {}
+        end
         local t = love.timer.getTime()
         while LoadingInfo.loading_index <= #LoadingInfo.images_to_load do
             local image_name = LoadingInfo.images_to_load[LoadingInfo.loading_index]
@@ -80,13 +93,17 @@ function love.update(dt)
         if LoadingInfo.loading_index > #LoadingInfo.images_to_load then
             State = "game"
             initialize_game()
+            LoadingInfo.images_to_load = nil 
+            LoadingInfo.loading_index = nil
         end
     elseif State == "game" then
-        joint:setTarget(love.mouse.getPosition())
-        world:update(dt)
-        animation.currentTime = animation.currentTime + dt
-        if animation.currentTime >= animation.duration then
-            animation.currentTime = animation.currentTime - animation.duration
+        if joint then joint:setTarget(love.mouse.getPosition()) end
+        if world then world:update(dt) end
+        if animation then
+            animation.currentTime = animation.currentTime + dt
+            if animation.currentTime >= animation.duration then
+                animation.currentTime = animation.currentTime - animation.duration
+            end
         end
     end
 end
@@ -99,6 +116,7 @@ function initialize_game()
     fence_body = love.physics.newBody(world, 0, 0, "static")
     fence_shape = love.physics.newChainShape(true, -100, -100, ScreenInfo.screen_width, -100, ScreenInfo.screen_width, ScreenInfo.screen_height, -100, ScreenInfo.screen_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    fence_fixture:setUserData("fence")
 
     body = love.physics.newBody(world, love.mouse.getX(), love.mouse.getY(), "dynamic")
     shape = love.physics.newRectangleShape(90, 90)
@@ -106,9 +124,11 @@ function initialize_game()
     joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
 
     coin_shape = love.physics.newCircleShape(18)
+    EntityInfo.coin_bods = {} 
     createCoins(EntityInfo.num_coins)
 
     enemy_shape = love.physics.newCircleShape(100)
+    EntityInfo.enemies_bods = {} 
     createEnemies(EntityInfo.num_enemies)
 
     character = LoadingInfo.assets["doge.png"]
@@ -119,14 +139,23 @@ function initialize_game()
     character_width, character_height = character:getDimensions()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
+    
+    PlayerInfo.player_score = 0
+    PlayerInfo.prev_x = body:getX()
+    PlayerInfo.prev_y = body:getY()
+
 end
 
 function love.draw()
-    if State == "loading" then
-
+    if State == "menu" then
+        MainMenu.draw(ScreenInfo)
+    elseif State == "loading" then
         love.graphics.print("Loading gfx", 0, 0)
-
-        love.graphics.rectangle("fill", 2, 16, 256 * (LoadingInfo.loading_index - 1) / #LoadingInfo.images_to_load, 16)
+        local loadProgress = 0
+        if LoadingInfo.images_to_load and LoadingInfo.loading_index and #LoadingInfo.images_to_load > 0 then
+             loadProgress = (LoadingInfo.loading_index - 1) / #LoadingInfo.images_to_load
+        end
+        love.graphics.rectangle("fill", 2, 16, 256 * loadProgress, 16)
 
     elseif State == "game" then
 
@@ -134,33 +163,38 @@ function love.draw()
         local x, y = body:getPosition()
         PlayerInfo.linear_score = round(vx ^ 2 + vy ^ 2, -4) / 10000
 
-        local heading = 0
+        local heading = PlayerInfo.character_rotation 
         if PlayerInfo.linear_score > 1 then
             heading = math.atan2(y - PlayerInfo.prev_y, x - PlayerInfo.prev_x)
             PlayerInfo.prev_x = x
             PlayerInfo.prev_y = y
+            PlayerInfo.character_rotation = heading 
         end
 
-        if math.abs(heading) > 0 then
-            PlayerInfo.character_rotation = heading
+        if character then
+            love.graphics.draw(character, body:getX(), body:getY(), PlayerInfo.character_rotation, 1, 1, character_width / 2, character_height / 2)
         end
 
-        love.graphics.draw(character, body:getX(), body:getY(), PlayerInfo.character_rotation, 1, 1, character_width / 2, character_height / 2)
-
-        for i = 1, #EntityInfo.coin_bods do 
-            if EntityInfo.coin_bods[i] then
-                love.graphics.draw(image, EntityInfo.coin_bods[i]:getX(), EntityInfo.coin_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
+        if image then
+            for i = 1, #EntityInfo.coin_bods do 
+                if EntityInfo.coin_bods[i] and not EntityInfo.coin_bods[i]:isDestroyed() then
+                    love.graphics.draw(image, EntityInfo.coin_bods[i]:getX(), EntityInfo.coin_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
+                end
             end
         end
 
-        for i = 1, #EntityInfo.enemies_bods do 
-            if EntityInfo.enemies_bods[i] then
-                love.graphics.draw(enemy_image, EntityInfo.enemies_bods[i]:getX(), EntityInfo.enemies_bods[i]:getY(), 0, 1, 1, enemy_width / 2, enemy_height / 2)
+        if enemy_image then
+            for i = 1, #EntityInfo.enemies_bods do 
+                if EntityInfo.enemies_bods[i] and not EntityInfo.enemies_bods[i]:isDestroyed() then
+                    love.graphics.draw(enemy_image, EntityInfo.enemies_bods[i]:getX(), EntityInfo.enemies_bods[i]:getY(), 0, 1, 1, enemy_width / 2, enemy_height / 2)
+                end
             end
         end
 
-        local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
-        love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], 0, 0, 0, 4)
+        if animation and animation.quads and #animation.quads > 0 then
+             local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
+             love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], 0, 0, 0, 4)
+        end
 
         local statsText = string.format(
             "FPS: %d\nSpeed: %.2f\nHeading: %.2f\nRotation: %.2f",
@@ -171,7 +205,8 @@ function love.draw()
         )
 
         local numLines = 4 
-        local fontHeight = love.graphics.getFont():getHeight() 
+        local font = love.graphics.getFont()
+        local fontHeight = font:getHeight() 
         local panelHeight = (numLines * fontHeight) + (StatsDisplay.padding * 2)
 
         love.graphics.setColor(StatsDisplay.bgColor) 
@@ -194,7 +229,7 @@ function love.draw()
         )
 
         local scoreText = string.format("Score: %d", PlayerInfo.player_score)
-        local scoreTextWidth = love.graphics.getFont():getWidth(scoreText)
+        local scoreTextWidth = font:getWidth(scoreText)
         love.graphics.setColor(StatsDisplay.scoreColor)
         love.graphics.print(
              scoreText,
@@ -207,13 +242,28 @@ function love.draw()
     end
 end
 
+function love.mousepressed(x, y, button, istouch, presses)
+    if State == "menu" then
+        local nextStateAction = MainMenu.mousepressed(x, y, button, ScreenInfo) 
+        if nextStateAction == "loading" then
+            State = "loading" 
+        elseif nextStateAction == "exit" then
+            love.event.quit() 
+        end
+    elseif State == "game" then
+        
+    end
+end
+
 function love.resize(w, h)
     ScreenInfo.screen_width = w
     ScreenInfo.screen_height = h
-    fence_fixture:destroy()
-    fence_shape = love.physics.newChainShape(true, -100, -100, ScreenInfo.screen_width, -100, ScreenInfo.screen_width, ScreenInfo.screen_height, -100, ScreenInfo.screen_height)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
-    fence_fixture:setUserData("fence")
+    if fence_fixture and fence_body then 
+        fence_fixture:destroy()
+        fence_shape = love.physics.newChainShape(true, -100, -100, ScreenInfo.screen_width, -100, ScreenInfo.screen_width, ScreenInfo.screen_height, -100, ScreenInfo.screen_height)
+        fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+        fence_fixture:setUserData("fence")
+    end
 end
 
 function round(x, n)
@@ -242,63 +292,93 @@ function quad_in_out(a, b, t)
 end
 
 function createCoins(n)
+    if not world or not coin_shape then return end
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, ScreenInfo.screen_width), math.random(0, ScreenInfo.screen_height), "dynamic")
+        local x_pos = math.random(50, ScreenInfo.screen_width - 50)
+        local y_pos = math.random(50, ScreenInfo.screen_height - 50)
+        local _bod = love.physics.newBody(world, x_pos, y_pos, "dynamic") 
         table.insert(EntityInfo.coin_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, coin_shape)
+        local _fixture = love.physics.newFixture(_bod, coin_shape)
         _fixture:setGroupIndex(69)
-
+        _fixture:setUserData("coin") 
+        _fixture:setSensor(true) 
     end
-
 end
 
 function createEnemies(n)
+     if not world or not enemy_shape then return end
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, ScreenInfo.screen_width), math.random(0, ScreenInfo.screen_height), "dynamic")
+        local x_pos = math.random(50, ScreenInfo.screen_width - 50)
+        local y_pos = math.random(50, ScreenInfo.screen_height - 50)
+        local _bod = love.physics.newBody(world, x_pos, y_pos, "dynamic") 
         table.insert(EntityInfo.enemies_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, enemy_shape)
+        local _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(777)
-
+        _fixture:setUserData("enemy") 
     end
-
 end
 
 function beginContact(fixture_a, fixture_b, contact)
     local body_a = fixture_a:getBody()
     local body_b = fixture_b:getBody()
-    if (fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69) then
-        local ball_body = nil
-        if (body_a == body) then
-            ball_body = body_b
-        elseif (body_b == body) then
-            ball_body = body_a
-        end
-        if ball_body then
-            for i = #EntityInfo.coin_bods, 1, -1 do
-                if EntityInfo.coin_bods[i] == ball_body then
-                    print("Deleting ball at index", i)
-                    EntityInfo.coin_bods[i]:destroy()
-                    table.remove(EntityInfo.coin_bods, i)
-                    EntityInfo.num_coins = EntityInfo.num_coins - 1
-                    PlayerInfo.player_score = PlayerInfo.player_score + 1
 
+    local playerFixture, otherFixture
+    if body_a == body then
+        playerFixture = fixture_a
+        otherFixture = fixture_b
+    elseif body_b == body then
+        playerFixture = fixture_b
+        otherFixture = fixture_a
+    else
+        return 
+    end
+
+    local otherUserData = otherFixture:getUserData()
+    local otherBody = otherFixture:getBody()
+
+    if otherUserData == "coin" then
+        if otherBody and not otherBody:isDestroyed() then
+            print("Contact with coin")
+            PlayerInfo.player_score = PlayerInfo.player_score + 1
+            for i = #EntityInfo.coin_bods, 1, -1 do
+                if EntityInfo.coin_bods[i] == otherBody then
+                    table.remove(EntityInfo.coin_bods, i)
                     break
                 end
             end
+            otherBody:destroy() 
         end
+     elseif otherUserData == "enemy" then
+        print("Contact with enemy")
+     elseif otherUserData == "fence" then
+         print("Contact with fence")
     end
 end
 
+function endContact(fA, fB, contact) end
+function preSolve(fA, fB, contact) end
+function postSolve(fA, fB, contact, impulses) end
+
+
 function newAnimation(image, width, height, duration)
+    if not image then return nil end
     local animation = {}
     animation.spriteSheet = image;
     animation.quads = {};
-    for y = 0, image:getHeight() - height, height do
-        for x = 0, image:getWidth() - width, width do
-            table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
+    local imgWidth, imgHeight = image:getDimensions()
+    for y = 0, imgHeight - height, height do
+        for x = 0, imgWidth - width, width do
+            local quadW = math.min(width, imgWidth - x)
+            local quadH = math.min(height, imgHeight - y)
+             if quadW > 0 and quadH > 0 then
+                table.insert(animation.quads, love.graphics.newQuad(x, y, quadW, quadH, imgWidth, imgHeight))
+            end
         end
     end
     animation.duration = duration or 1
     animation.currentTime = 0
+    if #animation.quads == 0 then
+         print("Warning: newAnimation created no quads for image.")
+    end
     return animation
 end
