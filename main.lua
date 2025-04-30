@@ -211,11 +211,9 @@ end
 function beginContact(fixture_a, fixture_b, contact)
     -- print(fixture_a,fixture_b, contact)
     -- print(fixture_b:getBody() == body)
-
-    if (fixture_b:getBody() == body) or (fixture_a:getBody() == body) then 
-        print(fixture_b:getGroupIndex())
-        print(fixture_a:getGroupIndex())
-    end 
+    if fixture_a:getGroupIndex() == 69 then
+        print("Player touched coin")
+    end
 end
 -- function endContact(fixture_a, fixture_b, contact)
 -- 	-- print(fixture_a,fixture_b, contact)
