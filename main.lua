@@ -1,5 +1,3 @@
-local pm = require("polyman")
-
 math.randomseed(os.time())
 
 -- globals
@@ -55,6 +53,8 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
+    animation = newAnimation(love.graphics.newImage("oldHero.png"), 16, 18, 1)
+
 end
 
 function love.draw()
@@ -109,6 +109,11 @@ function love.update(dt)
     -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
     joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
     world:update(dt)
+
+    animation.currentTime = animation.currentTime + dt
+    if animation.currentTime >= animation.duration then
+        animation.currentTime = animation.currentTime - animation.duration
+    end
 end
 
 function love.resize(w, h)
@@ -195,4 +200,21 @@ function beginContact(fixture_a, fixture_b, contact)
             end
         end
     end
+end
+
+function newAnimation(image, width, height, duration)
+    local animation = {}
+    animation.spriteSheet = image;
+    animation.quads = {};
+
+    for y = 0, image:getHeight() - height, height do
+        for x = 0, image:getWidth() - width, width do
+            table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
+        end
+    end
+
+    animation.duration = duration or 1
+    animation.currentTime = 0
+
+    return animation
 end
