@@ -1,53 +1,59 @@
 local pm = require("polyman")
 
+math.randomseed(os.time())
+
 -- globals
 screen_height = 600
 screen_width = 600
-screen_flags =  {["resizable"]= true}
+screen_flags = {
+    ["resizable"] = true
+}
 
 character_rotation = 0
 prev_x = 0
 prev_y = 0
 linear_score = 0
 player_score = 0
-num_coins = 2
+num_coins = 300
 coin_bods = {}
+num_enemies = 2
+enemies_bods = {}
+
 
 points = {}
 
 function love.load()
     -- window -- 
-    success = love.window.setMode( screen_width, screen_height, screen_flags )
-
+    success = love.window.setMode(screen_width, screen_height, screen_flags)
 
     -- physics --
-    
+
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
-    fence_body = love.physics.newBody(world,0,0,"static")
-    fence_shape = love.physics.newChainShape(true, -100,-100,screen_width,-100,screen_width,screen_height,-100,screen_height)
-    fence_fixture = love.physics.newFixture(fence_body,fence_shape)
+    fence_body = love.physics.newBody(world, 0, 0, "static")
+    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width, -100, screen_width, screen_height, -100,
+        screen_height)
+    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     body = love.physics.newBody(world, love.mouse.getX(), love.mouse.getY(), "dynamic")
-    shape = love.physics.newRectangleShape(90,90) -- collision is non-sense rn
+    shape = love.physics.newRectangleShape(90, 90) -- collision is non-sense rn
     fixture = love.physics.newFixture(body, shape)
     joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
 
-    
-
-    coin_shape = love.physics.newCircleShape(18)    
+    coin_shape = love.physics.newCircleShape(18)
     createCoins(num_coins)
-    
-    enemy_shape = love.physics.newCircleShape(18)
 
+    enemy_shape = love.physics.newCircleShape(100)
+    createEnemies(num_enemies)
     -- graphics --
     character = love.graphics.newImage("gfx/doge.png")
     image = love.graphics.newImage("gfx/coin.png")
     enemy_image = love.graphics.newImage("gfx/enemy.png")
-    
+
     character_width, character_height = character:getDimensions()
-    png_width,png_height = image:getDimensions()
+    png_width, png_height = image:getDimensions()
+    enemy_width, enemy_height = enemy_image:getDimensions()
 
 end
 
@@ -56,7 +62,7 @@ function love.draw()
     local vx, vy = body:getLinearVelocity()
     local x, y = body:getPosition()
     linear_score = round(vx ^ 2 + vy ^ 2, -4) / 10000
-    
+
     -- Calculate the correct heading angle based on velocity direction
     local heading = 0
     if linear_score > 1 then
@@ -76,9 +82,8 @@ function love.draw()
     love.graphics.print("linear_score: " .. linear_score, 0, 10)
     love.graphics.print("heading: " .. round(heading, 2), 0, 20)
     love.graphics.print("rotation: " .. round(character_rotation, 2), 0, 30)
-    love.graphics.print("score: " .. player_score, screen_width/2, 40)
+    love.graphics.print("score: " .. player_score, screen_width / 2, 40)
 
-    
     love.graphics.draw(character, -- image
     body:getX(), -- x position
     body:getY(), -- y position
@@ -87,23 +92,21 @@ function love.draw()
     character_width / 2, character_height / 2 -- origin offset (center of image)
     )
 
+    
 
-    -- debug updates --
-    -- score(linear_score)
-    
-    
-    for i=1,num_coins do
-    love.graphics.draw(image, coin_bods[i]:getX(), coin_bods[i]:getY(), 0,1,1,png_width/2, png_height/2)
+    for i = 1, num_coins do
+        love.graphics.draw(image, coin_bods[i]:getX(), coin_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
     end
-    -- print(points)
+   
 
-    -- table.insert(points,1,1)
-    -- table.insert(points,1,1)
-    
+    for i = 1,num_enemies do
+        love.graphics.draw(enemy_image, enemies_bods[i]:getX(),enemies_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
+    end
 
 end
 
 function love.update(dt)
+    -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
     joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
     world:update(dt)
 end
@@ -112,13 +115,12 @@ function love.resize(w, h)
     -- Update global dimensions
     screen_width = w
     screen_height = h
-    
+
     -- Destroy the old fence fixture
     fence_fixture:destroy()
-    
+
     -- Create a new fence with updated dimensions
-    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width + 100, -100, 
-                                           screen_width + 100, screen_height + 100, -100, screen_height + 100)
+    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width, -100, screen_width, screen_height, -100,screen_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
     fence_fixture:setUserData("fence")
 end
@@ -134,12 +136,9 @@ function round(x, n)
     return x / n
 end
 
-
-
 function lerp(a, b, t)
     return a * (1 - t) + b * t
 end
-
 
 function quad_in_out(a, b, t)
     t = math.max(0, math.min(1, t)) -- Clamp t between 0 and 1
@@ -151,94 +150,49 @@ function quad_in_out(a, b, t)
     end
 end
 
-function load()
-    -- Load image data and image
-    imageData = love.image.newImageData("gfx/apple copy.png")
-    _image = love.graphics.newImage(imageData)
-
-    -- Get the dimensions of the image
-    width, height = _image:getDimensions()
-
-    -- Create a table that will contain the points of each opaque pixel
-    -- (this is a crude method, avoided on large images)
-
-    -- points = {}
-    for x = 0, width - 1 do
-        for y = 0, height - 1 do
-
-            -- Get alpha value of pixel
-            local _, _, _, alpha = imageData:getPixel(x, y)
-
-            -- Apply a threshold to the alpha value
-            if alpha >= .5 then
-                table.insert(points, x)
-                table.insert(points, y)
-            end
-
-        end
-    end
-
-    -- Apply convex hull
-    points = pm.operations.convexHull(points)
-    cull(points)
-    return points
-    -- Apply color background
-    -- love.graphics.setBackgroundColor(0,.5,0)
-
-end
-
-function cull(array)
-    for i = 0, 24/2 +3 do
-        local rand = math.random(1, table.getn(array))
-        table.remove(array, rand)
-        table.remove(array, rand)
-    end
-end
-
 function createCoins(n)
-    for _=1,n do
-    local _bod = love.physics.newBody(world,math.random(0,screen_width), math.random(0,screen_height), "dynamic")
-    table.insert(coin_bods,1,_bod)
-    _fixture = love.physics.newFixture(_bod,coin_shape)
-    _fixture:setGroupIndex(69)
-    -- _fixture:setEnabled(true)
+    for _ = 1, n do
+        local _bod = love.physics.newBody(world, math.random(0, screen_width), math.random(0, screen_height), "dynamic")
+        table.insert(coin_bods, 1, _bod)
+        _fixture = love.physics.newFixture(_bod, coin_shape)
+        _fixture:setGroupIndex(69)
+        
     end
-    
+
 end
 
 function createEnemies(n)
-    for _=1,n do
-    local _bod = love.physics.newBody(world,math.random(0,screen_width), math.random(0,screen_height), "dynamic")
-    table.insert(coin_bods,1,_bod)
-    _fixture = love.physics.newFixture(_bod,enemy_shape)
-    _fixture:setGroupIndex(777)
-    
+    for _ = 1, n do
+        local _bod = love.physics.newBody(world, math.random(0, screen_width), math.random(0, screen_height), "dynamic")
+        table.insert(enemies_bods, 1, _bod)
+        _fixture = love.physics.newFixture(_bod, enemy_shape)
+        _fixture:setGroupIndex(777)
+
     end
-    
+
 end
+
 function beginContact(fixture_a, fixture_b, contact)
     local body_a = fixture_a:getBody()
     local body_b = fixture_b:getBody()
-    if fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69 then
-        local ball_body = nil
-        if fixture_a:getGroupIndex() == 69 then
-            ball_body = body_a
-        else
+    if (fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69) then
+        local ball_body = 0
+        if (body_a == body) then 
+            ball_body = body_b
+        elseif (body_b == body) then
             ball_body = body_b
         end
+
         for i = 1, num_coins do
-            if coin_bods[i] == ball_body and linear_score > 50 then
+            if coin_bods[i] == ball_body then
                 print("Deleting ball at index", i)
                 table.remove(coin_bods, i)
                 num_coins = num_coins - 1
-                player_score =  player_score + 1
-                drawEnemy()
+                player_score = player_score + 1
+                
                 break
+
             end
         end
     end
-end
-
-function drawEnemy()
-    love.graphics.draw(enemy_image, screen_width/2, screen_height/2, 0,1,1,0,0)
 end
