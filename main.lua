@@ -53,7 +53,7 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    animation = newAnimation(love.graphics.newImage("oldHero.png"), 16, 18, 1)
+    animation = newAnimation(love.graphics.newImage("gfx/oldHero.png"), 16, 18, 1)
 
 end
 
@@ -102,6 +102,10 @@ function love.draw()
     for i = 1,num_enemies do
         love.graphics.draw(enemy_image, enemies_bods[i]:getX(),enemies_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
     end
+
+    local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
+    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], 0, 0, 0, 4)
+
 
 end
 
