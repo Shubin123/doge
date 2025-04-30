@@ -100,7 +100,7 @@ function love.draw()
    
 
     for i = 1,num_enemies do
-        love.graphics.draw(enemy_image, enemies_bods[i]:getX(),enemies_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
+        love.graphics.draw(enemy_image, enemies_bods[i]:getX(),enemies_bods[i]:getY(), 0, 1, 1, enemy_width / 2, enemy_height / 2)
     end
 
     local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
