@@ -8,8 +8,9 @@ screen_flags =  {["resizable"]= true}
 character_rotation = 0
 prev_x = 0
 prev_y = 0
-
-num_coins = 50
+linear_score = 0
+player_score = 0
+num_coins = 2
 coin_bods = {}
 
 points = {}
@@ -38,10 +39,13 @@ function love.load()
     coin_shape = love.physics.newCircleShape(18)    
     createCoins(num_coins)
     
+    enemy_shape = love.physics.newCircleShape(18)
 
     -- graphics --
     character = love.graphics.newImage("gfx/doge.png")
     image = love.graphics.newImage("gfx/coin.png")
+    enemy_image = love.graphics.newImage("gfx/enemy.png")
+    
     character_width, character_height = character:getDimensions()
     png_width,png_height = image:getDimensions()
 
@@ -51,8 +55,8 @@ function love.draw()
     -- physics updates --
     local vx, vy = body:getLinearVelocity()
     local x, y = body:getPosition()
-    local linear_score = round(vx ^ 2 + vy ^ 2, -4) / 10000
-
+    linear_score = round(vx ^ 2 + vy ^ 2, -4) / 10000
+    
     -- Calculate the correct heading angle based on velocity direction
     local heading = 0
     if linear_score > 1 then
@@ -72,9 +76,8 @@ function love.draw()
     love.graphics.print("linear_score: " .. linear_score, 0, 10)
     love.graphics.print("heading: " .. round(heading, 2), 0, 20)
     love.graphics.print("rotation: " .. round(character_rotation, 2), 0, 30)
+    love.graphics.print("score: " .. player_score, screen_width/2, 40)
 
-    -- Draw character with correct rotation
-    -- Adjust the origin to the center of the image for proper rotation
     
     love.graphics.draw(character, -- image
     body:getX(), -- x position
@@ -131,13 +134,7 @@ function round(x, n)
     return x / n
 end
 
-function score(linear_score)
-    if linear_score > 1000 then
-        print("+")
-    elseif linear_score > 1 then
-        print("-")
-    end
-end
+
 
 function lerp(a, b, t)
     return a * (1 - t) + b * t
@@ -204,18 +201,44 @@ function createCoins(n)
     table.insert(coin_bods,1,_bod)
     _fixture = love.physics.newFixture(_bod,coin_shape)
     _fixture:setGroupIndex(69)
+    -- _fixture:setEnabled(true)
     end
     
 end
 
+function createEnemies(n)
+    for _=1,n do
+    local _bod = love.physics.newBody(world,math.random(0,screen_width), math.random(0,screen_height), "dynamic")
+    table.insert(coin_bods,1,_bod)
+    _fixture = love.physics.newFixture(_bod,enemy_shape)
+    _fixture:setGroupIndex(777)
+    
+    end
+    
+end
 function beginContact(fixture_a, fixture_b, contact)
-    -- print(fixture_a,fixture_b, contact)
-    -- print(fixture_b:getBody() == body)
-    if fixture_a:getGroupIndex() == 69 then
-        print("Player touched coin")
+    local body_a = fixture_a:getBody()
+    local body_b = fixture_b:getBody()
+    if fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69 then
+        local ball_body = nil
+        if fixture_a:getGroupIndex() == 69 then
+            ball_body = body_a
+        else
+            ball_body = body_b
+        end
+        for i = 1, num_coins do
+            if coin_bods[i] == ball_body and linear_score > 50 then
+                print("Deleting ball at index", i)
+                table.remove(coin_bods, i)
+                num_coins = num_coins - 1
+                player_score =  player_score + 1
+                drawEnemy()
+                break
+            end
+        end
     end
 end
--- function endContact(fixture_a, fixture_b, contact)
--- 	-- print(fixture_a,fixture_b, contact)
---     print(contact:getPositions())
--- end
+
+function drawEnemy()
+    love.graphics.draw(enemy_image, screen_width/2, screen_height/2, 0,1,1,0,0)
+end
