@@ -9,7 +9,7 @@ character_rotation = 0
 prev_x = 0
 prev_y = 0
 
-num_coins = 100
+num_coins = 50
 coin_bods = {}
 
 points = {}
@@ -105,6 +105,21 @@ function love.update(dt)
     world:update(dt)
 end
 
+function love.resize(w, h)
+    -- Update global dimensions
+    screen_width = w
+    screen_height = h
+    
+    -- Destroy the old fence fixture
+    fence_fixture:destroy()
+    
+    -- Create a new fence with updated dimensions
+    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width + 100, -100, 
+                                           screen_width + 100, screen_height + 100, -100, screen_height + 100)
+    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    fence_fixture:setUserData("fence")
+end
+
 function round(x, n)
     n = math.pow(10, n or 0)
     x = x * n
@@ -127,6 +142,7 @@ end
 function lerp(a, b, t)
     return a * (1 - t) + b * t
 end
+
 
 function quad_in_out(a, b, t)
     t = math.max(0, math.min(1, t)) -- Clamp t between 0 and 1
@@ -187,12 +203,19 @@ function createCoins(n)
     local _bod = love.physics.newBody(world,math.random(0,screen_width), math.random(0,screen_height), "dynamic")
     table.insert(coin_bods,1,_bod)
     _fixture = love.physics.newFixture(_bod,coin_shape)
+    _fixture:setGroupIndex(69)
     end
+    
 end
 
 function beginContact(fixture_a, fixture_b, contact)
     -- print(fixture_a,fixture_b, contact)
-    print(contact:getPositions())
+    -- print(fixture_b:getBody() == body)
+
+    if (fixture_b:getBody() == body) or (fixture_a:getBody() == body) then 
+        print(fixture_b:getGroupIndex())
+        print(fixture_a:getGroupIndex())
+    end 
 end
 -- function endContact(fixture_a, fixture_b, contact)
 -- 	-- print(fixture_a,fixture_b, contact)
