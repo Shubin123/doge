@@ -1,7 +1,7 @@
 math.randomseed(os.time())
 
 local menu = require("menu")
-
+local mymath = require("mymath")
 -- globals
 screen_height = 600
 screen_width = 600
@@ -19,8 +19,8 @@ coin_bods = {}
 num_enemies = 2
 enemies_bods = {}
 
-sprite_height = 44
-sprite_width = 69
+sprite_height = 53
+sprite_width = 39
 
 ScreenInfo = {
     screen_height = 600,
@@ -39,7 +39,7 @@ function love.load()
 
     -- physics --
 
-    world = love.physics.newWorld(0, 0)
+    world = love.physics.newWorld(0, 1000)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
@@ -66,8 +66,9 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
-    
+    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+    animation = newAnimation(love.graphics.newImage("gfx/DancingGirlSheets/hips.png"), sprite_width, sprite_height, 1, 30)
+ 
 end
 
 function love.draw()
@@ -122,7 +123,8 @@ function love.draw()
     end
 
     local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
-    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], body:getX()  , body:getY(),character_rotation,1,1, sprite_width/2, sprite_height/2)
+    print(mymath.sign(character_rotation))
+    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], body:getX()  , body:getY(),character_rotation, 1,1, sprite_width/2, sprite_height/2)
 
 
 end
