@@ -22,6 +22,13 @@ enemies_bods = {}
 sprite_height = 44
 sprite_width = 69
 
+ScreenInfo = {
+    screen_height = 600,
+    screen_width = 600,
+    screen_flags = {
+        ["resizable"] = true
+    }
+}
 points = {}
 
 State = "menu"
@@ -64,7 +71,10 @@ function love.load()
 end
 
 function love.draw()
-    menu.draw()
+    if State == "menu" then
+    menu.draw(ScreenInfo)
+    return
+    end 
 
     -- physics updates --
     local vx, vy = body:getLinearVelocity()
@@ -118,6 +128,11 @@ function love.draw()
 end
 
 function love.update(dt)
+    if State == "menu" then
+        menu.draw(ScreenInfo)
+        return
+        end 
+
     -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
     joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
     world:update(dt)
@@ -132,6 +147,8 @@ function love.resize(w, h)
     -- Update global dimensions
     screen_width = w
     screen_height = h
+    ScreenInfo.screen_width = w
+    ScreenInfo.screen_height = h
 
     -- Destroy the old fence fixture
     fence_fixture:destroy()
@@ -142,9 +159,10 @@ function love.resize(w, h)
     fence_fixture:setUserData("fence")
 end
 
+
 function love.mousepressed(x, y, button, istouch, presses)
     if State == "menu" then
-        local nextStateAction = MainMenu.mousepressed(x, y, button, ScreenInfo) 
+        local nextStateAction = menu.mousepressed(x, y, button, ScreenInfo) 
         if nextStateAction == "loading" then
             State = "loading" 
         elseif nextStateAction == "exit" then
@@ -212,6 +230,7 @@ function beginContact(fixture_a, fixture_b, contact)
             ball_body = body_b
         elseif (body_b == body) then
             ball_body = body_b
+        else return
         end
 
         for i = 1, num_coins do
