@@ -1,5 +1,7 @@
 math.randomseed(os.time())
 
+local menu = require("menu")
+
 -- globals
 screen_height = 600
 screen_width = 600
@@ -17,8 +19,12 @@ coin_bods = {}
 num_enemies = 2
 enemies_bods = {}
 
+sprite_height = 44
+sprite_width = 69
 
 points = {}
+
+State = "menu"
 
 function love.load()
     -- window -- 
@@ -35,7 +41,7 @@ function love.load()
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     body = love.physics.newBody(world, love.mouse.getX(), love.mouse.getY(), "dynamic")
-    shape = love.physics.newRectangleShape(90, 90) -- collision is non-sense rn
+    shape = love.physics.newRectangleShape(20, 20) -- collision is non-sense rn
     fixture = love.physics.newFixture(body, shape)
     joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
 
@@ -53,11 +59,13 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    animation = newAnimation(love.graphics.newImage("gfx/oldHero.png"), 16, 18, 1)
-
+    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+    
 end
 
 function love.draw()
+    menu.draw()
+
     -- physics updates --
     local vx, vy = body:getLinearVelocity()
     local x, y = body:getPosition()
@@ -84,13 +92,13 @@ function love.draw()
     love.graphics.print("rotation: " .. round(character_rotation, 2), 0, 30)
     love.graphics.print("score: " .. player_score, screen_width / 2, 40)
 
-    love.graphics.draw(character, -- image
-    body:getX(), -- x position
-    body:getY(), -- y position
-    character_rotation, -- rotation
-    1, 1, -- scale x, scale y
-    character_width / 2, character_height / 2 -- origin offset (center of image)
-    )
+    -- love.graphics.draw(character, -- image
+    -- body:getX(), -- x position
+    -- body:getY(), -- y position
+    -- character_rotation, -- rotation
+    -- 1, 1, -- scale x, scale y
+    -- character_width / 2, character_height / 2 -- origin offset (center of image)
+    -- )
 
     
 
@@ -104,7 +112,7 @@ function love.draw()
     end
 
     local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
-    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], 0, 0, 0, 4)
+    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], body:getX()  , body:getY(),character_rotation,1,1, sprite_width/2, sprite_height/2)
 
 
 end
@@ -133,6 +141,20 @@ function love.resize(w, h)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
     fence_fixture:setUserData("fence")
 end
+
+function love.mousepressed(x, y, button, istouch, presses)
+    if State == "menu" then
+        local nextStateAction = MainMenu.mousepressed(x, y, button, ScreenInfo) 
+        if nextStateAction == "loading" then
+            State = "loading" 
+        elseif nextStateAction == "exit" then
+            love.event.quit() 
+        end
+    elseif State == "game" then
+        
+    end
+end
+
 
 function round(x, n)
     n = math.pow(10, n or 0)
@@ -206,19 +228,39 @@ function beginContact(fixture_a, fixture_b, contact)
     end
 end
 
-function newAnimation(image, width, height, duration)
+function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
-    animation.spriteSheet = image;
-    animation.quads = {};
-
+    animation.spriteSheet = image
+    animation.quads = {}
+    
+    -- Calculate the total possible frames in the sprite sheet
+    local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
+    
+    -- If numFrames is not provided, use all possible frames
+    local framesToUse = numFrames or totalPossibleFrames
+    
+    -- Make sure we don't try to use more frames than are available
+    framesToUse = math.min(framesToUse, totalPossibleFrames)
+    
+    local frameCount = 0
+    
     for y = 0, image:getHeight() - height, height do
         for x = 0, image:getWidth() - width, width do
             table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
+            
+            frameCount = frameCount + 1
+            if frameCount >= framesToUse then
+                break -- Stop adding frames once we've reached the desired number
+            end
+        end
+        
+        if frameCount >= framesToUse then
+            break -- Also break from the outer loop
         end
     end
-
+    
     animation.duration = duration or 1
     animation.currentTime = 0
-
+    
     return animation
 end
