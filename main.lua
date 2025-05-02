@@ -3,206 +3,195 @@ math.randomseed(os.time())
 local menu = require("menu")
 local mymath = require("mymath")
 local effects = require("effects")
--- globals
-screen_height = 600
-screen_width = 600
-screen_flags = {
-    ["resizable"] = true
-}
+-- local mydraw = require("draw")
+local var = require("var")
+local map = require("map")
+local player = require("player")
+local mydraw = require("draw")
 
-character_rotation = 0
-prev_x = 0
-prev_y = 0
-linear_score = 0
-player_score = 0
-num_coins = 10
-coin_bods = {}
-num_enemies = 0
-enemies_bods = {}
-
-sprite_height = 10
-sprite_width = 10
-
-map_display_h = 2560
-map_display_w = 2560
-map_offset_x = 320
-map_offset_y = 320
-tile_w = 32
-tile_h = 32
-
-
-ScreenInfo = {
-    screen_height = 600,
-    screen_width = 600,
-    screen_flags = {
-        ["resizable"] = true
-    }
-}
-points = {}
-
-State = "menu"
-cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
-
+-- Game variables
+local world
+local fence_body, fence_shape, fence_fixture
+local coin_bods = {}
+local enemies_bods = {}
+local coin_shape, enemy_shape
+local image, enemy_image
+local png_width, png_height, enemy_width, enemy_height
 
 
 function love.load()
     love.mouse.setVisible(false)
     
+    -- Window setup
+    success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
     
-    -- window -- 
-    success = love.window.setMode(screen_width, screen_height, screen_flags)
-
-    -- physics --
-
-    world = love.physics.newWorld(0, 0)
+    -- Load fonts
+    statsFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
+    gameFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
+    
+    -- Initialize the menu
+    menu.load(var.ScreenInfo)
+    
+    -- Physics setup
+    world = love.physics.newWorld(0, 1000)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
-
+    
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width, -100, screen_width, screen_height, -100,
-        screen_height)
+    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
-
-    body = love.physics.newBody(world, love.mouse.getX(), love.mouse.getY(), "dynamic")
-    shape = love.physics.newRectangleShape(20, 20) -- collision is non-sense rn
-    fixture = love.physics.newFixture(body, shape)
-    -- joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
-
+    
+    -- Load map and player
+    map.load()
+    player.load(world)
+    
+    -- Coins and enemies
     coin_shape = love.physics.newCircleShape(18)
-    createCoins(num_coins)
-
+    createCoins(var.num_coins)
+    
     enemy_shape = love.physics.newCircleShape(100)
-    createEnemies(num_enemies)
-    -- graphics --
-    character = love.graphics.newImage("gfx/doge.png")
+    createEnemies(var.num_enemies)
+    
+    -- Graphics
     image = love.graphics.newImage("gfx/coin.png")
     enemy_image = love.graphics.newImage("gfx/enemy.png")
-
-    character_width, character_height = character:getDimensions()
+    
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
-    animation = newAnimation(love.graphics.newImage("gfx/DancingGirlSheets/hips.png"), sprite_width, sprite_height, 1, 30)
- 
+    body = love.physics.newBody(world, 0 ,0 ,'dynamic')
+    
+    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+
 end
 
 function love.draw()
     if State == "menu" then
-    menu.draw(ScreenInfo)
-    love.graphics.draw(cursorImage, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
-    return
-    end 
-    map:draw(256, 256)  -- Draw the map at position (50,50)
-
-    -- physics updates --
-    local vx, vy = body:getLinearVelocity()
-    local x, y = body:getPosition()
-    linear_score = round(vx ^ 2 + vy ^ 2, -4) / 10000
-
-    -- Calculate the correct heading angle based on velocity direction
-    local heading = 0
-    if linear_score > 1 then
-        heading = math.atan2(y - prev_y, x - prev_x)
-        prev_x = x
-        prev_y = y
+        menu.draw(ScreenInfo)
+        love.graphics.draw(cursorImage, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
+        return
     end
-
-    -- Smoothly interpolate between current rotation and target heading
-    -- character_rotation = quad_in_out(character_rotation, heading, 0.8) -- broken in signed axis 
-    if math.abs(heading) > 0 then
-        character_rotation = heading
+    
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+    local game_area_x = (W - var.game_width) / 2
+    local game_area_y = var.header_height
+    
+    -- Draw header
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    love.graphics.rectangle("fill", 0, 0, W, var.header_height)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Health: 100", 10, 10)
+    love.graphics.print("Points: " .. var.player_score, W - 100, 10)
+    
+    -- Draw left panel (inventory)
+    local left_panel_width = game_area_x
+    if left_panel_width > 0 then
+        love.graphics.setColor(0.3, 0.3, 0.3)
+        love.graphics.rectangle("fill", 0, var.header_height, left_panel_width, H - var.header_height)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print("Inventory", 10, var.header_height + 10)
     end
-
-    -- draw updates --
-    love.graphics.print("fps: " .. love.timer.getFPS(), 0, 0)
-    love.graphics.print("linear_score: " .. linear_score, 0, 10)
-    love.graphics.print("heading: " .. round(heading, 2), 0, 20)
-    love.graphics.print("rotation: " .. round(character_rotation, 2), 0, 30)
-    love.graphics.print("score: " .. player_score, screen_width / 2, 40)
-
-    -- love.graphics.draw(character, -- image
-    -- body:getX(), -- x position
-    -- body:getY(), -- y position
-    -- character_rotation, -- rotation
-    -- 1, 1, -- scale x, scale y
-    -- character_width / 2, character_height / 2 -- origin offset (center of image)
-    -- )
-
-    for i = 1, num_coins do
-        love.graphics.draw(image, coin_bods[i]:getX(), coin_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
+    
+    -- Draw right panel (map)
+    local right_panel_x = game_area_x + var.game_width
+    local right_panel_width = W - right_panel_x
+    if right_panel_width > 0 then
+        love.graphics.setColor(0.3, 0.3, 0.3)
+        love.graphics.rectangle("fill", right_panel_x, var.header_height, right_panel_width, H - var.header_height)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print("Map", right_panel_x + 10, var.header_height + 10)
     end
-   
-
-    for i = 1,num_enemies do
-        love.graphics.draw(enemy_image, enemies_bods[i]:getX(),enemies_bods[i]:getY(), 0, 1, 1, enemy_width / 2, enemy_height / 2)
+    
+    -- Draw game area
+    love.graphics.setScissor(game_area_x, game_area_y, var.game_width, var.game_height)
+    
+    -- Draw map (only visible tiles)
+    -- map:draw(game_area_x, game_area_y, 1)
+    
+    -- Draw coins
+    for i = 1, var.num_coins do
+        local px, py = coin_bods[i]:getX(), coin_bods[i]:getY()
+        love.graphics.draw(image, game_area_x + px, game_area_y + py, 0, 1, 1, png_width / 2, png_height / 2)
     end
-
+    
+    -- Draw enemies
+    for i = 1, var.num_enemies do
+        local px, py = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+        love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 1, 1, enemy_width / 2, enemy_height / 2)
+    end
+    
+    -- Draw character
+    local px, py = body:getX(), body:getY()
     local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
-    print(mymath.sign(character_rotation))
-    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], body:getX()  , body:getY(),character_rotation, 1,1, sprite_width/2, sprite_height/2)
-
-    -- Draw any active effects
-    effects.draw()
+    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], game_area_x + px, game_area_y + py, var.character_rotation, 1, 1, var.sprite_width / 2, var.sprite_height / 2)
+    
+    -- Reset scissor
+    love.graphics.setScissor()
+    
+    -- Draw white borders
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("line", 0, 0, W, var.header_height)
+    if left_panel_width > 0 then
+        love.graphics.rectangle("line", 0, var.header_height, left_panel_width, H - var.header_height)
+    end
+    if right_panel_width > 0 then
+        love.graphics.rectangle("line", right_panel_x, var.header_height, right_panel_width, H - var.header_height)
+    end
+    love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
+    
+    -- Debug info
+    love.graphics.print("State: " .. var.State, 10, 70)
+    -- mydraw.mydraw()
 end
 
 function love.update(dt)
     if State == "menu" then
-        menu.draw(ScreenInfo)
+        menu.update(dt)
         return
-    end 
-
-    -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
-    -- joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
+    elseif State == "loading" then
+        State = "game"
+    end
+    
     world:update(dt)
-
-    animation.currentTime = animation.currentTime + dt
-    if animation.currentTime >= animation.duration then
-        animation.currentTime = animation.currentTime - animation.duration
+    
+    if State == "game" then
+        player.update(dt)
+    end
+    
+    if love.mouse.isDown(1) then
+        local x, y = love.mouse.getPosition()
+        effects.newHitMarker(x, y)
     end
 end
 
 function love.resize(w, h)
-    -- Update global dimensions
-    screen_width = w
-    screen_height = h
-    ScreenInfo.screen_width = w
-    ScreenInfo.screen_height = h
-
-    -- Destroy the old fence fixture
-    fence_fixture:destroy()
-
-    -- Create a new fence with updated dimensions
-    fence_shape = love.physics.newChainShape(true, -100, -100, screen_width, -100, screen_width, screen_height, -100,screen_height)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
-    fence_fixture:setUserData("fence")
+    var.screen_width = w
+    var.screen_height = h
+    var.ScreenInfo.screen_width = w
+    var.ScreenInfo.screen_height = h
 end
-
 
 function love.mousepressed(x, y, button, istouch, presses)
     if State == "menu" then
-        local nextStateAction = menu.mousepressed(x, y, button, ScreenInfo) 
+        local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
         if nextStateAction == "loading" then
-            State = "game"  -- Changed from "loading" to "game" to make it work immediately
+            State = "loading"
         elseif nextStateAction == "exit" then
-            love.event.quit() 
-        end
-    elseif State == "game" then
-        -- Show hitmarker effect when player clicks during the game
-        if button == 1 then  -- Left mouse button
-            effects.showHitmarker(x, y)
+            love.event.quit()
         end
     end
 end
 
+function love.keypressed(key, scancode, isrepeat)
+    if State == "game" and key == "space" then
+        player.body:applyLinearImpulse(0, -1000)
+    end
+end
 
 function round(x, n)
     n = math.pow(10, n or 0)
     x = x * n
-    if x >= 0 then
-        x = math.floor(x + 0.5)
-    else
-        x = math.ceil(x - 0.5)
-    end
+    if x >= 0 then x = math.floor(x + 0.5) else x = math.ceil(x - 0.5) end
     return x / n
 end
 
@@ -211,7 +200,7 @@ function lerp(a, b, t)
 end
 
 function quad_in_out(a, b, t)
-    t = math.max(0, math.min(1, t)) -- Clamp t between 0 and 1
+    t = math.max(0, math.min(1, t))
     if t <= 0.5 then
         return lerp(a, b, 2 * t * t)
     else
@@ -222,57 +211,23 @@ end
 
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, screen_width), math.random(0, screen_height), "dynamic")
+        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height), "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
         _fixture:setGroupIndex(69)
-        
     end
-
 end
 
 function createEnemies(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, screen_width), math.random(0, screen_height), "dynamic")
+        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height), "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(777)
-
-    end
-
-end
-
-function beginContact(fixture_a, fixture_b, contact)
-    local body_a = fixture_a:getBody()
-    local body_b = fixture_b:getBody()
-    if (fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69) then
-        local ball_body = 0
-        if (body_a == body) then 
-            ball_body = body_b
-        elseif (body_b == body) then
-            ball_body = body_b
-        else return
-        end
-
-        for i = 1, num_coins do
-            if coin_bods[i] == ball_body then
-                print("Deleting ball at index", i)
-                table.remove(coin_bods, i)
-                num_coins = num_coins - 1
-                player_score = player_score + 1
-                
-                -- Display hitmarker at the position of collision
-                local coinX, coinY = ball_body:getPosition()
-                effects.showHitmarker(coinX, coinY)
-                
-                break
-
-            end
-        end
     end
 end
 
-function newAnimation(image, width, height, duration, numFrames)
+function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
     animation.spriteSheet = image
     animation.quads = {}
@@ -309,101 +264,29 @@ function newAnimation(image, width, height, duration, numFrames)
     return animation
 end
 
-function newTiles(tilesetImage, tileWidth, tileHeight)
-    local tiles = {}
-    tiles.tilesetImage = tilesetImage
-    tiles.tileWidth = tileWidth
-    tiles.tileHeight = tileHeight
-    tiles.quads = {}
-    
-    -- Calculate the number of tiles in the tileset
-    local tilesWide = math.floor(tilesetImage:getWidth() / tileWidth)
-    local tilesHigh = math.floor(tilesetImage:getHeight() / tileHeight)
-    
-    -- Create quads for each tile in the tileset
-    local tileCount = 0
-    for y = 0, tilesetImage:getHeight() - tileHeight, tileHeight do
-        for x = 0, tilesetImage:getWidth() - tileWidth, tileWidth do
-            tileCount = tileCount + 1
-            tiles.quads[tileCount] = love.graphics.newQuad(
-                x, y, tileWidth, tileHeight, tilesetImage:getDimensions()
-            )
+function beginContact(fixture_a, fixture_b, contact)
+    local body_a = fixture_a:getBody()
+    local body_b = fixture_b:getBody()
+    if fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69 then
+        local ball_body
+        if body_a == player.body then
+            ball_body = body_b
+        elseif body_b == player.body then
+            ball_body = body_a
+        else return
         end
-    end
-    
-    return tiles
-end
-
-function createMap(tiles, mapWidth, mapHeight, tileData)
-    local map = {}
-    map.tiles = tiles
-    map.width = mapWidth
-    map.height = mapHeight
-    
-    -- If tileData is provided, use it; otherwise create an empty map
-    map.tileData = tileData or {}
-    
-    -- If tileData wasn't provided, initialize with zeros (empty tiles)
-    if not tileData then
-        for y = 1, mapHeight do
-            map.tileData[y] = {}
-            for x = 1, mapWidth do
-                map.tileData[y][x] = 0 -- 0 typically represents empty space or a default tile
+        for i = 1, #coin_bods do
+            if coin_bods[i] == ball_body then
+                print("Deleting ball at index", i)
+                table.remove(coin_bods, i)
+                var.num_coins = var.num_coins - 1
+                var.player_score = var.player_score + 1
+                break
             end
         end
     end
-    
-    -- Function to draw the map
-    map.draw = function(self, x, y, scale)
-        x = x or 0
-        y = y or 0
-        scale = scale or 1
-        
-        for row = 1, self.height do
-            for col = 1, self.width do
-                local tileId = self.tileData[row][col]
-                if tileId > 0 and self.tiles.quads[tileId] then
-                    love.graphics.draw(
-                        self.tiles.tilesetImage,
-                        self.tiles.quads[tileId],
-                        x + (col-1) * self.tiles.tileWidth * scale,
-                        y + (row-1) * self.tiles.tileHeight * scale,
-                        0,
-                        scale,
-                        scale
-                    )
-                end
-            end
-        end
-    end
-    
-    -- Function to set a tile at a specific position
-    map.setTile = function(self, x, y, tileId)
-        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
-            self.tileData[y][x] = tileId
-        end
-    end
-    
-    -- Function to get a tile at a specific position
-    map.getTile = function(self, x, y)
-        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
-            return self.tileData[y][x]
-        end
-        return 0 -- Return 0 (empty) for out-of-bounds coordinates
-    end
-    
-    return map
 end
 
-function draw_map()
-    for y=1, map_display_h do
-       for x=1, map_display_w do                                                         
-          love.graphics.draw( 
-             tile[map[y+map_y][x+map_x]], 
-             (x*tile_w)+map_offset_x, 
-             (y*tile_h)+map_offset_y )
-       end
-    end
- end
- 
- 
+function endContact(a, b, contact) end
+function preSolve(a, b, contact) end
+function postSolve(a, b, contact, normalimpulse, tangentimpulse) end

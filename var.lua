@@ -1,0 +1,45 @@
+local var = {}
+-- globals
+var.screen_height = 600
+var.screen_width = 600
+var.screen_flags = {
+    ["resizable"] = true
+}
+
+var.character_rotation = 0
+var.prev_x = 0
+var.prev_y = 0
+var.linear_score = 0
+var.player_score = 0
+var.num_coins = 10
+var.coin_bods = {}
+var.num_enemies = 0
+var.enemies_bods = {}
+
+var.sprite_height = 10
+var.sprite_width = 10
+
+ var.map_display_h = 2560
+ var.map_display_w = 2560
+ var.map_offset_x = 32
+ var.map_offset_y = 32
+ var.tile_w = 32
+ var.tile_h = 32
+
+ var.ScreenInfo = {
+    screen_height = 600,
+    screen_width = 600,
+    screen_flags = {
+        ["resizable"] = true
+    }
+}
+ var.points = {}
+
+ var.State = "menu"
+ var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
+
+ var.game_width = 400
+ var.game_height = 400
+ var.header_height = 50
+
+return var
