@@ -81,14 +81,9 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
-    -- animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Attack01.png"), sprite_width, sprite_height, 1, 6)
-    tile = newTiles(love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png"), tile_w, tile_h)
-    map = createMap(tile, map_display_w, map_display_w)
-    for i = 1, 10 do
-        map:setTile(i, 5, 2)  -- Place tile #2 in a horizontal line
-    end
-
+    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+    animation = newAnimation(love.graphics.newImage("gfx/DancingGirlSheets/hips.png"), sprite_width, sprite_height, 1, 30)
+ 
 end
 
 function love.draw()
@@ -146,14 +141,15 @@ function love.draw()
     print(mymath.sign(character_rotation))
     love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], body:getX()  , body:getY(),character_rotation, 1,1, sprite_width/2, sprite_height/2)
 
-
+    -- Draw any active effects
+    effects.draw()
 end
 
 function love.update(dt)
     if State == "menu" then
         menu.draw(ScreenInfo)
         return
-        end 
+    end 
 
     -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
     -- joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
@@ -163,11 +159,6 @@ function love.update(dt)
     if animation.currentTime >= animation.duration then
         animation.currentTime = animation.currentTime - animation.duration
     end
-    if love.mouse.isDown(1) then
-		print("mouse down")
-        local x, y = love.mouse.getPosition()
-        effects.newHitMarker(x,y)
-	end	
 end
 
 function love.resize(w, h)
@@ -191,12 +182,15 @@ function love.mousepressed(x, y, button, istouch, presses)
     if State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, ScreenInfo) 
         if nextStateAction == "loading" then
-            State = "loading" 
+            State = "game"  -- Changed from "loading" to "game" to make it work immediately
         elseif nextStateAction == "exit" then
             love.event.quit() 
         end
     elseif State == "game" then
-        
+        -- Show hitmarker effect when player clicks during the game
+        if button == 1 then  -- Left mouse button
+            effects.showHitmarker(x, y)
+        end
     end
 end
 
@@ -266,6 +260,10 @@ function beginContact(fixture_a, fixture_b, contact)
                 table.remove(coin_bods, i)
                 num_coins = num_coins - 1
                 player_score = player_score + 1
+                
+                -- Display hitmarker at the position of collision
+                local coinX, coinY = ball_body:getPosition()
+                effects.showHitmarker(coinX, coinY)
                 
                 break
 
