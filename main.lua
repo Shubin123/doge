@@ -2,6 +2,7 @@ math.randomseed(os.time())
 
 local menu = require("menu")
 local mymath = require("mymath")
+local effects = require("effects")
 -- globals
 screen_height = 600
 screen_width = 600
@@ -14,13 +15,21 @@ prev_x = 0
 prev_y = 0
 linear_score = 0
 player_score = 0
-num_coins = 300
+num_coins = 10
 coin_bods = {}
-num_enemies = 2
+num_enemies = 0
 enemies_bods = {}
 
-sprite_height = 53
-sprite_width = 39
+sprite_height = 10
+sprite_width = 10
+
+map_display_h = 2560
+map_display_w = 2560
+map_offset_x = 320
+map_offset_y = 320
+tile_w = 32
+tile_h = 32
+
 
 ScreenInfo = {
     screen_height = 600,
@@ -32,14 +41,20 @@ ScreenInfo = {
 points = {}
 
 State = "menu"
+cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
+
+
 
 function love.load()
+    love.mouse.setVisible(false)
+    
+    
     -- window -- 
     success = love.window.setMode(screen_width, screen_height, screen_flags)
 
     -- physics --
 
-    world = love.physics.newWorld(0, 1000)
+    world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
@@ -50,7 +65,7 @@ function love.load()
     body = love.physics.newBody(world, love.mouse.getX(), love.mouse.getY(), "dynamic")
     shape = love.physics.newRectangleShape(20, 20) -- collision is non-sense rn
     fixture = love.physics.newFixture(body, shape)
-    joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
+    -- joint = love.physics.newMouseJoint(body, love.mouse.getPosition())
 
     coin_shape = love.physics.newCircleShape(18)
     createCoins(num_coins)
@@ -66,16 +81,23 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
-    animation = newAnimation(love.graphics.newImage("gfx/DancingGirlSheets/hips.png"), sprite_width, sprite_height, 1, 30)
- 
+    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+    -- animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Attack01.png"), sprite_width, sprite_height, 1, 6)
+    tile = newTiles(love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png"), tile_w, tile_h)
+    map = createMap(tile, map_display_w, map_display_w)
+    for i = 1, 10 do
+        map:setTile(i, 5, 2)  -- Place tile #2 in a horizontal line
+    end
+
 end
 
 function love.draw()
     if State == "menu" then
     menu.draw(ScreenInfo)
+    love.graphics.draw(cursorImage, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
     return
     end 
+    map:draw(256, 256)  -- Draw the map at position (50,50)
 
     -- physics updates --
     local vx, vy = body:getLinearVelocity()
@@ -111,8 +133,6 @@ function love.draw()
     -- character_width / 2, character_height / 2 -- origin offset (center of image)
     -- )
 
-    
-
     for i = 1, num_coins do
         love.graphics.draw(image, coin_bods[i]:getX(), coin_bods[i]:getY(), 0, 1, 1, png_width / 2, png_height / 2)
     end
@@ -136,13 +156,18 @@ function love.update(dt)
         end 
 
     -- love.graphics.draw(love.graphics.newImage("gfx/apple.png"))
-    joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
+    -- joint:setTarget(love.mouse.getPosition()) -- if mobile use love.touch.getPosition() -- can be an array with multiple touch points id = love.touch.getTouches()
     world:update(dt)
 
     animation.currentTime = animation.currentTime + dt
     if animation.currentTime >= animation.duration then
         animation.currentTime = animation.currentTime - animation.duration
     end
+    if love.mouse.isDown(1) then
+		print("mouse down")
+        local x, y = love.mouse.getPosition()
+        effects.newHitMarker(x,y)
+	end	
 end
 
 function love.resize(w, h)
@@ -285,3 +310,102 @@ function newAnimation(image, width, height, duration, numFrames)
     
     return animation
 end
+
+function newTiles(tilesetImage, tileWidth, tileHeight)
+    local tiles = {}
+    tiles.tilesetImage = tilesetImage
+    tiles.tileWidth = tileWidth
+    tiles.tileHeight = tileHeight
+    tiles.quads = {}
+    
+    -- Calculate the number of tiles in the tileset
+    local tilesWide = math.floor(tilesetImage:getWidth() / tileWidth)
+    local tilesHigh = math.floor(tilesetImage:getHeight() / tileHeight)
+    
+    -- Create quads for each tile in the tileset
+    local tileCount = 0
+    for y = 0, tilesetImage:getHeight() - tileHeight, tileHeight do
+        for x = 0, tilesetImage:getWidth() - tileWidth, tileWidth do
+            tileCount = tileCount + 1
+            tiles.quads[tileCount] = love.graphics.newQuad(
+                x, y, tileWidth, tileHeight, tilesetImage:getDimensions()
+            )
+        end
+    end
+    
+    return tiles
+end
+
+function createMap(tiles, mapWidth, mapHeight, tileData)
+    local map = {}
+    map.tiles = tiles
+    map.width = mapWidth
+    map.height = mapHeight
+    
+    -- If tileData is provided, use it; otherwise create an empty map
+    map.tileData = tileData or {}
+    
+    -- If tileData wasn't provided, initialize with zeros (empty tiles)
+    if not tileData then
+        for y = 1, mapHeight do
+            map.tileData[y] = {}
+            for x = 1, mapWidth do
+                map.tileData[y][x] = 0 -- 0 typically represents empty space or a default tile
+            end
+        end
+    end
+    
+    -- Function to draw the map
+    map.draw = function(self, x, y, scale)
+        x = x or 0
+        y = y or 0
+        scale = scale or 1
+        
+        for row = 1, self.height do
+            for col = 1, self.width do
+                local tileId = self.tileData[row][col]
+                if tileId > 0 and self.tiles.quads[tileId] then
+                    love.graphics.draw(
+                        self.tiles.tilesetImage,
+                        self.tiles.quads[tileId],
+                        x + (col-1) * self.tiles.tileWidth * scale,
+                        y + (row-1) * self.tiles.tileHeight * scale,
+                        0,
+                        scale,
+                        scale
+                    )
+                end
+            end
+        end
+    end
+    
+    -- Function to set a tile at a specific position
+    map.setTile = function(self, x, y, tileId)
+        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
+            self.tileData[y][x] = tileId
+        end
+    end
+    
+    -- Function to get a tile at a specific position
+    map.getTile = function(self, x, y)
+        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
+            return self.tileData[y][x]
+        end
+        return 0 -- Return 0 (empty) for out-of-bounds coordinates
+    end
+    
+    return map
+end
+
+function draw_map()
+    for y=1, map_display_h do
+       for x=1, map_display_w do                                                         
+          love.graphics.draw( 
+             tile[map[y+map_y][x+map_x]], 
+             (x*tile_w)+map_offset_x, 
+             (y*tile_h)+map_offset_y )
+       end
+    end
+ end
+ 
+ 
