@@ -1,5 +1,6 @@
 draw = {}
 local var = require("var")
+local player = require("player")
 function draw.mydraw()
     if State == "menu" then
         menu.draw(var.ScreenInfo)
@@ -46,20 +47,21 @@ function draw.mydraw()
     
     -- Draw coins
     for i = 1, var.num_coins do
-        local px, py = var.coin_bods[i]:getX(),var.coin_bods[i]:getY()
-        love.graphics.draw(var.image, game_area_x + px, game_area_y + py, 0, 1, 1,var.png_width / 2, var.png_height / 2)
+        local px, py = coin_bods[i]:getX(),coin_bods[i]:getY()
+        love.graphics.draw(image, game_area_x + px, game_area_y + py, 0, 1, 1, png_width / 2,  png_height / 2)
     end
     
     -- Draw enemies
     for i = 1, var.num_enemies do
         local px, py = var.enemies_bods[i]:getX(), var.enemies_bods[i]:getY()
-        love.graphics.draw(var.enemy_image, game_area_x + px, game_area_y + py, 0, 1, 1, var.enemy_width / 2, var.enemy_height / 2)
+        love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 1, 1, enemy_width / 2, enemy_height / 2)
     end
     
     -- Draw character
-    local px, py = body:getX(), body:getY()
-    local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
-    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum], game_area_x + px, game_area_y + py, var.character_rotation, 1, 1, var.sprite_width / 2, var.sprite_height / 2)
+    -- local px, py = body:getX(), body:getY()
+    -- local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
+    -- print(animation.currentTime)
+    -- love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum], game_area_x + px, game_area_y + py, var.character_rotation, 1, 1, var.sprite_width / 2, var.sprite_height / 2)
     
     -- Reset scissor
     love.graphics.setScissor()

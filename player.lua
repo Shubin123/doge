@@ -35,7 +35,7 @@ function player.load(world)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.character = love.graphics.newImage("gfx/doge.png")
     player.width, player.height = player.character:getDimensions()
-    player.animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 1, 30)
+    player.animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 0.1, 30)
 end
 
 function player.update(dt)
