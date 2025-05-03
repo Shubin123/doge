@@ -89,17 +89,34 @@ function map.load()
         end
     end
 
-
-    local tilesetImage2 = love.graphics.newImage("gfx/TileSet/TX Tileset Wall.png")
     
-    -- for i = 1, 20 do
-    --     map.map:setTile(i, 10, 30)
+
+    -- local tilesetImage2 = love.graphics.newImage("gfx/TileSet/TX Tileset Wall.png")
+    -- map.tiles2 = newTiles(tilesetImage2, 128,160)
+    -- map.map2 = createMap(map.tiles2, var.map_display_w, var.map_display_h)
+    
+    -- for x = 1, 5 do
+    --     for y = 1,5 do
+    --         map.map2:setTile(x, y, math.random(1,5))
+    --     end
     -- end
-    
+
+
+    local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
+    map.tiles3 = newTiles(tilesetImage3, 98,128)
+    map.map3 = createMap(map.tiles3, var.map_display_w, var.map_display_h)
+    for x = 1, 5 do
+        for y = 1,5 do
+            map.map3:setTile(x, y, 10)
+        end
+    end
+
+    -- print(map.map.tileData)
+    -- print(map.map2.tileData)
 end
 
-function map.getMap()
-    return map.map
-end
+-- function map.getMap()
+--     return map.map
+-- end
 
 return map

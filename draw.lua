@@ -46,6 +46,10 @@ function draw.mydraw()
     -- Draw map (only visible tiles)
     -- print(game_area_x,game_area_y)
     map.map:draw(game_area_x, game_area_y, 1)
+    -- map.map2:draw(game_area_x, game_area_y, 1)
+    
+    -- map.map3:draw(game_area_x, game_area_y, 1)
+    
     
     -- Draw coins
     for i = 1, var.num_coins do

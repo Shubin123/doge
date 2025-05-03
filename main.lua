@@ -41,6 +41,9 @@ function love.load()
     fence_shape = love.physics.newChainShape(true, game_area_x_offset, var.header_height, var.game_width + game_area_x_offset, var.header_height, var.game_width + game_area_x_offset , var.game_height, game_area_x_offset, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
     
+    
+
+
     -- Load map and player
     map.load()
     player.load(world)
@@ -70,8 +73,17 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
+    
     mydraw.mydraw()
-    player.draw()
+    if player.body:getX() > 200 or player.body:getX() < 175  or  player.body:getY()  > 190  or player.body:getY()  < 130 then
+        
+        map.map3:draw(100, game_area_y, 1)
+        player.draw()
+    else 
+        player.draw()
+        map.map3:draw(100, game_area_y, 1)
+        
+    end
 end
 
 function love.update(dt)
@@ -208,7 +220,9 @@ function beginContact(fixture_a, fixture_b, contact)
         for i = 1, #coin_bods do
             if coin_bods[i] == ball_body then
                 print("Deleting ball at index", i)
+                coin_bods[i]:destroy()
                 table.remove(coin_bods, i)
+
                 var.num_coins = var.num_coins - 1
                 var.player_score = var.player_score + 1
                 break
