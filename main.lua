@@ -37,7 +37,8 @@ function love.load()
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
     
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0, var.game_height)
+    local game_area_x_offset = (love.graphics.getWidth() - var.game_width) / 2 - 20
+    fence_shape = love.physics.newChainShape(true, game_area_x_offset, var.header_height, var.game_width + game_area_x_offset, var.header_height, var.game_width + game_area_x_offset , var.game_height, game_area_x_offset, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
     
     -- Load map and player
