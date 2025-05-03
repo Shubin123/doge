@@ -77,12 +77,25 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
 end
 
 function map.load()
+    
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
+    
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-    for i = 1, 10 do
-        map.map:setTile(i, 5, 2)
+    for x = 1, 26 do 
+        for y = 1, 26 do
+            print(x)
+            map.map:setTile(x, y, math.random(1,200))
+        end
     end
+
+
+    local tilesetImage2 = love.graphics.newImage("gfx/TileSet/TX Tileset Wall.png")
+
+    -- for i = 1, 20 do
+    --     map.map:setTile(i, 10, 30)
+    -- end
+    
 end
 
 function map.getMap()

@@ -58,9 +58,9 @@ function love.load()
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    body = love.physics.newBody(world, 0 ,0 ,'dynamic')
+    -- body = love.physics.newBody(world, 0 ,0 ,'dynamic')
     
-    animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 0.1, 30)
+    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 2, 30)
 
 end
 local W = love.graphics.getWidth()
@@ -69,27 +69,23 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
-    local px, py = body:getX(), body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
-    print(#player.animation.quads)
-    love.graphics.draw(animation.spriteSheet, player.animation.quads[spriteNum], game_area_x + px, game_area_y + py, var.character_rotation, 1, 1, var.sprite_width / 2, var.sprite_height / 2)
-    
     mydraw.mydraw()
+    player.draw()
 end
 
 function love.update(dt)
     if State == "menu" then
         menu.update(dt)
-        return
+        -- return
     elseif State == "loading" then
         State = "game"
     end
     
     world:update(dt)
     
-    if State == "game" then
-        player.update(dt)
-    end
+    -- if State == "game" then
+    player.update(dt)
+    -- end
     
     if love.mouse.isDown(1) then
         local x, y = love.mouse.getPosition()

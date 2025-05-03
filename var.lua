@@ -11,7 +11,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 10
+var.num_coins = 0
 var.coin_bods = {}
 var.num_enemies = 0
 var.enemies_bods = {}
@@ -23,8 +23,12 @@ var.sprite_width = 10
  var.map_display_w = 2560
  var.map_offset_x = 32
  var.map_offset_y = 32
- var.tile_w = 32
- var.tile_h = 32
+--  var.tile_w = 128
+--  var.tile_h = 160
+
+ var.tile_w = 16
+ var.tile_h = 16
+
 
  var.ScreenInfo = {
     screen_height = 600,

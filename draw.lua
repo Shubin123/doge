@@ -1,6 +1,7 @@
 draw = {}
 local var = require("var")
 local player = require("player")
+local map = require("map")
 function draw.mydraw()
     if State == "menu" then
         menu.draw(var.ScreenInfo)
@@ -43,7 +44,8 @@ function draw.mydraw()
     love.graphics.setScissor(game_area_x, game_area_y, var.game_width, var.game_height)
     
     -- Draw map (only visible tiles)
-    -- map:draw(game_area_x, game_area_y, 1)
+    -- print(game_area_x,game_area_y)
+    map.map:draw(game_area_x, game_area_y, 1)
     
     -- Draw coins
     for i = 1, var.num_coins do
