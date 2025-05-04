@@ -32,12 +32,12 @@ end
 
 function player.load(world)
     player.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")
-    player.shape = love.physics.newRectangleShape(20, 20)
+    player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.character = love.graphics.newImage("gfx/doge.png")
     player.width, player.height = player.character:getDimensions()
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
-    -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
+    
     player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
 end
 
@@ -48,7 +48,7 @@ function player.update(dt)
     -- end
     
     -- Movement configuration
-    local maxSpeed = 500
+    local maxSpeed = 300
     local acceleration = 3000
     local friction = 0.85  -- Lower value = more friction
     
@@ -155,7 +155,7 @@ function player.draw()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
     -- print( player.animation.duration)
-    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, var.sprite_width / 2, var.sprite_height / 2)
+    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -var.sprite_width / 2, 0)
 end
 
 function player.getPosition()

@@ -15,55 +15,58 @@ local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
 local coin_shape, enemy_shape
-image, enemy_image=0
+image, enemy_image = 0
 png_width, png_height, enemy_width, enemy_height = 0
-
 
 function love.load()
     love.mouse.setVisible(false)
-    
+
     -- Window setup
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
-    
+
     -- Load fonts
     statsFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
     gameFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
-    
+
     -- Initialize the menu
     menu.load(var.ScreenInfo)
-    
+
     -- Physics setup
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
-    
+
     fence_body = love.physics.newBody(world, 0, 0, "static")
     local game_area_x_offset = (love.graphics.getWidth() - var.game_width) / 2 - 20
-    fence_shape = love.physics.newChainShape(true, game_area_x_offset, var.header_height, var.game_width + game_area_x_offset, var.header_height, var.game_width + game_area_x_offset , var.game_height, game_area_x_offset, var.game_height)
+    fence_shape = love.physics.newChainShape(true, game_area_x_offset, var.header_height,
+        var.game_width + game_area_x_offset, var.header_height, var.game_width + game_area_x_offset, var.game_height,
+        game_area_x_offset, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
-    
-    
 
+    arch_body = love.physics.newBody(world, 180, 180, "static")
+    arch_shape = love.physics.newRectangleShape(1, 1)
+    love.physics.newFixture(arch_body, arch_shape)
+    -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
 
     -- Load map and player
     map.load()
     player.load(world)
-    
+
     -- Coins and enemies
     coin_shape = love.physics.newCircleShape(18)
     createCoins(var.num_coins)
-    
+
     enemy_shape = love.physics.newCircleShape(100)
     createEnemies(var.num_enemies)
-    
+
     -- Graphics
     image = love.graphics.newImage("gfx/coin.png")
     enemy_image = love.graphics.newImage("gfx/enemy.png")
-    
+
     png_width, png_height = image:getDimensions()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
     -- body = love.physics.newBody(world, 0 ,0 ,'dynamic')
-    
+
     -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 2, 30)
 
 end
@@ -73,16 +76,16 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
-    
+
     mydraw.mydraw()
-    if player.body:getX() > 200 or player.body:getX() < 175  or  player.body:getY()  > 190  or player.body:getY()  < 130 then
-        
+    if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 190 or player.body:getY() < 140 then
+
         map.map3:draw(100, game_area_y, 1)
         player.draw()
-    else 
+    else
         player.draw()
         map.map3:draw(100, game_area_y, 1)
-        
+
     end
 end
 
@@ -93,13 +96,13 @@ function love.update(dt)
     elseif State == "loading" then
         State = "game"
     end
-    
+
     world:update(dt)
-    
+
     -- if State == "game" then
     player.update(dt)
     -- end
-    
+
     if love.mouse.isDown(1) then
         local x, y = love.mouse.getPosition()
         effects.newHitMarker(x, y)
@@ -133,7 +136,11 @@ end
 function round(x, n)
     n = math.pow(10, n or 0)
     x = x * n
-    if x >= 0 then x = math.floor(x + 0.5) else x = math.ceil(x - 0.5) end
+    if x >= 0 then
+        x = math.floor(x + 0.5)
+    else
+        x = math.ceil(x - 0.5)
+    end
     return x / n
 end
 
@@ -153,7 +160,8 @@ end
 
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height), "dynamic")
+        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height),
+            "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
         _fixture:setGroupIndex(69)
@@ -162,7 +170,8 @@ end
 
 function createEnemies(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height), "dynamic")
+        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height),
+            "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(777)
@@ -173,36 +182,36 @@ function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
     animation.spriteSheet = image
     animation.quads = {}
-    
+
     -- Calculate the total possible frames in the sprite sheet
     local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
-    
+
     -- If numFrames is not provided, use all possible frames
     local framesToUse = numFrames or totalPossibleFrames
-    
+
     -- Make sure we don't try to use more frames than are available
     framesToUse = math.min(framesToUse, totalPossibleFrames)
-    
+
     local frameCount = 0
-    
+
     for y = 0, image:getHeight() - height, height do
         for x = 0, image:getWidth() - width, width do
             table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
-            
+
             frameCount = frameCount + 1
             if frameCount >= framesToUse then
                 break -- Stop adding frames once we've reached the desired number
             end
         end
-        
+
         if frameCount >= framesToUse then
             break -- Also break from the outer loop
         end
     end
-    
+
     animation.duration = duration or 1
     animation.currentTime = 0
-    
+
     return animation
 end
 
@@ -215,7 +224,8 @@ function beginContact(fixture_a, fixture_b, contact)
             ball_body = body_b
         elseif body_b == player.body then
             ball_body = body_a
-        else return
+        else
+            return
         end
         for i = 1, #coin_bods do
             if coin_bods[i] == ball_body then
@@ -231,6 +241,9 @@ function beginContact(fixture_a, fixture_b, contact)
     end
 end
 
-function endContact(a, b, contact) end
-function preSolve(a, b, contact) end
-function postSolve(a, b, contact, normalimpulse, tangentimpulse) end
+function endContact(a, b, contact)
+end
+function preSolve(a, b, contact)
+end
+function postSolve(a, b, contact, normalimpulse, tangentimpulse)
+end
