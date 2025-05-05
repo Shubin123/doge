@@ -36,15 +36,12 @@ function love.load()
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    local game_area_x_offset = (love.graphics.getWidth() - var.game_width) / 2 - 20
-    fence_shape = love.physics.newChainShape(true, game_area_x_offset, var.header_height,
-        var.game_width + game_area_x_offset, var.header_height, var.game_width + game_area_x_offset, var.game_height,
-        game_area_x_offset, var.game_height)
+
+    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0,
+        var.game_width, var.game_height, 0, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
-    arch_body = love.physics.newBody(world, 180, 180, "static")
-    arch_shape = love.physics.newRectangleShape(1, 1)
-    love.physics.newFixture(arch_body, arch_shape)
+    createArches()
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
 
     -- Load map and player
@@ -70,6 +67,7 @@ function love.load()
     -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 2, 30)
 
 end
+
 local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
@@ -78,15 +76,39 @@ local game_area_y = var.header_height
 function love.draw()
 
     mydraw.mydraw()
-    if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 190 or player.body:getY() < 140 then
+    -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
+    -- print(player.body:getX(),player.body:getY())
+    mydraw.coins()
+    if checkBoundsGrid(player.body:getX(), player.body:getY()) then
 
-        map.map3:draw(100, game_area_y, 1)
         player.draw()
+        map.map3:draw(100, game_area_y, 1)
     else
-        player.draw()
         map.map3:draw(100, game_area_y, 1)
+        player.draw()
 
     end
+
+end
+
+function checkBounds(cx1, cy1, cx2, cy2, x, y)
+    -- print(cx1,cy1,cx2,cy2,x,y)
+    return x < cx1 and x > cx2 and y < cy1 and y > cy2
+end
+
+function checkBoundsGrid(x, y)
+    if checkBounds(1000, 180, 0, 100, x, y) then
+        return true
+    end
+    if checkBounds(1000, 180 + 130, 0, 100 + 130, x, y) then
+        return true
+    end
+
+    -- for i=0,8 do
+    --     -- local offset_x = 30*i
+
+    -- end
+    -- return false
 end
 
 function love.update(dt)
@@ -175,6 +197,37 @@ function createEnemies(n)
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(777)
+    end
+end
+
+function createArches()
+    for i=0,7 do 
+
+        arch_body = love.physics.newBody(world, 30 + 48*i , 180 - 130, "static")
+        arch_shape = love.physics.newRectangleShape(1, 1)
+        love.physics.newFixture(arch_body, arch_shape)
+
+        arch_body = love.physics.newBody(world, 30 + 48*i , 180, "static")
+        arch_shape = love.physics.newRectangleShape(1, 1)
+        love.physics.newFixture(arch_body, arch_shape)
+
+        arch_body = love.physics.newBody(world, 30 + 48*i , 180 + 130, "static")
+        arch_shape = love.physics.newRectangleShape(1, 1)
+        love.physics.newFixture(arch_body, arch_shape)
+
+        -- arch_body = love.physics.newBody(world, 180 - 50*2 , 180, "static")
+        -- arch_shape = love.physics.newRectangleShape(1, 1)
+        -- love.physics.newFixture(arch_body, arch_shape)
+
+        -- arch_body = love.physics.newBody(world, 180 - 50 , 180, "static")
+        -- arch_shape = love.physics.newRectangleShape(1, 1)
+        -- love.physics.newFixture(arch_body, arch_shape)
+
+        -- arch_body = love.physics.newBody(world, 180, 180, "static")
+        -- arch_shape = love.physics.newRectangleShape(1, 1)
+        -- love.physics.newFixture(arch_body, arch_shape)
+
+       
     end
 end
 

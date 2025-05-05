@@ -105,9 +105,9 @@ function map.load()
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
     map.tiles3 = newTiles(tilesetImage3, 98,128)
     map.map3 = createMap(map.tiles3, var.map_display_w, var.map_display_h)
-    for x = 1, 5 do
-        for y = 1,5 do
-            map.map3:setTile(x, y, 10)
+    for x = 1, 4 do
+        for y = 1,3 do
+            map.map3:setTile(x + 1, y, 10)
         end
     end
 

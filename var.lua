@@ -1,7 +1,7 @@
 local var = {}
 -- globals
 var.screen_height = 600
-var.screen_width = 600
+var.screen_width = 800
 var.screen_flags = {
     ["resizable"] = true
 }
@@ -11,7 +11,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 500
+var.num_coins = 300
 var.coin_bods = {}
 var.num_enemies = 0
 var.enemies_bods = {}
@@ -32,7 +32,7 @@ var.sprite_width = 100
 
  var.ScreenInfo = {
     screen_height = 600,
-    screen_width = 600,
+    screen_width = 800,
     screen_flags = {
         ["resizable"] = true
     }

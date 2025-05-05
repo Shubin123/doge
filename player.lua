@@ -155,7 +155,7 @@ function player.draw()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
     -- print( player.animation.duration)
-    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -var.sprite_width / 2, 0)
+    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
 end
 
 function player.getPosition()

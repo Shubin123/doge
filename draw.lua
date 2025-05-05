@@ -2,6 +2,14 @@ draw = {}
 local var = require("var")
 local player = require("player")
 local map = require("map")
+
+
+local W = love.graphics.getWidth()
+local H = love.graphics.getHeight()
+local game_area_x = (W - var.game_width) / 2
+local game_area_y = var.header_height
+
+
 function draw.mydraw()
     if State == "menu" then
         menu.draw(var.ScreenInfo)
@@ -9,11 +17,7 @@ function draw.mydraw()
         return
     end
     
-    local W = love.graphics.getWidth()
-    local H = love.graphics.getHeight()
-    local game_area_x = (W - var.game_width) / 2
-    local game_area_y = var.header_height
-    
+
     -- Draw header
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.rectangle("fill", 0, 0, W, var.header_height)
@@ -51,11 +55,7 @@ function draw.mydraw()
     -- map.map3:draw(game_area_x, game_area_y, 1)
     
     
-    -- Draw coins
-    for i = 1, var.num_coins do
-        local px, py = coin_bods[i]:getX(),coin_bods[i]:getY()
-        love.graphics.draw(image, game_area_x + px, game_area_y + py, 0, 1, 1, png_width / 2,  png_height / 2)
-    end
+   
     
     -- Draw enemies
     for i = 1, var.num_enemies do
@@ -85,6 +85,13 @@ function draw.mydraw()
     
     -- Debug info
     love.graphics.print("State: " .. var.State, 10, 70)
+end
+
+function draw.coins() 
+    for i = 1, var.num_coins do
+       local px, py = coin_bods[i]:getX(),coin_bods[i]:getY()
+       love.graphics.draw(image, game_area_x + px, game_area_y + py, 0, 1, 1, png_width / 2,  png_height / 2)
+   end
 end
 
 return draw
