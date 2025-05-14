@@ -9,6 +9,7 @@ local map = require("map")
 local player = require("player")
 local mydraw = require("draw")
 local shader = require("shader")
+local water = require("water")
 
 -- Game variables
 local world
@@ -60,18 +61,17 @@ function love.load()
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
     coin_quad  = love.graphics.newQuad(0,  0,  36, 36, coin_x, coin_y)
-        coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins,"stream")
+    coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins,"stream")
 
 
     enemy_image = love.graphics.newImage("gfx/enemy.png")
-
-    
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    -- body = love.physics.newBody(world, 0 ,0 ,'dynamic')
-
-    -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 2, 30)
+    -- Shaders
     shader.load()
+    water.load()
+    water.setWaterArea(var.game_width/2,var.game_height/2 + 40,200,67)
+
 end
 
 local W = love.graphics.getWidth()
@@ -82,14 +82,18 @@ local game_area_y = var.header_height
 function love.draw()
     
     -- mydraw.mydraw()
-    -- map.map:draw(game_area_x, game_area_y, 1)
+    
+    
+    
     shader.prepass()
     
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
-    
+    love.graphics.setColor(1, 1, 1, 0.5)
+    map.map:draw(game_area_x, game_area_y, 1)
+    love.graphics.setColor(1, 1, 1, 1)
+
     mydraw.coins()
-    
     if checkBoundsGrid(player.body:getX(), player.body:getY()) then
         player.draw()
         map.map3:draw(100, game_area_y, 1)
@@ -102,6 +106,9 @@ function love.draw()
     end
     
     shader.pass()
+    
+    water.pass()
+    
 end 
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -140,6 +147,8 @@ function love.update(dt)
     -- if State == "game" then
     player.update(dt)
     -- end
+
+    water.update(dt)
 
     if love.mouse.isDown(1) then
         local x, y = love.mouse.getPosition()
