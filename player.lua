@@ -48,8 +48,8 @@ function player.update(dt)
     -- end
     
     -- Movement configuration
-    local maxSpeed = 300
-    local acceleration = 3000
+    local maxSpeed = 100
+    local acceleration = 2000
     local friction = 0.85  -- Lower value = more friction
     
     -- Get current velocity

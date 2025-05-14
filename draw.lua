@@ -49,7 +49,9 @@ function draw.mydraw()
     
     -- Draw map (only visible tiles)
     -- print(game_area_x,game_area_y)
-    map.map:draw(game_area_x, game_area_y, 1)
+    -- map.map:draw(game_area_x, game_area_y, 1)
+
+    
     -- map.map2:draw(game_area_x, game_area_y, 1)
     
     -- map.map3:draw(game_area_x, game_area_y, 1)
@@ -90,8 +92,15 @@ end
 function draw.coins() 
     for i = 1, var.num_coins do
        local px, py = coin_bods[i]:getX(),coin_bods[i]:getY()
-       love.graphics.draw(image, game_area_x + px, game_area_y + py, 0, 1, 1, png_width / 2,  png_height / 2)
+       love.graphics.draw(coin_image, game_area_x + px, game_area_y + py, 0, 0.5, 0.5, coin_x / 2,  coin_y / 2)
    end
+
+    -- coin_sprite:clear()
+    -- for i=1,var.num_coins do 
+    --     coin_sprite:add(coin_quad,coin_bods[i]:getX(),coin_bods[i]:getY())
+    -- end 
+    -- love.graphics.draw(coin_sprite, game_area_x, game_area_y, 0, 1, 1, coin_x/2 ,  coin_y/2)
+
 end
 
 return draw

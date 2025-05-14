@@ -8,6 +8,7 @@ local var = require("var")
 local map = require("map")
 local player = require("player")
 local mydraw = require("draw")
+local shader = require("shader")
 
 -- Game variables
 local world
@@ -15,9 +16,9 @@ local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
 local coin_shape, enemy_shape
-image, enemy_image = 0
+coin_image, coin_quad, coin_sprite = 0
 png_width, png_height, enemy_width, enemy_height = 0
-
+enemy_image = 0
 function love.load()
     love.mouse.setVisible(false)
 
@@ -49,23 +50,28 @@ function love.load()
     player.load(world)
 
     -- Coins and enemies
-    coin_shape = love.physics.newCircleShape(18)
+    coin_shape = love.physics.newCircleShape(7)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(100)
     createEnemies(var.num_enemies)
 
     -- Graphics
-    image = love.graphics.newImage("gfx/coin.png")
+    coin_image = love.graphics.newImage("gfx/coin.png")
+    coin_x, coin_y = coin_image:getDimensions()
+    coin_quad  = love.graphics.newQuad(0,  0,  36, 36, coin_x, coin_y)
+        coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins,"stream")
+
+
     enemy_image = love.graphics.newImage("gfx/enemy.png")
 
-    png_width, png_height = image:getDimensions()
+    
     enemy_width, enemy_height = enemy_image:getDimensions()
 
     -- body = love.physics.newBody(world, 0 ,0 ,'dynamic')
 
     -- animation = newAnimation(love.graphics.newImage("gfx/WarriorSpriteSheet/Warrior_Sheet-Effect.png"), 69, 44, 2, 30)
-
+    shader.load()
 end
 
 local W = love.graphics.getWidth()
@@ -74,22 +80,29 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
-
-    mydraw.mydraw()
+    
+    -- mydraw.mydraw()
+    -- map.map:draw(game_area_x, game_area_y, 1)
+    shader.prepass()
+    
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
+    
     mydraw.coins()
+    
     if checkBoundsGrid(player.body:getX(), player.body:getY()) then
-
         player.draw()
         map.map3:draw(100, game_area_y, 1)
+        map.map4:draw(100, game_area_y, 0.8)
     else
         map.map3:draw(100, game_area_y, 1)
+        map.map4:draw(100, game_area_y, 0.8)
         player.draw()
 
     end
-
-end
+    
+    shader.pass()
+end 
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
     -- print(cx1,cy1,cx2,cy2,x,y)
@@ -101,6 +114,9 @@ function checkBoundsGrid(x, y)
         return true
     end
     if checkBounds(1000, 180 + 130, 0, 100 + 130, x, y) then
+        return true
+    end
+    if checkBounds(1000, 180 - 130, 0, 100 - 130, x, y) then
         return true
     end
 
@@ -201,19 +217,16 @@ function createEnemies(n)
 end
 
 function createArches()
-    for i=0,7 do 
-
-        arch_body = love.physics.newBody(world, 30 + 48*i , 180 - 130, "static")
-        arch_shape = love.physics.newRectangleShape(1, 1)
-        love.physics.newFixture(arch_body, arch_shape)
-
-        arch_body = love.physics.newBody(world, 30 + 48*i , 180, "static")
-        arch_shape = love.physics.newRectangleShape(1, 1)
-        love.physics.newFixture(arch_body, arch_shape)
-
-        arch_body = love.physics.newBody(world, 30 + 48*i , 180 + 130, "static")
-        arch_shape = love.physics.newRectangleShape(1, 1)
-        love.physics.newFixture(arch_body, arch_shape)
+    arch_shape = love.physics.newRectangleShape(5, 15)
+    for x=0,7 do 
+        for y=0,2 do 
+        arch_body = love.physics.newBody(world, 30 + 48*x , 50 + y*130, "static")
+        love.physics.newFixture(arch_body,arch_shape)
+        -- love.physics.newFixture(arch_body, arch_shape)
+        -- arch_body = love.physics.newBody(world, 30 + 48*x , 180, "static")
+        -- love.physics.newFixture(arch_body, arch_shape)
+        -- arch_body = love.physics.newBody(world, 30 + 48*x , 180 + 130, "static")
+        -- love.physics.newFixture(arch_body, arch_shape)
 
         -- arch_body = love.physics.newBody(world, 180 - 50*2 , 180, "static")
         -- arch_shape = love.physics.newRectangleShape(1, 1)
@@ -226,7 +239,7 @@ function createArches()
         -- arch_body = love.physics.newBody(world, 180, 180, "static")
         -- arch_shape = love.physics.newRectangleShape(1, 1)
         -- love.physics.newFixture(arch_body, arch_shape)
-
+        end
        
     end
 end

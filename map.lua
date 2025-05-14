@@ -111,6 +111,16 @@ function map.load()
         end
     end
 
+
+    local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
+    map.tiles4 = newTiles(tilesetImage4, 156,156)
+    map.map4 = createMap(map.tiles4, var.map_display_w, var.map_display_h)
+    -- for x = 1, 4 do
+        for x = 0,3 do
+            map.map4:setTile(2+x, 3, 1)
+        end
+    -- end
+
     -- print(map.map.tileData)
     -- print(map.map2.tileData)
 end
