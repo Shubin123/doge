@@ -66,7 +66,9 @@ function shader.load()
         #pragma language glsl3
         uniform sampler2D surfaceTexture;
         const float PI = 3.14159265359;
-        const int NUM_SAMPLES = 64;
+        const int NUM_SAMPLES = 16;
+        //const int NUM_SAMPLES = 64;
+        //const float MAX_DISTANCE = 20; // Should break out of the loop way before this
         const float MAX_DISTANCE = 80; // Should break out of the loop way before this
         float rand(vec2 co) {
           return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
@@ -79,11 +81,11 @@ function shader.load()
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
             vec3 radiance = vec3(0);
             float noise = rand(tc);
-            for(int i = 0; i < NUM_SAMPLES; i++) {
+            for(int i = 0; i < NUM_SAMPLES; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
                 vec2 rayDirection = vec2(cos(angle), sin(angle));
                 vec2 sampleTC = tc;
-                for (int step = 0; step < MAX_DISTANCE; step += 1) {
+                for (int step = 0; step < MAX_DISTANCE; step += 16) {
                   float df = Texel(tex, sampleTC).r;
                   sampleTC += rayDirection * df * ratio;
                   if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
@@ -101,11 +103,11 @@ end
 function render(in_canvas, shader, target_canvas)
     
     love.graphics.setCanvas(target_canvas)
-    
     love.graphics.clear(0, 0, 0, 0)
+    -- love.graphics.clear(255,255,255,0.1,1,1)
     love.graphics.setShader(shader)
     
-    -- love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(in_canvas)
     
 end
@@ -114,15 +116,19 @@ function shader.prepass()
     
     love.graphics.setCanvas(scene_canvas)
     love.graphics.clear(0, 0, 0, 0)
+    -- love.graphics.clear(255,255,255,0.1,1,1)
+
 
 end
 
 function shader.pass()
-    
+        
+
     -- Seed pass
     render(scene_canvas, seed_shader, jfa_canvas1)
+    
     gi_shader:send("surfaceTexture", scene_canvas)
-
+    
     -- JFA passes
     local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
 
@@ -137,11 +143,13 @@ function shader.pass()
         jfa_canvas1, jfa_canvas2 = jfa_canvas2, jfa_canvas1
     end
 
+    
     -- Distance field pass
     render(jfa_canvas1, df_shader, df_canvas)
 
     -- Global illumination pass
     render(df_canvas, gi_shader)
+    
     love.graphics.setShader()
 end
 
