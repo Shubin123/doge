@@ -20,6 +20,11 @@ local coin_shape, enemy_shape
 coin_image, coin_quad, coin_sprite = 0
 png_width, png_height, enemy_width, enemy_height = 0
 enemy_image = 0
+
+-- lighting variables 
+local ldist = 80 -- 5-20
+local lsample = 64 -- 10-64
+
 function love.load()
     love.mouse.setVisible(false)
 
@@ -38,7 +43,6 @@ function love.load()
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
-
     fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0,
         var.game_width, var.game_height, 0, var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
@@ -70,7 +74,7 @@ function love.load()
     -- Shaders
     shader.load()
     water.load()
-    water.setWaterArea(var.game_width/2,var.game_height/2 + 40,200,67)
+    water.setWaterArea(var.game_width/2 + 50,var.game_height/2 + 150,200,67)
 
 end
 
@@ -80,18 +84,19 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
-    
+    -- love.graphics.push()    
     -- mydraw.mydraw()
     
-    
+    -- love.graphics.scale(1.2,1.2)
     
     shader.prepass()
     
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
-    love.graphics.setColor(1, 1, 1, 0.5)
-    map.map:draw(game_area_x, game_area_y, 1)
-    love.graphics.setColor(1, 1, 1, 1)
+
+    -- love.graphics.setColor(1, 1, 1, 0.35)
+    -- map.map:draw(game_area_x, game_area_y, 1)
+    -- love.graphics.setColor(1, 1, 1, 1)
 
     mydraw.coins()
     if checkBoundsGrid(player.body:getX(), player.body:getY()) then
@@ -102,13 +107,13 @@ function love.draw()
         map.map3:draw(100, game_area_y, 1)
         map.map4:draw(100, game_area_y, 0.8)
         player.draw()
-
+        
     end
     
-    shader.pass()
+    shader.pass(ldist,lsample)
     
     water.pass()
-    
+    -- love.graphics.pop()
 end 
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -150,17 +155,21 @@ function love.update(dt)
 
     water.update(dt)
 
-    if love.mouse.isDown(1) then
-        local x, y = love.mouse.getPosition()
-        effects.newHitMarker(x, y)
-    end
+    
 end
 
 function love.resize(w, h)
+
+    
     var.screen_width = w
     var.screen_height = h
     var.ScreenInfo.screen_width = w
     var.ScreenInfo.screen_height = h
+
+
+
+    
+    
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
