@@ -22,7 +22,7 @@ png_width, png_height, enemy_width, enemy_height = 0
 enemy_image = 0
 
 -- lighting variables 
-local ldist = 80 -- 5-20
+local ldist = 80 -- 5-80
 local lsample = 64 -- 10-64
 
 function love.load()
@@ -94,9 +94,9 @@ function love.draw()
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
 
-    -- love.graphics.setColor(1, 1, 1, 0.35)
-    -- map.map:draw(game_area_x, game_area_y, 1)
-    -- love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(1, 1, 1, 0.35)
+    map.map:draw(game_area_x, game_area_y, 1)
+    love.graphics.setColor(1, 1, 1, 1)
 
     mydraw.coins()
     if checkBoundsGrid(player.body:getX(), player.body:getY()) then
