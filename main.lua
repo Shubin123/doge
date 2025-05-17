@@ -17,8 +17,8 @@ local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
 local coin_shape, enemy_shape
-coin_image, coin_quad, coin_sprite = 0
-png_width, png_height, enemy_width, enemy_height = 0
+coin_image, coin_quad, coin_sprite = 0,0,0
+png_width, png_height, enemy_width, enemy_height = 0,0,0,0
 enemy_image = 0
 
 -- lighting variables 
