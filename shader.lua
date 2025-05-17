@@ -154,8 +154,8 @@ function shader.pass(distance,sample)
     -- Global illumination pass
     render(df_canvas, gi_shader)
     
-    love.graphics.setShader()
-    love.graphics.draw(scene_canvas)
+    -- love.graphics.setShader()
+    -- love.graphics.draw(scene_canvas)
 
 end
 

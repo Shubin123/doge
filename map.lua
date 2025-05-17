@@ -95,8 +95,8 @@ function map.load()
     -- map.tiles2 = newTiles(tilesetImage2, 128,160)
     -- map.map2 = createMap(map.tiles2, var.map_display_w, var.map_display_h)
     
-    -- for x = 1, 5 do
-    --     for y = 1,5 do
+    -- for x = 1, 2 do
+    --     for y = 1,1 do
     --         map.map2:setTile(x, y, math.random(1,5))
     --     end
     -- end

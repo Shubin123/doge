@@ -58,7 +58,7 @@ function love.load()
     coin_shape = love.physics.newCircleShape(7)
     createCoins(var.num_coins)
 
-    enemy_shape = love.physics.newCircleShape(100)
+    enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
 
     -- Graphics
@@ -74,7 +74,7 @@ function love.load()
     -- Shaders
     shader.load()
     water.load()
-    water.setWaterArea(var.game_width/2 + 50,var.game_height/2 + 150,200,67)
+    water.setWaterArea(320,178,165,67)
 
 end
 
@@ -84,36 +84,36 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
-    -- love.graphics.push()    
-    -- mydraw.mydraw()
-    
-    -- love.graphics.scale(1.2,1.2)
-    
     shader.prepass()
     
+    
+    
+    
+            
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
-
+    
+    mydraw.enemies()
     mydraw.coins()
-    if checkBoundsGrid(player.body:getX(), player.body:getY()) then
+    -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
         player.draw()
         map.map3:draw(100, game_area_y, 1)
         map.map4:draw(100, game_area_y, 0.8)
-    else
-        map.map3:draw(100, game_area_y, 1)
-        map.map4:draw(100, game_area_y, 0.8)
-        player.draw()
+    -- else
+    --     map.map3:draw(100, game_area_y, 1)
+    --     map.map4:draw(100, game_area_y, 0.8)
+    --     player.draw()
         
-    end
+    -- end
     
     shader.pass(ldist,lsample)
-    
     water.pass()
-    -- love.graphics.pop()
+    mydraw.mydraw() -- ui last
+    
 end 
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -235,10 +235,10 @@ function createEnemies(n)
 end
 
 function createArches()
-    arch_shape = love.physics.newRectangleShape(5, 15)
+    arch_shape = love.physics.newRectangleShape(10, 25)
     for x=0,7 do 
         for y=0,2 do 
-        arch_body = love.physics.newBody(world, 30 + 48*x , 50 + y*130, "static")
+        arch_body = love.physics.newBody(world, 32 + 48*x , 50 + y*130, "static")
         love.physics.newFixture(arch_body,arch_shape)
         -- love.physics.newFixture(arch_body, arch_shape)
         -- arch_body = love.physics.newBody(world, 30 + 48*x , 180, "static")

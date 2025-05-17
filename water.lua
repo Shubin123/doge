@@ -1,6 +1,7 @@
 water = {}
 local var = require("var")
 local map = require("map")
+local player = require("player")
 local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
@@ -209,6 +210,9 @@ function water.update(dt)
     water_distortion_shader:send("time", time)
     water_reflection_shader:send("time", time)
     water_final_shader:send("time", time)
+    -- water_area.x = player.body:getX()
+    
+    -- water_area.y = player.body:getY()
     
     -- Send water area bounds to shaders
     water_distortion_shader:send("waterBounds", {water_area.x, water_area.y, water_area.width, water_area.height})

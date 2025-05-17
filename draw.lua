@@ -51,7 +51,6 @@ function draw.mydraw()
     -- print(game_area_x,game_area_y)
     -- map.map:draw(game_area_x, game_area_y, 1)
 
-    
     -- map.map2:draw(game_area_x, game_area_y, 1)
     
     -- map.map3:draw(game_area_x, game_area_y, 1)
@@ -59,11 +58,7 @@ function draw.mydraw()
     
    
     
-    -- Draw enemies
-    for i = 1, var.num_enemies do
-        local px, py = var.enemies_bods[i]:getX(), var.enemies_bods[i]:getY()
-        love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 1, 1, enemy_width / 2, enemy_height / 2)
-    end
+    
     
     -- Draw character
     -- local px, py = body:getX(), body:getY()
@@ -101,6 +96,14 @@ function draw.coins()
     -- end 
     -- love.graphics.draw(coin_sprite, game_area_x, game_area_y, 0, 1, 1, coin_x/2 ,  coin_y/2)
 
+end
+
+function draw.enemies()
+    -- Draw enemies
+    for i = 1, var.num_enemies do
+        local px, py = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+        love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 0.1,0.1, enemy_width / 2, enemy_height / 2)
+    end
 end
 
 return draw
