@@ -9,14 +9,14 @@ local game_area_y = var.header_height
 function shader.load()
     -- Create canvases with specific formats
     -- print("shader width", width)
-    scene_canvas = love.graphics.newCanvas(width, height, { format = "rgba8" })
+    scene_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
 
     -- JFA needs two canvases for ping-pong, RG for UV
-    jfa_canvas1 = love.graphics.newCanvas(width, height, { format = "rg16f" })
-    jfa_canvas2 = love.graphics.newCanvas(width, height, { format = "rg16f" })
+    jfa_canvas1 = love.graphics.newCanvas(W, H, { format = "rg16f" })
+    jfa_canvas2 = love.graphics.newCanvas(W, H, { format = "rg16f" })
 
     -- Distance field canvas, R for distance
-    df_canvas = love.graphics.newCanvas(width, height, { format = "r16f" })
+    df_canvas = love.graphics.newCanvas(W, H, { format = "r16f" })
 
     -- Return all visible surface as their UV coords
     seed_shader = love.graphics.newShader([[
