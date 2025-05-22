@@ -103,6 +103,7 @@ function shader.load()
         }
     ]])
 end
+
 function render(in_canvas, shader, target_canvas)
     
     love.graphics.setCanvas(target_canvas)

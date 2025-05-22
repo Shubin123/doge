@@ -100,7 +100,7 @@ end
 
 function draw.enemies()
     -- Draw enemies
-    for i = 1, var.num_enemies  do
+    for i = 1, #enemies_bods  do
         local px, py = enemies_bods[i]:getX(), enemies_bods[i]:getY()
         love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 0.1,0.1, enemy_width / 2, enemy_height / 2)
     end
