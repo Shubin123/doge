@@ -10,7 +10,11 @@ local player = require("player")
 local mydraw = require("draw")
 local shader = require("shader")
 local water = require("water")
+local grass = require("grass")
 
+
+
+-- hotreloader
 local lurker = require("lurker")
 -- Game variables
 local world
@@ -71,11 +75,12 @@ function love.load()
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
 
+    grass.demo.load()
     -- Shaders
     shader.load()
     water.load()
-    water.setWaterArea(320, 178, 165, 67)
-
+    water.setWaterArea(320, 238, 165, 67)
+    
 end
 
 local W = love.graphics.getWidth()
@@ -98,10 +103,12 @@ function love.draw()
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
-    mydraw.enemies()
+    
     mydraw.coins()
     -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
+    mydraw.enemies()
     player.draw()
+    grass.demo.draw()
     map.map3:draw(100, game_area_y, 1)
     map.map4:draw(100, game_area_y, 0.8)
     -- else
@@ -110,10 +117,13 @@ function love.draw()
     --     player.draw()
 
     -- end
-
+    
+    
     shader.pass(ldist, lsample)
     water.pass()
+    
     mydraw.mydraw() -- ui last
+    
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -155,7 +165,7 @@ function love.update(dt)
 
     water.update(dt)
     
- 
+    grass.demo.update(dt)
 end
 
 function love.resize(w, h)
