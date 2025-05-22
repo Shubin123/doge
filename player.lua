@@ -1,4 +1,5 @@
 local player = {}
+player.health = 100
 local var = require("var")
 
 function newAnimation(image, width, height, duration, numFrames)
@@ -42,10 +43,10 @@ function player.load(world)
 end
 
 function player.update(dt)
-    -- Cap the delta time for stability
-    -- if dt > 1/30 then
-    --     dt = 1/30
-    -- end
+    if player.health <= 0 then
+        var.State = "menu"
+    end
+    
     
     -- Movement configuration
     local maxSpeed = 100

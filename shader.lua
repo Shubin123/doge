@@ -70,7 +70,7 @@ function shader.load()
         //const int NUM_SAMPLES = 16;
         //const int NUM_SAMPLES = 64;
         //const float MAX_DISTANCE = 40; // Should break out of the loop way before this
-        uniform float maxDistance;
+         uniform float maxDistance;
         uniform int sampleCount;
         //const float MAX_DISTANCE = 80; // Should break out of the loop way before this
         float rand(vec2 co) {

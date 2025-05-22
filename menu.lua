@@ -1,5 +1,5 @@
-local Menu = {}
-
+local menu = {}
+local var = require("var")
 -- Module-level variables
 local font
 local ps
@@ -19,7 +19,7 @@ local function getButtonBounds(buttonInfo, screenInfo)
 end
 
 -- Load assets and initialize particle system
-function Menu.load(screenInfo)
+function menu.load(screenInfo)
     -- Load the custom font
     font = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
     particle = love.graphics.newImage("gfx/doge.png")
@@ -41,12 +41,13 @@ function Menu.load(screenInfo)
 end
 
 -- Update the particle system
-function Menu.update(dt)
+function menu.update(dt)
     ps:update(dt)
 end
 
 -- Draw the menu with particle background
-function Menu.draw(screenInfo)
+function menu.draw()
+    
     -- Draw the particle system as the background
     love.graphics.draw(ps)
     
@@ -54,14 +55,14 @@ function Menu.draw(screenInfo)
     love.graphics.setColor(1, 1, 1, 1)
     
     -- Draw menu text and buttons
-    love.graphics.printf("Doge.", 0, 90, screenInfo.screen_width/2, "center",0 , 2, 2)
-    love.graphics.printf("Game Version = beta beta alpha 0.0.0.0.2", 0, 125, screenInfo.screen_width/0.8, "center", 0, 0.8, 0.8)
-    love.graphics.printf(startButton.text, 0, startButton.y, screenInfo.screen_width, "center")
-    love.graphics.printf(exitButton.text, 0, exitButton.y, screenInfo.screen_width, "center")
+    love.graphics.printf("Doge.", 0, 90, var.screen_width/2, "center",0 , 2, 2)
+    love.graphics.printf("Game Version = beta beta alpha 0.0.0.0.2", 0, 125, var.screen_width/0.8, "center", 0, 0.8, 0.8)
+    love.graphics.printf(startButton.text, 0, startButton.y, var.screen_width, "center")
+    love.graphics.printf(exitButton.text, 0, exitButton.y, var.screen_width, "center")
 end
 
 -- Handle mouse presses
-function Menu.mousepressed(x, y, button, screenInfo)
+function menu.mousepressed(x, y, button, screenInfo)
     local startBounds = getButtonBounds(startButton, screenInfo)
     local exitBounds = getButtonBounds(exitButton, screenInfo)
     
@@ -80,4 +81,4 @@ function Menu.mousepressed(x, y, button, screenInfo)
     return nil
 end
 
-return Menu
+return menu
