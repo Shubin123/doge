@@ -11,22 +11,23 @@ local mydraw = require("draw")
 local shader = require("shader")
 local water = require("water")
 
+local lurker = require("lurker")
 -- Game variables
 local world
 local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
 local coin_shape, enemy_shape
-coin_image, coin_quad, coin_sprite = 0,0,0
-png_width, png_height, enemy_width, enemy_height = 0,0,0,0
+coin_image, coin_quad, coin_sprite = 0, 0, 0
+png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
 enemy_image = 0
 
 -- lighting variables 
-local ldist = 80 -- 5-80
-local lsample = 64 -- 10-64
+local ldist = 30 -- 5-80
+local lsample = 40 -- 10-64
 
 function love.load()
-    love.mouse.setVisible(false)
+    -- love.mouse.setVisible(false)
 
     -- Window setup
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
@@ -43,8 +44,8 @@ function love.load()
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0,
-        var.game_width, var.game_height, 0, var.game_height)
+    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0,
+        var.game_height)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     createArches()
@@ -64,9 +65,8 @@ function love.load()
     -- Graphics
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
-    coin_quad  = love.graphics.newQuad(0,  0,  36, 36, coin_x, coin_y)
-    coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins,"stream")
-
+    coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
+    coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
 
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
@@ -74,7 +74,7 @@ function love.load()
     -- Shaders
     shader.load()
     water.load()
-    water.setWaterArea(320,178,165,67)
+    water.setWaterArea(320, 178, 165, 67)
 
 end
 
@@ -84,37 +84,37 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
+    if var.State == "menu" then
+    menu.draw()
+    return
+    end
+    
     shader.prepass()
-    
-    
-    
-    
-            
+
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
-    
+
     mydraw.enemies()
     mydraw.coins()
     -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
-        player.draw()
-        map.map3:draw(100, game_area_y, 1)
-        map.map4:draw(100, game_area_y, 0.8)
+    player.draw()
+    map.map3:draw(100, game_area_y, 1)
+    map.map4:draw(100, game_area_y, 0.8)
     -- else
     --     map.map3:draw(100, game_area_y, 1)
     --     map.map4:draw(100, game_area_y, 0.8)
     --     player.draw()
-        
+
     -- end
-    
-    shader.pass(ldist,lsample)
+
+    shader.pass(ldist, lsample)
     water.pass()
     mydraw.mydraw() -- ui last
-    
-end 
+end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
     -- print(cx1,cy1,cx2,cy2,x,y)
@@ -134,59 +134,67 @@ function checkBoundsGrid(x, y)
 
     -- for i=0,8 do
     --     -- local offset_x = 30*i
-
-    -- end
+    -- end 
     -- return false
 end
 
 function love.update(dt)
-    if State == "menu" then
+    
+    if var.State == "menu" then
         menu.update(dt)
         -- return
     elseif State == "loading" then
-        State = "game"
+        var.State = "game"
     end
 
     world:update(dt)
-
+ 
     -- if State == "game" then
     player.update(dt)
     -- end
 
     water.update(dt)
-
     
+ 
 end
 
 function love.resize(w, h)
-
-    
     var.screen_width = w
     var.screen_height = h
     var.ScreenInfo.screen_width = w
     var.ScreenInfo.screen_height = h
-
-
-
-    
-    
 end
 
+local restartcount = tonumber(love.restart) or 0
+
 function love.mousepressed(x, y, button, istouch, presses)
-    if State == "menu" then
+    if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
         if nextStateAction == "loading" then
-            State = "loading"
+            var.State = "loading"
+            -- player.health = 100
+            --reset game here
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
     end
+    lurker.scan()
+    
+    -- love.event.restart(restartcount + 1)
 end
 
-function love.keypressed(key, scancode, isrepeat)
-    if State == "game" and key == "space" then
-        player.body:applyLinearImpulse(0, -1000)
-    end
+
+
+lurker.postswap = function(file) 
+    -- var.num_coins=0
+    -- love.load()
+
+
+    love.event.push("quit", "restart")
+end
+
+function love.keypressed(key)
+    
 end
 
 function round(x, n)
@@ -236,29 +244,29 @@ end
 
 function createArches()
     arch_shape = love.physics.newRectangleShape(10, 25)
-    for x=0,7 do 
-        for y=0,2 do 
-        arch_body = love.physics.newBody(world, 32 + 48*x , 50 + y*130, "static")
-        love.physics.newFixture(arch_body,arch_shape)
-        -- love.physics.newFixture(arch_body, arch_shape)
-        -- arch_body = love.physics.newBody(world, 30 + 48*x , 180, "static")
-        -- love.physics.newFixture(arch_body, arch_shape)
-        -- arch_body = love.physics.newBody(world, 30 + 48*x , 180 + 130, "static")
-        -- love.physics.newFixture(arch_body, arch_shape)
+    for x = 0, 7 do
+        for y = 0, 2 do
+            arch_body = love.physics.newBody(world, 32 + 48 * x, 50 + y * 130, "static")
+            love.physics.newFixture(arch_body, arch_shape)
+            -- love.physics.newFixture(arch_body, arch_shape)
+            -- arch_body = love.physics.newBody(world, 30 + 48*x , 180, "static")
+            -- love.physics.newFixture(arch_body, arch_shape)
+            -- arch_body = love.physics.newBody(world, 30 + 48*x , 180 + 130, "static")
+            -- love.physics.newFixture(arch_body, arch_shape)
 
-        -- arch_body = love.physics.newBody(world, 180 - 50*2 , 180, "static")
-        -- arch_shape = love.physics.newRectangleShape(1, 1)
-        -- love.physics.newFixture(arch_body, arch_shape)
+            -- arch_body = love.physics.newBody(world, 180 - 50*2 , 180, "static")
+            -- arch_shape = love.physics.newRectangleShape(1, 1)
+            -- love.physics.newFixture(arch_body, arch_shape)
 
-        -- arch_body = love.physics.newBody(world, 180 - 50 , 180, "static")
-        -- arch_shape = love.physics.newRectangleShape(1, 1)
-        -- love.physics.newFixture(arch_body, arch_shape)
+            -- arch_body = love.physics.newBody(world, 180 - 50 , 180, "static")
+            -- arch_shape = love.physics.newRectangleShape(1, 1)
+            -- love.physics.newFixture(arch_body, arch_shape)
 
-        -- arch_body = love.physics.newBody(world, 180, 180, "static")
-        -- arch_shape = love.physics.newRectangleShape(1, 1)
-        -- love.physics.newFixture(arch_body, arch_shape)
+            -- arch_body = love.physics.newBody(world, 180, 180, "static")
+            -- arch_shape = love.physics.newRectangleShape(1, 1)
+            -- love.physics.newFixture(arch_body, arch_shape)
         end
-       
+
     end
 end
 
@@ -302,27 +310,37 @@ end
 function beginContact(fixture_a, fixture_b, contact)
     local body_a = fixture_a:getBody()
     local body_b = fixture_b:getBody()
-    if fixture_a:getGroupIndex() == 69 or fixture_b:getGroupIndex() == 69 then
-        local ball_body
-        if body_a == player.body then
-            ball_body = body_b
-        elseif body_b == player.body then
-            ball_body = body_a
-        else
-            return
-        end
-        for i = 1, #coin_bods do
-            if coin_bods[i] == ball_body then
-                print("Deleting ball at index", i)
-                coin_bods[i]:destroy()
-                table.remove(coin_bods, i)
 
-                var.num_coins = var.num_coins - 1
-                var.player_score = var.player_score + 1
-                break
-            end
+    local not_player -- either enemy or coin for now
+    if body_a == player.body then
+        not_player = body_b
+    elseif body_b == player.body then
+        not_player = body_a
+    else
+        return
+    end
+
+    if checkDestroy(coin_bods, not_player) then
+        var.player_score = var.player_score + 1
+        var.num_coins = var.num_coins -1
+        
+    end
+     if checkDestroy(enemies_bods, not_player) then
+        player.health = player.health - 1
+        var.num_enemies = var.num_enemies - 1
+     end
+
+end
+
+function checkDestroy(t, v)
+    for i = 1, #t do
+        if t[i] == v then
+            v:destroy()
+            table.remove(t, i)
+            return true
         end
     end
+    return false -- should never reach
 end
 
 function endContact(a, b, contact)

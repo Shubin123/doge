@@ -22,7 +22,7 @@ function draw.mydraw()
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.rectangle("fill", 0, 0, W, var.header_height)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Health: 100", 10, 10)
+    love.graphics.print("Health: "..player.health, 10, 10)
     love.graphics.print("Points: " .. var.player_score, W - 100, 10)
     
     -- Draw left panel (inventory)
@@ -85,7 +85,7 @@ function draw.mydraw()
 end
 
 function draw.coins() 
-    for i = 1, var.num_coins do
+    for i = 1, #coin_bods do
        local px, py = coin_bods[i]:getX(),coin_bods[i]:getY()
        love.graphics.draw(coin_image, game_area_x + px, game_area_y + py, 0, 0.5, 0.5, coin_x / 2,  coin_y / 2)
    end
@@ -100,7 +100,7 @@ end
 
 function draw.enemies()
     -- Draw enemies
-    for i = 1, var.num_enemies do
+    for i = 1, var.num_enemies  do
         local px, py = enemies_bods[i]:getX(), enemies_bods[i]:getY()
         love.graphics.draw(enemy_image, game_area_x + px, game_area_y + py, 0, 0.1,0.1, enemy_width / 2, enemy_height / 2)
     end
