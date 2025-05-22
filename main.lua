@@ -185,11 +185,9 @@ end
 
 
 
-lurker.postswap = function(file) 
+lurker.preswap = function(file) 
     -- var.num_coins=0
     -- love.load()
-
-
     love.event.push("quit", "restart")
 end
 
