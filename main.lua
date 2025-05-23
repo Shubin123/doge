@@ -1,7 +1,7 @@
 math.randomseed(os.time())
 
 local menu = require("menu")
-local mymath = require("mymath")
+local mymath = require("myMath")
 local effects = require("effects")
 -- local mydraw = require("draw")
 local var = require("var")
