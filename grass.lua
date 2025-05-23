@@ -3,6 +3,7 @@
 
 local GrassRenderer = {}
 GrassRenderer.__index = GrassRenderer
+local player = require("player")
 
 function GrassRenderer.new(grassCount)
     local self = setmetatable({}, GrassRenderer)
@@ -155,28 +156,79 @@ function GrassRenderer:createTexture()
         return love.math.random(), love.math.random(), love.math.random(), 1
     end)
     
-    self.noiseTexture = love.graphics.newImage(noiseData)
-    self.noiseTexture:setWrap("repeat", "repeat")
-    self.noiseTexture:setFilter("linear", "linear")
+    self.noiseTexture = noise_texture
+    -- self.noiseTexture:setWrap("repeat", "repeat")
+    -- self.noiseTexture:setFilter("linear", "linear")
 end
 
 function GrassRenderer:update(dt)
     self.time = self.time + dt
+    
+    -- Get player position
+    local playerX = player.body:getX() + 200
+    local playerY = player.body:getY() + 50
     
     -- Update wind with some variation
     self.windDirection.x = math.cos(self.time * 0.5)
     self.windDirection.y = math.sin(self.time * 0.3) * 0.5
     self.windStrength = 0.4 + math.sin(self.time * 0.8) * 0.2
     
-    -- Update individual grass blade positions based on wind
+    -- Player interaction settings
+    local playerRadius = math.max(self.width, self.height) * 0.7  -- Player influence radius
+    local maxPlayerEffect = 2.0  -- Maximum displacement from player
+    
+    -- Update individual grass blade positions based on wind and player interaction
     for _, blade in ipairs(self.grassBlades) do
+        -- Calculate wind effect
         local windEffect = math.sin(self.time * self.windSpeed + blade.windPhase) * self.windStrength * blade.windIntensity
+        local windOffsetX = self.windDirection.x * windEffect * blade.height * 0.1
+        local windOffsetY = self.windDirection.y * windEffect * blade.height * 0.05
+        
+        -- Calculate player interaction
+        local dx = blade.x - playerX
+        local dy = blade.y - playerY
+        local distance = math.sqrt(dx * dx + dy * dy)
+        
+        local playerOffsetX = 0
+        local playerOffsetY = 0
+        
+        -- if distance < playerRadius and distance > 0 then
+            -- Calculate influence based on distance (closer = stronger effect)
+            local influence = 1 - (distance / playerRadius)
+            influence = influence * influence  -- Square for more dramatic falloff
+            
+            -- Calculate direction away from player
+            local dirX = dx / distance
+            local dirY = dy / distance
+            
+            -- Apply player displacement
+            local displacement = maxPlayerEffect * influence * blade.height * 1.15
+            playerOffsetX = dirX * displacement
+            playerOffsetY = dirY * displacement * 0.5  -- Less vertical displacement
+            
+            -- Add some dynamic movement when player is very close
+            if distance < playerRadius * 0.5 then
+                local dynamicEffect = math.sin(self.time * 8 + blade.windPhase) * influence * 3
+                playerOffsetX = playerOffsetX + dynamicEffect * dirX
+                playerOffsetY = playerOffsetY + dynamicEffect * dirY * 0.3
+            end
+        -- end
+        
+        -- Combine wind and player effects
         blade.currentWindOffset = {
-            x = self.windDirection.x * windEffect * blade.height * 0.1,
-            y = self.windDirection.y * windEffect * blade.height * 0.05
+            x = windOffsetX + playerOffsetX,
+            y = windOffsetY + playerOffsetY
         }
+        
+        -- Store player influence for potential use in rendering (color changes, etc.)
+        blade.playerInfluence = distance < playerRadius and (1 - (distance / playerRadius)) or 0
     end
 end
+
+-- print(playerX >= 120)
+    -- print(playerX <= 280)
+    -- print(playerY >= 320)
+    -- print(playerY <= 380)
 
 function GrassRenderer:setWind(direction, strength, speed)
     self.windDirection = direction or self.windDirection
@@ -200,14 +252,13 @@ function GrassRenderer:draw()
     self.grassShader:send("windStrength", self.windStrength)
     self.grassShader:send("windSpeed", self.windSpeed)
     self.grassShader:send("screenSize", {love.graphics.getWidth(), love.graphics.getHeight()})
-    -- self.grassShader:send("grassTexture", self.noiseTexture)
-    self.grassShader:send("noiseTexture", self.noiseTexture)
+    self.grassShader:send("noiseTexture", noise_texture)
     
     -- Draw each grass blade
     for _, blade in ipairs(self.grassBlades) do
         love.graphics.push()
         
-        -- Apply wind offset
+        -- Apply combined wind and player offset
         local windX = blade.currentWindOffset and blade.currentWindOffset.x or 0
         local windY = blade.currentWindOffset and blade.currentWindOffset.y or 0
         
@@ -216,8 +267,20 @@ function GrassRenderer:draw()
         love.graphics.rotate(blade.rotation)
         love.graphics.scale(blade.scale)
         
-        -- Set blade color
-        love.graphics.setColor(blade.color)
+        -- Modify color based on player influence (optional enhancement)
+        local baseColor = blade.color
+        if blade.playerInfluence and blade.playerInfluence > 0 then
+            -- Slightly brighten grass near player
+            local brightnessFactor = 1 + (blade.playerInfluence * 0.2)
+            love.graphics.setColor(
+                math.min(baseColor[1] * brightnessFactor, 1),
+                math.min(baseColor[2] * brightnessFactor, 1),
+                math.min(baseColor[3] * brightnessFactor, 1),
+                baseColor[4]
+            )
+        else
+            love.graphics.setColor(baseColor)
+        end
         
         -- Draw grass blade as textured rectangle
         love.graphics.rectangle("fill", -blade.width/2, -blade.height, blade.width, blade.height)
@@ -281,7 +344,10 @@ function GrassRenderer:setGrassArea(x, y, width, height, density)
         
         table.insert(self.grassBlades, blade)
     end
-    
+    self.x = x
+    self.y = y
+    self.width = width
+    self.height = height
     self.grassCount = #self.grassBlades
 end
 
@@ -294,7 +360,7 @@ end
     function demo.load()
         -- Set grass to appear in bottom half of screen
         
-        grass:setGrassArea(320, 398, 165, 37, 200)
+        grass:setGrassArea(320, 298, 165, 37, 200)
     end
     
     function demo.update(dt)
@@ -327,6 +393,7 @@ end
         -- Draw grass
         -- love.graphics.setColor(1, 1, 1, 0.001)  -- Reset color
         grass:draw()
+        -- grass:drawToCanvas()
         -- love.graphics.setColor(1, 1, 1, 1)  -- Reset color
         
         -- Draw instructions
