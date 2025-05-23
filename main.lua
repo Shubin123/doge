@@ -85,7 +85,7 @@ function love.load()
     water.load()
     smoke.load()
     water.setWaterArea(320, 238, 165, 67)
-    smoke.setsmokeArea(320, 138, 165, 67)
+    smoke.setsmokeArea(320, 238, 165, 67)
     
 end
 

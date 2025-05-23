@@ -192,7 +192,7 @@ function GrassRenderer:update(dt)
         local playerOffsetX = 0
         local playerOffsetY = 0
         
-        -- if distance < playerRadius and distance > 0 then
+        if distance < playerRadius*0.1  and distance > 0 then
             -- Calculate influence based on distance (closer = stronger effect)
             local influence = 1 - (distance / playerRadius)
             influence = influence * influence  -- Square for more dramatic falloff
@@ -212,7 +212,7 @@ function GrassRenderer:update(dt)
                 playerOffsetX = playerOffsetX + dynamicEffect * dirX
                 playerOffsetY = playerOffsetY + dynamicEffect * dirY * 0.3
             end
-        -- end
+        end
         
         -- Combine wind and player effects
         blade.currentWindOffset = {
@@ -258,32 +258,54 @@ function GrassRenderer:draw()
     for _, blade in ipairs(self.grassBlades) do
         love.graphics.push()
         
-        -- Apply combined wind and player offset
+        -- Get wind and player offset
         local windX = blade.currentWindOffset and blade.currentWindOffset.x or 0
         local windY = blade.currentWindOffset and blade.currentWindOffset.y or 0
         
-        -- Position and transform
-        love.graphics.translate(blade.x + windX, blade.y + windY)
+        -- Position at the base of the grass (roots stay fixed)
+        love.graphics.translate(blade.x, blade.y)
         love.graphics.rotate(blade.rotation)
         love.graphics.scale(blade.scale)
         
         -- Modify color based on player influence (optional enhancement)
         local baseColor = blade.color
-        if blade.playerInfluence and blade.playerInfluence > 0 then
-            -- Slightly brighten grass near player
-            local brightnessFactor = 1 + (blade.playerInfluence * 0.2)
-            love.graphics.setColor(
-                math.min(baseColor[1] * brightnessFactor, 1),
-                math.min(baseColor[2] * brightnessFactor, 1),
-                math.min(baseColor[3] * brightnessFactor, 1),
-                baseColor[4]
-            )
-        else
+        -- if blade.playerInfluence and blade.playerInfluence > 0 then
+        --     -- Slightly brighten grass near player
+        --     local brightnessFactor = 1 + (blade.playerInfluence * 0.2)
+        --     love.graphics.setColor(
+        --         math.min(baseColor[1] * brightnessFactor, 1),
+        --         math.min(baseColor[2] * brightnessFactor, 1),
+        --         math.min(baseColor[3] * brightnessFactor, 1),
+        --         baseColor[4]
+        --     )
+        -- else
             love.graphics.setColor(baseColor)
-        end
+        -- end
         
-        -- Draw grass blade as textured rectangle
-        love.graphics.rectangle("fill", -blade.width/2, -blade.height, blade.width, blade.height)
+        -- Draw grass blade with bend effect
+        -- Instead of moving the whole blade, we'll draw it as a curved shape
+        local segments = 8  -- Number of segments to create the bend
+        local segmentHeight = blade.height / segments
+        
+        for i = 0, segments - 1 do
+            local t = i / segments  -- Progress from 0 (base) to 1 (tip)
+            local bendFactor = t * t  -- Quadratic curve - more bend at the tip
+            
+            -- Calculate offset for this segment
+            local segmentOffsetX = windX * bendFactor
+            local segmentOffsetY = windY * bendFactor
+            
+            -- Draw segment as a small rectangle
+            love.graphics.push()
+            love.graphics.translate(segmentOffsetX, -i * segmentHeight + segmentOffsetY)
+            
+            -- Taper the width towards the tip
+            local widthFactor = 1 - (t * 0.3)  -- 30% narrower at tip
+            local segmentWidth = blade.width * widthFactor
+            
+            love.graphics.rectangle("fill", -segmentWidth/2, -segmentHeight, segmentWidth, segmentHeight)
+            love.graphics.pop()
+        end
         
         love.graphics.pop()
     end
@@ -325,7 +347,7 @@ function GrassRenderer:setGrassArea(x, y, width, height, density)
         
         -- Random properties
         blade.width = love.math.random(0.1, 1)
-        blade.height = love.math.random(5, 15)
+        blade.height = love.math.random(1, 7)
         blade.rotation = love.math.random() * math.pi * 0.2 - math.pi * 0.1
         blade.scale = 0.8 + love.math.random()
         
@@ -360,7 +382,7 @@ end
     function demo.load()
         -- Set grass to appear in bottom half of screen
         
-        grass:setGrassArea(320, 298, 165, 37, 200)
+        grass:setGrassArea(320, 398, 165, 37, 200)
     end
     
     function demo.update(dt)
