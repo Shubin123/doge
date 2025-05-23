@@ -11,7 +11,7 @@ local mydraw = require("draw")
 local shader = require("shader")
 local water = require("water")
 local grass = require("grass")
-
+local smoke = require("smoke")
 
 
 -- hotreloader
@@ -75,11 +75,17 @@ function love.load()
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    grass.demo.load()
+    
+    
     -- Shaders
+    grass.demo.load()
+
+
     shader.load()
     water.load()
+    smoke.load()
     water.setWaterArea(320, 238, 165, 67)
+    smoke.setsmokeArea(320, 138, 165, 67)
     
 end
 
@@ -120,6 +126,7 @@ function love.draw()
     
     
     shader.pass(ldist, lsample)
+    smoke.pass()
     water.pass()
     
     mydraw.mydraw() -- ui last
@@ -164,7 +171,7 @@ function love.update(dt)
     -- end
 
     water.update(dt)
-    
+    smoke.update(dt)
     grass.demo.update(dt)
 end
 
