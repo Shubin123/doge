@@ -30,7 +30,7 @@ function water.load()
     
     -- Water distortion shader
     water_distortion_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         
         uniform Image noiseTexture;
         uniform vec2 noiseScale = vec2(3.0, 3.0);
@@ -75,7 +75,7 @@ function water.load()
         
     -- Final water shader that combines distortion and reflection
     water_final_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         
         uniform Image noiseTexture;
         uniform vec2 noiseScale = vec2(2.5, 2.5);

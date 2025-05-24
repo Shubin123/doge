@@ -4,7 +4,7 @@ var.screen_height = 600
 var.screen_width = 800
 var.screen_flags = {
     ["resizable"] = true,
-    ["vsync"] = true
+    ["vsync"] = false
 }
 
 var.character_rotation = 0

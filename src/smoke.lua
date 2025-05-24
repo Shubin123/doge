@@ -30,7 +30,7 @@ function smoke.load()
     
     -- smoke distortion shader
     smoke_distortion_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         
         uniform Image noiseTexture;
         uniform vec2 noiseScale = vec2(3.0, 3.0);
@@ -75,7 +75,7 @@ function smoke.load()
         
     -- Final smoke shader that combines distortion and reflection
     smoke_final_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         
         uniform Image noiseTexture;
         uniform vec2 noiseScale = vec2(2.5, 2.5);
