@@ -12,7 +12,7 @@ local shader = require("shader")
 local water = require("water")
 local grass = require("grass")
 local smoke = require("smoke")
-
+local fire = require("fire")
 
 -- hotreloader
 local lurker = require("lurker")
@@ -80,10 +80,12 @@ function love.load()
     -- Shaders
     grass.demo.load()
 
+    fire.load()
 
     shader.load()
     water.load()
     smoke.load()
+    
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
     
@@ -95,28 +97,35 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 function love.draw()
+    
     if var.State == "menu" then
     menu.draw()
     return
     end
+    -- love.graphics.push()
     
     shader.prepass()
 
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
 
+    -- love.graphics.scale(1.3,1.3)
+    -- love.graphics.translate(-player.body:getX() + 200,-player.body:getY() + 200)
+
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
-    
     mydraw.coins()
     -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
     mydraw.enemies()
     player.draw()
+    
     grass.demo.draw()
+    fire.draw()
     map.map3:draw(100, game_area_y, 1)
     map.map4:draw(100, game_area_y, 0.8)
+    
     -- else
     --     map.map3:draw(100, game_area_y, 1)
     --     map.map4:draw(100, game_area_y, 0.8)
@@ -125,12 +134,37 @@ function love.draw()
     -- end
     
     
+
+    -- love.graphics.pop()
+    
     shader.pass(ldist, lsample)
     smoke.pass()
     water.pass()
     
+    
     mydraw.mydraw() -- ui last
     
+end
+
+function love.update(dt)
+    
+    if var.State == "menu" then
+        menu.update(dt)
+        -- return
+    elseif State == "loading" then
+        var.State = "game"
+    end
+
+    world:update(dt)
+ 
+    -- if State == "game" then
+    player.update(dt)
+    -- end
+
+    water.update(dt)
+    smoke.update(dt)
+    fire.update(dt)
+    grass.demo.update(dt)
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -153,26 +187,6 @@ function checkBoundsGrid(x, y)
     --     -- local offset_x = 30*i
     -- end 
     -- return false
-end
-
-function love.update(dt)
-    
-    if var.State == "menu" then
-        menu.update(dt)
-        -- return
-    elseif State == "loading" then
-        var.State = "game"
-    end
-
-    world:update(dt)
- 
-    -- if State == "game" then
-    player.update(dt)
-    -- end
-
-    water.update(dt)
-    smoke.update(dt)
-    grass.demo.update(dt)
 end
 
 function love.resize(w, h)
