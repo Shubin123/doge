@@ -8,8 +8,8 @@ camera.target_x = 0
 camera.target_y = 0
 camera.zoom = 1.0
 camera.target_zoom = 1.0
-camera.lerp_speed = 0.1 -- Adjust this value (0.05 = slow, 0.2 = fast)
-camera.zoom_lerp_speed = 0.1 -- Separate speed for zoom
+camera.lerp_speed = 3 -- Adjust this value (0.05 = slow, 0.2 = fast)
+camera.zoom_lerp_speed = 1 -- Separate speed for zoom
 
 function camera.update(dt, player)
     -- Update target position (adjust for zoom to keep player centered)
@@ -24,7 +24,7 @@ function camera.update(dt, player)
     camera.y = camera.y + (camera.target_y - camera.y) * camera.lerp_speed
     
     -- Lerp zoom
-    camera.zoom = camera.zoom + (camera.target_zoom - camera.zoom) * camera.zoom_lerp_speed
+    camera.zoom =  camera.zoom + (camera.target_zoom - camera.zoom) * camera.zoom_lerp_speed
 end
 
 function camera.apply()
@@ -52,8 +52,7 @@ end
 
 -- Alternative implementation with frame-rate independent smoothing
 function camera.update_framerate_independent(dt, player)
-    local smooth_factor = 5.0 -- Higher = faster following
-    local zoom_smooth_factor = 3.0 -- Separate smoothing for zoom
+    
     
     -- Update target position (adjust for zoom to keep player centered)
     local screen_center_x = love.graphics.getWidth() / 2 - 200*camera.target_zoom
@@ -63,8 +62,8 @@ function camera.update_framerate_independent(dt, player)
     camera.target_y = -player.body:getY() * camera.zoom + screen_center_y
     
     -- Frame-rate independent lerping
-    local lerp_amount = 1.0 - math.exp(-smooth_factor * dt)
-    local zoom_lerp_amount = 1.0 - math.exp(-zoom_smooth_factor * dt)
+    local lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
+    local zoom_lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
     
     camera.x = camera.x + (camera.target_x - camera.x) * lerp_amount
     camera.y = camera.y + (camera.target_y - camera.y) * lerp_amount

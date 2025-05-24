@@ -24,7 +24,7 @@ end
 function GrassRenderer:initShaders()
     -- Grass animation shader - follows LÖVE shader format like your water example
     self.grassShader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         
         
         uniform Image noiseTexture;
@@ -248,7 +248,7 @@ function GrassRenderer:draw()
     
     -- Send uniforms to shader
     self.grassShader:send("time", self.time)
-    self.grassShader:send("windDirection", {self.windDirection.x, self.windDirection.y})
+    --self.grassShader:send("windDirection", {self.windDirection.x, self.windDirection.y})
     self.grassShader:send("windStrength", self.windStrength)
     self.grassShader:send("windSpeed", self.windSpeed)
     self.grassShader:send("screenSize", {love.graphics.getWidth(), love.graphics.getHeight()})

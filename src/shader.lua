@@ -20,7 +20,7 @@ function shader.load()
 
     -- Return all visible surface as their UV coords
     seed_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
             return Texel(tex, tc).a > 0.5 ? vec4(tc, 0.0, 1.0) : vec4(0.0);
         }
@@ -28,7 +28,7 @@ function shader.load()
 
     -- Run jump flood, which sets each pixel to be the UV which is the UV of the nearest surface
     jfa_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         uniform float stepSize;
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
             vec2 offset = stepSize / vec2(love_ScreenSize.x, love_ScreenSize.y);
@@ -55,7 +55,7 @@ function shader.load()
 
     -- Calculate the distance from every coordinate to every minimum distance jump
     df_shader = love.graphics.newShader([[
-        #pragma language glsl3
+       //#pragma language glsl3
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
             float dist = length(tc - Texel(tex, tc).xy);
             return vec4(dist, 0.0, 0.0, 1.0);
@@ -64,7 +64,7 @@ function shader.load()
 
     -- Ray march!
     gi_shader = love.graphics.newShader([[
-        #pragma language glsl3
+        //#pragma language glsl3
         uniform sampler2D surfaceTexture;
         const float PI = 3.14159265359;
         //const int NUM_SAMPLES = 16;
@@ -156,8 +156,8 @@ function shader.pass(distance,sample)
     render(df_canvas, gi_shader)
     
     --if water / smoke doesnt get drawn then these last two calls are necessary
-    love.graphics.setShader() 
-    love.graphics.draw(scene_canvas)
+    -- love.graphics.setShader() 
+    -- love.graphics.draw(scene_canvas)
 
 end
 
