@@ -49,10 +49,10 @@ function love.load()
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
-    fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0,
-        var.game_height)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    -- fence_body = love.physics.newBody(world, 0, 0, "static")
+    -- fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0,
+    --     var.game_height)
+    -- fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     createArches()
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then

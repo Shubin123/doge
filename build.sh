@@ -1,1 +1,1 @@
-zip -9 -r game.love .
+cd ./src && zip -9 -r ../game.love .
