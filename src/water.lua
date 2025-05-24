@@ -2,6 +2,7 @@ water = {}
 local var = require("var")
 local map = require("map")
 local player = require("player")
+local camera = require("camera") -- Add camera module reference
 local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
@@ -9,10 +10,10 @@ local game_area_y = var.header_height
 
 -- Parameters for the water effect
 local water_area = {
-    x = 0,       -- Will be set in the update function
-    y = 0,       -- Will be set in the update function
-    width = 0,   -- Will be set in the update function
-    height = 0   -- Will be set in the update function
+    x = 0,       -- World coordinates
+    y = 0,       -- World coordinates
+    width = 0,
+    height = 0
 }
 
 local time = 0  -- Time accumulator for water animation
@@ -36,11 +37,11 @@ function water.load()
         uniform vec2 noiseScale = vec2(3.0, 3.0);
         uniform vec2 noiseOffset;
         uniform float distortionStrength = 2;
-        uniform vec4 waterBounds; // x, y, width, height
+        uniform vec4 waterBounds; // x, y, width, height (screen space)
         uniform float time;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Check if we're in the water area
+            // Check if we're in the water area (sc is screen coordinates)
             vec2 relPos = sc - vec2(waterBounds.x, waterBounds.y);
             if (relPos.x >= 0.0 && relPos.x <= waterBounds.z && 
                 relPos.y >= 0.0 && relPos.y <= waterBounds.w) {
@@ -82,12 +83,12 @@ function water.load()
         uniform vec2 noiseOffset;
         uniform float distortionStrength = 0.015;
         uniform float reflectionStrength = 0.1;
-        uniform vec4 waterBounds; // x, y, width, height
+        uniform vec4 waterBounds; // x, y, width, height (screen space)
         uniform float time;
         uniform Image reflectionTexture;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Check if we're in the water area
+            // Check if we're in the water area (sc is screen coordinates)
             vec2 relPos = sc - vec2(waterBounds.x, waterBounds.y);
             if (relPos.x >= 0.0 && relPos.x <= waterBounds.z && 
                 relPos.y >= 0.0 && relPos.y <= waterBounds.w) {
@@ -135,7 +136,7 @@ function water.load()
     ]])
 end
 
--- Set the water area coordinates - call this to define where the water should appear
+-- Set the water area coordinates in world space
 function water.setWaterArea(x, y, width, height)
     water_area.x = x
     water_area.y = y
@@ -153,22 +154,19 @@ function water.update(dt)
     
     -- Send uniforms to shaders
     water_distortion_shader:send("noiseOffset", {offsetX, offsetY})
-    -- water_reflection_shader:send("noiseOffset", {offsetX * 0.7, offsetY * 0.7})
     water_final_shader:send("noiseOffset", {offsetX * 0.5, offsetY * 0.5})
     
     water_distortion_shader:send("time", time)
-    -- water_reflection_shader:send("time", time)
     water_final_shader:send("time", time)
-    -- water_area.x = player.body:getX()
     
-    -- water_area.y = player.body:getY()
+    -- Convert world space water bounds to screen space by subtracting camera offset
+    local screen_water_x = camera.x + water_area.x  -- Assuming camera.x is the camera's world X position
+    local screen_water_y = camera.y + water_area.y  -- Assuming camera.y is the camera's world Y position
     
-    -- Send water area bounds to shaders
-    water_distortion_shader:send("waterBounds", {water_area.x, water_area.y, water_area.width, water_area.height})
-    -- water_reflection_shader:send("waterBounds", {water_area.x, water_area.y, water_area.width, water_area.height})
-    water_final_shader:send("waterBounds", {water_area.x, water_area.y, water_area.width, water_area.height})
+    -- Send screen-space water area bounds to shaders
+    water_distortion_shader:send("waterBounds", {screen_water_x, screen_water_y, water_area.width, water_area.height})
+    water_final_shader:send("waterBounds", {screen_water_x, screen_water_y, water_area.width, water_area.height})
 end
-
 
 -- Apply the water effect
 function water.pass()
@@ -176,12 +174,10 @@ function water.pass()
     water_final_shader:send("reflectionTexture", reflection_canvas)
     water_final_shader:send("noiseTexture", noise_texture)
         
-
     -- Apply the water effect
     love.graphics.setShader(water_final_shader)
     love.graphics.draw(scene_canvas)
     -- love.graphics.setShader()
-    
 end
 
 return water

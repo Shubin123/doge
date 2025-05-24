@@ -6,6 +6,7 @@ local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
+local camera = require("camera") -- Add camera module reference
 
 -- Parameters for the smoke effect
 local smoke_area = {
@@ -164,9 +165,9 @@ function smoke.update(dt)
     -- smoke_area.y = player.body:getY()
     
     -- Send smoke area bounds to shaders
-    smoke_distortion_shader:send("smokeBounds", {smoke_area.x, smoke_area.y, smoke_area.width, smoke_area.height})
+    smoke_distortion_shader:send("smokeBounds", {camera.x + smoke_area.x, camera.y + smoke_area.y, smoke_area.width, smoke_area.height})
     -- smoke_reflection_shader:send("smokeBounds", {smoke_area.x, smoke_area.y, smoke_area.width, smoke_area.height})
-    smoke_final_shader:send("smokeBounds", {smoke_area.x, smoke_area.y, smoke_area.width, smoke_area.height})
+    smoke_final_shader:send("smokeBounds", {camera.x + smoke_area.x, camera.y+smoke_area.y, smoke_area.width, smoke_area.height})
 end
 
 
