@@ -156,7 +156,7 @@ end
 
 ## Requirements
 
-- **LÖVE2D 11.3+** with OpenGL 3.3+ support
+- **LÖVE2D 11.3+** with OpenGL 3.3+ support (put into /applications/ folder)
 - **GPU** with floating-point texture support
 - **Shader Model 3.0+** compatibility
 
