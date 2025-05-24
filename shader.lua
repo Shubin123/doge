@@ -155,8 +155,9 @@ function shader.pass(distance,sample)
     -- Global illumination pass
     render(df_canvas, gi_shader)
     
-    -- love.graphics.setShader()
-    -- love.graphics.draw(scene_canvas)
+    --if water / smoke doesnt get drawn then these last two calls are necessary
+    love.graphics.setShader() 
+    love.graphics.draw(scene_canvas)
 
 end
 

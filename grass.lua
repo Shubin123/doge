@@ -382,7 +382,7 @@ end
     function demo.load()
         -- Set grass to appear in bottom half of screen
         
-        grass:setGrassArea(320, 398, 165, 37, 200)
+        grass:setGrassArea(320, 398, 165, 37, 2000)
     end
     
     function demo.update(dt)

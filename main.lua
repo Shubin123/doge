@@ -3,7 +3,6 @@ math.randomseed(os.time())
 local menu = require("menu")
 local mymath = require("myMath")
 local effects = require("effects")
--- local mydraw = require("draw")
 local var = require("var")
 local map = require("map")
 local player = require("player")
@@ -13,9 +12,12 @@ local water = require("water")
 local grass = require("grass")
 local smoke = require("smoke")
 local fire = require("fire")
+local camera = require("camera")
+
 
 -- hotreloader
 local lurker = require("lurker")
+
 -- Game variables
 local world
 local fence_body, fence_shape, fence_fixture
@@ -102,15 +104,14 @@ function love.draw()
     menu.draw()
     return
     end
-    -- love.graphics.push()
+    love.graphics.push()
     
     shader.prepass()
 
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
-
-    -- love.graphics.scale(1.3,1.3)
-    -- love.graphics.translate(-player.body:getX() + 200,-player.body:getY() + 200)
+    -- the global illumination breaks down if transform is not pixel aligned!!!
+    camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
@@ -135,7 +136,7 @@ function love.draw()
     
     
 
-    -- love.graphics.pop()
+    love.graphics.pop()
     
     shader.pass(ldist, lsample)
     smoke.pass()
@@ -159,6 +160,7 @@ function love.update(dt)
  
     -- if State == "game" then
     player.update(dt)
+    camera.update_framerate_independent(dt,player)
     -- end
 
     water.update(dt)
@@ -222,8 +224,21 @@ lurker.preswap = function(file)
     love.event.push("quit", "restart")
 end
 
+local zoomToggle = false;
 function love.keypressed(key)
+    if key == "space" then
+        print("wow")
+        if not zoomToggle then
+            camera.setZoom(2)
+        else   
+            camera.setZoom(1)
+        end
+
+        zoomToggle = not zoomToggle
+        
+    end
     
+
 end
 
 function round(x, n)
