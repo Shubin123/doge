@@ -172,6 +172,8 @@ end
 
 -- Apply the smoke effect
 function smoke.pass()
+    
+    
     -- Send the reflection texture to the shader
     smoke_final_shader:send("reflectionTexture", reflection_canvas)
     smoke_final_shader:send("noiseTexture", noise_texture)
