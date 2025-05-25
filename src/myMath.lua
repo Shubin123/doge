@@ -9,4 +9,7 @@ function myMath.round(n)
   return math.floor(n + 0.5)
 end
 
+function myMath.realRandom(low,high)
+  return math.random() * (high - low) + low
+end
     return myMath

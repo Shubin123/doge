@@ -3,7 +3,7 @@
 
 local GrassRenderer = {}
 GrassRenderer.__index = GrassRenderer
-local player = require("player")
+
 
 function GrassRenderer.new(grassCount)
     local self = setmetatable({}, GrassRenderer)

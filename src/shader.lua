@@ -1,10 +1,5 @@
 shader = {}
-local var = require("var")
-local map = require("map")
-local W = love.graphics.getWidth()
-local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
+
 
 function shader.load()
     -- Create canvases with specific formats

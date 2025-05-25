@@ -1,13 +1,6 @@
 smoke = {}
-local var = require("var")
-local map = require("map")
-local player = require("player")
-local W = love.graphics.getWidth()
-local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
-local camera = require("camera") -- Add camera module reference
-local vec4 = require("vec4")
+
+vec4 = require("vec4")
 
 -- Parameters for the smoke effect
 -- local smoke_area = {

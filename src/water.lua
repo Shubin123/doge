@@ -1,12 +1,5 @@
 water = {}
-local var = require("var")
-local map = require("map")
-local player = require("player")
-local camera = require("camera") -- Add camera module reference
-local W = love.graphics.getWidth()
-local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
+
 local water_area = require("vec4").new(0,0,0,0)
 
 

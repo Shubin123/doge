@@ -1,6 +1,6 @@
 local player = {}
 player.health = 100
-local var = require("var")
+
 
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
