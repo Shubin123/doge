@@ -7,14 +7,17 @@ local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
+local water_area = require("vec4").new(0,0,0,0)
 
--- Parameters for the water effect
-local water_area = {
-    x = 0,       -- World coordinates
-    y = 0,       -- World coordinates
-    width = 0,
-    height = 0
-}
+
+
+-- -- Parameters for the water effect
+-- local water_area = {
+--     x = 0,       -- World coordinates
+--     y = 0,       -- World coordinates
+--     width = 0,
+--     height = 0
+-- }
 
 local time = 0  -- Time accumulator for water animation
 
@@ -30,49 +33,49 @@ function water.load()
     noise_texture:setWrap("repeat", "repeat")
     
     -- Water distortion shader
-    water_distortion_shader = love.graphics.newShader([[
-        //#pragma language glsl3
+    -- water_distortion_shader = love.graphics.newShader([[
+    --     //#pragma language glsl3
         
-        uniform Image noiseTexture;
-        uniform vec2 noiseScale = vec2(3.0, 3.0);
-        uniform vec2 noiseOffset;
-        uniform float distortionStrength = 2;
-        uniform vec4 waterBounds; // x, y, width, height (screen space)
-        uniform float time;
+    --     uniform Image noiseTexture;
+    --     uniform vec2 noiseScale = vec2(3.0, 3.0);
+    --     uniform vec2 noiseOffset;
+    --     uniform float distortionStrength = 2;
+    --     uniform vec4 waterBounds; // x, y, width, height (screen space)
+    --     uniform float time;
         
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Check if we're in the water area (sc is screen coordinates)
-            vec2 relPos = sc - vec2(waterBounds.x, waterBounds.y);
-            if (relPos.x >= 0.0 && relPos.x <= waterBounds.z && 
-                relPos.y >= 0.0 && relPos.y <= waterBounds.w) {
+    --     vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    --         // Check if we're in the water area (sc is screen coordinates)
+    --         vec2 relPos = sc - vec2(waterBounds.x, waterBounds.y);
+    --         if (relPos.x >= 0.0 && relPos.x <= waterBounds.z && 
+    --             relPos.y >= 0.0 && relPos.y <= waterBounds.w) {
                 
-                // Sample noise texture for distortion
-                vec2 noiseCoord = (tc * noiseScale) + noiseOffset;
-                vec4 noise = Texel(noiseTexture, noiseCoord);
+    --             // Sample noise texture for distortion
+    --             vec2 noiseCoord = (tc * noiseScale) + noiseOffset;
+    --             vec4 noise = Texel(noiseTexture, noiseCoord);
                 
-                // Create wave motion
-                float waveFactor = sin(time * 1.5 + tc.x * 10.0) * 0.5 + 0.5;
+    --             // Create wave motion
+    --             float waveFactor = sin(time * 1.5 + tc.x * 10.0) * 0.5 + 0.5;
                 
-                // Apply distortion to texture coordinates
-                vec2 distortedTC = tc + vec2(
-                    (noise.r * 2.0 - 1.0) * distortionStrength * waveFactor,
-                    (noise.g * 2.0 - 1.0) * distortionStrength * waveFactor
-                );
+    --             // Apply distortion to texture coordinates
+    --             vec2 distortedTC = tc + vec2(
+    --                 (noise.r * 2.0 - 1.0) * distortionStrength * waveFactor,
+    --                 (noise.g * 2.0 - 1.0) * distortionStrength * waveFactor
+    --             );
                 
-                // Get the distorted pixel color
-                vec4 texColor = Texel(tex, distortedTC);
+    --             // Get the distorted pixel color
+    --             vec4 texColor = Texel(tex, distortedTC);
                 
-                // Add blue tint to water
-                vec4 waterColor = vec4(0.2, 0.5, 0.8, 0.8);
+    --             // Add blue tint to water
+    --             vec4 waterColor = vec4(0.2, 0.5, 0.8, 0.8);
                 
-                // Combine water color with the distorted texture
-                return texColor * waterColor * color;
-            } else {
-                // Outside water area, return normal texture
-                return Texel(tex, tc) * color;
-            }
-        }
-    ]])
+    --             // Combine water color with the distorted texture
+    --             return texColor * waterColor * color;
+    --         } else {
+    --             // Outside water area, return normal texture
+    --             return Texel(tex, tc) * color;
+    --         }
+    --     }
+    -- ]])
         
     -- Final water shader that combines distortion and reflection
     water_final_shader = love.graphics.newShader([[
@@ -138,10 +141,14 @@ end
 
 -- Set the water area coordinates in world space
 function water.setWaterArea(x, y, width, height)
+    -- water_area.x = x
+    -- water_area.y = y
+    -- water_area.width = width
+    -- water_area.height = height
     water_area.x = x
     water_area.y = y
-    water_area.width = width
-    water_area.height = height
+    water_area.w = width
+    water_area.z = height
 end
 
 function water.update(dt)
@@ -153,19 +160,19 @@ function water.update(dt)
     local offsetY = math.cos(time * 0.5) * 0.05 + time * 0.03
     
     -- Send uniforms to shaders
-    water_distortion_shader:send("noiseOffset", {offsetX, offsetY})
+    -- water_distortion_shader:send("noiseOffset", {offsetX, offsetY})
     water_final_shader:send("noiseOffset", {offsetX * 0.5, offsetY * 0.5})
     
-    water_distortion_shader:send("time", time)
+    -- water_distortion_shader:send("time", time)
     water_final_shader:send("time", time)
     
     -- Convert world space water bounds to screen space by subtracting camera offset
-    local screen_water_x = camera.x + water_area.x  -- Assuming camera.x is the camera's world X position
-    local screen_water_y = camera.y + water_area.y  -- Assuming camera.y is the camera's world Y position
-    
+    local water_area = water_area*camera.zoom
+    local screen_water = camera.pos + require("vec2").new(water_area.x ,water_area.y)
+
     -- Send screen-space water area bounds to shaders
-    water_distortion_shader:send("waterBounds", {screen_water_x, screen_water_y, water_area.width, water_area.height})
-    water_final_shader:send("waterBounds", {screen_water_x, screen_water_y, water_area.width, water_area.height})
+    -- water_distortion_shader:send("waterBounds", {screen_water.x, screen_water.y, water_area.w, water_area.z})
+    water_final_shader:send("waterBounds", {screen_water.x, screen_water.y, water_area.w, water_area.z})
 end
 
 -- Apply the water effect
@@ -177,7 +184,7 @@ function water.pass()
     -- Apply the water effect
     love.graphics.setShader(water_final_shader)
     love.graphics.draw(scene_canvas)
-    -- love.graphics.setShader()
+    love.graphics.setShader()
 end
 
 return water

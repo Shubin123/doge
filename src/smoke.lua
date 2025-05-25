@@ -7,14 +7,17 @@ local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 local camera = require("camera") -- Add camera module reference
+local vec4 = require("vec4")
 
 -- Parameters for the smoke effect
-local smoke_area = {
-    x = 0,       -- Will be set in the update function
-    y = 0,       -- Will be set in the update function
-    width = 0,   -- Will be set in the update function
-    height = 0   -- Will be set in the update function
-}
+-- local smoke_area = {
+--     x = 0,       -- Will be set in the update function
+--     y = 0,       -- Will be set in the update function
+--     width = 0,   -- Will be set in the update function
+--     height = 0   -- Will be set in the update function
+    
+-- }
+local smoke_area = vec4.new(0,0,0,0)
 
 local time = 0  -- Time accumulator for smoke animation
 
@@ -30,49 +33,49 @@ function smoke.load()
     noise_texture:setWrap("repeat", "repeat")
     
     -- smoke distortion shader
-    smoke_distortion_shader = love.graphics.newShader([[
-        //#pragma language glsl3
+    -- smoke_distortion_shader = love.graphics.newShader([[
+    --     //#pragma language glsl3
         
-        uniform Image noiseTexture;
-        uniform vec2 noiseScale = vec2(3.0, 3.0);
-        uniform vec2 noiseOffset;
-        uniform float distortionStrength = 2;
-        uniform vec4 smokeBounds; // x, y, width, height
-        uniform float time;
+    --     uniform Image noiseTexture;
+    --     uniform vec2 noiseScale = vec2(3.0, 3.0);
+    --     uniform vec2 noiseOffset;
+    --     uniform float distortionStrength = 2;
+    --     uniform vec4 smokeBounds; // x, y, width, height
+    --     uniform float time;
         
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Check if we're in the smoke area
-            vec2 relPos = sc - vec2(smokeBounds.x, smokeBounds.y);
-            if (relPos.x >= 0.0 && relPos.x <= smokeBounds.z && 
-                relPos.y >= 0.0 && relPos.y <= smokeBounds.w) {
+    --     vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    --         // Check if we're in the smoke area
+    --         vec2 relPos = sc - vec2(smokeBounds.x, smokeBounds.y);
+    --         if (relPos.x >= 0.0 && relPos.x <= smokeBounds.z && 
+    --             relPos.y >= 0.0 && relPos.y <= smokeBounds.w) {
                 
-                // Sample noise texture for distortion
-                vec2 noiseCoord = (tc * noiseScale) + noiseOffset;
-                vec4 noise = Texel(noiseTexture, noiseCoord);
+    --             // Sample noise texture for distortion
+    --             vec2 noiseCoord = (tc * noiseScale) + noiseOffset;
+    --             vec4 noise = Texel(noiseTexture, noiseCoord);
                 
-                // Create wave motion
-                float waveFactor = sin(time * 1.5 + tc.x * 10.0) * 0.5 + 0.5;
+    --             // Create wave motion
+    --             float waveFactor = sin(time * 1.5 + tc.x * 10.0) * 0.5 + 0.5;
                 
-                // Apply distortion to texture coordinates
-                vec2 distortedTC = tc + vec2(
-                    (noise.r * 2.0 - 1.0) * distortionStrength * waveFactor,
-                    (noise.g * 2.0 - 1.0) * distortionStrength * waveFactor
-                );
+    --             // Apply distortion to texture coordinates
+    --             vec2 distortedTC = tc + vec2(
+    --                 (noise.r * 2.0 - 1.0) * distortionStrength * waveFactor,
+    --                 (noise.g * 2.0 - 1.0) * distortionStrength * waveFactor
+    --             );
                 
-                // Get the distorted pixel color
-                vec4 texColor = Texel(tex, distortedTC);
+    --             // Get the distorted pixel color
+    --             vec4 texColor = Texel(tex, distortedTC);
                 
-                // Add blue tint to smoke
-                vec4 smokeColor = vec4(0.2, 0.5, 0.8, 0.8);
+    --             // Add blue tint to smoke
+    --             vec4 smokeColor = vec4(0.2, 0.5, 0.8, 0.8);
                 
-                // Combine smoke color with the distorted texture
-                return texColor * smokeColor * color;
-            } else {
-                // Outside smoke area, return normal texture
-                return Texel(tex, tc) * color;
-            }
-        }
-    ]])
+    --             // Combine smoke color with the distorted texture
+    --             return texColor * smokeColor * color;
+    --         } else {
+    --             // Outside smoke area, return normal texture
+    --             return Texel(tex, tc) * color;
+    --         }
+    --     }
+    -- ]])
         
     -- Final smoke shader that combines distortion and reflection
     smoke_final_shader = love.graphics.newShader([[
@@ -138,10 +141,14 @@ end
 
 -- Set the smoke area coordinates - call this to define where the smoke should appear
 function smoke.setsmokeArea(x, y, width, height)
-    smoke_area.x = x
-    smoke_area.y = y
-    smoke_area.width = width
-    smoke_area.height = height
+    -- smoke_area.x = x
+    -- smoke_area.y = y
+    -- smoke_area.width = width
+    -- smoke_area.height = height
+    smoke_area.w=width
+    smoke_area.x=x
+    smoke_area.y=y
+    smoke_area.z=height
 end
 
 function smoke.update(dt)
@@ -153,21 +160,22 @@ function smoke.update(dt)
     local offsetY = math.cos(time * 0.5) * 0.05 + time * 0.03
     
     -- Send uniforms to shaders
-    smoke_distortion_shader:send("noiseOffset", {offsetX, offsetY})
+    -- smoke_distortion_shader:send("noiseOffset", {offsetX, offsetY})
     -- smoke_reflection_shader:send("noiseOffset", {offsetX * 0.7, offsetY * 0.7})
     smoke_final_shader:send("noiseOffset", {offsetX * 0.5, offsetY * 0.5})
     
-    smoke_distortion_shader:send("time", time)
+    -- smoke_distortion_shader:send("time", time)
     -- smoke_reflection_shader:send("time", time)
     smoke_final_shader:send("time", time)
-    -- smoke_area.x = player.body:getX()
-    
-    -- smoke_area.y = player.body:getY()
+    local smoke_area = smoke_area*camera.zoom  --scalar product on vec4
+    local screen_smoke = camera.pos + require("vec2").new(smoke_area.x, smoke_area.y)
+    -- print(smoke_area)
+
     
     -- Send smoke area bounds to shaders
-    smoke_distortion_shader:send("smokeBounds", {camera.x + smoke_area.x, camera.y + smoke_area.y, smoke_area.width, smoke_area.height})
+    -- smoke_distortion_shader:send("smokeBounds", {camera.x + smoke_area.x, camera.y + smoke_area.y, smoke_area.w, smoke_area.z})
     -- smoke_reflection_shader:send("smokeBounds", {smoke_area.x, smoke_area.y, smoke_area.width, smoke_area.height})
-    smoke_final_shader:send("smokeBounds", {camera.x + smoke_area.x, camera.y+smoke_area.y, smoke_area.width, smoke_area.height})
+    smoke_final_shader:send("smokeBounds", {screen_smoke.x, screen_smoke.y, smoke_area.w, smoke_area.z})
 end
 
 

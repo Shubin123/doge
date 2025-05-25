@@ -137,8 +137,8 @@ function love.draw()
     
 
     love.graphics.pop()
-    
-    shader.pass(ldist, lsample)
+    -- order is IMPORTANT HERE shader-> smoke -> water
+    shader.pass(ldist, lsample) 
     smoke.pass()
     water.pass()
     
