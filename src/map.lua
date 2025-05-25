@@ -1,5 +1,5 @@
 local map = {}
-local var = require("var")
+
 
 function newTiles(tilesetImage, tileWidth, tileHeight)
     local tiles = {}

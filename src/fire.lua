@@ -1,8 +1,10 @@
 local fire = {}
 fire.scale = 0.1
-local sprite = require('sprite')
-local player = require("player")
+fire.t = 0
+-- local sprite = require('sprite')
+
 local spriteImg = love.graphics.newImage('gfx/fireball.png')
+-- myMath = require("myMath")
 function fire.load()
     
     
@@ -27,8 +29,9 @@ end
 
 function fire.update(dt)
     particleSystem:update(dt)
+    fire.t = fire.t + dt
 end
-
+fire.count = 0
 function fire.draw()
     
         -- love.graphics.setBlendMode("additive")
@@ -36,14 +39,19 @@ function fire.draw()
         
         	-- love.graphics.setColor(.90, .17, .48, 1)
         love.graphics.setColor(.13, .37, 1, 1)
-        love.graphics.draw(particleSystem, player.body:getX(),player.body:getY() ,0, fire.scale,fire.scale,-2348,-808 ) 
+        
+        love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t*5     )*20 -35 ,player.body:getY() + math.cos(fire.t*5    )*20 -30 ,0, fire.scale,fire.scale,-2348,-808 ) 
 
         love.graphics.setColor(.90, .17, .48, 1)
-        love.graphics.draw(particleSystem, player.body:getX(),player.body:getY() ,0, fire.scale,fire.scale,-2008,-808 ) 
+        love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t*5 + 10)*20 -35 ,player.body:getY() +math.cos(fire.t*5 + 10)*20 -30 ,0, fire.scale,fire.scale,-2348 ,-808 ) 
 
          love.graphics.setColor(.30, 1, .48, 1)
-        love.graphics.draw(particleSystem, player.body:getX(),player.body:getY() ,0, fire.scale,fire.scale,-2048,-108 ) 
+        love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t*5 + 20)*20 -35,player.body:getY()  +math.cos(fire.t*5 + 20)*20-30,0, fire.scale,fire.scale,-2348,-808 ) 
         
+        love.graphics.setColor(.30, 1, .48, 1)
+        love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t*5 + 30)*20 -35,player.body:getY()  +math.cos(fire.t*5 + 30)*20-30,0, fire.scale,fire.scale,-2348,-808 ) 
+        
+        fire.fires(fire.count)
         love.graphics.setColor(1,1,1)
         love.graphics.draw(particleSystem, 500,200 ,0, fire.scale,fire.scale) 
    	
@@ -59,5 +67,11 @@ function fire.draw()
 	-- love.graphics.rectangle("fill", 75,75, 125,125)
 end
 
+function fire.fires(n)
+    for i = 1,n do
+        -- love.graphics.setColor(1,1,1, 1)
+        love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t*5 + 30 + 10*i)*20 -35,player.body:getY()  +math.cos(fire.t*5 + 30 + 10*i)*20-30,0, fire.scale,fire.scale,-2348,-808 ) 
+    end
+end
 
 return fire

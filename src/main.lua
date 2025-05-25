@@ -1,19 +1,22 @@
 math.randomseed(os.time())
 
-local menu = require("menu")
-local mymath = require("myMath")
-local effects = require("effects")
-local var = require("var")
-local map = require("map")
-local player = require("player")
-local mydraw = require("draw")
-local shader = require("shader")
-local water = require("water")
-local grass = require("grass")
-local smoke = require("smoke")
-local fire = require("fire")
-local camera = require("camera")
-
+menu = require("menu")
+mymath = require("myMath")
+effects = require("effects")
+var = require("var")
+map = require("map")
+player = require("player")
+mydraw = require("draw")
+shader = require("shader")
+water = require("water")
+grass = require("grass")
+smoke = require("smoke")
+sprite = require('sprite')
+fire = require("fire")
+camera = require("camera")
+vec2 = require("vec2")
+vec4 = require("vec4")
+player = require("player")
 
 -- hotreloader
 local lurker = require("lurker")
@@ -27,6 +30,11 @@ local coin_shape, enemy_shape
 coin_image, coin_quad, coin_sprite = 0, 0, 0
 png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
 enemy_image = 0
+
+W = love.graphics.getWidth()
+H = love.graphics.getHeight()
+game_area_x = (W - var.game_width) / 2
+game_area_y = var.header_height
 
 -- lighting variables 
 local ldist = 30 -- 5-80
@@ -230,6 +238,7 @@ function love.keypressed(key)
         print("wow")
         if not zoomToggle then
             camera.setZoom(2)
+            fire.count = fire.count + 1
         else   
             camera.setZoom(1)
         end

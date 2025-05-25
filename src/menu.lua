@@ -1,6 +1,5 @@
 local menu = {}
-local var = require("var")
--- Module-level variables
+
 local font
 local ps
 local startButton = { y = 250, text = "[ Start Game ]" }
