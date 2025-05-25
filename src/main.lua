@@ -235,7 +235,6 @@ end
 local zoomToggle = false;
 function love.keypressed(key)
     if key == "space" then
-        print("wow")
         if not zoomToggle then
             camera.setZoom(2)
             fire.count = fire.count + 1
