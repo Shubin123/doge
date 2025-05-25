@@ -11,6 +11,7 @@ local game_area_y = var.header_height
 
 
 function draw.mydraw()
+    
     if State == "menu" then
         menu.draw(var.ScreenInfo)
         love.graphics.draw(var.cursorImage, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
@@ -45,7 +46,7 @@ function draw.mydraw()
     end
     
     -- Draw game area
-    love.graphics.setScissor(game_area_x, game_area_y, var.game_width, var.game_height)
+    -- love.graphics.setScissor(game_area_x, game_area_y, var.game_width, var.game_height)
     
     -- Draw map (only visible tiles)
     -- print(game_area_x,game_area_y)
@@ -67,7 +68,7 @@ function draw.mydraw()
     -- love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum], game_area_x + px, game_area_y + py, var.character_rotation, 1, 1, var.sprite_width / 2, var.sprite_height / 2)
     
     -- Reset scissor
-    love.graphics.setScissor()
+    -- love.graphics.setScissor()
     
     -- Draw white borders
     love.graphics.setColor(1, 1, 1)
@@ -82,6 +83,8 @@ function draw.mydraw()
     
     -- Debug info
     love.graphics.print("State: " .. var.State, 10, 70)
+
+    
 end
 
 function draw.coins() 

@@ -5,4 +5,8 @@ function myMath.sign(number)
 end
 
 
-return myMath
+function myMath.round(n)
+  return math.floor(n + 0.5)
+end
+
+    return myMath
