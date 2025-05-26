@@ -117,15 +117,14 @@ function love.draw()
     love.graphics.push()
     shader.prepass()
 
-    -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
-    -- print(player.body:getX(),player.body:getY())
-    -- the global illumination breaks down if transform is not pixel aligned!!!
+    
     camera.apply()
-
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
+
+
 
     mydraw.coins()
     -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
@@ -135,6 +134,8 @@ function love.draw()
     grass.demo.draw()
     fire.draw()
     map.map3:draw(100, game_area_y, 1)
+    
+    -- map.map3:draw(100, game_area_y, 1)
     map.map4:draw(100, game_area_y, 0.8)
     
     -- else
