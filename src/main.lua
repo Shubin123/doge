@@ -108,6 +108,188 @@ local H = love.graphics.getHeight()
 local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
+-- Dynamic draw list for Y-sorting
+dynamic_draw_list = {}
+
+-- Sorting function for Y-axis rendering
+local function sortByRenderY(drawable_a, drawable_b)
+    return drawable_a.sort_y < drawable_b.sort_y
+end
+
+-- Function to populate dynamic draw list
+local function populateDynamicDrawList()
+    -- Clear the list
+    dynamic_draw_list = {}
+    
+    -- Player drawable
+    local px, py = player.body:getX(), player.body:getY()
+    local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
+    local sort_y = py + (100 * player.scale)
+    
+    table.insert(dynamic_draw_list, {
+        sort_y = sort_y,
+        image_or_particles = player.animation.spriteSheet,
+        quad = player.animation.quads[spriteNum],
+        x = px,
+        y = py,
+        rotation = var.character_rotation,
+        scale_x = player.scale,
+        scale_y = player.scale,
+        offset_x = -150,
+        offset_y = 0,
+        color = {1, 1, 1, 1},
+        blend_mode = {"alpha"},
+        source_object_type = "player"
+    })
+    
+    -- Enemies drawables
+    for i = 1, #enemies_bods do
+        local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+        local enemy_sort_y = ey + (enemy_image:getHeight() * 0.1) / 2
+        
+        table.insert(dynamic_draw_list, {
+            sort_y = enemy_sort_y,
+            image_or_particles = enemy_image,
+            quad = nil,
+            x = ex,
+            y = ey,
+            rotation = 0,
+            scale_x = 0.1,
+            scale_y = 0.1,
+            offset_x = enemy_image:getWidth() / 2,
+            offset_y = enemy_image:getHeight() / 2,
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"},
+            source_object_type = "enemy"
+        })
+    end
+    
+    -- Coins drawables
+    for i = 1, #coin_bods do
+        local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
+        local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
+        
+        table.insert(dynamic_draw_list, {
+            sort_y = coin_sort_y,
+            image_or_particles = coin_image,
+            quad = nil,
+            x = cx,
+            y = cy,
+            rotation = 0,
+            scale_x = 0.5,
+            scale_y = 0.5,
+            offset_x = coin_image:getWidth() / 2,
+            offset_y = coin_image:getHeight() / 2,
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"},
+            source_object_type = "coin"
+        })
+    end
+    
+    -- Fire effects drawables
+    if fire.particleSystem then
+        -- Main static fire
+        local fire_main_x, fire_main_y = 500, 200
+        table.insert(dynamic_draw_list, {
+            sort_y = fire_main_y,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fire_main_x,
+            y = fire_main_y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 0,
+            offset_y = 0,
+            color = {0.13, 0.37, 1, 1},
+            blend_mode = {"lighten", "premultiplied"},
+            source_object_type = "fire_effect"
+        })
+        
+        -- Dynamic fires from fire.fires(n) loop
+        for i = 1, fire.count do
+            local fire_instance_x = player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20
+            local fire_instance_y = player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45
+            
+            table.insert(dynamic_draw_list, {
+                sort_y = fire_instance_y,
+                image_or_particles = fire.particleSystem,
+                quad = nil,
+                x = fire_instance_x,
+                y = fire_instance_y,
+                rotation = 0,
+                scale_x = fire.scale,
+                scale_y = fire.scale,
+                offset_x = 0,
+                offset_y = 0,
+                color = {0.13, 0.37, 1, 1},
+                blend_mode = {"lighten", "premultiplied"},
+                source_object_type = "fire_effect"
+            })
+        end
+    end
+end
+
+-- Function to render sorted draw list
+local function renderSortedDrawList()
+    -- Store current graphics state
+    local current_color = {love.graphics.getColor()}
+    local current_blend_mode = love.graphics.getBlendMode()
+    
+    local last_color = {1, 1, 1, 1}
+    local last_blend_mode = {"alpha"}
+    
+    for _, drawable in ipairs(dynamic_draw_list) do
+        -- Set color if different from last
+        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or 
+           drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
+            love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
+            last_color = drawable.color
+        end
+        
+        -- Set blend mode if different from last
+        if drawable.blend_mode[1] ~= last_blend_mode[1] or 
+           (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2]) then
+            if drawable.blend_mode[2] then
+                love.graphics.setBlendMode(drawable.blend_mode[1], drawable.blend_mode[2])
+            else
+                love.graphics.setBlendMode(drawable.blend_mode[1])
+            end
+            last_blend_mode = drawable.blend_mode
+        end
+        
+        -- Draw the drawable
+        if drawable.quad then
+            love.graphics.draw(
+                drawable.image_or_particles,
+                drawable.quad,
+                drawable.x,
+                drawable.y,
+                drawable.rotation or 0,
+                drawable.scale_x or 1,
+                drawable.scale_y or 1,
+                drawable.offset_x or 0,
+                drawable.offset_y or 0
+            )
+        else
+            love.graphics.draw(
+                drawable.image_or_particles,
+                drawable.x,
+                drawable.y,
+                drawable.rotation or 0,
+                drawable.scale_x or 1,
+                drawable.scale_y or 1,
+                drawable.offset_x or 0,
+                drawable.offset_y or 0
+            )
+        end
+    end
+    
+    -- Restore original graphics state
+    love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+    love.graphics.setBlendMode(current_blend_mode)
+end
+
 function love.draw()
     
     if var.State == "menu" then
@@ -126,13 +308,14 @@ function love.draw()
 
 
 
-    mydraw.coins()
-    -- if checkBoundsGrid(player.body:getX(), player.body:getY()) then
-    mydraw.enemies()
-    player.draw()
+    -- Populate and sort dynamic draw list
+    populateDynamicDrawList()
+    table.sort(dynamic_draw_list, sortByRenderY)
+    
+    -- Render sorted entities
+    renderSortedDrawList()
     
     grass.demo.draw()
-    fire.draw()
     map.map3:draw(100, game_area_y, 1)
     
     -- map.map3:draw(100, game_area_y, 1)
