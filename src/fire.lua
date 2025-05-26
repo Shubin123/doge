@@ -8,26 +8,27 @@ local spriteImg = love.graphics.newImage('gfx/firelowres.png')
 function fire.load()
 
     Quads = sprite:constructsprite(spriteImg, 8, 8)
-    particleSystem = love.graphics.newParticleSystem(spriteImg, 500)
+    fire.particleSystem = love.graphics.newParticleSystem(spriteImg, 500)
+    particleSystem = fire.particleSystem
 
     -- PARTICLE SYSTEM CONFIGURATION
-    -- particleSystem:setParticleLifetime(3, 3)
-    particleSystem:setParticleLifetime(1, 2)
-    particleSystem:setEmissionRate(8)
-    particleSystem:setSizeVariation(1)
-    particleSystem:setDirection(1.5 * 3.14)
-    particleSystem:setSpeed(0, 50)
-    particleSystem:setLinearDamping(0.33)
-    particleSystem:setSpin(-0.25, 0.95)
-    particleSystem:setColors(255, 255, 255, 255, 255, 255, 255, 0.1)
-    particleSystem:setQuads(Quads)
-    particleSystem:setRotation(0, 2 * 3.14)
-    particleSystem:setOffset(sprite:getTileSize())
-    particleSystem:setInsertMode('bottom')
+    -- fire.particleSystem:setParticleLifetime(3, 3)
+    fire.particleSystem:setParticleLifetime(1, 2)
+    fire.particleSystem:setEmissionRate(8)
+    fire.particleSystem:setSizeVariation(1)
+    fire.particleSystem:setDirection(1.5 * 3.14)
+    fire.particleSystem:setSpeed(0, 50)
+    fire.particleSystem:setLinearDamping(0.33)
+    fire.particleSystem:setSpin(-0.25, 0.95)
+    fire.particleSystem:setColors(255, 255, 255, 255, 255, 255, 255, 0.1)
+    fire.particleSystem:setQuads(Quads)
+    fire.particleSystem:setRotation(0, 2 * 3.14)
+    fire.particleSystem:setOffset(sprite:getTileSize())
+    fire.particleSystem:setInsertMode('bottom')
 end
 
 function fire.update(dt)
-    particleSystem:update(dt)
+    fire.particleSystem:update(dt)
     fire.t = fire.t + dt
 end
 fire.count = 0
@@ -41,7 +42,7 @@ function fire.draw()
     
     fire.fires(fire.count)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(particleSystem, 500, 200, 0, fire.scale, fire.scale)
+    love.graphics.draw(fire.particleSystem, 500, 200, 0, fire.scale, fire.scale)
 
     --  'alpha', 'add', 'subtract', 'multiply', 'lighten', 'darken', 'screen', 'replace', 'none'
 
@@ -57,8 +58,8 @@ end
 function fire.fires(n)
     for i = 1, n do
         -- love.graphics.setColor(1,1,1, 1)
-        -- love.graphics.draw(particleSystem, player.body:getX() + math.sin(fire.t * 5 + 30 + 10 * i) * 20 - 35, player.body:getY() + math.cos(fire.t * 5 + 30 + 10 * i) * 20 - 30, 0, fire.scale, fire.scale, -2348, -808)
-        love.graphics.draw(particleSystem, player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20, player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45, 0,fire.scale,fire.scale)
+        -- love.graphics.draw(fire.particleSystem, player.body:getX() + math.sin(fire.t * 5 + 30 + 10 * i) * 20 - 35, player.body:getY() + math.cos(fire.t * 5 + 30 + 10 * i) * 20 - 30, 0, fire.scale, fire.scale, -2348, -808)
+        love.graphics.draw(fire.particleSystem, player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20, player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45, 0,fire.scale,fire.scale)
 
     end
 end
