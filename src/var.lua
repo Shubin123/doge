@@ -4,7 +4,7 @@ var.screen_height = 600
 var.screen_width = 800
 var.screen_flags = {
     ["resizable"] = true,
-    ["vsync"] = false
+    ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
 }
 
 var.character_rotation = 0

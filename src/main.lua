@@ -18,6 +18,8 @@ vec2 = require("vec2")
 vec4 = require("vec4")
 player = require("player")
 
+
+
 -- hotreloader
 local lurker = require("lurker")
 
@@ -37,8 +39,8 @@ game_area_x = (W - var.game_width) / 2
 game_area_y = var.header_height
 
 -- lighting variables 
-local ldist = 30 -- 5-80
-local lsample = 40 -- 10-64
+-- local ldist = 30 -- 5-80
+-- local lsample = 40 -- 10-64
 
 function love.load()
     -- love.mouse.setVisible(false)
@@ -113,13 +115,13 @@ function love.draw()
     return
     end
     love.graphics.push()
-    
     shader.prepass()
 
     -- if player.body:getX() > 200 or player.body:getX() < 170 or player.body:getY() > 180 or player.body:getY() < 100 then
     -- print(player.body:getX(),player.body:getY())
     -- the global illumination breaks down if transform is not pixel aligned!!!
     camera.apply()
+
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
@@ -146,7 +148,8 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-    shader.pass(ldist, lsample) 
+    
+    shader.pass() 
     smoke.pass()
     water.pass()
     
@@ -174,6 +177,7 @@ function love.update(dt)
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
+    
     grass.demo.update(dt)
 end
 

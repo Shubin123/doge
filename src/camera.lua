@@ -6,19 +6,16 @@ camera.x = 0
 camera.y = 0
 camera.pos = require("vec2").new(0,0)
 
-camera.target_x = 0 
+camera.target_x = 0
 camera.target_y = 0
 camera.zoom = 1.0
 camera.target_zoom = 1.0
-camera.lerp_speed = 3 -- Adjust this value (0.05 = slow, 0.2 = fast)
-camera.zoom_lerp_speed = 1 -- Separate speed for zoom
-
+camera.lerp_speed = 2 -- Adjust this value (1 = slow, 10 = fast)
+camera.zoom_lerp_speed = 10 -- Separate speed for zoom
 
 function camera.apply()
     -- Apply zoom and translation together
-    
-    love.graphics.scale( camera.zoom, camera.zoom)
-    
+    love.graphics.scale(camera.zoom,camera.zoom)
     -- Floor the camera position to prevent jitter
     love.graphics.translate(math.floor(camera.x / camera.zoom), math.floor(camera.y / camera.zoom))
 end
@@ -39,26 +36,60 @@ function camera.getZoom()
     return camera.zoom
 end
 
--- Alternative implementation with frame-rate independent smoothing
+-- Fixed implementation with aggressive zoom compensation
 function camera.update_framerate_independent(dt, player)
     
+    -- Store previous zoom for compensation
+    local prev_zoom = camera.zoom
     
-    -- Update target position (adjust for zoom to keep player centered)
-    local screen_center_x = love.graphics.getWidth() / 2 - 200*camera.target_zoom
-    local screen_center_y = love.graphics.getHeight() / 2 - 100
+    -- Update zoom first
+    local zoom_lerp_amount = 1.0 - math.exp(-camera.zoom_lerp_speed * dt)
+    camera.zoom = camera.zoom + (camera.target_zoom - camera.zoom) * zoom_lerp_amount
     
-    camera.target_x = -player.body:getX() * camera.zoom + screen_center_x
-    camera.target_y = -player.body:getY() * camera.zoom + screen_center_y
+            local target_screen_x = love.graphics.getWidth() / 2 - 200*camera.zoom
+        local target_screen_y = love.graphics.getHeight() / 2 - 100
+
+    -- Aggressive compensation for zoom change to keep character locked in center
+    if math.abs(prev_zoom - camera.zoom) > 0.0001 then
+        
+
+        
+        -- Force camera position to keep player exactly at target screen position
+        camera.x = target_screen_x - player.body:getX() * camera.zoom
+        camera.y = target_screen_y - player.body:getY() * camera.zoom
+        
+        -- Also update targets to prevent lerping away from this position
+        camera.target_x = camera.x
+        camera.target_y = camera.y
+    else
+        -- Normal target calculation when zoom is stable
+        local screen_center_x = love.graphics.getWidth() / 2 - 200*camera.zoom
+        local screen_center_y = love.graphics.getHeight() / 2 - 100
+        
+        camera.target_x = -player.body:getX() * camera.zoom + target_screen_x
+        camera.target_y = -player.body:getY() * camera.zoom + target_screen_y
+        
+        -- Frame-rate independent lerping for position only when not compensating zoom
+        local lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
+        
+        camera.x = camera.x + (camera.target_x - camera.x) * lerp_amount
+        camera.y = camera.y + (camera.target_y - camera.y) * lerp_amount
+    end
     
-    -- Frame-rate independent lerping
-    local lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
-    local zoom_lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
-    
-    camera.x = camera.x + (camera.target_x - camera.x) * lerp_amount
-    camera.y = camera.y + (camera.target_y - camera.y) * lerp_amount
     camera.pos.x = camera.x
     camera.pos.y = camera.y
-    camera.zoom =  camera.zoom + (camera.target_zoom - camera.zoom) * zoom_lerp_amount
+    
+    -- print(math.abs(camera.target_zoom - camera.zoom))
+    
+    if math.abs(camera.target_zoom - camera.zoom) < 0.001 then
+  
+        camera.zoom = camera.target_zoom
+       
+
+    else
+        -- shader.sample = 4
+        -- shader.distance = 10
+    end
 end
 
 return camera

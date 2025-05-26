@@ -1,5 +1,7 @@
 shader = {}
 
+shader.distance = 30
+shader.sample = 40
 
 function shader.load()
     -- Create canvases with specific formats
@@ -77,7 +79,7 @@ function shader.load()
             vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
             vec2 ratio = normalize(oneOverSize);
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
-            vec3 radiance = vec3(0);
+            vec3 radiance = vec3(0); //shift down (-) for night or up (+) for day
             float noise = rand(tc);
             for(int i = 0; i < sampleCount; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
@@ -120,15 +122,15 @@ function shader.prepass()
 
 end
 
-function shader.pass(distance,sample)
+function shader.pass()
         
 
     -- Seed pass
     render(scene_canvas, seed_shader, jfa_canvas1)
     
     gi_shader:send("surfaceTexture", scene_canvas)
-    gi_shader:send("maxDistance", distance)
-    gi_shader:send("sampleCount", sample)
+    gi_shader:send("maxDistance", shader.distance)
+    gi_shader:send("sampleCount", shader.sample)
     -- JFA passes
     local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
 
