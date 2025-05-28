@@ -135,8 +135,8 @@ local function populateDynamicDrawList()
         rotation = var.character_rotation,
         scale_x = player.scale,
         scale_y = player.scale,
-        offset_x = -150,
-        offset_y = 0,
+        offset_x = 50,
+        offset_y = 50,
         color = {1, 1, 1, 1},
         blend_mode = {"alpha"},
         source_object_type = "player"
@@ -148,7 +148,7 @@ local function populateDynamicDrawList()
         local enemy_sort_y = ey + (enemy_image:getHeight() * 0.1) / 2
         
         table.insert(dynamic_draw_list, {
-            sort_y = enemy_sort_y,
+            sort_y = enemy_sort_y + 80,
             image_or_particles = enemy_image,
             quad = nil,
             x = ex,
@@ -170,7 +170,7 @@ local function populateDynamicDrawList()
         local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
         
         table.insert(dynamic_draw_list, {
-            sort_y = coin_sort_y,
+            sort_y = coin_sort_y + 40,
             image_or_particles = coin_image,
             quad = nil,
             x = cx,
@@ -212,7 +212,7 @@ local function populateDynamicDrawList()
             local fire_instance_y = player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45
             
             table.insert(dynamic_draw_list, {
-                sort_y = fire_instance_y,
+                sort_y = fire_instance_y + 100,
                 image_or_particles = fire.particleSystem,
                 quad = nil,
                 x = fire_instance_x,
@@ -220,14 +220,35 @@ local function populateDynamicDrawList()
                 rotation = 0,
                 scale_x = fire.scale,
                 scale_y = fire.scale,
-                offset_x = 0,
-                offset_y = 0,
-                color = {0.13, 0.37, 1, 1},
+                offset_x = 250,
+                offset_y = 50,
+                color = {1,1, 1, 1},
                 blend_mode = {"lighten", "premultiplied"},
                 source_object_type = "fire_effect"
             })
         end
     end
+
+
+    addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
+
+    addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 210)
+    -- map.map4:draw(100, game_area_y, 0.8)
+    -- -- arches drawables
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = 100,
+    --     image_or_particles = map.map4.tiles.tilesetImage,
+    --     quad = map.map4.tiles.quads[0],
+    --     x = 0,
+    --     y = 0,
+    --     rotation = 0,
+    --     scale_x = 1,
+    --     scale_y = 1,
+    --     color = {1, 1, 1, 1},  
+    --     blend_mode = {"alpha"},
+    --     source_object_type = "stone_arches"
+    -- })
+
 end
 
 -- Function to render sorted draw list
@@ -290,6 +311,43 @@ local function renderSortedDrawList()
     love.graphics.setBlendMode(current_blend_mode)
 end
 
+
+function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
+    map_x = map_x or 0
+    map_y = map_y or 0
+    map_scale = map_scale or 1
+    
+    local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
+    local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))
+    
+    for row = 1, max_tiles_y do
+        for col = 1, max_tiles_x do
+            local tileId = mapData.tileData[row] and mapData.tileData[row][col]
+            if tileId and tileId > 0 and mapData.tiles.quads[tileId] then
+                local tile_x = map_x + (col-1) * mapData.tiles.tileWidth * map_scale
+                local tile_y = map_y + (row-1) * mapData.tiles.tileHeight * map_scale
+                local tile_sort_y = base_sort_y + tile_y -- Use tile's Y position for sorting
+                
+                table.insert(dynamic_draw_list, {
+                    sort_y = tile_sort_y,
+                    image_or_particles = mapData.tiles.tilesetImage,
+                    quad = mapData.tiles.quads[tileId],
+                    x = tile_x,
+                    y = tile_y,
+                    rotation = 0,
+                    scale_x = map_scale,
+                    scale_y = map_scale,
+                    offset_x = 0,
+                    offset_y = 0,
+                    color = {1, 1, 1, 1},
+                    blend_mode = {"alpha"},
+                    source_object_type = "map_tile"
+                })
+            end
+        end
+    end
+end
+
 function love.draw()
     
     if var.State == "menu" then
@@ -308,7 +366,7 @@ function love.draw()
 
 
 
-    -- Populate and sort dynamic draw list
+    -- Populate and sort dynamic draw list if neccessary 
     populateDynamicDrawList()
     table.sort(dynamic_draw_list, sortByRenderY)
     
@@ -316,10 +374,9 @@ function love.draw()
     renderSortedDrawList()
     
     grass.demo.draw()
-    map.map3:draw(100, game_area_y, 1)
-    
     -- map.map3:draw(100, game_area_y, 1)
-    map.map4:draw(100, game_area_y, 0.8)
+    -- map.map3:draw(100, game_area_y, 1)
+    -- map.map4:draw(100, game_area_y, 0.8)
     
     -- else
     --     map.map3:draw(100, game_area_y, 1)
@@ -486,25 +543,9 @@ function createArches()
     arch_shape = love.physics.newRectangleShape(10, 25)
     for x = 0, 7 do
         for y = 0, 2 do
-            arch_body = love.physics.newBody(world, 32 + 48 * x, 50 + y * 130, "static")
+            arch_body = love.physics.newBody(world, 230 + 48 * x, 100 + y * 130, "static")
             love.physics.newFixture(arch_body, arch_shape)
-            -- love.physics.newFixture(arch_body, arch_shape)
-            -- arch_body = love.physics.newBody(world, 30 + 48*x , 180, "static")
-            -- love.physics.newFixture(arch_body, arch_shape)
-            -- arch_body = love.physics.newBody(world, 30 + 48*x , 180 + 130, "static")
-            -- love.physics.newFixture(arch_body, arch_shape)
-
-            -- arch_body = love.physics.newBody(world, 180 - 50*2 , 180, "static")
-            -- arch_shape = love.physics.newRectangleShape(1, 1)
-            -- love.physics.newFixture(arch_body, arch_shape)
-
-            -- arch_body = love.physics.newBody(world, 180 - 50 , 180, "static")
-            -- arch_shape = love.physics.newRectangleShape(1, 1)
-            -- love.physics.newFixture(arch_body, arch_shape)
-
-            -- arch_body = love.physics.newBody(world, 180, 180, "static")
-            -- arch_shape = love.physics.newRectangleShape(1, 1)
-            -- love.physics.newFixture(arch_body, arch_shape)
+           
         end
 
     end
@@ -560,15 +601,15 @@ function beginContact(fixture_a, fixture_b, contact)
         return
     end
 
-    if checkDestroy(coin_bods, not_player) then
-        var.player_score = var.player_score + 1
-        var.num_coins = var.num_coins -1
+    -- if checkDestroy(coin_bods, not_player) then
+    --     var.player_score = var.player_score + 1
+    --     var.num_coins = var.num_coins -1
         
-    end
-     if checkDestroy(enemies_bods, not_player) then
-        player.health = player.health - 1
-        var.num_enemies = var.num_enemies - 1
-     end
+    -- end
+    --  if checkDestroy(enemies_bods, not_player) then
+    --     player.health = player.health - 1
+    --     var.num_enemies = var.num_enemies - 1
+    --  end
 
 end
 

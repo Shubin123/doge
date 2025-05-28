@@ -165,8 +165,8 @@ function GrassRenderer:update(dt)
     self.time = self.time + dt
     
     -- Get player position
-    local playerX = player.body:getX() + 200
-    local playerY = player.body:getY() + 50
+    local playerX = player.body:getX() 
+    local playerY = player.body:getY()
     
     -- Update wind with some variation
     self.windDirection.x = math.cos(self.time * 0.5)
