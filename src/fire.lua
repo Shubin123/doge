@@ -1,6 +1,8 @@
 local fire = {}
 fire.scale = 0.8
 fire.t = 0
+fire.fireables = {}
+fire.count = 100
 -- local sprite = require('sprite')
 
 local spriteImg = love.graphics.newImage('gfx/firelowres.png')
@@ -31,7 +33,6 @@ function fire.update(dt)
     fire.particleSystem:update(dt)
     fire.t = fire.t + dt
 end
-fire.count = 0
 function fire.draw()
 
     -- love.graphics.setBlendMode("add")
@@ -56,6 +57,8 @@ function fire.draw()
 end
 
 function fire.fires(n)
+    
+
     for i = 1, n do
         -- love.graphics.setColor(1,1,1, 1)
         -- love.graphics.draw(fire.particleSystem, player.body:getX() + math.sin(fire.t * 5 + 30 + 10 * i) * 20 - 35, player.body:getY() + math.cos(fire.t * 5 + 30 + 10 * i) * 20 - 30, 0, fire.scale, fire.scale, -2348, -808)

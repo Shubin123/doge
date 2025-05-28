@@ -68,4 +68,11 @@ end
 function vec2.__tostring(v)
 	 return "(" .. v.x .. ", " .. v.y .. ")"
 end
+
+function vec2.norm(vec)
+      local length = math.sqrt(vec.x^2 + vec.y^2)
+    return  vec2.new(vec.x/length, vec.y/length)
+end
+
+
 return vec2
