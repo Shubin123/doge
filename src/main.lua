@@ -72,7 +72,7 @@ function love.load()
     player.load(world)
 
     -- Coins and enemies
-    coin_shape = love.physics.newCircleShape(7)
+    coin_shape = love.physics.newCircleShape(3)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(10)
@@ -170,7 +170,7 @@ local function populateDynamicDrawList()
         local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
         
         table.insert(dynamic_draw_list, {
-            sort_y = coin_sort_y + 40,
+            sort_y = coin_sort_y + 100,
             image_or_particles = coin_image,
             quad = nil,
             x = cx,
@@ -206,28 +206,57 @@ local function populateDynamicDrawList()
             source_object_type = "fire_effect"
         })
         
-        -- Dynamic fires from fire.fires(n) loop
-        for i = 1, fire.count do
-            local fire_instance_x = player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20
-            local fire_instance_y = player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45
-            
-            table.insert(dynamic_draw_list, {
-                sort_y = fire_instance_y + 100,
-                image_or_particles = fire.particleSystem,
-                quad = nil,
-                x = fire_instance_x,
-                y = fire_instance_y,
-                rotation = 0,
-                scale_x = fire.scale,
-                scale_y = fire.scale,
-                offset_x = 250,
-                offset_y = 50,
-                color = {1,1, 1, 1},
-                blend_mode = {"lighten", "premultiplied"},
-                source_object_type = "fire_effect"
-            })
+for i = 1, fire.count do
+    local fire_instance_x = player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20
+    local fire_instance_y = player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45
+    
+    if i <= #fire.fireables then
+        if not fire.fireables[i][3] then
+            -- Set starting position
+            fire.fireables[i][1] = vec2.new(fire_instance_x, fire_instance_y)
+            fire.fireables[i][3] = true  -- initialized
+            -- direction is already stored in [2]
+        else
+            -- Move fireball using the pre-calculated direction
+            fire.fireables[i][1] = fire.fireables[i][1] + fire.fireables[i][2] * 3
         end
+        
+        -- Draw fireball
+        table.insert(dynamic_draw_list, {
+            sort_y = fire.fireables[i][1].y + 100,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fire.fireables[i][1].x,
+            y = fire.fireables[i][1].y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 250,
+            offset_y = 50,
+            color = {1, 1, 1, 1},
+            blend_mode = {"lighten", "premultiplied"},
+            source_object_type = "fire_effect"
+        })
+    else
+        -- Default fire effect
+        table.insert(dynamic_draw_list, {
+            sort_y = fire_instance_y + 100,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fire_instance_x,
+            y = fire_instance_y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 250,
+            offset_y = 50,
+            color = {1, 1, 1, 1},
+            blend_mode = {"lighten", "premultiplied"},
+            source_object_type = "fire_effect"
+        })
     end
+end
+end
 
 
     addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
@@ -464,6 +493,19 @@ function love.mousepressed(x, y, button, istouch, presses)
             love.event.quit()
         end
     end
+    
+     local center_x = love.graphics.getWidth() / 2  -- or player's screen position
+    local center_y = love.graphics.getHeight() / 2
+    
+    local direction = vec2.new(x - center_x, y - center_y)
+    local normalized_direction = vec2.norm(direction)
+    
+    table.insert(fire.fireables, {vec2.new(0, 0), normalized_direction, false})
+
+    lurker.scan()
+    
+
+
     lurker.scan()
     
     -- love.event.restart(restartcount + 1)
@@ -521,7 +563,7 @@ end
 
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height),
+        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200), math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
@@ -531,7 +573,7 @@ end
 
 function createEnemies(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(0, var.game_width), math.random(0, var.game_height),
+        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200), math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
