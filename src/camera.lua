@@ -46,8 +46,8 @@ function camera.update_framerate_independent(dt, player)
     local zoom_lerp_amount = 1.0 - math.exp(-camera.zoom_lerp_speed * dt)
     camera.zoom = camera.zoom + (camera.target_zoom - camera.zoom) * zoom_lerp_amount
     
-            local target_screen_x = love.graphics.getWidth() / 2 - 200*camera.zoom
-        local target_screen_y = love.graphics.getHeight() / 2 - 100
+        local target_screen_x = love.graphics.getWidth() / 2
+        local target_screen_y = love.graphics.getHeight() / 2
 
     -- Aggressive compensation for zoom change to keep character locked in center
     if math.abs(prev_zoom - camera.zoom) > 0.0001 then
@@ -63,7 +63,7 @@ function camera.update_framerate_independent(dt, player)
         camera.target_y = camera.y
     else
         -- Normal target calculation when zoom is stable
-        local screen_center_x = love.graphics.getWidth() / 2 - 200*camera.zoom
+        -- local screen_center_x = love.graphics.getWidth() / 2 - 3000*camera.zoom 
         local screen_center_y = love.graphics.getHeight() / 2 - 100
         
         camera.target_x = -player.body:getX() * camera.zoom + target_screen_x
@@ -76,7 +76,7 @@ function camera.update_framerate_independent(dt, player)
         camera.y = camera.y + (camera.target_y - camera.y) * lerp_amount
     end
     
-    camera.pos.x = camera.x
+    camera.pos.x = camera.x 
     camera.pos.y = camera.y
     
     -- print(math.abs(camera.target_zoom - camera.zoom))
