@@ -2,7 +2,7 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 100
+fire.count = 10
 -- local sprite = require('sprite')
 
 local spriteImg = love.graphics.newImage('gfx/firelowres.png')

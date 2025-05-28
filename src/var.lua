@@ -47,7 +47,6 @@ var.sprite_width = 100
  var.game_height = 400
  var.header_height = 50
 
-    
 
 
 return var
