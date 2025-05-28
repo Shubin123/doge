@@ -69,7 +69,13 @@ function love.load()
 
     -- Load map and player
     map.load()
+    map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
+    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 210)
+
+
     player.load(world)
+
+
 
     -- Coins and enemies
     coin_shape = love.physics.newCircleShape(3)
@@ -119,8 +125,13 @@ end
 -- Function to populate dynamic draw list
 local function populateDynamicDrawList()
     -- Clear the list
-    dynamic_draw_list = {}
+--     if not table.unpack then
+--     table.unpack = unpack
+-- end
     
+    dynamic_draw_list = {unpack(map_a,1,#map_a)}
+    rebuildArray(dynamic_draw_list,map_b)
+
     -- Player drawable
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
@@ -256,12 +267,13 @@ for i = 1, fire.count do
         })
     end
 end
+
+
+
 end
 
 
-    addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-
-    addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 210)
+ 
     -- map.map4:draw(100, game_area_y, 0.8)
     -- -- arches drawables
     -- table.insert(dynamic_draw_list, {
@@ -279,6 +291,7 @@ end
     -- })
 
 end
+
 
 -- Function to render sorted draw list
 local function renderSortedDrawList()
@@ -340,6 +353,14 @@ local function renderSortedDrawList()
     love.graphics.setBlendMode(current_blend_mode)
 end
 
+function rebuildArray(arr,innerElements)
+    -- table.insert(dynamic_draw_list,map_b[1])
+    -- table.insert(dynamic_draw_list,map_b[2])
+    -- table.insert(dynamic_draw_list,map_b[3])
+    for i = 1,#innerElements do
+    table.insert(arr,innerElements[i])
+    end
+end
 
 function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
     map_x = map_x or 0
@@ -349,6 +370,8 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
     local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
     local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))
     
+    local dynamic_draw_lists = {}
+
     for row = 1, max_tiles_y do
         for col = 1, max_tiles_x do
             local tileId = mapData.tileData[row] and mapData.tileData[row][col]
@@ -357,7 +380,7 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
                 local tile_y = map_y + (row-1) * mapData.tiles.tileHeight * map_scale
                 local tile_sort_y = base_sort_y + tile_y -- Use tile's Y position for sorting
                 
-                table.insert(dynamic_draw_list, {
+                table.insert(dynamic_draw_lists, {
                     sort_y = tile_sort_y,
                     image_or_particles = mapData.tiles.tilesetImage,
                     quad = mapData.tiles.quads[tileId],
@@ -375,6 +398,9 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
             end
         end
     end
+
+    return dynamic_draw_lists
+
 end
 
 function love.draw()
@@ -499,8 +525,12 @@ function love.mousepressed(x, y, button, istouch, presses)
     
     local direction = vec2.new(x - center_x, y - center_y)
     local normalized_direction = vec2.norm(direction)
+    -- print(fire.count)
+    -- if fire.count == 0 then
+    if #fire.fireables < fire.count then
     
     table.insert(fire.fireables, {vec2.new(0, 0), normalized_direction, false})
+    end
 
     lurker.scan()
     
@@ -533,7 +563,9 @@ function love.keypressed(key)
         
     end
     
-
+    
+        
+    
 end
 
 function round(x, n)
