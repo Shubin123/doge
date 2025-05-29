@@ -24,7 +24,7 @@ player = require("player")
 local lurker = require("lurker")
 
 -- Game variables
-local world
+world = 0
 local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
@@ -59,10 +59,10 @@ function love.load()
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
-    -- fence_body = love.physics.newBody(world, 0, 0, "static")
-    -- fence_shape = love.physics.newChainShape(true, 0, 0, var.game_width, 0, var.game_width, var.game_height, 0,
-    --     var.game_height)
-    -- fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    fence_body = love.physics.newBody(world, 0, 0, "static")
+    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200, var.game_height + 50, 200,
+        var.game_height + 50)
+    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     createArches()
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
@@ -78,7 +78,7 @@ function love.load()
 
 
     -- Coins and enemies
-    coin_shape = love.physics.newCircleShape(3)
+    coin_shape = love.physics.newCircleShape(5)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(10)
@@ -198,97 +198,9 @@ local function populateDynamicDrawList()
     end
     
     -- Fire effects drawables
-    if fire.particleSystem then
-        -- Main static fire
-        local fire_main_x, fire_main_y = 500, 200
-        table.insert(dynamic_draw_list, {
-            sort_y = fire_main_y,
-            image_or_particles = fire.particleSystem,
-            quad = nil,
-            x = fire_main_x,
-            y = fire_main_y,
-            rotation = 0,
-            scale_x = fire.scale,
-            scale_y = fire.scale,
-            offset_x = 0,
-            offset_y = 0,
-            color = {0.13, 0.37, 1, 1},
-            blend_mode = {"lighten", "premultiplied"},
-            source_object_type = "fire_effect"
-        })
-        
-for i = 1, fire.count do
-    local fire_instance_x = player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20
-    local fire_instance_y = player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45
-    
-    if i <= #fire.fireables then
-        if not fire.fireables[i][3] then
-            -- Set starting position
-            fire.fireables[i][1] = vec2.new(fire_instance_x, fire_instance_y)
-            fire.fireables[i][3] = true  -- initialized
-            -- direction is already stored in [2]
-        else
-            -- Move fireball using the pre-calculated direction
-            fire.fireables[i][1] = fire.fireables[i][1] + fire.fireables[i][2] * 3
-        end
-        
-        -- Draw fireball
-        table.insert(dynamic_draw_list, {
-            sort_y = fire.fireables[i][1].y + 100,
-            image_or_particles = fire.particleSystem,
-            quad = nil,
-            x = fire.fireables[i][1].x,
-            y = fire.fireables[i][1].y,
-            rotation = 0,
-            scale_x = fire.scale,
-            scale_y = fire.scale,
-            offset_x = 250,
-            offset_y = 50,
-            color = {1, 1, 1, 1},
-            blend_mode = {"lighten", "premultiplied"},
-            source_object_type = "fire_effect"
-        })
-    else
-        -- Default fire effect
-        table.insert(dynamic_draw_list, {
-            sort_y = fire_instance_y + 100,
-            image_or_particles = fire.particleSystem,
-            quad = nil,
-            x = fire_instance_x,
-            y = fire_instance_y,
-            rotation = 0,
-            scale_x = fire.scale,
-            scale_y = fire.scale,
-            offset_x = 250,
-            offset_y = 50,
-            color = {1, 1, 1, 1},
-            blend_mode = {"lighten", "premultiplied"},
-            source_object_type = "fire_effect"
-        })
-    end
-end
+    fire.populate()
 
 
-
-end
-
-
- 
-    -- map.map4:draw(100, game_area_y, 0.8)
-    -- -- arches drawables
-    -- table.insert(dynamic_draw_list, {
-    --     sort_y = 100,
-    --     image_or_particles = map.map4.tiles.tilesetImage,
-    --     quad = map.map4.tiles.quads[0],
-    --     x = 0,
-    --     y = 0,
-    --     rotation = 0,
-    --     scale_x = 1,
-    --     scale_y = 1,
-    --     color = {1, 1, 1, 1},  
-    --     blend_mode = {"alpha"},
-    --     source_object_type = "stone_arches"
-    -- })
 
 end
 
@@ -532,10 +444,7 @@ function love.mousepressed(x, y, button, istouch, presses)
     table.insert(fire.fireables, {vec2.new(0, 0), normalized_direction, false})
     end
 
-    lurker.scan()
     
-
-
     lurker.scan()
     
     -- love.event.restart(restartcount + 1)
@@ -553,7 +462,7 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "space" then
         if not zoomToggle then
-            camera.setZoom(2)
+            camera.setZoom(0.3)
             fire.count = fire.count + 1
         else   
             camera.setZoom(1)
@@ -674,7 +583,9 @@ function beginContact(fixture_a, fixture_b, contact)
     else
         return
     end
-
+    print(fixture_a:getGroupIndex(),fixture_b:getGroupIndex())
+    
+    
     -- if checkDestroy(coin_bods, not_player) then
     --     var.player_score = var.player_score + 1
     --     var.num_coins = var.num_coins -1
