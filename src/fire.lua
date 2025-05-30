@@ -98,10 +98,12 @@ for i = 1, fire.count do
             fire.fireables[i][1] = vec2.new(fire_instance_x, fire_instance_y)
             
             -- print(vec2.norm(fire.fireables[i][1]))
-            local _bod = love.physics.newBody(world, fire_instance_x, fire_instance_y,"static")
-            table.insert(fire_bodies ,i,_bod)
+            local _bod = love.physics.newBody(world, fire_instance_x, fire_instance_y,"dynamic")
+            
+            table.insert(fire_bodies , i, _bod)
             local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
-            _fixture:setGroupIndex(666)
+            _fixture:setGroupIndex(-1)
+            -- _fixture:setFilterData(500,1, -1)
             -- _bod:applyForce(fire.fireables[i][2].x *fire.t,fire.fireables[i][2].y*fire.t)
             fire.fireables[i][3] = true  -- initialized
             -- direction is already stored in [2]
@@ -151,5 +153,28 @@ for i = 1, fire.count do
 end
 end
 
+function fire.collision(fixture_a,fixture_b, contact)
+    local not_fire
+    -- local fire 
+    if fixture_a:getGroupIndex() == -1 then
+        not_fire = fixture_b
+        -- fire = fixture_a
+    elseif fixture_b:getGroupIndex() == -1 then
+        not_fire = fixture_a
+        -- fire = fixture_b
+    end
+
+    -- print(fixture_a:getGroupIndex() == -1 , fixture_b:getGroupIndex() == -1)
+    
+    if  not_fire ~= nil then
+    -- print(not_fire:getGroupIndex())
+    checkDestroy(enemies_bods, not_fire:getBody())
+    checkDestroy(coin_bods, not_fire:getBody())
+    -- print()
+    
+    end
+    
+                                                                                                                   
+end
 
 return fire

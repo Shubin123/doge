@@ -43,8 +43,8 @@ var.sprite_width = 100
  var.State = "loading"
  var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
 
- var.game_width = 400
- var.game_height = 400
+ var.game_width = 800
+ var.game_height = 800
  var.header_height = 50
 
 

@@ -41,7 +41,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         x = x or 0
         y = y or 0
         scale = scale or 1
-        local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale))
+        local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
         local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale))
         for row = 1, max_tiles_y do
             for col = 1, max_tiles_x do
@@ -82,8 +82,8 @@ function map.load()
     
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-    for x = 1, 25 do 
-        for y = 1, 25 do
+    for x = 1, 70 do 
+        for y = 1, 50 do
             
             map.map:setTile(x, y, math.random(1,200))
         end

@@ -35,6 +35,7 @@ function player.load(world)
     player.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
+    player.fixture:setGroupIndex(-1)
     player.character = love.graphics.newImage("gfx/doge.png")
     player.width, player.height = player.character:getDimensions()
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
@@ -157,6 +158,38 @@ function player.draw()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
     -- print( player.animation.duration)
     love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
+end
+
+function player.collision(fixture_a,fixture_b,contact)
+    local body_a = fixture_a:getBody()
+    local body_b = fixture_b:getBody()
+
+    local not_player -- either enemy or coin for now
+    if body_a == player.body then
+        not_player = body_b
+    elseif body_b == player.body then
+        not_player = body_a
+    else
+        return
+    end
+    -- print(fixture_a:getGroupIndex(),fixture_b:getGroupIndex())
+    
+    -- print(fixture_a:getMask(),fixture_b:getMask())
+    -- print(fixture_a:getCategory(),fixture_b:getCategory())
+    
+
+    
+    if checkDestroy(coin_bods, not_player) then
+        var.player_score = var.player_score + 1
+        var.num_coins = var.num_coins -1
+        
+    elseif  checkDestroy(enemies_bods, not_player) then
+        player.health = player.health - 1
+        var.num_enemies = var.num_enemies - 1
+     
+     end
+
+
 end
 
 function player.getPosition()
