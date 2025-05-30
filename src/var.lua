@@ -14,7 +14,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 3
+var.num_enemies = 300
 var.enemies_bods = {}
 
 var.sprite_height = 100
@@ -40,7 +40,7 @@ var.sprite_width = 100
 }
  var.points = {}
 
- var.State = "loading"
+ var.State = "running"
  var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
 
  var.game_width = 800
