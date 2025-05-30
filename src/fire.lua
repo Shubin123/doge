@@ -2,16 +2,16 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 0
+fire.count = 10
 fire_bodies = {}
 -- local sprite = require('sprite')
 
-local spriteImg = love.graphics.newImage('gfx/firelowres.png')
+fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
 -- myMath = require("myMath")
 function fire.load()
 
-    Quads = sprite:constructsprite(spriteImg, 8, 8)
-    fire.particleSystem = love.graphics.newParticleSystem(spriteImg, 500)
+    Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
+    fire.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 500)
     particleSystem = fire.particleSystem
 
     -- PARTICLE SYSTEM CONFIGURATION
@@ -33,6 +33,8 @@ end
 function fire.update(dt)
     fire.particleSystem:update(dt)
     fire.t = fire.t + dt
+
+
 end
 function fire.draw()
 
@@ -155,21 +157,28 @@ end
 
 function fire.collision(fixture_a,fixture_b, contact)
     local not_fire
-    -- local fire 
+    local firef
     if fixture_a:getGroupIndex() == -1 then
         not_fire = fixture_b
-        -- fire = fixture_a
+        firef = fixture_a
     elseif fixture_b:getGroupIndex() == -1 then
         not_fire = fixture_a
-        -- fire = fixture_b
+        firef = fixture_b
     end
 
     -- print(fixture_a:getGroupIndex() == -1 , fixture_b:getGroupIndex() == -1)
     
     if  not_fire ~= nil then
     -- print(not_fire:getGroupIndex())
-    checkDestroy(enemies_bods, not_fire:getBody())
-    checkDestroy(coin_bods, not_fire:getBody())
+    if (checkDestroy(enemies_bods, not_fire:getBody())) then 
+        fire.count = fire.count + math.random(0,1)
+    end
+    if (checkDestroy(coin_bods, not_fire:getBody())) then
+        fire.count = fire.count + math.random(0,1)
+    end
+        
+        -- table.remove(fire.fireables,checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
+        -- checkDestroy(fire_bodies, firef:getBody())
     -- print()
     
     end

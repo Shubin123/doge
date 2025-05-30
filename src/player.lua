@@ -41,7 +41,7 @@ function player.load(world)
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
     
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
-    player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/full.png"), 64, 65, 2, 10)
+    player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/jump.png"), 64, 65, 2, 10)
 
 end
 

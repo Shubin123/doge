@@ -69,7 +69,7 @@ function menu.mousepressed(x, y, button, screenInfo)
         if x >= startBounds.x and x <= startBounds.x + startBounds.width and
            y >= startBounds.y and y <= startBounds.y + startBounds.height then
             print("Menu Module: Start clicked")
-            return "loading"
+            return "running"
         end
         if x >= exitBounds.x and x <= exitBounds.x + exitBounds.width and
            y >= exitBounds.y and y <= exitBounds.y + exitBounds.height then

@@ -17,7 +17,7 @@ camera = require("camera")
 vec2 = require("vec2")
 vec4 = require("vec4")
 player = require("player")
-
+enemy = require("enemy")
 
 
 -- hotreloader
@@ -75,7 +75,7 @@ function love.load()
 
 
     player.load(world)
-
+    enemy.load()
 
 
     -- Coins and enemies
@@ -136,18 +136,12 @@ local function populateDynamicDrawList()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
     local sort_y = py + (100 * player.scale)
-    -- print(player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames])
-    if (player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames] ~= nil) then
-        -- var.nullquad = player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames]
-        -- print(var.nullquad)
-        print(player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames]:getTextureDimensions())
-    else
-        print("nil")
-    end
+    
+    
     table.insert(dynamic_draw_list, {
         sort_y = sort_y + 45,
         image_or_particles = player.animation.spriteSheet,
-        quad = player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames] or var.nullquad,
+        quad = player.animation.quads[(spriteNum + 5)%5 + 6] or var.nullquad,
         x = px,
         y = py,
         rotation = var.character_rotation,
@@ -206,6 +200,7 @@ local function populateDynamicDrawList()
 
     -- Fire effects drawables
     fire.populate()
+    enemy.populate()
 end
  
 
@@ -362,8 +357,7 @@ function love.draw()
     shader.pass()
     smoke.pass()
     water.pass()
-
-
+    
     mydraw.mydraw() -- ui last
 end
 
@@ -371,7 +365,7 @@ function love.update(dt)
     if var.State == "menu" then
         menu.update(dt)
         -- return
-    elseif State == "loading" then
+    elseif State == "running" then
         var.State = "game"
     end
 
@@ -387,6 +381,7 @@ function love.update(dt)
     fire.update(dt)
 
     grass.demo.update(dt)
+    enemy.update(dt)
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -423,10 +418,12 @@ local restartcount = tonumber(love.restart) or 0
 function love.mousepressed(x, y, button, istouch, presses)
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
-        if nextStateAction == "loading" then
-            var.State = "loading"
+        if nextStateAction == "running" then
+            var.State = "running"
             -- player.health = 100
             --reset game here
+            love.event.push("quit", "restart")
+
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
@@ -461,7 +458,7 @@ function love.keypressed(key)
     if key == "space" then
         if not zoomToggle then
             camera.setZoom(2)
-            fire.count = fire.count + 1
+            
         else
             camera.setZoom(1)
         end
@@ -513,7 +510,7 @@ function createEnemies(n)
             "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
-        _fixture:setGroupIndex(777)
+        _fixture:setGroupIndex(-777)
     end
 end
 
@@ -567,14 +564,17 @@ end
 function beginContact(fixture_a, fixture_b, contact)
     -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
+    enemy.collision(fixture_a, fixture_b, contact)
+    
 end
+
 
 function checkDestroy(t, v)
     for i = 1, #t do
         if t[i] == v then
             v:destroy()
             table.remove(t, i)
-            return true
+            return i
         end
     end
     return false -- should never reach
