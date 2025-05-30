@@ -2,7 +2,7 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 100
+fire.count = 0
 fire_bodies = {}
 -- local sprite = require('sprite')
 

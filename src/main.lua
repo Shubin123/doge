@@ -38,7 +38,7 @@ H = love.graphics.getHeight()
 game_area_x = (W - var.game_width) / 2
 game_area_y = var.header_height
 
--- lighting variables 
+-- lighting variables
 -- local ldist = 30 -- 5-80
 -- local lsample = 40 -- 10-64
 
@@ -60,7 +60,8 @@ function love.load()
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200, var.game_height + 50, 200,
+    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
+        var.game_height + 50, 200,
         var.game_height + 50)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
@@ -70,7 +71,7 @@ function love.load()
     -- Load map and player
     map.load()
     map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 210)
+    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
 
 
     player.load(world)
@@ -93,8 +94,8 @@ function love.load()
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
 
-    
-    
+
+
     -- Shaders
     grass.demo.load()
 
@@ -103,10 +104,9 @@ function love.load()
     shader.load()
     water.load()
     smoke.load()
-    
+
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
-    
 end
 
 local W = love.graphics.getWidth()
@@ -121,35 +121,42 @@ dynamic_draw_list = {}
 local function sortByRenderY(drawable_a, drawable_b)
     return drawable_a.sort_y < drawable_b.sort_y
 end
-
+flipQuads = true
 -- Function to populate dynamic draw list
 local function populateDynamicDrawList()
     -- Clear the list
---     if not table.unpack then
---     table.unpack = unpack
--- end
-    
-    dynamic_draw_list = {unpack(map_a,1,#map_a)}
-    rebuildArray(dynamic_draw_list,map_b)
+    --     if not table.unpack then
+    --     table.unpack = unpack
+    -- end
+
+    dynamic_draw_list = { unpack(map_a, 1, #map_a) }
+    rebuildArray(dynamic_draw_list, map_b)
 
     -- Player drawable
     local px, py = player.body:getX(), player.body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
+    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
     local sort_y = py + (100 * player.scale)
-    
+    -- print(player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames])
+    if (player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames] ~= nil) then
+        -- var.nullquad = player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames]
+        -- print(var.nullquad)
+        print(player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames]:getTextureDimensions())
+    else
+        print("nil")
+    end
     table.insert(dynamic_draw_list, {
-        sort_y = sort_y,
+        sort_y = sort_y + 45,
         image_or_particles = player.animation.spriteSheet,
-        quad = player.animation.quads[spriteNum],
+        quad = player.animation.quads[(spriteNum + 5)%player.totalPossibleFrames] or var.nullquad,
         x = px,
         y = py,
         rotation = var.character_rotation,
         scale_x = player.scale,
         scale_y = player.scale,
-        offset_x = 50,
+        offset_x = 35,
         offset_y = 50,
-        color = {1, 1, 1, 1},
-        blend_mode = {"alpha"},
+        color = { 1, 1, 1, 1 },
+        blend_mode = { "alpha" },
         source_object_type = "player"
     })
     
@@ -157,9 +164,9 @@ local function populateDynamicDrawList()
     for i = 1, #enemies_bods do
         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
         local enemy_sort_y = ey + (enemy_image:getHeight() * 0.1) / 2
-        
+
         table.insert(dynamic_draw_list, {
-            sort_y = enemy_sort_y + 80,
+            sort_y = enemy_sort_y + 100,
             image_or_particles = enemy_image,
             quad = nil,
             x = ex,
@@ -169,17 +176,17 @@ local function populateDynamicDrawList()
             scale_y = 0.1,
             offset_x = enemy_image:getWidth() / 2,
             offset_y = enemy_image:getHeight() / 2,
-            color = {1, 1, 1, 1},
-            blend_mode = {"alpha"},
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
             source_object_type = "enemy"
         })
     end
-    
+
     -- Coins drawables
     for i = 1, #coin_bods do
         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
         local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
-        
+
         table.insert(dynamic_draw_list, {
             sort_y = coin_sort_y + 100,
             image_or_particles = coin_image,
@@ -191,40 +198,37 @@ local function populateDynamicDrawList()
             scale_y = 0.5,
             offset_x = coin_image:getWidth() / 2,
             offset_y = coin_image:getHeight() / 2,
-            color = {1, 1, 1, 1},
-            blend_mode = {"alpha"},
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
             source_object_type = "coin"
         })
     end
-    
+
     -- Fire effects drawables
     fire.populate()
-
-
-
 end
-
+ 
 
 -- Function to render sorted draw list
 local function renderSortedDrawList()
     -- Store current graphics state
-    local current_color = {love.graphics.getColor()}
+    local current_color = { love.graphics.getColor() }
     local current_blend_mode = love.graphics.getBlendMode()
-    
-    local last_color = {1, 1, 1, 1}
-    local last_blend_mode = {"alpha"}
-    
+
+    local last_color = { 1, 1, 1, 1 }
+    local last_blend_mode = { "alpha" }
+
     for _, drawable in ipairs(dynamic_draw_list) do
         -- Set color if different from last
-        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or 
-           drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
+        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or
+            drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
             love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
             last_color = drawable.color
         end
-        
+
         -- Set blend mode if different from last
-        if drawable.blend_mode[1] ~= last_blend_mode[1] or 
-           (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2]) then
+        if drawable.blend_mode[1] ~= last_blend_mode[1] or
+            (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2]) then
             if drawable.blend_mode[2] then
                 love.graphics.setBlendMode(drawable.blend_mode[1], drawable.blend_mode[2])
             else
@@ -232,7 +236,7 @@ local function renderSortedDrawList()
             end
             last_blend_mode = drawable.blend_mode
         end
-        
+
         -- Draw the drawable
         if drawable.quad then
             love.graphics.draw(
@@ -259,18 +263,18 @@ local function renderSortedDrawList()
             )
         end
     end
-    
+
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
     love.graphics.setBlendMode(current_blend_mode)
 end
 
-function rebuildArray(arr,innerElements)
+function rebuildArray(arr, innerElements)
     -- table.insert(dynamic_draw_list,map_b[1])
     -- table.insert(dynamic_draw_list,map_b[2])
     -- table.insert(dynamic_draw_list,map_b[3])
-    for i = 1,#innerElements do
-    table.insert(arr,innerElements[i])
+    for i = 1, #innerElements do
+        table.insert(arr, innerElements[i])
     end
 end
 
@@ -278,20 +282,20 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
     map_x = map_x or 0
     map_y = map_y or 0
     map_scale = map_scale or 1
-    
+
     local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
     local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))
-    
+
     local dynamic_draw_lists = {}
 
     for row = 1, max_tiles_y do
         for col = 1, max_tiles_x do
             local tileId = mapData.tileData[row] and mapData.tileData[row][col]
             if tileId and tileId > 0 and mapData.tiles.quads[tileId] then
-                local tile_x = map_x + (col-1) * mapData.tiles.tileWidth * map_scale
-                local tile_y = map_y + (row-1) * mapData.tiles.tileHeight * map_scale
+                local tile_x = map_x + (col - 1) * mapData.tiles.tileWidth * map_scale
+                local tile_y = map_y + (row - 1) * mapData.tiles.tileHeight * map_scale
                 local tile_sort_y = base_sort_y + tile_y -- Use tile's Y position for sorting
-                
+
                 table.insert(dynamic_draw_lists, {
                     sort_y = tile_sort_y,
                     image_or_particles = mapData.tiles.tilesetImage,
@@ -303,8 +307,8 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
                     scale_y = map_scale,
                     offset_x = 0,
                     offset_y = 0,
-                    color = {1, 1, 1, 1},
-                    blend_mode = {"alpha"},
+                    color = { 1, 1, 1, 1 },
+                    blend_mode = { "alpha" },
                     source_object_type = "map_tile"
                 })
             end
@@ -312,19 +316,17 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
     end
 
     return dynamic_draw_lists
-
 end
 
 function love.draw()
-    
     if var.State == "menu" then
-    menu.draw()
-    return
+        menu.draw()
+        return
     end
     love.graphics.push()
     shader.prepass()
 
-    
+
     camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
@@ -333,41 +335,39 @@ function love.draw()
 
 
 
-    -- Populate and sort dynamic draw list if neccessary 
+    -- Populate and sort dynamic draw list if neccessary
     populateDynamicDrawList()
     table.sort(dynamic_draw_list, sortByRenderY)
-    
+
     -- Render sorted entities
     renderSortedDrawList()
-    
+
     grass.demo.draw()
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map4:draw(100, game_area_y, 0.8)
-    
+
     -- else
     --     map.map3:draw(100, game_area_y, 1)
     --     map.map4:draw(100, game_area_y, 0.8)
     --     player.draw()
 
     -- end
-    
-    
+
+
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-    
-    shader.pass() 
+
+    shader.pass()
     smoke.pass()
     water.pass()
-    
-    
+
+
     mydraw.mydraw() -- ui last
-    
 end
 
 function love.update(dt)
-    
     if var.State == "menu" then
         menu.update(dt)
         -- return
@@ -376,16 +376,16 @@ function love.update(dt)
     end
 
     world:update(dt)
- 
+
     -- if State == "game" then
     player.update(dt)
-    camera.update_framerate_independent(dt,player)
+    camera.update_framerate_independent(dt, player)
     -- end
 
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
-    
+
     grass.demo.update(dt)
 end
 
@@ -407,7 +407,7 @@ function checkBoundsGrid(x, y)
 
     -- for i=0,8 do
     --     -- local offset_x = 30*i
-    -- end 
+    -- end
     -- return false
 end
 
@@ -431,28 +431,25 @@ function love.mousepressed(x, y, button, istouch, presses)
             love.event.quit()
         end
     end
-    
-     local center_x = love.graphics.getWidth() / 2  -- or player's screen position
+
+    local center_x = love.graphics.getWidth() / 2 -- or player's screen position
     local center_y = love.graphics.getHeight() / 2
-    
+
     local direction = vec2.new(x - center_x, y - center_y)
     local normalized_direction = vec2.norm(direction)
     -- print(fire.count)
     -- if fire.count == 0 then
     if #fire.fireables < fire.count then
-    
-    table.insert(fire.fireables, {vec2.new(0, 0), normalized_direction, false})
+        table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
     end
 
-    
+
     lurker.scan()
-    
+
     -- love.event.restart(restartcount + 1)
 end
 
-
-
-lurker.preswap = function(file) 
+lurker.preswap = function(file)
     -- var.num_coins=0
     -- love.load()
     love.event.push("quit", "restart")
@@ -463,20 +460,18 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "space" then
         if not zoomToggle then
-            camera.setZoom(0.3)
+            camera.setZoom(2)
             fire.count = fire.count + 1
-        else   
+        else
             camera.setZoom(1)
         end
 
         zoomToggle = not zoomToggle
-        
     end
-    
 end
 
 function round(x, n)
-    n = 10^(n or 0)
+    n = 10 ^ (n or 0)
     x = x * n
     if x >= 0 then
         x = math.floor(x + 0.5)
@@ -502,7 +497,8 @@ end
 
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200), math.random(50, var.game_height + 50),
+        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
+            math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
@@ -512,7 +508,8 @@ end
 
 function createEnemies(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200), math.random(50, var.game_height + 50),
+        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
+            math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
@@ -521,14 +518,12 @@ function createEnemies(n)
 end
 
 function createArches()
-    arch_shape = love.physics.newRectangleShape(10, 25)
+    arch_shape = love.physics.newRectangleShape(20, 30)
     for x = 0, 7 do
         for y = 0, 2 do
             arch_body = love.physics.newBody(world, 230 + 48 * x, 100 + y * 130, "static")
             love.physics.newFixture(arch_body, arch_shape)
-           
         end
-
     end
 end
 
@@ -570,9 +565,8 @@ function createAnimation(image, width, height, duration, numFrames)
 end
 
 function beginContact(fixture_a, fixture_b, contact)
-    
     -- player.collision(fixture_a,fixture_b,contact)
-    fire.collision(fixture_a,fixture_b,contact)
+    fire.collision(fixture_a, fixture_b, contact)
 end
 
 function checkDestroy(t, v)
@@ -588,7 +582,9 @@ end
 
 function endContact(a, b, contact)
 end
+
 function preSolve(a, b, contact)
 end
+
 function postSolve(a, b, contact, normalimpulse, tangentimpulse)
 end

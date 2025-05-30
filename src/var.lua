@@ -47,6 +47,10 @@ var.sprite_width = 100
  var.game_height = 800
  var.header_height = 50
 
-
+var.nullquad = love.graphics.newQuad(
+            0, 0,                        -- x, y position in the texture (top-left corner)
+            0, 0, -- width, height of the quad
+            0, 0  -- total texture width, height
+        )
 
 return var
