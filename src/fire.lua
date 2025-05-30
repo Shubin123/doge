@@ -2,7 +2,8 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 10
+fire.count = 1
+fire.pierce = true
 fire_bodies = {}
 -- local sprite = require('sprite')
 
@@ -91,8 +92,8 @@ function fire.populate()
         })
         
 for i = 1, fire.count do
-    local fire_instance_x = player.body:getX() + (math.sin(fire.t * 5 + i)*(math.sin(fire.t) + 2)) * 30 + 200
-    local fire_instance_y = player.body:getY() + (math.cos(fire.t * 5 + i)*(math.sin(fire.t)+ 2))* 30 + 45
+    local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i)*(math.sin(fire.t*2) + 2)) * 30 + 200
+    local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i)*(math.sin(fire.t*2)+ 2))* 30 + 45
     
     if i <= #fire.fireables then
         if not fire.fireables[i][3] then
@@ -100,14 +101,14 @@ for i = 1, fire.count do
             fire.fireables[i][1] = vec2.new(fire_instance_x, fire_instance_y)
             
             -- print(vec2.norm(fire.fireables[i][1]))
-            local _bod = love.physics.newBody(world, fire_instance_x, fire_instance_y,"dynamic")
+            local _bod = love.physics.newBody(world, fire_instance_x - 200, fire_instance_y -45,"dynamic")
             
             table.insert(fire_bodies , i, _bod)
             local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
             _fixture:setGroupIndex(-1)
             -- _fixture:setFilterData(500,1, -1)
             -- _bod:applyForce(fire.fireables[i][2].x *fire.t,fire.fireables[i][2].y*fire.t)
-            fire.fireables[i][3] = true  -- initialized
+            fire.fireables[i][3] = 0  -- initialized
             -- direction is already stored in [2]
         else
             -- Move fireball using the pre-calculated direction
@@ -167,17 +168,18 @@ function fire.collision(fixture_a,fixture_b, contact)
     end
 
     -- print(fixture_a:getGroupIndex() == -1 , fixture_b:getGroupIndex() == -1)
-    
+    -- print(math.random() < 0.01 and 1 or 0)
     if  not_fire ~= nil then
     -- print(not_fire:getGroupIndex())
     if (checkDestroy(enemies_bods, not_fire:getBody())) then 
-        fire.count = fire.count + math.random(0,1)
+        fire.count = fire.count + (math.random() < 0.1 and 1 or 0)
     end
     if (checkDestroy(coin_bods, not_fire:getBody())) then
-        fire.count = fire.count + math.random(0,1)
+        fire.count = fire.count + (math.random() < 0.1 and 1 or 0)
     end
-        
-        -- table.remove(fire.fireables,checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
+        if not fire.pierce then
+        table.remove(fire.fireables,checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
+        end
         -- checkDestroy(fire_bodies, firef:getBody())
     -- print()
     
