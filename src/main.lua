@@ -459,6 +459,7 @@ lurker.preswap = function(file)
 end
 
 local zoomToggle = false;
+
 function love.keypressed(key)
     if key == "space" then
         if not zoomToggle then
@@ -472,13 +473,10 @@ function love.keypressed(key)
         
     end
     
-    
-        
-    
 end
 
 function round(x, n)
-    n = math.pow(10, n or 0)
+    n = 10^(n or 0)
     x = x * n
     if x >= 0 then
         x = math.floor(x + 0.5)
@@ -572,30 +570,9 @@ function createAnimation(image, width, height, duration, numFrames)
 end
 
 function beginContact(fixture_a, fixture_b, contact)
-    local body_a = fixture_a:getBody()
-    local body_b = fixture_b:getBody()
-
-    local not_player -- either enemy or coin for now
-    if body_a == player.body then
-        not_player = body_b
-    elseif body_b == player.body then
-        not_player = body_a
-    else
-        return
-    end
-    print(fixture_a:getGroupIndex(),fixture_b:getGroupIndex())
     
-    
-    -- if checkDestroy(coin_bods, not_player) then
-    --     var.player_score = var.player_score + 1
-    --     var.num_coins = var.num_coins -1
-        
-    -- end
-    --  if checkDestroy(enemies_bods, not_player) then
-    --     player.health = player.health - 1
-    --     var.num_enemies = var.num_enemies - 1
-    --  end
-
+    -- player.collision(fixture_a,fixture_b,contact)
+    fire.collision(fixture_a,fixture_b,contact)
 end
 
 function checkDestroy(t, v)

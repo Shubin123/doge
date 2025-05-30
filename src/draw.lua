@@ -2,8 +2,8 @@ draw = {}
 
 function draw.mydraw()
     
-    if State == "menu" then
-        menu.draw(var.ScreenInfo)
+    if var.State == "menu" then
+        menu.draw()
         love.graphics.draw(var.cursorImage, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
         return
     end
