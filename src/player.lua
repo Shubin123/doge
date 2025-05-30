@@ -50,11 +50,72 @@ function player.update(dt)
         var.State = "menu"
     end
     
+    -- Dodge system variables (initialize these in player.load() if not already)
+    player.dodgeSpeed = player.dodgeSpeed or 300
+    player.dodgeDuration = player.dodgeDuration or 0.2
+    player.dodgeCooldown = player.dodgeCooldown or 1.0
+    player.isDodging = player.isDodging or false
+    player.dodgeTimer = player.dodgeTimer or 0
+    player.dodgeCooldownTimer = player.dodgeCooldownTimer or 0
+    player.dodgeDirection = player.dodgeDirection or {x = 0, y = 0}
     
-    -- Movement configuration
+    -- Update dodge timers
+    if player.dodgeTimer > 0 then
+        player.dodgeTimer = player.dodgeTimer - dt
+        if player.dodgeTimer <= 0 then
+            player.isDodging = false
+        end
+    end
+    
+    if player.dodgeCooldownTimer > 0 then
+        player.dodgeCooldownTimer = player.dodgeCooldownTimer - dt
+    end
+    
+    -- Check for dodge input (space key)
+    if love.keyboard.isDown("space") and not player.isDodging and player.dodgeCooldownTimer <= 0 then
+        -- Get current movement direction for dodge
+        local inputX, inputY = 0, 0
+        
+        if love.keyboard.isDown("a") then inputX = inputX - 1 end
+        if love.keyboard.isDown("d") then inputX = inputX + 1 end
+        if love.keyboard.isDown("w") then inputY = inputY - 1 end
+        if love.keyboard.isDown("s") then inputY = inputY + 1 end
+        
+        -- If no movement keys, dodge forward based on last facing direction
+        if inputX == 0 and inputY == 0 then
+            inputX = math.cos(player.direction or 0)
+            inputY = math.sin(player.direction or 0)
+        end
+        
+        -- Normalize dodge direction
+        if inputX ~= 0 or inputY ~= 0 then
+            local length = math.sqrt(inputX * inputX + inputY * inputY)
+            player.dodgeDirection.x = inputX / length
+            player.dodgeDirection.y = inputY / length
+            
+            -- Start dodge
+            player.isDodging = true
+            player.dodgeTimer = player.dodgeDuration
+            player.dodgeCooldownTimer = player.dodgeCooldown
+        end
+    end
+    
+    -- Handle dodge movement
+    if player.isDodging then
+        -- Apply dodge velocity
+        local dodgeVX = player.dodgeDirection.x * player.dodgeSpeed
+        local dodgeVY = player.dodgeDirection.y * player.dodgeSpeed
+        player.body:setLinearVelocity(dodgeVX, dodgeVY)
+        
+        -- Set dodge animation
+        player.currentAnimation = "dodge"
+        return -- Skip normal movement during dodge
+    end
+    
+    -- Normal movement (only when not dodging)
     local maxSpeed = 100
     local acceleration = 2000
-    local friction = 0.85  -- Lower value = more friction
+    local friction = 0.85
     
     -- Get current velocity
     local vx, vy = player.body:getLinearVelocity()
@@ -87,7 +148,6 @@ function player.update(dt)
     
     -- Normalize diagonal movement to maintain consistent speed
     if inputX ~= 0 and inputY ~= 0 then
-        -- Pythagorean normalization
         local length = math.sqrt(inputX * inputX + inputY * inputY)
         inputX = inputX / length
         inputY = inputY / length
@@ -129,12 +189,11 @@ function player.update(dt)
     if newVX ~= 0 or newVY ~= 0 then
         -- Only update direction when actually moving
         local moveMagnitude = math.sqrt(newVX * newVX + newVY * newVY)
-        if moveMagnitude > 10 then  -- Small threshold to avoid direction changes when almost stopped
+        if moveMagnitude > 10 then
             -- Calculate direction angle
             player.direction = math.atan2(newVY, newVX)
             
             -- Determine animation based on movement direction
-            -- This can be expanded based on your animation system
             if math.abs(newVX) > math.abs(newVY) then
                 if newVX > 0 then
                     player.currentAnimation = "walkRight"
@@ -187,7 +246,7 @@ function player.collision(fixture_a,fixture_b,contact)
         
     elseif  checkDestroy(enemies_bods, not_player) then
         player.health = player.health - 1
-        var.num_enemies = var.num_enemies - 1
+        -- var.num_enemies = var.num_enemies - 1
      
      end
 

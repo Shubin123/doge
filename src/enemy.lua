@@ -2,11 +2,11 @@ local enemy = {}
 enemy.scale = 0.6
 enemy.t = 0
 enemy.projectiles = {}
-enemy.max_projectiles_per_enemy = 3
+enemy.max_projectiles_per_enemy = 30
 enemy.fire_cooldown = 2.0  -- seconds between shots
 enemy.last_fire_times = {}  -- track when each enemy last fired
 enemy.detection_range = 300  -- pixels
-enemy.projectile_speed = 80
+enemy.projectile_speed = 400
 enemy_projectile_bodies = {}
 
 -- Reuse the same fire sprite from the fire module
@@ -55,7 +55,7 @@ function enemy.update(dt)
     
     -- Apply basic gravity/movement to enemies
     for i = 1, #enemies_bods do
-        enemies_bods[i]:applyForce(0, 1)
+        -- enemies_bods[i]:applyForce(0, 1)
         
         -- AI logic for each enemy
         enemy.updateEnemyAI(i, dt)
@@ -63,6 +63,7 @@ function enemy.update(dt)
     
     -- Update existing projectiles
     enemy.updateProjectiles(dt)
+    
 end
 
 -- helpers
@@ -94,13 +95,14 @@ function enemy.updateEnemyAI(enemy_index, dt)
     
     -- Simple movement AI - move slightly toward player if far, away if too close
     local ideal_distance = 150
+    
     if distance > ideal_distance + 50 then
         -- Move toward player
-        local move_force = 30
+        local move_force = 500
         enemy_body:applyForce(dx/distance * move_force, dy/distance * move_force)
     elseif distance < ideal_distance - 50 then
         -- Move away from player
-        local move_force = 20
+        local move_force = 200
         enemy_body:applyForce(-dx/distance * move_force, -dy/distance * move_force)
     end
 end
@@ -220,9 +222,20 @@ function enemy.collision(fixture_a, fixture_b, contact)
     end
 end
 
--- Helper function to add new enemy (call when spawning enemies)
-function enemy.addEnemy(enemy_index)
-    enemy.last_fire_times[enemy_index] = enemy.t
+-- Helper function to spawn a new enemy on the map
+function enemy.addEnemy(x, y)
+    -- Create new enemy physics body
+    local enemy_body = love.physics.newBody(world, x, y, "dynamic")
+    local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
+    enemy_fixture:setGroupIndex(-777)
+    -- Add to enemies_bods table
+    table.insert(enemies_bods, enemy_body)
+    local enemy_index = #enemies_bods
+    
+    -- Initialize fire timing for this enemy
+    enemy.last_fire_times[enemy_index] = enemy.t - enemy.fire_cooldown -- Allow immediate firing
+    
+    return enemy_index, enemy_body
 end
 
 -- Helper function to remove enemy data (call when enemy dies)

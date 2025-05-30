@@ -455,16 +455,22 @@ end
 local zoomToggle = false;
 
 function love.keypressed(key)
-    if key == "space" then
+    if key == "z" then
         if not zoomToggle then
             camera.setZoom(2)
-            
+            -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
         end
 
         zoomToggle = not zoomToggle
     end
+    if key == "p" then
+        fire.pierce = not fire.pierce
+        enemy.addEnemy(var.game_width/2,var.game_height/2)
+        -- var.num_enemies  = var.num_enemies  + 1
+    end
+
 end
 
 function round(x, n)
