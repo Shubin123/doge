@@ -6,11 +6,11 @@ function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
     animation.spriteSheet = image
     animation.quads = {}
-    player.scale = 1
+    player.scale = 0.8
     
-    local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
-    local framesToUse = numFrames or totalPossibleFrames
-    framesToUse = math.min(framesToUse, totalPossibleFrames)
+    player.totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
+    local framesToUse = numFrames or player.totalPossibleFrames
+    framesToUse = math.min(framesToUse, player.totalPossibleFrames)
     
     local frameCount = 0
     for y = 0, image:getHeight() - height, height do
@@ -40,7 +40,9 @@ function player.load(world)
     player.width, player.height = player.character:getDimensions()
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
     
-    player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
+    -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
+    player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/full.png"), 64, 65, 2, 10)
+
 end
 
 function player.update(dt)
