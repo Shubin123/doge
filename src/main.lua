@@ -72,8 +72,9 @@ function love.load()
 
     -- Load map and player
     map.load()
-    map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
+    map_a = renderer.addMapToHashMap(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
+    map_b = renderer.addMapToHashMap(map.map4, 100, game_area_y, 0.8, 240)
+    -- renderer.initializeStaticElements() -- Call once at start
 
 
     player.load(world)
@@ -143,10 +144,12 @@ function love.draw()
     -- portal.draw()
 
     -- Populate and sort dynamic draw list if neccessary
-    renderer.populateDynamicDrawList()
-    table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    -- Render sorted entities
+    renderer.smartPopulateDynamicDrawList()
+
     renderer.renderSortedDrawList()
+    -- table.sort(dynamic_draw_list, renderer.sortByRenderY)
+    -- Render sorted entities
+    -- renderer.renderSortedDrawList()
     
     
 
