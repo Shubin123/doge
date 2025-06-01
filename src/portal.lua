@@ -1,8 +1,6 @@
 local portal = {}
 
 function portal.load()
-    -- Set up window
-    love.window.setTitle("Shader Test")
     
     -- Initialize shader test
     portal.SHADERS = {}
