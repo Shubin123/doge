@@ -1,5 +1,6 @@
-local CRTShader = {}
-function CRTShader.load()
+local crt = {}
+
+function crt.load()
 
     
 -- Shader source code
@@ -167,7 +168,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
 
 
 
-crtShader = CRTShader:new({
+crtShader = crt:new({
     crt_intensity = 0.06,
     glitch_intensity = 0.2,
     bloom_fac = 0.4
@@ -188,7 +189,7 @@ local defaultParams = {
     scanlines = 800
 }
 
-function CRTShader:new(params)
+function crt:new(params)
     local shader = {}
     setmetatable(shader, {__index = self})
     
@@ -217,7 +218,7 @@ function CRTShader:new(params)
     return shader
 end
 
-function CRTShader:updateCanvas()
+function crt:updateCanvas()
     local w, h = love.graphics.getDimensions()
     if not self.canvas or self.canvas:getWidth() ~= w or self.canvas:getHeight() ~= h then
         if self.canvas then
@@ -227,7 +228,7 @@ function CRTShader:updateCanvas()
     end
 end
 
-function CRTShader:updateParams(newParams)
+function crt:updateParams(newParams)
     if newParams then
         for k, v in pairs(newParams) do
             self.params[k] = v
@@ -242,107 +243,58 @@ function CRTShader:updateParams(newParams)
     end
 end
 
-function CRTShader:setTime(time)
-    self.params.time = time
-    if self.shader:hasUniform("time") then
-        self.shader:send("time", time)
-    end
-end
+-- function crt:setTime(time)
+--     self.params.time = time
+--     if self.shader:hasUniform("time") then
+--         self.shader:send("time", time)
+--     end
+-- end
 
-function CRTShader:setGlitchIntensity(intensity)
-    self.params.glitch_intensity = intensity
-    if self.shader:hasUniform("glitch_intensity") then
-        self.shader:send("glitch_intensity", intensity)
-    end
-end
+-- function crt:setGlitchIntensity(intensity)
+--     self.params.glitch_intensity = intensity
+--     if self.shader:hasUniform("glitch_intensity") then
+--         self.shader:send("glitch_intensity", intensity)
+--     end
+-- end
 
-function CRTShader:setCRTIntensity(intensity)
-    self.params.crt_intensity = intensity
-    if self.shader:hasUniform("crt_intensity") then
-        self.shader:send("crt_intensity", intensity)
-    end
-end
+-- function crt:setCRTIntensity(intensity)
+--     self.params.crt_intensity = intensity
+--     if self.shader:hasUniform("crt_intensity") then
+--         self.shader:send("crt_intensity", intensity)
+--     end
+-- end
 
--- Begin capturing the screen for post-processing
-function CRTShader:beginCapture()
-    -- self:updateCanvas() -- Ensure canvas matches current screen size
-    -- love.graphics.setCanvas(self.canvas)
-    -- love.graphics.clear(0, 0, 0, 0) -- Clear with transparent black
+-- -- Begin capturing the screen for post-processing
+-- function crt:beginCapture()
+--     -- self:updateCanvas() -- Ensure canvas matches current screen size
+--     -- love.graphics.setCanvas(self.canvas)
+--     -- love.graphics.clear(0, 0, 0, 0) -- Clear with transparent black
 
-    -- handled by main prepass
+--     -- handled by main prepass
 
-end
+-- end
 
 -- End capture and apply the CRT effect to the entire screen
-function CRTShader:endCapture()
+function crt.endCapture()
     -- love.graphics.setCanvas()
     
     -- Store current graphics state
-    local currentShader = love.graphics.getShader()
-    local currentBlendMode = love.graphics.getBlendMode()
+    -- local currentShader = love.graphics.getShader()
+    -- local currentBlendMode = love.graphics.getBlendMode()
     
     -- Get screen dimensions to ensure full coverage
     -- local screenWidth, screenHeight = love.graphics.getDimensions()
     
     -- Apply the CRT shader to the entire screen
-    love.graphics.setShader(self.shader)
+    love.graphics.setShader(crtShader.shader)
     -- love.graphics.setBlendMode("add", "premultiplied")
     love.graphics.draw(scene_canvas, 0, 0, 0, 1, 1)
     
     -- Restore previous graphics state
-    love.graphics.setShader(currentShader)
-    love.graphics.setBlendMode(currentBlendMode)
-end
-
--- Legacy methods for compatibility
-function CRTShader:use()
-    love.graphics.setShader(self.shader)
-end
-
-function CRTShader:release()
     love.graphics.setShader()
+    -- love.graphics.setBlendMode(currentBlendMode)
 end
 
--- Usage example for full-screen post-processing:
---[[
-local crtShader = CRTShader:new({
-    crt_intensity = 0.6,
-    glitch_intensity = 0.2,
-    bloom_fac = 0.4
-})
-
-function love.update(dt)
-    crtShader:setTime(love.timer.getTime())
-end
-
-function love.draw()
-    -- Begin capturing all draw calls
-    crtShader:beginCapture()
-    
-    -- Draw all your game content here
-    love.graphics.draw(myTexture, 100, 100)
-    love.graphics.draw(mySprite, 200, 200)
-    -- ... any other drawing
-    
-    -- End capture and apply CRT effect to entire screen
-    crtShader:endCapture()
-end
-
--- Alternative: Apply to specific content only
-function love.draw()
-    -- Draw background without effect
-    love.graphics.draw(background, 0, 0)
-    
-    -- Apply CRT effect to specific elements
-    crtShader:beginCapture()
-    love.graphics.draw(gameUI, 0, 0)
-    love.graphics.draw(gameSprites, 0, 0)
-    crtShader:endCapture()
-    
-    -- Draw HUD without effect
-    love.graphics.draw(hud, 0, 0)
-end
---]]
 
 
-return CRTShader
+return crt
