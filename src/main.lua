@@ -401,7 +401,7 @@ function love.draw()
     smoke.pass()
     
     water.pass()
-crtShader:endCapture()        
+    crtShader.endCapture()        
     
         
 
