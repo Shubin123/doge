@@ -18,7 +18,8 @@ vec2 = require("vec2")
 vec4 = require("vec4")
 player = require("player")
 enemy = require("enemy")
-
+portal = require("portal")
+crt = require("crt")
 
 -- hotreloader
 local lurker = require("lurker")
@@ -104,6 +105,7 @@ function love.load()
     shader.load()
     water.load()
     smoke.load()
+    portal.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -125,10 +127,6 @@ flipQuads = true
 -- Function to populate dynamic draw list
 local function populateDynamicDrawList()
     -- Clear the list
-    --     if not table.unpack then
-    --     table.unpack = unpack
-    -- end
-
     dynamic_draw_list = { unpack(map_a, 1, #map_a) }
     rebuildArray(dynamic_draw_list, map_b)
 
@@ -136,7 +134,6 @@ local function populateDynamicDrawList()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
     local sort_y = py + (100 * player.scale)
-    
     
     table.insert(dynamic_draw_list, {
         sort_y = sort_y + 45,
@@ -152,6 +149,20 @@ local function populateDynamicDrawList()
         color = { 1, 1, 1, 1 },
         blend_mode = { "alpha" },
         source_object_type = "player"
+    })
+    
+    -- Portal shader drawable (positioned at specific location)
+    table.insert(dynamic_draw_list, {
+        sort_y = 370, -- Adjust depth as needed
+        shader = portal.SHADERS["portal"],
+        shader_params = portal.params,
+        x = 236,
+        y = 190,
+        width = 35,
+        height = 50,
+        color = { 1, 1, 1, 1 },
+        blend_mode = { "alpha" },
+        source_object_type = "portal_shader"
     })
     
     -- Enemies drawables
@@ -202,13 +213,13 @@ local function populateDynamicDrawList()
     fire.populate()
     enemy.populate()
 end
- 
 
--- Function to render sorted draw list
+-- Updated render function to handle shaders
 local function renderSortedDrawList()
     -- Store current graphics state
     local current_color = { love.graphics.getColor() }
     local current_blend_mode = love.graphics.getBlendMode()
+    local current_shader = love.graphics.getShader()
 
     local last_color = { 1, 1, 1, 1 }
     local last_blend_mode = { "alpha" }
@@ -232,36 +243,59 @@ local function renderSortedDrawList()
             last_blend_mode = drawable.blend_mode
         end
 
-        -- Draw the drawable
-        if drawable.quad then
-            love.graphics.draw(
-                drawable.image_or_particles,
-                drawable.quad,
-                drawable.x,
-                drawable.y,
-                drawable.rotation or 0,
-                drawable.scale_x or 1,
-                drawable.scale_y or 1,
-                drawable.offset_x or 0,
-                drawable.offset_y or 0
-            )
-        else
-            love.graphics.draw(
-                drawable.image_or_particles,
-                drawable.x,
-                drawable.y,
-                drawable.rotation or 0,
-                drawable.scale_x or 1,
-                drawable.scale_y or 1,
-                drawable.offset_x or 0,
-                drawable.offset_y or 0
-            )
+        -- Handle shader drawing
+        if drawable.shader then
+            -- Set shader and parameters
+            love.graphics.setShader(drawable.shader)
+            if drawable.shader_params then
+                drawable.shader:send("time", drawable.shader_params.time)
+                drawable.shader:send("spin_time", drawable.shader_params.spin_time)
+                drawable.shader:send("colour_1", drawable.shader_params.colour_1)
+                drawable.shader:send("colour_2", drawable.shader_params.colour_2)
+                drawable.shader:send("colour_3", drawable.shader_params.colour_3)
+                drawable.shader:send("contrast", drawable.shader_params.contrast)
+                drawable.shader:send("spin_amount", drawable.shader_params.spin_amount)
+            end
+            
+            -- Draw shader rectangle
+            love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
+            
+            -- Reset shader
+            love.graphics.setShader()
+            
+        -- Handle regular image drawing
+        elseif drawable.image_or_particles then
+            if drawable.quad then
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.quad,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            else
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            end
         end
     end
 
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
     love.graphics.setBlendMode(current_blend_mode)
+    love.graphics.setShader(current_shader)
 end
 
 function rebuildArray(arr, innerElements)
@@ -318,17 +352,22 @@ function love.draw()
         menu.draw()
         return
     end
+    
+
     love.graphics.push()
+    
     shader.prepass()
-
-
+    
+    
+    
     camera.apply()
-
     love.graphics.setColor(1, 1, 1, 0.35)
+    
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
-
+    -- crtShader:beginCapture()
+    -- portal.draw()
 
     -- Populate and sort dynamic draw list if neccessary
     populateDynamicDrawList()
@@ -336,8 +375,11 @@ function love.draw()
 
     -- Render sorted entities
     renderSortedDrawList()
+    -- crtShader:release()
+    
 
     grass.demo.draw()
+    
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map4:draw(100, game_area_y, 0.8)
@@ -353,12 +395,18 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-
     shader.pass()
-    smoke.pass()
-    water.pass()
     
+    smoke.pass()
+    
+    water.pass()
+crtShader:endCapture()        
+    
+        
+
+        
     mydraw.mydraw() -- ui last
+
 end
 
 function love.update(dt)
@@ -379,9 +427,13 @@ function love.update(dt)
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
+    
+    -- crtShader:setTime(love.timer.getTime())
+    -- crtShader:setMousePos(love.mouse.getX(), love.mouse.getY())
 
     grass.demo.update(dt)
     enemy.update(dt)
+    portal.update(dt)
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
