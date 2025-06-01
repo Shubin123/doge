@@ -20,6 +20,7 @@ player = require("player")
 enemy = require("enemy")
 portal = require("portal")
 crt = require("crt")
+hit = require("hit")
 
 -- hotreloader
 local lurker = require("lurker")
@@ -77,7 +78,8 @@ function love.load()
 
     player.load(world)
     enemy.load()
-
+    hit.init()
+    
 
     -- Coins and enemies
     coin_shape = love.physics.newCircleShape(5)
@@ -151,6 +153,8 @@ local function populateDynamicDrawList()
         source_object_type = "player"
     })
     
+    
+
     -- Portal shader drawable (positioned at specific location)
     table.insert(dynamic_draw_list, {
         sort_y = 370, -- Adjust depth as needed
@@ -265,30 +269,33 @@ local function renderSortedDrawList()
             
         -- Handle regular image drawing
         elseif drawable.image_or_particles then
-            if drawable.quad then
-                love.graphics.draw(
-                    drawable.image_or_particles,
-                    drawable.quad,
-                    drawable.x,
-                    drawable.y,
-                    drawable.rotation or 0,
-                    drawable.scale_x or 1,
-                    drawable.scale_y or 1,
-                    drawable.offset_x or 0,
-                    drawable.offset_y or 0
-                )
-            else
-                love.graphics.draw(
-                    drawable.image_or_particles,
-                    drawable.x,
-                    drawable.y,
-                    drawable.rotation or 0,
-                    drawable.scale_x or 1,
-                    drawable.scale_y or 1,
-                    drawable.offset_x or 0,
-                    drawable.offset_y or 0
-                )
-            end
+        --     if drawable.quad then
+        --         love.graphics.draw(
+        --             drawable.image_or_particles,
+        --             drawable.quad,
+        --             drawable.x,
+        --             drawable.y,
+        --             drawable.rotation or 0,
+        --             drawable.scale_x or 1,
+        --             drawable.scale_y or 1,
+        --             drawable.offset_x or 0,
+        --             drawable.offset_y or 0
+        --         )
+        --     else
+        --         love.graphics.draw(
+        --             drawable.image_or_particles,
+        --             drawable.x,
+        --             drawable.y,
+        --             drawable.rotation or 0,
+        --             drawable.scale_x or 1,
+        --             drawable.scale_y or 1,
+        --             drawable.offset_x or 0,
+        --             drawable.offset_y or 0
+        --         )
+        --     end
+        -- end
+
+            hit.renderDrawableWithDistortion(drawable)
         end
     end
 
@@ -511,6 +518,7 @@ function love.keypressed(key)
         if not zoomToggle then
             camera.setZoom(2)
             -- player.body:applyForce(1000,0)
+            -- hit.markHit("player", 1.0, 50) -- Strong distortion for 0.5 seconds
         else
             camera.setZoom(1)
         end
