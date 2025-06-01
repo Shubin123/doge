@@ -1,5 +1,5 @@
-change draw order based on pivot points
-
 change draw size dynamically with love.resize()
 
-shoot fireballs!
+skew ui
+
+ios shader support
