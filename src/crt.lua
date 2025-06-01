@@ -1,7 +1,9 @@
 local CRTShader = {}
+function CRTShader.load()
 
+    
 -- Shader source code
-local shaderCode = [[
+shaderCode = [[
 #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
 	#define MY_HIGHP_OR_MEDIUMP highp
 #else
@@ -162,6 +164,16 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
     return result;
 }
 ]]
+
+
+
+crtShader = CRTShader:new({
+    crt_intensity = 0.06,
+    glitch_intensity = 0.2,
+    bloom_fac = 0.4
+})
+
+end
 
 -- Default parameters
 local defaultParams = {
@@ -332,9 +344,5 @@ function love.draw()
 end
 --]]
 
-crtShader = CRTShader:new({
-    crt_intensity = 0.06,
-    glitch_intensity = 0.2,
-    bloom_fac = 0.4
-})
+
 return CRTShader
