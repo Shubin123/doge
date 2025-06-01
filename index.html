@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lua Bytecode Analyzer</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #00ff41;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 255, 65, 0.1);
+            border-radius: 5px;
+            border-left: 4px solid #00ff41;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            color: #00ff41;
+            border: 1px solid #00ff41;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+        .output {
+            background: #000;
+            color: #00ff41;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #00ff41;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .highlight {
+            background: rgba(255, 255, 0, 0.2);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .string-literal {
+            color: #ffaa00;
+        }
+        .function-name {
+            color: #ff6b6b;
+        }
+        .keyword {
+            color: #4ecdc4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Lua Bytecode Analyzer</h1>
+        
+        <div class="section">
+            <h3>Input Bytecode</h3>
+            <textarea id="bytecodeInput" placeholder="Paste your Lua bytecode here..."></textarea>
+            <div class="controls">
+                <button onclick="loadSampleData()">Load Sample Data</button>
+                <button onclick="analyzeBytecode()">Analyze Bytecode</button>
+                <button onclick="extractStrings()">Extract Strings</button>
+                <button onclick="findPatterns()">Find Patterns</button>
+                <button onclick="clearAll()">Clear All</button>
+            </div>
+        </div>
+
+        <div class="analysis-grid">
+            <div class="section">
+                <h3>Extracted Strings</h3>
+                <div id="stringsOutput" class="output">Click "Extract Strings" to analyze...</div>
+            </div>
+            
+            <div class="section">
+                <h3>Function Names & Keywords</h3>
+                <div id="functionsOutput" class="output">Click "Analyze Bytecode" to find functions...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Pattern Analysis</h3>
+            <div id="patternsOutput" class="output">Click "Find Patterns" to analyze structure...</div>
+        </div>
+
+        <div class="section">
+            <h3>Readable Code Segments</h3>
+            <div id="codeOutput" class="output">Extracted readable code will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let currentBytecode = '';
+
+        function loadSampleData() {
+            const sampleData = `LJ@./all/main_utils.lua�
+
+6')dB6')dB6969BA699	+BKsetKeyRepeat
+keyboard	love	timeosrandomseed	mathsetstepmul
+setpausecollectgarbage
+
+K69-'&D�-
+contains
+tableargkeyd-69-'&B8L�-keyforobject
+tableargkey�	%��*33'BX�'B='BX�'B='BX�+='BX�6'BA='BX�+='BX�'B='	BX�+=	'
+BX�'
+B=
+'BX�+='BX�6'BA='
+BX�+='BX�+='BX�+='BX�'B='BX�'B='BX�'B='BX�+='BX�'B='BX�+='BX�'B='BX�'B='BX�+='BX�'B='BX�'B='BX�'B='BX�+='BX�'B='BX�'B=' BX�' B= '!BX�6"9#'!B'$B=!2�K,
+splitstring	wposscreenchallenge	repl
+profiler	modelog_level
+log_filelocaluserlocale
+leveldraw_statsdraw-stats	diff
+debugcustomcolorspacecustom_scriptpause_on_switchhighdpi
+windowed
+width
+vsynctexture_size
+nojit	msaalarge_pointer
+tonumberheightfullscreenfpsaudio_mode`;
+            document.getElementById('bytecodeInput').value = sampleData;
+            currentBytecode = sampleData;
+        }
+
+        function analyzeBytecode() {
+            const input = document.getElementById('bytecodeInput').value;
+            if (!input.trim()) {
+                alert('Please enter bytecode to analyze');
+                return;
+            }
+            
+            currentBytecode = input;
+            
+            // Extract function names and keywords
+            const functions = [];
+            const keywords = [];
+            
+            // Common Lua keywords and function patterns
+            const luaKeywords = ['local', 'function', 'end', 'if', 'then', 'else', 'elseif', 'while', 'for', 'do', 'repeat', 'until', 'break', 'return', 'nil', 'true', 'false', 'and', 'or', 'not'];
+            const loveKeywords = ['love', 'keyboard', 'graphics', 'audio', 'math', 'table', 'string', 'io', 'os'];
+            
+            // Find readable words
+            const words = input.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+            const uniqueWords = [...new Set(words)];
+            
+            uniqueWords.forEach(word => {
+                if (luaKeywords.includes(word.toLowerCase())) {
+                    keywords.push(word);
+                } else if (loveKeywords.includes(word.toLowerCase())) {
+                    functions.push(`<span class="function-name">${word}</span> (LÖVE framework)`);
+                } else if (word.length > 3) {
+                    functions.push(word);
+                }
+            });
+            
+            document.getElementById('functionsOutput').innerHTML = 
+                `<div class="keyword">Keywords:</div>\n${keywords.map(k => `<span class="highlight">${k}</span>`).join(', ')}\n\n` +
+                `<div class="function-name">Functions/Identifiers:</div>\n${functions.slice(0, 9999).join('\n')}` +
+                (functions.length > 9999 ? `\n... and ${functions.length - 9999} more` : '');
+        }
+
+        function extractStrings() {
+            const input = document.getElementById('bytecodeInput').value;
+            if (!input.trim()) {
+                alert('Please enter bytecode to analyze');
+                return;
+            }
+            
+            // Extract readable strings of various patterns
+            const strings = new Set();
+            
+            // Pattern 1: Words between non-printable characters
+            const wordPattern = /[a-zA-Z_][a-zA-Z0-9_.]*/g;
+            const words = input.match(wordPattern) || [];
+            words.forEach(word => {
+                if (word.length >= 3) strings.add(word);
+            });
+            
+            // Pattern 2: Strings that look like file paths or extensions
+            const pathPattern = /[a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+/g;
+            const paths = input.match(pathPattern) || [];
+            paths.forEach(path => strings.add(path));
+            
+            // Pattern 3: Configuration keys (common patterns)
+            const configPattern = /[a-z_]+[a-z0-9_]*(?=\s*[:=])/gi;
+            const configs = input.match(configPattern) || [];
+            configs.forEach(config => strings.add(config));
+            
+            // Pattern 4: Error messages or descriptive text
+            const messagePattern = /[A-Z][a-zA-Z\s]{10,}/g;
+            const messages = input.match(messagePattern) || [];
+            messages.forEach(msg => strings.add(msg.trim()));
+            
+            const sortedStrings = Array.from(strings).sort();
+            
+            let output = '';
+            sortedStrings.forEach((str, index) => {
+                if (index < 9999) { // Limit output
+                    if (str.includes('.')) {
+                        output += `<span class="string-literal">${str}</span>\n`;
+                    } else if (str.length > 10) {
+                        output += `<span class="highlight">${str}</span>\n`;
+                    } else {
+                        output += `${str}\n`;
+                    }
+                }
+            });
+            
+            if (sortedStrings.length > 9999) {
+                output += `\n... and ${sortedStrings.length - 9999} more strings`;
+            }
+            
+            document.getElementById('stringsOutput').innerHTML = output || 'No readable strings found';
+        }
+
+        function findPatterns() {
+            const input = document.getElementById('bytecodeInput').value;
+            if (!input.trim()) {
+                alert('Please enter bytecode to analyze');
+                return;
+            }
+            
+            let analysis = '';
+            
+            // File header analysis
+            if (input.startsWith('LJ@')) {
+                analysis += '🎯 <span class="highlight">LuaJIT Bytecode Detected</span>\n';
+                analysis += '   Header: LJ@ indicates this is compiled LuaJIT bytecode\n\n';
+            }
+            
+            // Look for file references
+            const fileRefs = input.match(/[a-zA-Z_][a-zA-Z0-9_/\\.-]*\.lua/g) || [];
+            if (fileRefs.length > 0) {
+                analysis += '📁 <span class="function-name">File References:</span>\n';
+                fileRefs.forEach(ref => {
+                    analysis += `   ${ref}\n`;
+                });
+                analysis += '\n';
+            }
+            
+            // LÖVE 2D framework detection
+            const lovePatterns = ['keyboard', 'graphics', 'audio', 'filesystem', 'timer', 'window'];
+            const foundLove = lovePatterns.filter(pattern => input.includes(pattern));
+            if (foundLove.length > 2) {
+                analysis += '🎮 <span class="highlight">LÖVE 2D Game Framework Detected</span>\n';
+                analysis += `   Found: ${foundLove.join(', ')}\n\n`;
+            }
+            
+            // Configuration patterns
+            const configKeys = input.match(/(?:width|height|fullscreen|vsync|fps|audio|debug|locale|profile)/gi) || [];
+            if (configKeys.length > 0) {
+                analysis += '⚙️ <span class="keyword">Configuration Keys:</span>\n';
+                [...new Set(configKeys)].forEach(key => {
+                    analysis += `   ${key}\n`;
+                });
+                analysis += '\n';
+            }
+            
+            // Platform detection
+            const platforms = input.match(/(?:android|ios|windows|linux|osx|xbox|nintendo|switch)/gi) || [];
+            if (platforms.length > 0) {
+                analysis += '🖥️ <span class="function-name">Target Platforms:</span>\n';
+                [...new Set(platforms)].forEach(platform => {
+                    analysis += `   ${platform}\n`;
+                });
+                analysis += '\n';
+            }
+            
+            // String literals count
+            const stringCount = (input.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || []).length;
+            analysis += `📊 <span class="highlight">Statistics:</span>\n`;
+            analysis += `   Approximate string literals: ${stringCount}\n`;
+            analysis += `   File size: ${input.length} bytes\n`;
+            analysis += `   Estimated compression ratio: ${Math.round((input.length / (stringCount * 5)) * 100)}%\n`;
+            
+            document.getElementById('patternsOutput').innerHTML = analysis || 'No patterns detected';
+        }
+
+        function clearAll() {
+            document.getElementById('bytecodeInput').value = '';
+            document.getElementById('stringsOutput').innerHTML = 'Click "Extract Strings" to analyze...';
+            document.getElementById('functionsOutput').innerHTML = 'Click "Analyze Bytecode" to find functions...';
+            document.getElementById('patternsOutput').innerHTML = 'Click "Find Patterns" to analyze structure...';
+            document.getElementById('codeOutput').innerHTML = 'Extracted readable code will appear here...';
+            currentBytecode = '';
+        }
+
+        // Auto-load sample data on page load
+        window.onload = function() {
+            loadSampleData();
+            setTimeout(() => {
+                analyzeBytecode();
+                extractStrings();
+                findPatterns();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
