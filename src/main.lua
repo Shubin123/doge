@@ -24,8 +24,9 @@ renderer = require("renderer")
 
 multiplayer = require("multiplayer")
 
--- hotreloader
+-- hotreloader / helpers
 local lurker = require("lurker")
+json = require("json")
 
 -- Game variables
 world = 0
@@ -229,9 +230,15 @@ function sendMovementMessage()
     -- elseif role == "CLIENT" then
     -- mp:sendToServer(message)
     -- end
-game_state = renderer.createGameStateSnapshot()
+
     if tonumber(arg[2]) == 1 then
-        
+        game_state = renderer.createGameStateSnapshot()
+        -- print(json.decode(json.encode(game_state)))
+
+        -- for k,v in pairs(game_state)do
+        --     print(k,v)
+        -- end
+        -- debug.debug()
         -- mp:broadcast(multiplayer:createMessage("game_state", game_state))
 
         -- local success, json_lib = pcall(function() return require("json") end)
@@ -243,7 +250,7 @@ game_state = renderer.createGameStateSnapshot()
         -- --     json_str = tostring(game_state)
         -- -- end
         -- for k,v in pairs(game_state.coins["1"]) do print(k,v) end
-        mp:broadcast(tostring(game_state.coins["1"]))
+        mp:broadcast(json.encode(game_state))
     end
 
 

@@ -442,12 +442,14 @@ function renderer.createGameStateSnapshot()
 end
 
 -- Apply received game state (for clients)
-function renderer.applyGameStateSnapshot()
+function renderer.applyGameStateSnapshot(game_state)
 
 
 
     if game_state.players then
-        renderer.setNetworkedPlayers(game_state)
+        -- print(game_state.coins)
+        for k,v in pairs(game_state.coins) do print(k,v) end
+        renderer.setNetworkedPlayers(game_state.players)
     end
     if game_state.enemies then
         renderer.setNetworkedEnemies(game_state.enemies)
