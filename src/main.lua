@@ -22,6 +22,8 @@ portal = require("portal")
 crt = require("crt")
 renderer = require("renderer")
 
+multiplayer = require("multiplayer")
+
 -- hotreloader
 local lurker = require("lurker")
 
@@ -111,6 +113,9 @@ function love.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
+
+    -- print(arg[2])
+    multiplayer.load(arg[2])
 end
 
 local W = love.graphics.getWidth()
@@ -121,21 +126,22 @@ local game_area_y = var.header_height
 
 
 function love.draw()
+    
     if var.State == "menu" then
         menu.draw()
         return
     end
-    
+
 
     love.graphics.push()
-    
+
     shader.prepass()
-    
-    
-    
+
+
+
     camera.apply()
     love.graphics.setColor(1, 1, 1, 0.35)
-    
+
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
@@ -143,15 +149,19 @@ function love.draw()
     -- portal.draw()
 
     -- Populate and sort dynamic draw list if neccessary
-    renderer.populateDynamicDrawList()
+    if tonumber(arg[2]) == 1 then
+        renderer.populateDynamicDrawList()
+    else
+        renderer.populateDynamicDrawListNetworked()
+    end
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
-    
-    
+
+
 
     grass.demo.draw()
-    
+
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map3:draw(100, game_area_y, 1)
     -- map.map4:draw(100, game_area_y, 0.8)
@@ -168,19 +178,19 @@ function love.draw()
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
     shader.pass()
-    
+
     smoke.pass()
-    
+
     water.pass()
-    crtShader.endCapture()        
-    
-        
+    crtShader.endCapture()
 
-        
+
+
+
     mydraw.mydraw() -- ui last
-
 end
 
+local t = 0
 function love.update(dt)
     if var.State == "menu" then
         menu.update(dt)
@@ -188,24 +198,56 @@ function love.update(dt)
     elseif State == "running" then
         var.State = "game"
     end
-
     world:update(dt)
-
-    -- if State == "game" then
+    -- t  = t + dt
+    -- if t > 0.1 then
+    mp:update()
+    sendMovementMessage()
+    -- t = 0
+    -- end
     player.update(dt)
     camera.update_framerate_independent(dt, player)
-    -- end
-
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
-    
-    -- crtShader:setTime(love.timer.getTime())
-    -- crtShader:setMousePos(love.mouse.getX(), love.mouse.getY())
-
     grass.demo.update(dt)
     enemy.update(dt)
     portal.update(dt)
+    
+end
+
+function sendMovementMessage()
+    -- if not mp or not role then
+    --     return
+    -- end
+
+    -- local x, y = love.mouse.getPosition()
+    -- local message = string.format("player_move:%.2f,%.2f", player.body:getPosition())
+
+    -- if role == "HOST" then
+    -- mp:broadcast(message)
+    -- elseif role == "CLIENT" then
+    -- mp:sendToServer(message)
+    -- end
+game_state = renderer.createGameStateSnapshot()
+    if tonumber(arg[2]) == 1 then
+        
+        -- mp:broadcast(multiplayer:createMessage("game_state", game_state))
+
+        -- local success, json_lib = pcall(function() return require("json") end)
+        -- -- if success and json_lib then
+        -- print(success)
+        --     json_str = json_lib.encode(game_state)
+        -- -- else
+
+        -- --     json_str = tostring(game_state)
+        -- -- end
+        -- for k,v in pairs(game_state.coins["1"]) do print(k,v) end
+        mp:broadcast(tostring(game_state.coins["1"]))
+    end
+
+
+    -- print("Sent movement:", x, y)
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -247,7 +289,6 @@ function love.mousepressed(x, y, button, istouch, presses)
             -- player.health = 100
             --reset game here
             love.event.push("quit", "restart")
-
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
@@ -291,10 +332,9 @@ function love.keypressed(key)
     end
     if key == "p" then
         fire.pierce = not fire.pierce
-        enemy.addEnemy(var.game_width/2,var.game_height/2)
+        enemy.addEnemy(var.game_width / 2, var.game_height / 2)
         -- var.num_enemies  = var.num_enemies  + 1
     end
-
 end
 
 function round(x, n)
@@ -395,9 +435,7 @@ function beginContact(fixture_a, fixture_b, contact)
     -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
-    
 end
-
 
 function checkDestroy(t, v)
     for i = 1, #t do

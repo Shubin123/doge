@@ -24,7 +24,6 @@ function enemy.load()
     
     -- Create particle system for enemy projectiles (different color/settings
     Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
-    print(fireSpriteImg)
     enemy.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 200)
     
     -- ENEMY PROJECTILE CONFIGURATION (different from player fire)
