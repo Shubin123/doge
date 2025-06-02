@@ -183,14 +183,15 @@ end
 function multiplayer:_handleMessage(data, peer, role)
     if role == "client" then
         -- print("")
-
-    renderer.applyGameStateSnapshot()
+        print(data)
+        debug.debug()
+    renderer.applyGameStateSnapshot(json.decode(data))
     end
 
 
     
-    print(string.format("[%s] Received: %s from %s", 
-          role:upper(), tostring(data), tostring(peer)))
+    -- print(string.format("[%s] Received: %s from %s", 
+    --       role:upper(), tostring(json.decode(data)), tostring(peer)))
     
     -- Call registered message handlers
     for pattern, handler in pairs(self.message_handlers) do
