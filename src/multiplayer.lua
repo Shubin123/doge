@@ -183,8 +183,8 @@ end
 function multiplayer:_handleMessage(data, peer, role)
     if role == "client" then
         -- print("")
-        print(data)
-        debug.debug()
+        -- print(data)
+        -- debug.debug()
     renderer.applyGameStateSnapshot(json.decode(data))
     end
 

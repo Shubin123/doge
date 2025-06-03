@@ -79,7 +79,7 @@ function renderer.populateDynamicDrawListNetworked()
             
             table.insert(dynamic_draw_list, {
                 sort_y = sort_y + 45,
-                image_or_particles = player.animation.spriteSheet, -- Assume same spritesheet for all players
+                image_or_particles = player.animation.spriteSheet, -- Assume same spritesheet for all players (!!! need offesets here for dynamic characters 100% gonna forget lol)
                 quad = player.animation.quads[((player_data.animation_frame + 5) % 5) + 6] or var.nullquad,
                 x = player_data.x,
                 y = player_data.y,
@@ -95,6 +95,26 @@ function renderer.populateDynamicDrawListNetworked()
             })
         end
     end
+    print(renderer.local_player_state.y)
+    -- draw the client 
+        table.insert(dynamic_draw_list, {
+            sort_y =  renderer.local_player_state.y + 45,
+            image_or_particles = player.animation.spriteSheet,
+             quad = player.animation.quads[((renderer.local_player_state.animation_frame + 5) % 5) + 6] or var.nullquad,
+             x= renderer.local_player_state.x,
+             y= renderer.local_player_state.y,
+             rotation  = 0,
+             scale_x = renderer.local_player_state.scale,
+             scale_y = renderer.local_player_state.scale,
+             offset_x = 35,
+             offset_y = 50,
+             color = {1,1,1,1},
+             blend_mode = {"alpha"},
+             source_object_type = "networked_player",
+            player_id = 69
+        })
+
+
     
     -- Portal shader drawable (positioned at specific location)
     table.insert(dynamic_draw_list, {
@@ -180,6 +200,9 @@ function renderer.populateDynamicDrawListNetworked()
             })
         end
     end
+    
+    fire.populate()
+    enemy.populate()
 end
 
 -- Original function for local/single player (keeps physics body access)
@@ -447,8 +470,6 @@ function renderer.applyGameStateSnapshot(game_state)
 
 
     if game_state.players then
-        -- print(game_state.coins)
-        for k,v in pairs(game_state.coins) do print(k,v) end
         renderer.setNetworkedPlayers(game_state.players)
     end
     if game_state.enemies then
