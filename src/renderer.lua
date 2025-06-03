@@ -95,7 +95,7 @@ function renderer.populateDynamicDrawListNetworked()
             })
         end
     end
-    print(renderer.local_player_state.y)
+    
     -- draw the client 
         table.insert(dynamic_draw_list, {
             sort_y =  renderer.local_player_state.y + 45,
@@ -295,6 +295,97 @@ function renderer.populateDynamicDrawList()
     enemy.populate()
 end
 
+
+function renderer.populateDynamicDrawListNETHOST()
+    -- dont clear list this is meant to run after clear has happened rebuiled for the host
+    -- dynamic_draw_list = { unpack(map_a, 1, #map_a) }
+    -- rebuildArray(dynamic_draw_list, map_b)
+
+    -- Player already drawn
+    -- local px, py = player.body:getX(), player.body:getY()
+    -- local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
+    -- local sort_y = py + (100 * player.scale)
+    
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = sort_y + 45,
+    --     image_or_particles = player.animation.spriteSheet,
+    --     quad = player.animation.quads[(spriteNum + 5)%5 + 6] or var.nullquad,
+    --     x = px,
+    --     y = py,
+    --     rotation = var.character_rotation,
+    --     scale_x = player.scale,
+    --     scale_y = player.scale,
+    --     offset_x = 35,
+    --     offset_y = 50,
+    --     color = { 1, 1, 1, 1 },
+    --     blend_mode = { "alpha" },
+    --     source_object_type = "player"
+    -- })
+    
+    -- Portal shader already drawn
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = 370, -- Adjust depth as needed
+    --     shader = portal.SHADERS["portal"],
+    --     shader_params = portal.params,
+    --     x = 236,
+    --     y = 190,
+    --     width = 35,
+    --     height = 50,
+    --     color = { 1, 1, 1, 1 },
+    --     blend_mode = { "alpha" },
+    --     source_object_type = "portal_shader"
+    -- })
+    
+    -- Enemies drawables (from physics bodies)
+    for i = 1, #enemies_bods do
+        local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+        local enemy_sort_y = ey + (enemy_image:getHeight() * 0.1) / 2
+
+        table.insert(dynamic_draw_list, {
+            sort_y = enemy_sort_y + 100,
+            image_or_particles = enemy_image,
+            quad = nil,
+            x = ex,
+            y = ey,
+            rotation = 0,
+            scale_x = 0.1,
+            scale_y = 0.1,
+            offset_x = enemy_image:getWidth() / 2,
+            offset_y = enemy_image:getHeight() / 2,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "enemy"
+        })
+    end
+
+    -- Coins drawables (from physics bodies)
+    for i = 1, #coin_bods do
+        local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
+        local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
+
+        table.insert(dynamic_draw_list, {
+            sort_y = coin_sort_y + 100,
+            image_or_particles = coin_image,
+            quad = nil,
+            x = cx,
+            y = cy,
+            rotation = 0,
+            scale_x = 0.5,
+            scale_y = 0.5,
+            offset_x = coin_image:getWidth() / 2,
+            offset_y = coin_image:getHeight() / 2,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "coin"
+        })
+    end
+
+    -- Fire effects drawables
+    fire.populate()
+    enemy.populate()
+end
+
+
 -- Updated render function to handle shaders
 function renderer.renderSortedDrawList()
     -- Store current graphics state
@@ -428,7 +519,7 @@ end
 -- Utility function to create a complete game state snapshot (for server)
 function renderer.createGameStateSnapshot()
     local game_state = {
-        players = {},
+        player = {},
         enemies = {},
         coins = {},
         fire_effects = {}
@@ -436,7 +527,7 @@ function renderer.createGameStateSnapshot()
     
     -- Update local player first if this is the server
     renderer.updateLocalPlayerFromPhysics()
-    game_state.players["local"] = renderer.local_player_state
+    game_state.player["local"] = renderer.local_player_state
     
     -- Collect enemy data from physics bodies
     for i = 1, #enemies_bods do
@@ -466,12 +557,16 @@ end
 
 -- Apply received game state (for clients)
 function renderer.applyGameStateSnapshot(game_state)
-
-
-
-    if game_state.players then
-        renderer.setNetworkedPlayers(game_state.players)
+    
+    
+    if game_state.player then
+        renderer.setNetworkedPlayers(game_state.player)
     end
+
+    if tonumber(arg[2]) == 1 then
+        return
+    end
+
     if game_state.enemies then
         renderer.setNetworkedEnemies(game_state.enemies)
     end

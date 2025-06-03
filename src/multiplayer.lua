@@ -188,6 +188,12 @@ function multiplayer:_handleMessage(data, peer, role)
     renderer.applyGameStateSnapshot(json.decode(data))
     end
 
+    if role == "host" then
+        -- local game_state  = json.decode(data)
+        -- print()
+    renderer.applyGameStateSnapshot(json.decode(data))
+    end
+
 
     
     -- print(string.format("[%s] Received: %s from %s", 

@@ -150,11 +150,12 @@ function love.draw()
     -- portal.draw()
 
     -- Populate and sort dynamic draw list if neccessary
+    renderer.populateDynamicDrawListNetworked()
     if tonumber(arg[2]) == 1 then
-        renderer.populateDynamicDrawList()
-    else
-        renderer.populateDynamicDrawListNetworked()
+        -- renderer.populateDynamicDrawList()
+        renderer.populateDynamicDrawListNETHOST()
     end
+    
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
@@ -232,27 +233,13 @@ function sendMovementMessage()
     -- elseif role == "CLIENT" then
     -- mp:sendToServer(message)
     -- end
-
+    game_state = renderer.createGameStateSnapshot()
     if tonumber(arg[2]) == 1 then
-        game_state = renderer.createGameStateSnapshot()
-        -- print(json.decode(json.encode(game_state)))
-
-        -- for k,v in pairs(game_state)do
-        --     print(k,v)
-        -- end
-        -- debug.debug()
-        -- mp:broadcast(multiplayer:createMessage("game_state", game_state))
-
-        -- local success, json_lib = pcall(function() return require("json") end)
-        -- -- if success and json_lib then
-        -- print(success)
-        --     json_str = json_lib.encode(game_state)
-        -- -- else
-
-        -- --     json_str = tostring(game_state)
-        -- -- end
-        -- for k,v in pairs(game_state.coins["1"]) do print(k,v) end
         mp:broadcast(json.encode(game_state))
+    else 
+        -- client info to send to server
+
+        mp:sendToServer(json.encode(game_state))
     end
 
 
