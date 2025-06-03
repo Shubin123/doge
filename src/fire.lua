@@ -2,9 +2,10 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 1
+fire.count = 10
 fire.pierce = true
-fire_bodies = {}
+fire_bodies = {} -- only have collision when they are shot, not spinning (maybe change?)
+fire_instances = {} -- no collision on these for now
 -- local sprite = require('sprite')
 
 fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
@@ -92,9 +93,10 @@ function fire.populate()
         })
         
 for i = 1, fire.count do
-    local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i)*(math.sin(fire.t*2) + 2)) * 30 + 200
-    local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i)*(math.sin(fire.t*2)+ 2))* 30 + 45
+    fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i)*(math.sin(fire.t*2) + 2)) * 30 + 200
+    fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i)*(math.sin(fire.t*2)+ 2))* 30 + 45
     
+
     if i <= #fire.fireables then
         if not fire.fireables[i][3] then
             -- Set starting position
@@ -153,6 +155,7 @@ for i = 1, fire.count do
             source_object_type = "fire_effect"
         })
     end
+    
 end
 end
 
@@ -187,5 +190,57 @@ function fire.collision(fixture_a,fixture_b, contact)
     
                                                                                                                    
 end
+
+
+function fire.getNetworkData()
+    local network_data = {}
+    
+    -- Include main fire system state
+    -- -- network_data.main_fire = {
+    --     t = fire.t,
+    --     count = fire.count,
+    --     scale = fire.scale,
+    --     active = true
+    -- }
+    
+    -- Include fireball projectiles data
+    -- network_data.fireables = {}
+    for i = 1, #fire.fireables do
+        if fire.fireables[i] and fire.fireables[i][3] ~= nil then -- initialized fireball
+            table.insert(network_data, {
+                -- position = {
+                    x = fire.fireables[i][1].x,
+                    y = fire.fireables[i][1].y,
+                -- },
+                -- direction = {
+                --     x = fire.fireables[i][2].x,
+                --     y = fire.fireables[i][2].y
+                -- },
+                -- initialized = fire.fireables[i][3],
+                active = true
+            })
+        end
+    end
+    
+    -- Include fire bodies physics data (for collision sync)
+    -- network_data.fire_bodies = {}
+    
+    local spinning_fires = fire.count - #fire.fireables
+    for i = 1, spinning_fires do
+        local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i)*(math.sin(fire.t*2) + 2)) * 30 + 200
+        local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i)*(math.sin(fire.t*2)+ 2))* 30 + 45
+        
+        local index = #fire.fireables + i
+        table.insert(network_data, {
+            x = fire_instance_x,
+            y = fire_instance_y,
+            active = true
+            -- type = "spinning"
+        })
+    end
+    
+    return network_data
+end
+
 
 return fire
