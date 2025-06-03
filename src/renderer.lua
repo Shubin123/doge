@@ -180,26 +180,33 @@ function renderer.populateDynamicDrawListNetworked()
 
     -- Draw networked fire effects
     for effect_id, fire_data in pairs(renderer.networked_state.fire_effects) do
-        if fire_data.active then
+        -- print(fire_data.active)
+        -- for k,v in pairs(fire_data) do print(k,v) end
+        -- print(#renderer.networked_state.fire_effects)
+        
+        -- if fire_data.active then
+            -- print(fire_data.x)
             -- You'll need to adapt this based on your fire effect structure
-            table.insert(dynamic_draw_list, {
-                sort_y = fire_data.y + 50,
-                image_or_particles = fire_data.particle_system or fire_data.image,
-                quad = fire_data.quad,
-                x = fire_data.x,
-                y = fire_data.y,
-                rotation = fire_data.rotation or 0,
-                scale_x = fire_data.scale_x or 1,
-                scale_y = fire_data.scale_y or 1,
-                offset_x = fire_data.offset_x or 0,
-                offset_y = fire_data.offset_y or 0,
-                color = fire_data.color or { 1, 1, 1, 1 },
-                blend_mode = fire_data.blend_mode or { "alpha" },
-                source_object_type = "networked_fire_effect",
-                effect_id = effect_id
-            })
-        end
+             table.insert(dynamic_draw_list, {
+            sort_y = 1000,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fire_data.x,
+            y = fire_data.y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 250, --200 in motion its different
+            offset_y = 50, --45
+            -- color = {0.13, 0.37, 1, 1}, -- make opponents a different color
+            color = {1,1, 1, 1},
+            blend_mode = {"lighten", "premultiplied"},
+            source_object_type = "fire_effect"
+        })
+        -- end
     end
+
+    
     
     fire.populate()
     enemy.populate()
@@ -550,7 +557,8 @@ function renderer.createGameStateSnapshot()
     end
     
     -- Add fire effects data (you'll need to adapt this based on your fire system)
-    -- game_state.fire_effects = fire.getNetworkData() -- Implement this in your fire module
+    game_state.fire_effects = fire.getNetworkData() -- Implement this in your fire module
+    -- for k,v in pairs(game_state.fire_effects) do print(k,v) end
     
     return game_state
 end
@@ -558,12 +566,24 @@ end
 -- Apply received game state (for clients)
 function renderer.applyGameStateSnapshot(game_state)
     
-    
+    -- print(game_state.fire_effects.fireables)
     if game_state.player then
         renderer.setNetworkedPlayers(game_state.player)
     end
+    if game_state.fire_effects then
+        -- print(game_state.fire_effects[1])
+        -- print(game_state.fire_effects[1])
+        -- for k,v in pairs(game_state.fire_effects) do 
+        --     print(k,v)
+        --     for k2,v2 in pairs(v) do
+        --          print(k2,v2)
+        --     end
+        -- end
 
-    if tonumber(arg[2]) == 1 then
+        renderer.setNetworkedFireEffects(game_state.fire_effects)
+    end
+
+    if var.multiplayer == 1 then
         return
     end
 
@@ -573,9 +593,7 @@ function renderer.applyGameStateSnapshot(game_state)
     if game_state.coins then
         renderer.setNetworkedCoins(game_state.coins)
     end
-    if game_state.fire_effects then
-        renderer.setNetworkedFireEffects(game_state.fire_effects)
-    end
+    
 end
 
 -- Usage in main.lua for multiplayer:

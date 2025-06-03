@@ -79,16 +79,26 @@ function love.load()
     map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
 
 
+
     player.load(world)
     enemy.load()
 
 
     -- Coins and enemies
+    
+    
+    
+    -- print("blah: " .. (var.multiplayer and "blah" or "nahblah"))
+
+
+    -- print(shape_sizes)
     coin_shape = love.physics.newCircleShape(5)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
+
+    
 
     -- Graphics
     coin_image = love.graphics.newImage("gfx/coin.png")
@@ -103,7 +113,6 @@ function love.load()
 
     -- Shaders
     grass.demo.load()
-
     fire.load()
 
     shader.load()
@@ -115,8 +124,8 @@ function love.load()
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 
-    -- print(arg[2])
-    multiplayer.load(arg[2])
+
+    multiplayer.load()
 end
 
 local W = love.graphics.getWidth()
@@ -127,7 +136,6 @@ local game_area_y = var.header_height
 
 
 function love.draw()
-    
     if var.State == "menu" then
         menu.draw()
         return
@@ -146,14 +154,22 @@ function love.draw()
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
-    
+
     -- Populate and sort dynamic draw list if neccessary
-    renderer.populateDynamicDrawListNetworked()
-    if tonumber(arg[2]) == 1 then
-        -- renderer.populateDynamicDrawList()
-        renderer.populateDynamicDrawListNETHOST()
+
+    if var.multiplayer then
+        renderer.populateDynamicDrawListNetworked()
+
+        if var.multiplayer == 1 then
+            -- renderer.populateDynamicDrawList()
+            renderer.populateDynamicDrawListNETHOST()
+        end
+    else
+        renderer.populateDynamicDrawList()
     end
-    
+
+
+
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
@@ -198,11 +214,10 @@ function love.update(dt)
     smoke.update(dt)
     fire.update(dt)
     grass.demo.update(dt)
-    if tonumber(arg[2]) == 1 then
-    enemy.update(dt)
-    portal.update(dt)
+    if var.multiplayer == 1 then
+        enemy.update(dt)
+        portal.update(dt)
     end
-    
 end
 
 function sendMovementMessage()
@@ -219,9 +234,9 @@ function sendMovementMessage()
     -- mp:sendToServer(message)
     -- end
     game_state = renderer.createGameStateSnapshot()
-    if tonumber(arg[2]) == 1 then
+    if var.multiplayer == 1 then
         mp:broadcast(json.encode(game_state))
-    else 
+    else
         -- client info to send to server
 
         mp:sendToServer(json.encode(game_state))
@@ -231,27 +246,6 @@ function sendMovementMessage()
     -- print("Sent movement:", x, y)
 end
 
-function checkBounds(cx1, cy1, cx2, cy2, x, y)
-    -- print(cx1,cy1,cx2,cy2,x,y)
-    return x < cx1 and x > cx2 and y < cy1 and y > cy2
-end
-
-function checkBoundsGrid(x, y)
-    if checkBounds(1000, 180, 0, 100, x, y) then
-        return true
-    end
-    if checkBounds(1000, 180 + 130, 0, 100 + 130, x, y) then
-        return true
-    end
-    if checkBounds(1000, 180 - 130, 0, 100 - 130, x, y) then
-        return true
-    end
-
-    -- for i=0,8 do
-    --     -- local offset_x = 30*i
-    -- end
-    -- return false
-end
 
 function love.resize(w, h)
     var.screen_width = w
@@ -303,7 +297,7 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "z" then
         if not zoomToggle then
-            camera.setZoom(2)
+            camera.setZoom(0.3)
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
