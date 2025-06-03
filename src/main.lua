@@ -146,9 +146,7 @@ function love.draw()
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
-    -- crtShader:beginCapture()
-    -- portal.draw()
-
+    
     -- Populate and sort dynamic draw list if neccessary
     renderer.populateDynamicDrawListNetworked()
     if tonumber(arg[2]) == 1 then
@@ -163,19 +161,6 @@ function love.draw()
 
 
     grass.demo.draw()
-
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map4:draw(100, game_area_y, 0.8)
-
-    -- else
-    --     map.map3:draw(100, game_area_y, 1)
-    --     map.map4:draw(100, game_area_y, 0.8)
-    --     player.draw()
-
-    -- end
-
-
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water

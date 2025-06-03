@@ -328,20 +328,7 @@ function multiplayer.load(conf)
         timeout = 10 --IMPORANT !!!
     })
     
-    -- Set up message handlers
-    mp:onMessage("chat", function(message, peer, role)
-        table.insert(messages, {
-            text = message,
-            peer = tostring(peer),
-            role = role,
-            time = love.timer.getTime()
-        })
-        
-        -- Keep only recent messages
-        if #messages > max_messages then
-            table.remove(messages, 1)
-        end
-    end)
+
     
     mp:onMessage("player_move", function(message, peer, role)
         print("Player moved:", message, "from", peer)
