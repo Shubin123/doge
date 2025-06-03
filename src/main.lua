@@ -212,8 +212,10 @@ function love.update(dt)
     smoke.update(dt)
     fire.update(dt)
     grass.demo.update(dt)
+    if tonumber(arg[2]) == 1 then
     enemy.update(dt)
     portal.update(dt)
+    end
     
 end
 
