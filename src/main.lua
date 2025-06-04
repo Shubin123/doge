@@ -144,7 +144,7 @@ function love.draw()
 
     love.graphics.push()
 
-    shader.prepass()
+    -- shader.prepass()
 
 
 
@@ -161,9 +161,9 @@ function love.draw()
         renderer.populateDynamicDrawListNetworked()
 
         if var.multiplayer == 1 then
-            -- renderer.populateDynamicDrawList()
             renderer.populateDynamicDrawListNETHOST()
         end
+
     else
         renderer.populateDynamicDrawList()
     end
@@ -180,7 +180,7 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-    shader.pass()
+    -- shader.pass()
 
     smoke.pass()
 
@@ -277,7 +277,9 @@ function love.mousepressed(x, y, button, istouch, presses)
     -- print(fire.count)
     -- if fire.count == 0 then
     if #fire.fireables < fire.count then
-        table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
+        
+        table.insert(fire.fireables, { table.remove(fire_instances, #fire_instances), normalized_direction, false }) -- since we pop directly any position of the spin (instances) table can be inserted
+        
     end
 
 

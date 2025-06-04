@@ -96,9 +96,10 @@ function renderer.populateDynamicDrawListNetworked()
         end
     end
     
-    -- draw the client 
+    -- draw the selfs 
+    local ls = renderer.local_player_state.y +  (100 * player.scale) 
         table.insert(dynamic_draw_list, {
-            sort_y =  renderer.local_player_state.y + 45,
+            sort_y =  ls + 45,
             image_or_particles = player.animation.spriteSheet,
              quad = player.animation.quads[((renderer.local_player_state.animation_frame + 5) % 5) + 6] or var.nullquad,
              x= renderer.local_player_state.x,
@@ -187,8 +188,8 @@ function renderer.populateDynamicDrawListNetworked()
         -- if fire_data.active then
             -- print(fire_data.x)
             -- You'll need to adapt this based on your fire effect structure
-             table.insert(dynamic_draw_list, {
-            sort_y = 1000,
+            table.insert(dynamic_draw_list, {
+            sort_y = fire_data.y + 100, -- this offset is dynamically transformed by the player whose firing not going to be correct once players positions not the same
             image_or_particles = fire.particleSystem,
             quad = nil,
             x = fire_data.x,
@@ -208,8 +209,9 @@ function renderer.populateDynamicDrawListNetworked()
 
     
     
-    fire.populate()
-    enemy.populate()
+    fire.populate() 
+    
+    -- enemy.populate()
 end
 
 -- Original function for local/single player (keeps physics body access)
@@ -387,8 +389,7 @@ function renderer.populateDynamicDrawListNETHOST()
         })
     end
 
-    -- Fire effects drawables
-    fire.populate()
+ 
     enemy.populate()
 end
 
