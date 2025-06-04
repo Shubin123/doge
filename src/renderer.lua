@@ -535,7 +535,7 @@ function renderer.createGameStateSnapshot()
     
     -- Update local player first if this is the server
     renderer.updateLocalPlayerFromPhysics()
-    game_state.player["local"] = renderer.local_player_state
+    game_state.player["client"] = renderer.local_player_state
     
     -- Collect enemy data from physics bodies
     for i = 1, #enemies_bods do
@@ -570,6 +570,7 @@ function renderer.applyGameStateSnapshot(game_state)
     -- print(game_state.fire_effects.fireables)
     if game_state.player then
         renderer.setNetworkedPlayers(game_state.player)
+        
     end
     if game_state.fire_effects then
         -- print(game_state.fire_effects[1])
