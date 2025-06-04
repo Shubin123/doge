@@ -15,7 +15,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 0
+var.num_enemies = 10
 var.enemies_bods = {}
 
 var.sprite_height = 100
@@ -44,8 +44,8 @@ var.sprite_width = 100
  var.State = "running"
  var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
 
- var.game_width = 800
- var.game_height = 800
+ var.game_width = 400
+ var.game_height = 400
  var.header_height = 50
 
 var.nullquad = love.graphics.newQuad(

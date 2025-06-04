@@ -174,6 +174,8 @@ function multiplayer:sendToServer(message, channel)
     return true
 end
 
+
+
 -- Handle incoming messages
 function multiplayer:_handleMessage(data, peer, role)
     if role == "client" then
@@ -184,9 +186,12 @@ function multiplayer:_handleMessage(data, peer, role)
     end
 
     if role == "host" then
-        -- local game_state  = json.decode(data)
-        -- print()
-        renderer.applyGameStateSnapshot(json.decode(data))
+        local game_state  = json.decode(data)
+        
+        -- print(game_state.player["client"])
+        -- for k,v in pairs(game_state.player["client"]) do print(k,v) end
+        player.online.body:setPosition(game_state.player["client"].x,game_state.player["client"].y ) -- assuming one online player
+        renderer.applyGameStateSnapshot(game_state)
     end
 
 
@@ -340,22 +345,31 @@ function multiplayer.load()
     end)
 
 
-    if var.multiplayer == 1 then
-        -- print(arg[3])
-        
 
-        if arg[3] then            
-            mp:startHost(arg[3])
-        else
-            mp:startHost("localhost")
-        end
+    if var.multiplayer then
+        -- print(arg[3])
+    local ip = arg[3] and arg[3] or "localhost"
+
+    if var.multiplayer == 1  then
+        mp:startHost(ip)
     else
-        mp:connectToHost("localhost")
+        mp:connectToHost(ip)
+    end
+
     end
 end
 
 
 
+function multiplayer.sendMovementMessage()   
+    game_state = renderer.createGameStateSnapshot()
+    if var.multiplayer == 1 then
+        mp:broadcast(json.encode(game_state))
+    else
+        -- client info to send to server
+        mp:sendToServer(json.encode(game_state))
+    end
+end
 
 
 

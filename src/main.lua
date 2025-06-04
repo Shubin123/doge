@@ -101,10 +101,13 @@ function love.load()
     
 
     -- Graphics
+    
+    if var.num_coins > 0 then
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
     coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
     coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
+    end
 
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
@@ -205,7 +208,7 @@ function love.update(dt)
     -- t  = t + dt
     -- if t > 0.1 then
     mp:update()
-    sendMovementMessage()
+    multiplayer.sendMovementMessage()
     -- t = 0
     -- end
     player.update(dt)
@@ -220,31 +223,7 @@ function love.update(dt)
     end
 end
 
-function sendMovementMessage()
-    -- if not mp or not role then
-    --     return
-    -- end
 
-    -- local x, y = love.mouse.getPosition()
-    -- local message = string.format("player_move:%.2f,%.2f", player.body:getPosition())
-
-    -- if role == "HOST" then
-    -- mp:broadcast(message)
-    -- elseif role == "CLIENT" then
-    -- mp:sendToServer(message)
-    -- end
-    game_state = renderer.createGameStateSnapshot()
-    if var.multiplayer == 1 then
-        mp:broadcast(json.encode(game_state))
-    else
-        -- client info to send to server
-
-        mp:sendToServer(json.encode(game_state))
-    end
-
-
-    -- print("Sent movement:", x, y)
-end
 
 
 function love.resize(w, h)
@@ -299,7 +278,7 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "z" then
         if not zoomToggle then
-            camera.setZoom(0.3)
+            camera.setZoom(2)
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)

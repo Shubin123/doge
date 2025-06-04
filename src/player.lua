@@ -1,6 +1,6 @@
 local player = {}
 player.health = 100
-
+player.online = {}
 
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
@@ -43,6 +43,12 @@ function player.load(world)
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
     player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/jump.png"), 64, 65, 2, 10)
 
+
+    player.online.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic") -- set an online player body for testing
+    player.online.fixture = love.physics.newFixture(player.online.body, player.shape)
+    player.online.fixture:setGroupIndex(-1)
+    --assuming online players size is same -- doesnt have to be but would have to have more replicated data
+    
 end
 
 function player.update(dt)
@@ -212,6 +218,9 @@ function player.update(dt)
         -- Set idle animation when not moving
         player.currentAnimation = "idle"
     end
+
+
+    
 end
 
 function player.draw()
