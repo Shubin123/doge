@@ -144,7 +144,7 @@ function love.draw()
 
     love.graphics.push()
 
-    -- shader.prepass()
+    shader.prepass()
 
 
 
@@ -180,7 +180,7 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-    -- shader.pass()
+    shader.pass()
 
     smoke.pass()
 
@@ -214,9 +214,9 @@ function love.update(dt)
     smoke.update(dt)
     fire.update(dt)
     grass.demo.update(dt)
+    portal.update(dt)
     if var.multiplayer == 1 then
-        enemy.update(dt)
-        portal.update(dt)
+        enemy.update(dt)        
     end
 end
 

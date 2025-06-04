@@ -94,11 +94,11 @@ function fire.populate()
     -- local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
     -- local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
     
-    -- fire_instance.x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
-    fire_instance.x = player.body:getX() + 10
+    fire_instance.x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
+    -- fire_instance.x = player.body:getX() + 10
     
-    -- fire_instance.y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
-    fire_instance.y = player.body:getY() + 10
+    fire_instance.y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
+    -- fire_instance.y = player.body:getY() + 10
     -- table.insert(fire_instances, {fire_instance_x, fire_instance_y})
     
     -- Default fire effect
@@ -170,7 +170,7 @@ end
 end
 
 function fire.collision(fixture_a, fixture_b, contact)
-    if not (var.multiplayer == 2) then
+    if (var.multiplayer == 2) then return end
 
 
     local not_fire
@@ -199,7 +199,7 @@ function fire.collision(fixture_a, fixture_b, contact)
         -- checkDestroy(fire_bodies, firef:getBody())
         -- print()
     end
-end
+
 end
 
 function fire.getNetworkData()
