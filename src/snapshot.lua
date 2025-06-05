@@ -5,7 +5,8 @@ local accumulated_game_state = {
     players = {},
     enemies = {},
     coins = {},
-    fire_effects = {}
+    fire_effects = {},
+    accumulated_fires = {} -- Track fire effects from all clients
 }
 
 function snapshot.create()
@@ -53,16 +54,33 @@ function snapshot.create()
             }
         end
         
-        -- Add fire effects data
-        game_state.fire_effects = fire.getNetworkData()
+        -- Add host's fire effects
+        local host_fires = fire.getNetworkData()
+        game_state.fire_effects = {}
+        
+        -- Convert host fires to string keys and add them
+        if host_fires then
+            for k, v in pairs(host_fires) do
+                game_state.fire_effects["host_" .. tostring(k)] = v
+            end
+        end
+        
+        -- Add accumulated client fires with string keys
+        for client_id, client_fires in pairs(accumulated_game_state.accumulated_fires) do
+            if client_fires then
+                for k, v in pairs(client_fires) do
+                    game_state.fire_effects[client_id .. "_" .. tostring(k)] = v
+                end
+            end
+        end
         
     else
-        -- CLIENT: Create minimal update with only player data
+        -- CLIENT: Create minimal update with player data and fire effects
         game_state = {
             type = "player_update",
             client_id = "client_" .. var.multiplayer,
             player_data = renderer.local_player_state,
-            fire_effects = fire.getNetworkData() -- Clients can still send fire effects
+            fire_effects = fire.getNetworkData() -- Clients send their fire effects
         }
     end
     
@@ -73,13 +91,24 @@ function snapshot.apply(game_state)
     if var.multiplayer == 1 then
         -- HOST: Handle incoming client updates
         if game_state.type == "player_update" then
-            -- Accumulate client player data
+            -- Accumulate client player data and fire effects
             accumulated_game_state.players[game_state.client_id] = game_state.player_data
             
-            -- Apply fire effects from client
+            -- Accumulate client fire effects
             if game_state.fire_effects then
-                renderer.setNetworkedFireEffects(game_state.fire_effects)
+                accumulated_game_state.accumulated_fires[game_state.client_id] = game_state.fire_effects
             end
+            
+            -- Apply all accumulated fire effects to host's renderer
+            local all_client_fires = {}
+            for client_id, client_fires in pairs(accumulated_game_state.accumulated_fires) do
+                if client_fires then
+                    for k, v in pairs(client_fires) do
+                        all_client_fires[client_id .. "_" .. tostring(k)] = v
+                    end
+                end
+            end
+            renderer.setNetworkedFireEffects(all_client_fires)
             
             -- Create combined player data with only CLIENT players (not host)
             local client_players = {}
@@ -112,7 +141,17 @@ function snapshot.apply(game_state)
         end
         
         if game_state.fire_effects then
-            renderer.setNetworkedFireEffects(game_state.fire_effects)
+            -- Filter out own fire effects to avoid duplication
+            local other_fires = {}
+            local own_client_prefix = "client_" .. var.multiplayer .. "_"
+            
+            for fire_id, fire_data in pairs(game_state.fire_effects) do
+                if not string.match(fire_id, "^" .. own_client_prefix) then
+                    other_fires[fire_id] = fire_data
+                end
+            end
+            
+            renderer.setNetworkedFireEffects(other_fires)
         end
         
         if game_state.enemies then
