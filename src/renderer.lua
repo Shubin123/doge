@@ -73,8 +73,10 @@ function renderer.populateDynamicDrawListNetworked()
     rebuildArray(dynamic_draw_list, map_b)
 
     -- Draw networked players
+    
     for player_id, player_data in pairs(renderer.networked_state.players) do
         if player_data.active then
+            
             local sort_y = player_data.y + (100 * player_data.scale)
             
             table.insert(dynamic_draw_list, {
@@ -525,103 +527,78 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
 end
 
 -- Utility function to create a complete game state snapshot (for server)
-function renderer.createGameStateSnapshot()
-    local game_state = {
-        player = {},
-        enemies = {},
-        coins = {},
-        fire_effects = {}
-    }
+-- function renderer.createGameStateSnapshot()
+--     local game_state = {
+--         player = {},
+--         enemies = {},
+--         coins = {},
+--         fire_effects = {}
+--     }
     
-    -- Update local player first if this is the server
-    renderer.updateLocalPlayerFromPhysics()
-    game_state.player["client"] = renderer.local_player_state
+--     -- Update local player first if this is the server
+--     renderer.updateLocalPlayerFromPhysics()
+--     game_state.player["client"] = renderer.local_player_state
     
-    -- Collect enemy data from physics bodies
-    for i = 1, #enemies_bods do
-        local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
-        game_state.enemies[tostring(i)] = {
-            x = ex,
-            y = ey,
-            active = true
-        }
-    end
-    
-    -- Collect coin data from physics bodies
-    for i = 1, #coin_bods do
-        local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-        game_state.coins[tostring(i)] = {
-            x = cx,
-            y = cy,
-            active = true
-        }
-    end
-    
-    -- Add fire effects data (you'll need to adapt this based on your fire system)
-    game_state.fire_effects = fire.getNetworkData() -- Implement this in your fire module
-    -- for k,v in pairs(game_state.fire_effects) do print(k,v) end
-    
-    return game_state
-end
-
--- Apply received game state (for clients)
-function renderer.applyGameStateSnapshot(game_state)
-    
-    -- print(game_state.fire_effects.fireables)
-    if game_state.player then
-        renderer.setNetworkedPlayers(game_state.player)
-        
-    end
-    if game_state.fire_effects then
-        -- print(game_state.fire_effects[1])
-        -- print(game_state.fire_effects[1])
-        -- for k,v in pairs(game_state.fire_effects) do 
-        --     print(k,v)
-        --     for k2,v2 in pairs(v) do
-        --          print(k2,v2)
-        --     end
-        -- end
-
-        renderer.setNetworkedFireEffects(game_state.fire_effects)
-    end
-
-    if var.multiplayer == 1 then
-        return
-    end
-
-    if game_state.enemies then
-        renderer.setNetworkedEnemies(game_state.enemies)
-    end
-    if game_state.coins then
-        renderer.setNetworkedCoins(game_state.coins)
-    end
-    
-end
-
--- Usage in main.lua for multiplayer:
--- function love.draw()
---     if is_multiplayer then
---         -- Use networked rendering
---         renderer.populateDynamicDrawListNetworked()
---     else
---         -- Use local physics-based rendering
---         renderer.populateDynamicDrawList()
+--     -- Collect enemy data from physics bodies
+--     for i = 1, #enemies_bods do
+--         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+--         game_state.enemies[tostring(i)] = {
+--             x = ex,
+--             y = ey,
+--             active = true
+--         }
 --     end
---     
---     table.sort(dynamic_draw_list, renderer.sortByRenderY)
---     renderer.renderSortedDrawList()
+    
+--     -- Collect coin data from physics bodies
+--     for i = 1, #coin_bods do
+--         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
+--         game_state.coins[tostring(i)] = {
+--             x = cx,
+--             y = cy,
+--             active = true
+--         }
+--     end
+    
+--     -- Add fire effects data (you'll need to adapt this based on your fire system)
+--     game_state.fire_effects = fire.getNetworkData() -- Implement this in your fire module
+--     -- for k,v in pairs(game_state.fire_effects) do print(k,v) end
+    
+--     return game_state
 -- end
 
--- Server usage:
--- function love.update(dt)
---     -- Server updates physics and creates snapshots
---     local game_state = renderer.createGameStateSnapshot()
---     multiplayer:broadcast(multiplayer:createMessage("game_state", game_state))
+-- -- Apply received game state (for clients)
+-- function renderer.applyGameStateSnapshot(game_state)
+    
+--     -- print(game_state.fire_effects.fireables)
+--     if game_state.player then
+--         renderer.setNetworkedPlayers(game_state.player)
+        
+--     end
+--     if game_state.fire_effects then
+--         -- print(game_state.fire_effects[1])
+--         -- print(game_state.fire_effects[1])
+--         -- for k,v in pairs(game_state.fire_effects) do 
+--         --     print(k,v)
+--         --     for k2,v2 in pairs(v) do
+--         --          print(k2,v2)
+--         --     end
+--         -- end
+
+--         renderer.setNetworkedFireEffects(game_state.fire_effects)
+--     end
+
+--     if var.multiplayer == 1 then
+--         return
+--     end
+
+--     if game_state.enemies then
+--         renderer.setNetworkedEnemies(game_state.enemies)
+--     end
+--     if game_state.coins then
+--         renderer.setNetworkedCoins(game_state.coins)
+--     end
+    
 -- end
 
--- Client usage:
--- multiplayer:onMessage("game_state", function(message, peer, role)
---     renderer.applyGameStateSnapshot(message.data)
--- end)
 
 return renderer

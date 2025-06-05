@@ -1,6 +1,8 @@
 water = {}
 
-local water_area = require("vec4").new(0,0,0,0)
+-- print(vec4)
+local vec4 = require("vec4")
+local water_area =  vec4.new(0,0,0,0)
 
 
 
@@ -161,7 +163,7 @@ function water.update(dt)
     
     -- Convert world space water bounds to screen space by subtracting camera offset
     local water_area = water_area*camera.zoom
-    local screen_water = camera.pos + require("vec2").new(water_area.x ,water_area.y)
+    local screen_water = camera.pos + vec2.new(water_area.x ,water_area.y)
 
     -- Send screen-space water area bounds to shaders
     -- water_distortion_shader:send("waterBounds", {screen_water.x, screen_water.y, water_area.w, water_area.z})

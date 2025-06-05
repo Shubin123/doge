@@ -176,22 +176,42 @@ end
 
 
 
+function multiplayer.sendMovementMessage()   
+    -- game_state = renderer.createGameStateSnapshot()
+    game_state = snapshot.create()
+
+    if var.multiplayer == 1 then
+        mp:broadcast(json.encode(game_state))
+    else
+        -- client info to send to server -- doesnt work correctly for more than one client
+        mp:sendToServer(json.encode(game_state))
+    end
+end
+
+
+
 -- Handle incoming messages
 function multiplayer:_handleMessage(data, peer, role)
+    local game_state  = json.decode(data)
     if role == "client" then
         -- print("")
         -- print(data)
         -- debug.debug()
-        renderer.applyGameStateSnapshot(json.decode(data))
+        -- renderer.applyGameStateSnapshot(game_state)
+        snapshot.apply(game_state)
     end
 
     if role == "host" then
-        local game_state  = json.decode(data)
+        
         
         -- print(game_state.player["client"])
         -- for k,v in pairs(game_state.player["client"]) do print(k,v) end
-        player.online.body:setPosition(game_state.player["client"].x,game_state.player["client"].y ) -- assuming one online player
-        renderer.applyGameStateSnapshot(game_state)
+        
+        -- player.online.body:setPosition(game_state.players['client_' .. 2].x,game_state.players['client_'.. 2].y) -- assuming one online player (starting from 2)
+        -- renderer.applyGameStateSnapshot(game_state)
+        -- renderer.applyGameStateSnapshot(game_state)
+        snapshot.apply(game_state)
+
     end
 
 
@@ -288,34 +308,34 @@ function multiplayer:createMessage(msg_type, data)
 end
 
 -- Utility: Send JSON message
-function multiplayer:sendJSON(target, message, channel)
-    local json_str = tostring(message)
-    if type(message) == "table" then
-        -- Simple JSON encoding (you might want to use a proper JSON library)
-        local success, json_lib = pcall(function() return require("json") end)
-        if success and json_lib then
-            json_str = json_lib.encode(message)
-        else
-            -- Fallback: simple table serialization for basic cases
-            if message.type and message.data then
-                json_str = string.format('{"type":"%s","data":"%s"}',
-                    tostring(message.type), tostring(message.data))
-            else
-                json_str = tostring(message)
-            end
-        end
-    end
+-- function multiplayer:sendJSON(target, message, channel)
+--     local json_str = tostring(message)
+--     if type(message) == "table" then
+--         -- Simple JSON encoding (you might want to use a proper JSON library)
+--         local success, json_lib = pcall(function() return require("json") end)
+--         if success and json_lib then
+--             json_str = json_lib.encode(message)
+--         else
+--             -- Fallback: simple table serialization for basic cases
+--             if message.type and message.data then
+--                 json_str = string.format('{"type":"%s","data":"%s"}',
+--                     tostring(message.type), tostring(message.data))
+--             else
+--                 json_str = tostring(message)
+--             end
+--         end
+--     end
 
-    if target == "server" then
-        return self:sendToServer(json_str, channel)
-    elseif target == "broadcast" then
-        return self:broadcast(json_str, channel)
-    elseif type(target) == "userdata" then -- peer object
-        return self:sendToPeer(target, json_str, channel)
-    end
+--     if target == "server" then
+--         return self:sendToServer(json_str, channel)
+--     elseif target == "broadcast" then
+--         return self:broadcast(json_str, channel)
+--     elseif type(target) == "userdata" then -- peer object
+--         return self:sendToPeer(target, json_str, channel)
+--     end
 
-    return false
-end
+--     return false
+-- end
 
 function multiplayer.load()
     mp = multiplayer.new({
@@ -360,16 +380,6 @@ function multiplayer.load()
 end
 
 
-
-function multiplayer.sendMovementMessage()   
-    game_state = renderer.createGameStateSnapshot()
-    if var.multiplayer == 1 then
-        mp:broadcast(json.encode(game_state))
-    else
-        -- client info to send to server
-        mp:sendToServer(json.encode(game_state))
-    end
-end
 
 
 
