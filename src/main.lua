@@ -220,7 +220,7 @@ function love.update(dt)
     fire.update(dt)
     grass.demo.update(dt)
     portal.update(dt)
-    if var.multiplayer == 1 and  var.multiplayer  then
+    if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)        
     end
 end
@@ -391,7 +391,7 @@ end
 
 function beginContact(fixture_a, fixture_b, contact)
     
-    player.collision(fixture_a,fixture_b,contact)
+    -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
 
