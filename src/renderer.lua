@@ -77,18 +77,20 @@ function renderer.populateDynamicDrawListNetworked()
     -- Draw networked players
 
     for player_id, player_data in pairs(renderer.networked_state.players) do
-        if player_data.active then
-            local sort_y = player_data.y + (100 * player_data.scale)
+        
+        if player_data then
+            -- for k,v in pairs(player_data) do print(k,v,"\n") end
+            local sort_y = player_data.y + (100 * renderer.local_player_state.scale)
 
             table.insert(dynamic_draw_list, {
                 sort_y = sort_y + 45,
                 image_or_particles = player.animation.spriteSheet, -- Assume same spritesheet for all players (!!! need offesets here for dynamic characters 100% gonna forget lol)
-                quad = player.animation.quads[((player_data.animation_frame + 5) % 5) + 6] or var.nullquad,
+                quad = player.animation.quads[((renderer.local_player_state.animation_frame + 5) % 5) + 6] or var.nullquad,
                 x = player_data.x,
                 y = player_data.y,
-                rotation = player_data.rotation,
-                scale_x = player_data.scale,
-                scale_y = player_data.scale,
+                rotation = 0,
+                scale_x = renderer.local_player_state.scale,
+                scale_y = renderer.local_player_state.scale,
                 offset_x = 35,
                 offset_y = 50,
                 color = { 1, 1, 1, 1 },
@@ -209,19 +211,20 @@ function renderer.populateDynamicDrawListNetworked()
             source_object_type = "fire_effect"
         })
         -- end
-        if (fire_data.id) then
-            local id =  tostring(fire_data.id)
-            if (var.multiplayer == 1) and fire_data.active then -- on host if fire is active (fired state) enable collision for it
-                -- print(fire_data.active)
-                if (fire.online_fireables[id]) then
-                    fire.online_fireables[id]:setPosition(fire_data.x - 200, fire_data.y - 45)
-                else
-                    fire.online_fireables[id] = love.physics.newBody(world, fire_data.x - 200, fire_data.y - 45, "dynamic")
-                    local _fixture = love.physics.newFixture(fire.online_fireables[id], love.physics.newCircleShape(20))
-                    _fixture:setGroupIndex(-1)
-                end
-            end
-        end
+        -- if (fire_data.id) then
+        --     print(fire_data.id)
+        --     local id =  tostring(fire_data.id)
+        --     if (var.multiplayer == 1) and fire_data.active then -- on host if fire is active (fired state) enable collision for it
+        --         -- print(fire_data.active)
+        --         if (fire.online_fireables[id]) then
+        --             fire.online_fireables[id]:setPosition(fire_data.x - 200, fire_data.y - 45)
+        --         else
+        --             fire.online_fireables[id] = love.physics.newBody(world, fire_data.x - 200, fire_data.y - 45, "dynamic")
+        --             local _fixture = love.physics.newFixture(fire.online_fireables[id], love.physics.newCircleShape(20))
+        --             _fixture:setGroupIndex(-1)
+        --         end
+        --     end
+        -- end
     end
 
 

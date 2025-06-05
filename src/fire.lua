@@ -3,7 +3,7 @@ fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 10
+fire.count = 1
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
 fire_instances = {} -- no collision on these for now
@@ -263,6 +263,22 @@ function fire.getNetworkData()
     end
 
     return network_data
+end
+
+
+
+function fire.setOnline(index,pos)
+
+  if fire.online_fireables[index] then
+    -- print("table index already in use setting")
+    fire.online_fireables[index]:setPosition(pos.x, pos.y)
+  else 
+    fire.online_fireables[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
+    local _fixture = love.physics.newFixture(fire.online_fireables[index], love.physics.newCircleShape(20))
+    _fixture:setGroupIndex(-1)
+  end
+
+
 end
 
 return fire
