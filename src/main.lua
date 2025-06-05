@@ -21,6 +21,7 @@ enemy = require("enemy")
 portal = require("portal")
 crt = require("crt")
 renderer = require("renderer")
+snapshot = require("snapshot")
 
 multiplayer = require("multiplayer")
 
