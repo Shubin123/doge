@@ -13,7 +13,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 100
+var.num_coins = 1000
 var.coin_bods = {}
 var.num_enemies = (var.multiplayer == 2) and 0 or 0
 var.enemies_bods = {}

@@ -2,7 +2,8 @@ local fire = {}
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
-fire.count = 100
+fire.online_fireables = {}
+fire.count = 10
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
 fire_instances = {} -- no collision on these for now
@@ -122,56 +123,59 @@ end
 -- Fireables loop using pairs
 for i, fireable in pairs(fire.fireables) do
     if fireable[1] then
-    if not fireable[3] then
-        
-        -- Set starting position
-        -- fireable[1] = vec2.new(fire_instances[i].x, fire_instances[i].y)
-        
-        -- print(vec2.norm(fireable[1]))
-        local _bod = love.physics.newBody(world, fireable[1].x - 200, fireable[1].y - 45, "dynamic")
-        
-        table.insert(fire_bodies, i, _bod)
-        local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
-        _fixture:setGroupIndex(-1)
-        -- _fixture:setFilterData(500,1, -1)
-        -- _bod:applyForce(fireable[2].x *fire.t,fireable[2].y*fire.t)
-        fireable[3] = 1 -- initialized
-        -- direction is already stored in [2]
+        if not fireable[3] then
+            -- Set starting position
+            -- fireable[1] = vec2.new(fire_instances[i].x, fire_instances[i].y)
+            
+            -- Only create physics bodies on host (var.multiplayer == 1)
+            -- Clients still initialize fireballs for visual purposes but no physics
+            -- if (var.multiplayer == 1) then
+                -- print(vec2.norm(fireable[1]))
+                local _bod = love.physics.newBody(world, fireable[1].x - 200, fireable[1].y - 45, "dynamic")
+                table.insert(fire_bodies, i, _bod)
+                local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
+                _fixture:setGroupIndex(-1)
+                -- _fixture:setFilterData(500,1, -1)
+                -- _bod:applyForce(fireable[2].x *fire.t,fireable[2].y*fire.t)
+            -- end
+            fireable[3] = 1 -- initialized (both host and client mark as initialized)
+            -- direction is already stored in [2]
 
-
-    else
-        -- Move fireball using the pre-calculated direction
-        -- print(fire_bodies[1]:getPosition())
-        -- local tmp_fire = fireable[1]
-        fireable[1] = fireable[1] + fireable[2] * 2
-        -- love.graphics.line(fireable[1].x - 200, fireable[1].y - 45, (tmp_fire.x - 200)*2, (tmp_fire.y - 45)*2) -- debug draw
-        fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+        else
+            -- Move fireball using the pre-calculated direction
+            -- This happens on both host and clients for local prediction/rendering
+            fireable[1] = fireable[1] + fireable[2] * 2
+            
+            -- Only update physics body position on host
+            if (var.multiplayer == 1) and fire_bodies[i] then
+                fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+            end
+        end
+        
+        -- Draw fireball (happens on all clients for local prediction)
+        table.insert(dynamic_draw_list, {
+            sort_y = fireable[1].y + 100,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fireable[1].x,
+            y = fireable[1].y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 250,
+            offset_y = 50,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "lighten", "premultiplied" },
+            source_object_type = "fire_effect"
+        })
     end
-    
-    -- Draw fireball
-    table.insert(dynamic_draw_list, {
-        sort_y = fireable[1].y + 100,
-        image_or_particles = fire.particleSystem,
-        quad = nil,
-        x = fireable[1].x,
-        y = fireable[1].y,
-        rotation = 0,
-        scale_x = fire.scale,
-        scale_y = fire.scale,
-        offset_x = 250,
-        offset_y = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "lighten", "premultiplied" },
-        source_object_type = "fire_effect"
-    })
-end
 end
     
 end
 
 function fire.collision(fixture_a, fixture_b, contact)
-    if (var.multiplayer == 2) then return end
-
+    -- Only process collisions on host since physics only happens on host's world
+    if (var.multiplayer ~= 1) then return end
 
     local not_fire
     local firef
@@ -229,11 +233,14 @@ function fire.getNetworkData()
                 --     y = fire.fireables[i][2].y
                 -- },
                 -- initialized = fire.fireables[i][3],
-                active = true
+                active = true,
+                id = i
             })
         end
         end
     end
+
+    
 
     -- Include fire bodies physics data (for collision sync)
     -- network_data.fire_bodies = {}
@@ -248,7 +255,7 @@ function fire.getNetworkData()
         table.insert(network_data, {
             x = fire_instances[i].x,
             y = fire_instances[i].y,
-            active = true
+            active = false -- starts in this state by the time its non active again it should just be deleted (collided)
             -- type = "spinning"
         })
     end
