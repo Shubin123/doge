@@ -1,199 +1,197 @@
--- testing multiplayer - Example usage of the multiplayer module
-local Multiplayer = require("src.multiplayer")
 
 
-local role = nil
-local messages = {}
-local input_text = ""
-local host_ip = ""
-local max_messages = 10
+-- local ffi = require 'ffi'
+
+-- -- ffi.cdef 'void exit(int)'
+-- ffi.cdef[[
+-- void exit(int);
+-- int MessageBoxA(void *w, const char *txt, const char *cap, int type); 
+-- void Sleep(int ms);
+-- int poll(struct pollfd *fds, unsigned long nfds, int timeout);
+
+-- ]]
+
+
+-- -- function love.draw()
+-- -- 	love.graphics.print("Press a key", 50, 50)
+-- -- end
+
+
+-- -- function love.keypressed()
+-- -- 	-- ffi.C.exit(666)
+-- --     -- ffi.C.MessageBoxA(nil, "Hello world!", "Test", 0) -- windows/wine only
+
+-- -- 	-- ffi.C.exit(666)
+-- -- end
+
+
+
+-- local sleep
+-- if ffi.os == "Windows" then
+--   function sleep(s)
+--     ffi.C.Sleep(s*1000)
+--   end
+-- else
+--   function sleep(s)
+--     ffi.C.poll(nil, 0, s*1000)
+--   end
+-- end
+
+-- for i=1,160 do
+--   io.write("."); io.flush()
+--   sleep(0.01)
+-- end
+-- io.write("\n")
+
+
+
+-- local ffi = require("ffi")
+
+-- ffi.cdef[[
+-- typedef unsigned long pthread_t;
+-- typedef union {
+--   char __size[56];
+--   long int __align;
+-- } pthread_attr_t;
+
+-- typedef void* (*start_routine)(void*);
+-- int pthread_create(pthread_t *thread, const pthread_attr_t *attr, start_routine start, void *arg);
+-- int pthread_join(pthread_t thread, void **retval);
+-- void* malloc(size_t size);
+-- void free(void *ptr);
+-- unsigned int sleep(unsigned int seconds);
+-- ]]
+
+-- local C = ffi.C
+
+-- -- Create malloc'd int to pass to thread
+-- local function alloc_id(value)
+--     local p = ffi.cast("int*", C.malloc(4))
+--     p[0] = value
+--     return p
+-- end
+
+-- -- Wrap thread function safely
+-- local function make_thread(func)
+--     return ffi.cast("start_routine", function(arg)
+--         local id = ffi.cast("int*", arg)[0]
+--         for i = 1, 3 do
+--             io.write("Thread ", id, ": ", i, "\n")
+--             C.sleep(1)
+--         end
+--         return nil
+--     end)
+-- end
+
+-- local t1 = ffi.new("pthread_t[1]")
+-- local t2 = ffi.new("pthread_t[1]")
+-- local id1 = alloc_id(1)
+-- local id2 = alloc_id(2)
+
+-- local cb1 = make_thread()
+-- local cb2 = make_thread()
+
+-- C.pthread_create(t1, nil, cb1, id1)
+-- C.pthread_create(t2, nil, cb2, id2)
+
+-- C.pthread_join(t1[0], nil)
+-- C.pthread_join(t2[0], nil)
+
+-- cb1:free()
+-- cb2:free()
+-- C.free(id1)
+-- C.free(id2)
+
+
+
+-- local ffi = require("ffi")
+-- ffi.cdef[[
+-- unsigned long compressBound(unsigned long sourceLen);
+-- int compress2(uint8_t *dest, unsigned long *destLen,
+-- 	      const uint8_t *source, unsigned long sourceLen, int level);
+-- int uncompress(uint8_t *dest, unsigned long *destLen,
+-- 	       const uint8_t *source, unsigned long sourceLen);
+-- ]]
+-- local zlib = ffi.load(ffi.os == "Windows" and "zlib1" or "z")
+
+-- local function compress(txt)
+--   local n = zlib.compressBound(#txt)
+--   local buf = ffi.new("uint8_t[?]", n)
+--   local buflen = ffi.new("unsigned long[1]", n)
+--   local res = zlib.compress2(buf, buflen, txt, #txt, 9)
+--   assert(res == 0)
+--   return ffi.string(buf, buflen[0])
+-- end
+
+-- local function uncompress(comp, n)
+--   local buf = ffi.new("uint8_t[?]", n)
+--   local buflen = ffi.new("unsigned long[1]", n)
+--   local res = zlib.uncompress(buf, buflen, comp, #comp)
+--   assert(res == 0)
+--   return ffi.string(buf, buflen[0])
+-- end
+
+
+
+
+-- Simple test code.
+-- local txt = string.rep("abcd", 10000)
+
+
+-- print("Uncompressed size: ", #txt)
+
+
+-- local c = compress(txt)
+-- print("ffi Compressed size: ", #c)
+-- local txt2 = uncompress(c, #txt)
+-- assert(txt2 == txt) -- test uncompressed is same as pre-compressed (test is in single thread)
+-- print("original is smaller by: ".. (#txt/#c)*100 .."%")
+
+
+-- local lc = love.data.compress("string", "zlib", txt, 9)
+-- local lc2 = love.data.compress("string", "zlib", txt, 9)
+-- -- print("love compression size: ", #lc)
+-- local txt3 = love.data.decompress("string", "zlib",lc)
+-- assert(txt3 == txt)
+-- assert(lc == c)
+
+-- turns out love's builtin is faster in most circumstances so no need.
+
+
+
+
+
+local threadCode = [[
+-- Receive values sent via thread:start
+local min, max = ...
+
+for i = min, max do
+    -- The Channel is used to handle communication between our main thread and
+    -- this thread. On each iteration of the loop will push a message to it which
+    -- we can then pop / receive in the main thread.
+    love.thread.getChannel( 'info' ):push( i )
+end
+]]
+
+local thread -- Our thread object.
+local timer = 0  -- A timer used to animate our circle.
 
 function love.load()
-    -- Create multiplayer instance
-    Multiplayer.load(0)
-
+    thread = love.thread.newThread( threadCode )
+    thread:start( 99, 1000 )
 end
 
-function love.update(dt)
-    if mp then
-        mp:update()
-        sendMovementMessage()
-    end
+function love.update( dt )
+    timer = timer + dt
 end
 
 function love.draw()
-    love.graphics.setColor(1, 1, 1)
-    local y = 10
-    
-    if not role then
-        -- Setup screen with IP input
-        love.graphics.print("=== MULTIPLAYER SETUP ===", 10, y)
-        y = y + 30
-        
-        love.graphics.print("Host IP Address:", 10, y)
-        y = y + 20
-        
-        -- IP input box
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", 10, y, 300, 25)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.rectangle("line", 10, y, 300, 25)
-        love.graphics.print(host_ip .. "_", 15, y + 5)
-        y = y + 35
-        
-        -- Host/Client buttons
-        love.graphics.print("Press 'H' to HOST  |  Press 'C' to CONNECT", 10, y)
-        y = y + 30
-        
-    else
-        -- Connected screen
-        love.graphics.print("Role: " .. role, 10, y)
-        y = y + 20
-        love.graphics.print("Host IP: " .. host_ip, 10, y)
-        y = y + 20
-        
-        local info = Multiplayer:getConnectionInfo()
-        if info.is_host then
-            love.graphics.print("Connected peers: " .. info.peer_count, 10, y)
-        elseif info.is_client then
-            love.graphics.print("Connected to server: " .. tostring(info.connected_to_server), 10, y)
-        end
-        y = y + 30
-        
-        -- Chat input
-        love.graphics.print("Message:", 10, y)
-        y = y + 20
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", 10, y, 400, 25)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.rectangle("line", 10, y, 400, 25)
-        love.graphics.print(input_text .. "_", 15, y + 5)
-        y = y + 35
-        
-        love.graphics.print("Enter to send | M for movement | D to disconnect", 10, y)
-        y = y + 30
+    -- Get the info channel and pop the next message from it.
+    local info = love.thread.getChannel( 'info' ):pop()
+    if info then
+        love.graphics.print( info, 10, 10 )
     end
-    
-    -- Messages
-    if #messages > 0 then
-        love.graphics.print("=== MESSAGES ===", 10, y)
-        y = y + 20
-        
-        for i, msg in ipairs(messages) do
-            local text = string.format("[%s] %s: %s", 
-                                     msg.role:upper(), msg.peer, msg.text)
-            love.graphics.print(text, 10, y)
-            y = y + 15
-        end
-    end
-end
 
-function love.textinput(text)
-    if not role then
-        host_ip = host_ip .. text
-    else
-        input_text = input_text .. text
-    end
-end
-
-function love.keypressed(key)
-    if not role then
-        if key == "h" then
-            -- print(host_ip)
-            startHost("localhost")
-        elseif key == "c" then
-            connectToHost("localhost")
-        elseif key == "backspace" then
-            host_ip = host_ip:sub(1, -2)
-        end
-    else
-        if key == "return" and input_text ~= "" then
-            sendChatMessage()
-        elseif key == "backspace" then
-            input_text = input_text:sub(1, -2)
-        elseif key == "d" then
-            disconnect()
-        elseif key == "m" then
-            sendMovementMessage()
-        end
-    end
-    
-    if key == "q" then
-        if mp then mp:stop() end
-        love.event.quit()
-    end
-end
-
-function startHost(host_ip)
-    if mp:startHost(host_ip) then
-        role = "HOST"
-        print("Started as host on IP: " .. host_ip)
-    else
-        print("Failed to start host")
-    end
-end
-
-function connectToHost(host_ip)
-    
-    if mp:connectToHost(host_ip) then
-        role = "CLIENT"
-        print("Connecting to host at: " .. host_ip)
-    else
-        print("Failed to connect to host at: " .. host_ip)
-    end
-end
-
-function disconnect()
-    if mp then
-        mp:stop()
-    end
-    role = nil
-    messages = {}
-    input_text = ""
-    print("Disconnected")
-end
-
-function sendChatMessage()
-    if not mp or not role or input_text == "" then
-        return
-    end
-    
-    local message = "chat:" .. input_text
-    
-    if role == "HOST" then
-        mp:broadcast(message)
-        table.insert(messages, {
-            text = input_text,
-            peer = "HOST (you)",
-            role = "host",
-            time = love.timer.getTime()
-        })
-    elseif role == "CLIENT" then
-        mp:sendToServer(message)
-        table.insert(messages, {
-            text = input_text,
-            peer = "CLIENT (you)",
-            role = "client", 
-            time = love.timer.getTime()
-        })
-    end
-    
-    input_text = ""
-end
-
-function sendMovementMessage()
-    if not mp or not role then
-        return
-    end
-    
-    local x, y = love.mouse.getPosition()
-    local message = string.format("player_move:%.2f,%.2f", x, y)
-    
-    if role == "HOST" then
-        mp:broadcast(message)
-    elseif role == "CLIENT" then
-        -- mp:sendToServer(message)
-    end
-    
-    -- print("Sent movement:", x, y)
+    -- We smoothly animate a circle to show that the thread isn't blocking our main thread.
+    love.graphics.circle( 'line', 100 + math.sin( timer ) * 20, 100 + math.cos( timer ) * 20, 20 )
 end
