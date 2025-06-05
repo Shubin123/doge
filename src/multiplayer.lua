@@ -179,9 +179,9 @@ end
 function multiplayer.sendMovementMessage()
     game_state = snapshot.create()
     
-    -- Convert to JSON first, then compress the JSON string
+    -- Convert to JSON first, then compress with maximum compression
     local json_string = json.encode(game_state)
-    local compressed_data = love.data.compress("string", "lz4", json_string)
+    local compressed_data = love.data.compress("string", "zlib", json_string, 9)  -- 9 = max compression level
     
     if var.multiplayer == 1 then
         mp:broadcast(compressed_data)
@@ -194,7 +194,7 @@ end
 -- Handle incoming messages
 function multiplayer:_handleMessage(data, peer, role)
     -- Decompress the data, then decode JSON
-    local decompressed_data = love.data.decompress("string", "lz4", data)
+    local decompressed_data = love.data.decompress("string", "zlib", data)
     local game_state = json.decode(decompressed_data)
     
     if role == "client" then
