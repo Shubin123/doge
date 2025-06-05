@@ -4,16 +4,17 @@ dynamic_draw_list = {}
 
 -- Networked game state (managed by server, synced to clients)
 renderer.networked_state = {
-    players = {}, -- { player_id = { x, y, animation_frame, scale, rotation, ... } }
-    enemies = {}, -- { enemy_id = { x, y, active, ... } }
-    coins = {},   -- { coin_id = { x, y, active, ... } }
+    players = {},      -- { player_id = { x, y, animation_frame, scale, rotation, ... } }
+    enemies = {},      -- { enemy_id = { x, y, active, ... } }
+    coins = {},        -- { coin_id = { x, y, active, ... } }
     fire_effects = {}, -- { effect_id = { x, y, active, ... } }
     -- Add other networked objects as needed
 }
 
 -- Local player state (for smooth interpolation/prediction)
 renderer.local_player_state = {
-    x = 0, y = 0,
+    x = 0,
+    y = 0,
     animation_frame = 1,
     scale = 1,
     rotation = 0
@@ -53,7 +54,8 @@ function renderer.updateLocalPlayerFromPhysics()
         renderer.local_player_state = {
             x = px,
             y = py,
-            animation_frame = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1,
+            animation_frame = math.floor(player.animation.currentTime / (player.animation.duration) *
+            #player.animation.quads) + 1,
             scale = player.scale,
             rotation = var.character_rotation or 0,
             active = true
@@ -73,12 +75,11 @@ function renderer.populateDynamicDrawListNetworked()
     rebuildArray(dynamic_draw_list, map_b)
 
     -- Draw networked players
-    
+
     for player_id, player_data in pairs(renderer.networked_state.players) do
         if player_data.active then
-            
             local sort_y = player_data.y + (100 * player_data.scale)
-            
+
             table.insert(dynamic_draw_list, {
                 sort_y = sort_y + 45,
                 image_or_particles = player.animation.spriteSheet, -- Assume same spritesheet for all players (!!! need offesets here for dynamic characters 100% gonna forget lol)
@@ -97,28 +98,29 @@ function renderer.populateDynamicDrawListNetworked()
             })
         end
     end
-    
-    -- draw the selfs 
-    local ls = renderer.local_player_state.y +  (100 * player.scale) 
-        table.insert(dynamic_draw_list, {
-            sort_y =  ls + 45,
-            image_or_particles = player.animation.spriteSheet,
-             quad = player.animation.quads[((renderer.local_player_state.animation_frame + 5) % 5) + 6] or var.nullquad,
-             x= renderer.local_player_state.x,
-             y= renderer.local_player_state.y,
-             rotation  = 0,
-             scale_x = renderer.local_player_state.scale,
-             scale_y = renderer.local_player_state.scale,
-             offset_x = 35,
-             offset_y = 50,
-             color = {1,1,1,1},
-             blend_mode = {"alpha"},
-             source_object_type = "networked_player",
-            player_id = 69
-        })
+
+    -- draw the selfs
+    local ls = renderer.local_player_state.y + (100 * player.scale)
+    table.insert(dynamic_draw_list, {
+        sort_y             = ls + 45,
+        image_or_particles = player.animation.spriteSheet,
+        quad               = player.animation.quads[((renderer.local_player_state.animation_frame + 5) % 5) + 6] or
+        var.nullquad,
+        x                  = renderer.local_player_state.x,
+        y                  = renderer.local_player_state.y,
+        rotation           = 0,
+        scale_x            = renderer.local_player_state.scale,
+        scale_y            = renderer.local_player_state.scale,
+        offset_x           = 35,
+        offset_y           = 50,
+        color              = { 1, 1, 1, 1 },
+        blend_mode         = { "alpha" },
+        source_object_type = "networked_player",
+        player_id          = 69
+    })
 
 
-    
+
     -- Portal shader drawable (positioned at specific location)
     table.insert(dynamic_draw_list, {
         sort_y = 370, -- Adjust depth as needed
@@ -132,7 +134,7 @@ function renderer.populateDynamicDrawListNetworked()
         blend_mode = { "alpha" },
         source_object_type = "portal_shader"
     })
-    
+
     -- Draw networked enemies
     for enemy_id, enemy_data in pairs(renderer.networked_state.enemies) do
         if enemy_data.active then
@@ -186,11 +188,11 @@ function renderer.populateDynamicDrawListNetworked()
         -- print(fire_data.active)
         -- for k,v in pairs(fire_data) do print(k,v) end
         -- print(#renderer.networked_state.fire_effects)
-        
-        -- if fire_data.active then
-            -- print(fire_data.x)
-            -- You'll need to adapt this based on your fire effect structure
-            table.insert(dynamic_draw_list, {
+
+
+        -- print(fire_data.x)
+        -- You'll need to adapt this based on your fire effect structure
+        table.insert(dynamic_draw_list, {
             sort_y = fire_data.y + 100, -- this offset is dynamically transformed by the player whose firing not going to be correct once players positions not the same
             image_or_particles = fire.particleSystem,
             quad = nil,
@@ -200,19 +202,33 @@ function renderer.populateDynamicDrawListNetworked()
             scale_x = fire.scale,
             scale_y = fire.scale,
             offset_x = 250, --200 in motion its different
-            offset_y = 50, --45
+            offset_y = 50,  --45
             -- color = {0.13, 0.37, 1, 1}, -- make opponents a different color
-            color = {1,1, 1, 1},
-            blend_mode = {"lighten", "premultiplied"},
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "lighten", "premultiplied" },
             source_object_type = "fire_effect"
         })
         -- end
+        if (fire_data.id) then
+            local id =  tostring(fire_data.id)
+            if (var.multiplayer == 1) and fire_data.active then -- on host if fire is active (fired state) enable collision for it
+                -- print(fire_data.active)
+                if (fire.online_fireables[id]) then
+                    fire.online_fireables[id]:setPosition(fire_data.x - 200, fire_data.y - 45)
+                else
+                    
+                    fire.online_fireables[id] = love.physics.newBody(world, fire_data.x - 200, fire_data.y - 45, "dynamic")
+                    local _fixture = love.physics.newFixture(fire.online_fireables[id], love.physics.newCircleShape(20))
+                    _fixture:setGroupIndex(-1)
+                end
+            end
+        end
     end
 
-    
-    
-    fire.populate() 
-    
+
+
+    fire.populate()
+
     -- enemy.populate()
 end
 
@@ -224,13 +240,14 @@ function renderer.populateDynamicDrawList()
 
     -- Player drawable (from physics body)
     local px, py = player.body:getX(), player.body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
+    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
+    1
     local sort_y = py + (100 * player.scale)
-    
+
     table.insert(dynamic_draw_list, {
         sort_y = sort_y + 45,
         image_or_particles = player.animation.spriteSheet,
-        quad = player.animation.quads[(spriteNum + 5)%5 + 6] or var.nullquad,
+        quad = player.animation.quads[(spriteNum + 5) % 5 + 6] or var.nullquad,
         x = px,
         y = py,
         rotation = var.character_rotation,
@@ -242,7 +259,7 @@ function renderer.populateDynamicDrawList()
         blend_mode = { "alpha" },
         source_object_type = "player"
     })
-    
+
     -- Portal shader drawable (positioned at specific location)
     table.insert(dynamic_draw_list, {
         sort_y = 370, -- Adjust depth as needed
@@ -256,7 +273,7 @@ function renderer.populateDynamicDrawList()
         blend_mode = { "alpha" },
         source_object_type = "portal_shader"
     })
-    
+
     -- Enemies drawables (from physics bodies)
     for i = 1, #enemies_bods do
         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
@@ -306,47 +323,7 @@ function renderer.populateDynamicDrawList()
     enemy.populate()
 end
 
-
 function renderer.populateDynamicDrawListNETHOST()
-    -- dont clear list this is meant to run after clear has happened rebuiled for the host
-    -- dynamic_draw_list = { unpack(map_a, 1, #map_a) }
-    -- rebuildArray(dynamic_draw_list, map_b)
-
-    -- Player already drawn
-    -- local px, py = player.body:getX(), player.body:getY()
-    -- local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
-    -- local sort_y = py + (100 * player.scale)
-    
-    -- table.insert(dynamic_draw_list, {
-    --     sort_y = sort_y + 45,
-    --     image_or_particles = player.animation.spriteSheet,
-    --     quad = player.animation.quads[(spriteNum + 5)%5 + 6] or var.nullquad,
-    --     x = px,
-    --     y = py,
-    --     rotation = var.character_rotation,
-    --     scale_x = player.scale,
-    --     scale_y = player.scale,
-    --     offset_x = 35,
-    --     offset_y = 50,
-    --     color = { 1, 1, 1, 1 },
-    --     blend_mode = { "alpha" },
-    --     source_object_type = "player"
-    -- })
-    
-    -- Portal shader already drawn
-    -- table.insert(dynamic_draw_list, {
-    --     sort_y = 370, -- Adjust depth as needed
-    --     shader = portal.SHADERS["portal"],
-    --     shader_params = portal.params,
-    --     x = 236,
-    --     y = 190,
-    --     width = 35,
-    --     height = 50,
-    --     color = { 1, 1, 1, 1 },
-    --     blend_mode = { "alpha" },
-    --     source_object_type = "portal_shader"
-    -- })
-    
     -- Enemies drawables (from physics bodies)
     for i = 1, #enemies_bods do
         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
@@ -391,10 +368,9 @@ function renderer.populateDynamicDrawListNETHOST()
         })
     end
 
- 
+
     enemy.populate()
 end
-
 
 -- Updated render function to handle shaders
 function renderer.renderSortedDrawList()
@@ -438,14 +414,14 @@ function renderer.renderSortedDrawList()
                 drawable.shader:send("contrast", drawable.shader_params.contrast)
                 drawable.shader:send("spin_amount", drawable.shader_params.spin_amount)
             end
-            
+
             -- Draw shader rectangle
             love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
-            
+
             -- Reset shader
             love.graphics.setShader()
-            
-        -- Handle regular image drawing
+
+            -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then
                 love.graphics.draw(
@@ -525,80 +501,5 @@ function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
 
     return dynamic_draw_lists
 end
-
--- Utility function to create a complete game state snapshot (for server)
--- function renderer.createGameStateSnapshot()
---     local game_state = {
---         player = {},
---         enemies = {},
---         coins = {},
---         fire_effects = {}
---     }
-    
---     -- Update local player first if this is the server
---     renderer.updateLocalPlayerFromPhysics()
---     game_state.player["client"] = renderer.local_player_state
-    
---     -- Collect enemy data from physics bodies
---     for i = 1, #enemies_bods do
---         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
---         game_state.enemies[tostring(i)] = {
---             x = ex,
---             y = ey,
---             active = true
---         }
---     end
-    
---     -- Collect coin data from physics bodies
---     for i = 1, #coin_bods do
---         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
---         game_state.coins[tostring(i)] = {
---             x = cx,
---             y = cy,
---             active = true
---         }
---     end
-    
---     -- Add fire effects data (you'll need to adapt this based on your fire system)
---     game_state.fire_effects = fire.getNetworkData() -- Implement this in your fire module
---     -- for k,v in pairs(game_state.fire_effects) do print(k,v) end
-    
---     return game_state
--- end
-
--- -- Apply received game state (for clients)
--- function renderer.applyGameStateSnapshot(game_state)
-    
---     -- print(game_state.fire_effects.fireables)
---     if game_state.player then
---         renderer.setNetworkedPlayers(game_state.player)
-        
---     end
---     if game_state.fire_effects then
---         -- print(game_state.fire_effects[1])
---         -- print(game_state.fire_effects[1])
---         -- for k,v in pairs(game_state.fire_effects) do 
---         --     print(k,v)
---         --     for k2,v2 in pairs(v) do
---         --          print(k2,v2)
---         --     end
---         -- end
-
---         renderer.setNetworkedFireEffects(game_state.fire_effects)
---     end
-
---     if var.multiplayer == 1 then
---         return
---     end
-
---     if game_state.enemies then
---         renderer.setNetworkedEnemies(game_state.enemies)
---     end
---     if game_state.coins then
---         renderer.setNetworkedCoins(game_state.coins)
---     end
-    
--- end
-
 
 return renderer
