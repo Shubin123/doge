@@ -72,7 +72,7 @@ function draw.mydraw()
     love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
     
     -- Debug info
-    love.graphics.print("State: " .. (var.multiplayer and  var.multiplayer or "singleplayer") , 10, 70)
+    love.graphics.print("State: " .. (var.multiplayer or "localhost") , 10, 70)
 
     
 end

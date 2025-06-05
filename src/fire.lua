@@ -149,6 +149,8 @@ for i, fireable in pairs(fire.fireables) do
             -- Only update physics body position on host
             if (var.multiplayer == 1) and fire_bodies[i] then
                 fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+            elseif not var.multiplayer then
+                fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
             end
         end
         
@@ -175,7 +177,7 @@ end
 
 function fire.collision(fixture_a, fixture_b, contact)
     -- Only process collisions on host since physics only happens on host's world
-    if (var.multiplayer ~= 1) then return end
+    if (var.multiplayer ~= 1) and var.multiplayer then return end
 
     local not_fire
     local firef

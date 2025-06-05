@@ -348,7 +348,7 @@ function multiplayer.load()
 
 
 
-    if var.multiplayer then
+    if var.multiplayer ~= 0 then
         -- print(arg[3])
     local ip = arg[3] and arg[3] or "localhost"
 
@@ -357,8 +357,10 @@ function multiplayer.load()
     else
         mp:connectToHost(ip)
     end
-
+    
     end
+    
+    
 end
 
 

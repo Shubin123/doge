@@ -88,7 +88,7 @@ function love.load()
     
     
     
-    -- print("blah: " .. (var.multiplayer and "blah" or "nahblah"))
+
 
 
     -- print(shape_sizes)
@@ -207,8 +207,10 @@ function love.update(dt)
     world:update(dt)
     -- t  = t + dt
     -- if t > 0.1 then
+    if var.multiplayer then
     mp:update()
     multiplayer.sendMovementMessage()
+    end
     -- t = 0
     -- end
     player.update(dt)
@@ -218,7 +220,7 @@ function love.update(dt)
     fire.update(dt)
     grass.demo.update(dt)
     portal.update(dt)
-    if var.multiplayer == 1 then
+    if var.multiplayer == 1 and  var.multiplayer  then
         enemy.update(dt)        
     end
 end
@@ -388,9 +390,11 @@ function createAnimation(image, width, height, duration, numFrames)
 end
 
 function beginContact(fixture_a, fixture_b, contact)
-    -- player.collision(fixture_a,fixture_b,contact)
+    
+    player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
+
 end
 
 function checkDestroy(t, v)
