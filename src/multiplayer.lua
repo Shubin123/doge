@@ -181,6 +181,9 @@ function multiplayer.sendMovementMessage()
     
     -- Convert to JSON first, then compress with maximum compression
     local json_string = json.encode(game_state)
+    
+    -- for k,v in pairs( love.data.decode("string","hex", love.data.encode("data", "hex", tostring(game_state)))) do print(k,v) end
+    
     local compressed_data = love.data.compress("string", "zlib", json_string, 9)  -- 9 = max compression level
     
     if var.multiplayer == 1 then
@@ -206,28 +209,11 @@ function multiplayer:_handleMessage(data, peer, role)
     end
     
     if role == "host" then                      
-        -- print(mymath.len(game_state))
-        -- for k,v in pairs(game_state.player_data) do print(k,v) end
-        player.online.body:setPosition(game_state.player_data.x,game_state.player_data.y) -- assuming one online player (starting from 2)
-                      
+        -- print(game_state.client_id)
+        local player_id =  tonumber(string.sub(game_state.client_id,#game_state.client_id))
+        player.online.bodies[player_id]:setPosition(game_state.player_data.x,game_state.player_data.y)
         snapshot.apply(game_state)
     end
-    
-    -- print(string.format("[%s] Received: %s from %s",
-    --       role:upper(), tostring(json.decode(data)), tostring(peer)))
-    -- Call registered message handlers
-    -- for pattern, handler in pairs(self.message_handlers) do
-    --     if type(message) == "string" and message:match(pattern) then
-    --         handler(message, peer, role)
-    --     elseif type(message) == "table" and message.type and message.type:match(pattern) then
-    --         handler(message, peer, role)
-    --     end
-    -- end
-    
-    -- -- Call generic message handler if exists
-    -- if self.message_handlers["*"] then
-    --     self.message_handlers["*"](message, peer, role)
-    -- end
 end
 
 -- Register message handler

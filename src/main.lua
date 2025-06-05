@@ -79,8 +79,7 @@ function love.load()
     map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
     map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
 
-
-
+    multiplayer.load()
     player.load(world)
     enemy.load()
 
@@ -129,7 +128,7 @@ function love.load()
     smoke.setsmokeArea(320, 138, 165, 67)
 
 
-    multiplayer.load()
+    
 end
 
 local W = love.graphics.getWidth()
