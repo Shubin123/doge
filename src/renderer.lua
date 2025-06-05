@@ -216,7 +216,6 @@ function renderer.populateDynamicDrawListNetworked()
                 if (fire.online_fireables[id]) then
                     fire.online_fireables[id]:setPosition(fire_data.x - 200, fire_data.y - 45)
                 else
-                    
                     fire.online_fireables[id] = love.physics.newBody(world, fire_data.x - 200, fire_data.y - 45, "dynamic")
                     local _fixture = love.physics.newFixture(fire.online_fireables[id], love.physics.newCircleShape(20))
                     _fixture:setGroupIndex(-1)

@@ -44,14 +44,15 @@ function player.load(world)
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
     player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/jump.png"), 64, 65, 2, 10)
 
-    for i=1,mp.max_peers do 
+    -- for i=1,mp.max_peers do 
 
-    table.insert(player.online.bodies,  love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")  )-- set an online player body for testing
+    -- table.insert(player.online.bodies,  love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")  )-- set an online player body for testing
     
-    player.online.fixture = love.physics.newFixture(player.online.bodies[i], player.shape)
-    player.online.fixture:setGroupIndex(-1)
+    -- player.online.fixture = love.physics.newFixture(player.online.bodies[i], player.shape)
+    -- player.online.fixture:setGroupIndex(-1)
     --assuming online players size is same -- doesnt have to be but would have to have more replicated data
-    end
+    
+    -- end
 
 
 end
