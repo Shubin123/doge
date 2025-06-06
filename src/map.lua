@@ -1,5 +1,27 @@
 local map = {}
 
+-- Map data structure for modular maps
+map.currentMapId = "level1"
+map.mapDefinitions = {}
+map.loadedMaps = {}
+
+-- Map data definition structure
+function map.defineMap(mapId, definition)
+    map.mapDefinitions[mapId] = {
+        id = mapId,
+        name = definition.name or mapId,
+        tileset = definition.tileset,
+        tileWidth = definition.tileWidth or 16,
+        tileHeight = definition.tileHeight or 16,
+        mapWidth = definition.mapWidth or 256,
+        mapHeight = definition.mapHeight or 256,
+        tileData = definition.tileData or {},
+        enemies = definition.enemies or {},
+        collectibles = definition.collectibles or {},
+        playerSpawn = definition.playerSpawn or {x = 400, y = 400},
+        interactables = definition.interactables or {}
+    }
+end
 
 function newTiles(tilesetImage, tileWidth, tileHeight)
     local tiles = {}
@@ -76,31 +98,192 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
     return map
 end
 
-function map.load()
+-- Load a specific map by ID
+function map.loadMap(mapId)
+    if not map.mapDefinitions[mapId] then
+        print("Error: Map definition not found for " .. mapId)
+        return false
+    end
     
+    local mapDef = map.mapDefinitions[mapId]
+    
+    -- Load tileset
+    local tilesetImage = love.graphics.newImage(mapDef.tileset)
+    local tiles = newTiles(tilesetImage, mapDef.tileWidth, mapDef.tileHeight)
+    local mapObject = createMap(tiles, mapDef.mapWidth, mapDef.mapHeight, mapDef.tileData)
+    
+    -- Store loaded map
+    map.loadedMaps[mapId] = {
+        definition = mapDef,
+        map = mapObject,
+        tiles = tiles
+    }
+    
+    return true
+end
+
+-- Unload a specific map
+function map.unloadMap(mapId)
+    if map.loadedMaps[mapId] then
+        map.loadedMaps[mapId] = nil
+        collectgarbage()
+    end
+end
+
+-- Switch to a different map
+function map.switchToMap(mapId)
+    if not map.loadedMaps[mapId] then
+        if not map.loadMap(mapId) then
+            return false
+        end
+    end
+    
+    -- Unload current map if different
+    if map.currentMapId ~= mapId and map.loadedMaps[map.currentMapId] then
+        map.unloadMap(map.currentMapId)
+    end
+    
+    map.currentMapId = mapId
+    return true
+end
+
+-- Get current map data
+function map.getCurrentMap()
+    return map.loadedMaps[map.currentMapId]
+end
+
+-- Spawn entities for current map
+function map.spawnMapEntities()
+    local currentMap = map.getCurrentMap()
+    if not currentMap then return end
+    
+    local mapDef = currentMap.definition
+    
+    -- Create shapes if they don't exist
+    if not coin_shape then
+        coin_shape = love.physics.newCircleShape(5)
+    end
+    if not enemy_shape then
+        enemy_shape = love.physics.newCircleShape(10)
+    end
+    
+    -- Clear existing entities
+    for i = #coin_bods, 1, -1 do
+        coin_bods[i]:destroy()
+        table.remove(coin_bods, i)
+    end
+    
+    for i = #enemies_bods, 1, -1 do
+        enemies_bods[i]:destroy()
+        table.remove(enemies_bods, i)
+    end
+    
+    -- Spawn collectibles
+    for _, collectible in ipairs(mapDef.collectibles) do
+        local body = love.physics.newBody(world, collectible.x, collectible.y, "dynamic")
+        table.insert(coin_bods, body)
+        local fixture = love.physics.newFixture(body, coin_shape)
+        fixture:setGroupIndex(69)
+    end
+    
+    -- Spawn enemies
+    for _, enemyData in ipairs(mapDef.enemies) do
+        local body = love.physics.newBody(world, enemyData.x, enemyData.y, "dynamic")
+        table.insert(enemies_bods, body)
+        local fixture = love.physics.newFixture(body, enemy_shape)
+        fixture:setGroupIndex(-777)
+    end
+    
+    -- Set player position
+    if player and player.body then
+        player.body:setPosition(mapDef.playerSpawn.x, mapDef.playerSpawn.y)
+    end
+    
+    -- Update counters
+    var.num_coins = #coin_bods
+    var.num_enemies = #enemies_bods
+end
+
+function map.load()
+    -- Generate tile data for level1
+    local level1TileData = {}
+    for y = 1, 50 do
+        level1TileData[y] = {}
+        for x = 1, 70 do
+            level1TileData[y][x] = math.random(1,200)
+        end
+    end
+    
+    -- Generate tile data for level2
+    local level2TileData = {}
+    for y = 1, 20 do
+        level2TileData[y] = {}
+        for x = 1, 20 do
+            level2TileData[y][x] = math.random(1,5)
+        end
+    end
+    
+    -- Define example maps
+    map.defineMap("level1", {
+        name = "Grassland Level",
+        tileset = "gfx/TileSet/TX Tileset Grass.png",
+        tileWidth = 16,
+        tileHeight = 16,
+        mapWidth = 70,
+        mapHeight = 50,
+        tileData = level1TileData,
+        playerSpawn = {x = var.game_width / 2, y = var.game_height / 2},
+        enemies = {
+            {x = 300, y = 200},
+            {x = 500, y = 300},
+            {x = 700, y = 400},
+            {x = 200, y = 500},
+            {x = 600, y = 150}
+        },
+        collectibles = {
+            {x = 250, y = 250},
+            {x = 350, y = 350},
+            {x = 450, y = 450},
+            {x = 550, y = 200},
+            {x = 400, y = 500}
+        }
+    })
+    
+    map.defineMap("level2", {
+        name = "Forest Level", 
+        tileset = "gfx/TileSet/TX Plant.png",
+        tileWidth = 156,
+        tileHeight = 156,
+        mapWidth = 20,
+        mapHeight = 20,
+        tileData = level2TileData,
+        playerSpawn = {x = 200, y = 200},
+        enemies = {
+            {x = 400, y = 300},
+            {x = 600, y = 400},
+            {x = 500, y = 500}
+        },
+        collectibles = {
+            {x = 300, y = 300},
+            {x = 500, y = 300},
+            {x = 400, y = 400}
+        }
+    })
+    
+    -- Load the first map
+    map.loadMap("level1")
+    map.currentMapId = "level1"
+    
+    -- Keep legacy maps for compatibility with existing render code
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
     for x = 1, 70 do 
         for y = 1, 50 do
-            
             map.map:setTile(x, y, math.random(1,200))
         end
     end
-
-    
-
-    -- local tilesetImage2 = love.graphics.newImage("gfx/TileSet/TX Tileset Wall.png")
-    -- map.tiles2 = newTiles(tilesetImage2, 128,160)
-    -- map.map2 = createMap(map.tiles2, var.map_display_w, var.map_display_h)
-    
-    -- for x = 1, 2 do
-    --     for y = 1,1 do
-    --         map.map2:setTile(x, y, math.random(1,5))
-    --     end
-    -- end
-
 
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
     map.tiles3 = newTiles(tilesetImage3, 98,128)
@@ -111,19 +294,13 @@ function map.load()
         end
     end
 
-
     local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
     map.tiles4 = newTiles(tilesetImage4, 156,156)
     map.map4 = createMap(map.tiles4, var.map_display_w, var.map_display_h)
     
-    -- for x = 1, 4 do
-        for x = 0,3 do
-            map.map4:setTile(2+x, 3, 1)
-        end
-    -- end
-
-    -- print(map.map.tileData)
-    -- print(map.map2.tileData)
+    for x = 0,3 do
+        map.map4:setTile(2+x, 3, 1)
+    end
 end
 
 -- function map.getMap()
