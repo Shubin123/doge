@@ -202,12 +202,16 @@ function enemy.collision(fixture_a, fixture_b, contact)
         local proj_body = enemy_proj_fixture:getBody()
         
         -- Check if it hit the player
-        if player and player.body and not_enemy_proj:getBody() == player.body then
+        if (var.multiplayer == 1 or not var.multiplayer) then
+        if player and player.body and not_enemy_proj:getGroupIndex() == -1 then
             -- Damage player or trigger player hit logic here
-            -- print("Player hit by enemy fire!")
+            print("Player hit by enemy fire! or collided with enemy", var.multiplayer or "local")
             player.health = player.health - 1
+
             -- You can add player damage logic here
         end
+        end
+
         
         -- Remove the projectile
         for i = #enemy_projectile_bodies, 1, -1 do

@@ -226,15 +226,8 @@ function fire.getNetworkData()
         -- print(fire.fireables[i][1].x)
         if (fire.fireables[i][1]) then
             table.insert(network_data, {
-                -- position = {
                 x = fire.fireables[i][1].x,
                 y = fire.fireables[i][1].y,
-                -- },
-                -- direction = {
-                --     x = fire.fireables[i][2].x,
-                --     y = fire.fireables[i][2].y
-                -- },
-                -- initialized = fire.fireables[i][3],
                 active = true,
                 id = i
             })
@@ -245,20 +238,11 @@ function fire.getNetworkData()
     
 
     -- Include fire bodies physics data (for collision sync)
-    -- network_data.fire_bodies = {}
-    -- print(fire_instances)
-    -- for k,v in pairs(fire_instances) do print(k,v.x) end
-
-
     for i = 1, #fire_instances do
-        -- local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i)*(math.sin(fire.t*2) + 2)) * 30 + 200
-        -- local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i)*(math.sin(fire.t*2)+ 2))* 30 + 45
-        -- local index = #fire.fireables + i
         table.insert(network_data, {
             x = fire_instances[i].x,
             y = fire_instances[i].y,
             active = false -- starts in this state by the time its non active again it should just be deleted (collided)
-            -- type = "spinning"
         })
     end
 

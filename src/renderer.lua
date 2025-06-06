@@ -209,6 +209,7 @@ function renderer.populateDynamicDrawListNetworked()
             source_object_type = "fire_effect"
         })
         -- end
+        
         if (fire_data.id) then
             local id =  tostring(fire_data.id)
             if (var.multiplayer == 1) and fire_data.active then -- on host if fire is active (fired state) enable collision for it
