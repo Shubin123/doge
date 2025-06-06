@@ -1,6 +1,7 @@
 -- vec4 metatable:
 local vec4 = {}
-vec4.__index = vec4
+
+-- vec4.__index = vec4
 
 -- vec4 constructor:
 function vec4.new(x, y, z, w)

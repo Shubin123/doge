@@ -18,22 +18,22 @@ function draw.mydraw()
     
     -- Draw left panel (inventory)
     local left_panel_width = game_area_x
-    if left_panel_width > 0 then
-        love.graphics.setColor(0.3, 0.3, 0.3)
-        love.graphics.rectangle("fill", 0, var.header_height, left_panel_width, H - var.header_height)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print("Inventory", 10, var.header_height + 10)
-    end
+    -- if left_panel_width > 0 then
+    --     love.graphics.setColor(0.3, 0.3, 0.3)
+    --     love.graphics.rectangle("fill", 0, var.header_height, left_panel_width, H - var.header_height)
+    --     love.graphics.setColor(1, 1, 1)
+    --     love.graphics.print("Inventory", 10, var.header_height + 10)
+    -- end
     
     -- Draw right panel (map)
     local right_panel_x = game_area_x + var.game_width
     local right_panel_width = W - right_panel_x
-    if right_panel_width > 0 then
-        love.graphics.setColor(0.3, 0.3, 0.3)
-        love.graphics.rectangle("fill", right_panel_x, var.header_height, right_panel_width, H - var.header_height)
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print("Map", right_panel_x + 10, var.header_height + 10)
-    end
+    -- if right_panel_width > 0 then
+    --     love.graphics.setColor(0.3, 0.3, 0.3)
+    --     love.graphics.rectangle("fill", right_panel_x, var.header_height, right_panel_width, H - var.header_height)
+    --     love.graphics.setColor(1, 1, 1)
+    --     love.graphics.print("Map", right_panel_x + 10, var.header_height + 10)
+    -- end
     
     -- Draw game area
     -- love.graphics.setScissor(game_area_x, game_area_y, var.game_width, var.game_height)
@@ -72,7 +72,7 @@ function draw.mydraw()
     love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
     
     -- Debug info
-    love.graphics.print("State: " .. var.State, 10, 70)
+    love.graphics.print("State: " .. (var.multiplayer or "localhost") , 10, 70)
 
     
 end

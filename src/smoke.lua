@@ -1,6 +1,6 @@
 smoke = {}
 
-vec4 = require("vec4")
+
 
 -- Parameters for the smoke effect
 -- local smoke_area = {
@@ -10,6 +10,7 @@ vec4 = require("vec4")
 --     height = 0   -- Will be set in the update function
     
 -- }
+local vec4 = require("vec4")
 local smoke_area = vec4.new(0,0,0,0)
 
 local time = 0  -- Time accumulator for smoke animation
@@ -161,7 +162,7 @@ function smoke.update(dt)
     -- smoke_reflection_shader:send("time", time)
     smoke_final_shader:send("time", time)
     local smoke_area = smoke_area*camera.zoom  --scalar product on vec4
-    local screen_smoke = camera.pos + require("vec2").new(smoke_area.x, smoke_area.y)
+    local screen_smoke = camera.pos + vec2.new(smoke_area.x, smoke_area.y)
     -- print(smoke_area)
 
     
