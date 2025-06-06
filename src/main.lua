@@ -182,9 +182,7 @@ end
 function love.update(dt)
     if var.State == "menu" then
         menu.update(dt)
-        -- return
-    elseif State == "running" then
-        var.State = "game"
+        return
     end
 
     world:update(dt)
@@ -237,31 +235,47 @@ end
 
 local restartcount = tonumber(love.restart) or 0
 
+function resetGame()
+    -- Reset player
+    player.health = 100
+    player.body:setLinearVelocity(0, 0)
+    
+    -- Reset game variables
+    var.player_score = 0
+    
+    -- Reset fire system
+    fire.fireables = {}
+    
+    -- Reset enemy system
+    enemy.reset()
+    
+    -- Use new map system to spawn entities and set player position
+    map.spawnMapEntities()
+end
+
 function love.mousepressed(x, y, button, istouch, presses)
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
         if nextStateAction == "running" then
-            var.State = "running"
-            -- player.health = 100
-            --reset game here
-            love.event.push("quit", "restart")
+            resetGame()
+            var.State = "game"
 
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
+    elseif var.State == "game" or var.State == "running" then
+        -- Only handle gameplay clicks when actually in game
+        local center_x = love.graphics.getWidth() / 2 -- or player's screen position
+        local center_y = love.graphics.getHeight() / 2
+
+        local direction = vec2.new(x - center_x, y - center_y)
+        local normalized_direction = vec2.norm(direction)
+        -- print(fire.count)
+        -- if fire.count == 0 then
+        if #fire.fireables < fire.count then
+            table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
+        end
     end
-
-    local center_x = love.graphics.getWidth() / 2 -- or player's screen position
-    local center_y = love.graphics.getHeight() / 2
-
-    local direction = vec2.new(x - center_x, y - center_y)
-    local normalized_direction = vec2.norm(direction)
-    -- print(fire.count)
-    -- if fire.count == 0 then
-    if #fire.fireables < fire.count then
-        table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
-    end
-
 
     lurker.scan()
 

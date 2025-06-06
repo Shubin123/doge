@@ -32,7 +32,7 @@ function shader.load()
         }
     ]])
     
-    -- Enhanced JFA shader with better sampling (removed unused time uniform)
+    -- Enhanced JFA shader with better sampling
     jfa_shader = love.graphics.newShader([[
         uniform float stepSize;
         
@@ -269,7 +269,6 @@ function shader.load()
     composite_shader:send("contrast", 1.1)
     composite_shader:send("saturation", 1.3)
     composite_shader:send("tintColor", {1.0, 0.98, 0.95}) -- Slight warm tint
-    
 end
 
 function render(in_canvas, shader, target_canvas)
@@ -280,14 +279,13 @@ function render(in_canvas, shader, target_canvas)
     love.graphics.draw(in_canvas)
 end
 
-
 function shader.prepass()
     love.graphics.setCanvas(scene_canvas)
     love.graphics.clear(0, 0, 0, 0)
 end
 
 function shader.pass()
-    -- Update time uniform (only for gi_shader now)
+    -- Update time uniform
     local time = love.timer.getTime()
     gi_shader:send("time", time)
     
@@ -335,7 +333,7 @@ function shader.pass()
     composite_shader:send("bloomTexture", bloom_canvas2)
     render(bloom_canvas1, composite_shader, final_canvas)
     
-    -- Draw final result
+    -- Draw final results
     love.graphics.setShader()
     love.graphics.setCanvas()
     love.graphics.draw(final_canvas)

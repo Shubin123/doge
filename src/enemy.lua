@@ -243,4 +243,22 @@ function enemy.removeEnemy(enemy_index)
     enemy.last_fire_times[enemy_index] = nil
 end
 
+-- Reset function for game restart
+function enemy.reset()
+    -- Clear all enemy projectiles
+    for i = #enemy_projectile_bodies, 1, -1 do
+        enemy_projectile_bodies[i]:destroy()
+        table.remove(enemy_projectile_bodies, i)
+    end
+    
+    enemy.projectiles = {}
+    enemy.last_fire_times = {}
+    enemy.t = 0
+    
+    -- Initialize fire times for existing enemies
+    for i = 1, #enemies_bods do
+        enemy.last_fire_times[i] = 0
+    end
+end
+
 return enemy
