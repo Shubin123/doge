@@ -43,12 +43,14 @@ function newTiles(tilesetImage, tileWidth, tileHeight)
     return tiles
 end
 
-function createMap(tiles, mapWidth, mapHeight, tileData)
+function createMap(tiles, mapWidth, mapHeight, tileData, worldX, worldY)
     local map = {}
     map.tiles = tiles
     map.width = mapWidth
     map.height = mapHeight
     map.tileData = tileData or {}
+    map.worldX = worldX or 0  -- World coordinate offset
+    map.worldY = worldY or 0  -- World coordinate offset
     
     if not tileData then
         for y = 1, mapHeight do
@@ -59,41 +61,82 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         end
     end
     
-    map.draw = function(self, x, y, scale)
-        x = x or 0
-        y = y or 0
+    map.draw = function(self, offsetX, offsetY, scale)
+        offsetX = offsetX or 0
+        offsetY = offsetY or 0
         scale = scale or 1
-        local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
-        local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale))
-        for row = 1, max_tiles_y do
-            for col = 1, max_tiles_x do
-                local tileId = self.tileData[row][col]
-                if tileId > 0 and self.tiles.quads[tileId] then
-                    love.graphics.draw(
-                        self.tiles.tilesetImage,
-                        self.tiles.quads[tileId],
-                        x + (col-1) * self.tiles.tileWidth * scale,
-                        y + (row-1) * self.tiles.tileHeight * scale,
-                        0,
-                        scale,
-                        scale
-                    )
+        
+        -- Calculate world bounds for this map
+        local map_world_x = self.worldX + offsetX
+        local map_world_y = self.worldY + offsetY
+        
+        -- Use camera culling to determine visible tile range
+        local tile_width_scaled = self.tiles.tileWidth * scale
+        local tile_height_scaled = self.tiles.tileHeight * scale
+        
+        -- Calculate which tiles are potentially visible
+        local start_col = math.max(1, math.floor((camera.view_bounds.x1 - map_world_x) / tile_width_scaled) + 1)
+        local end_col = math.min(self.width, math.ceil((camera.view_bounds.x2 - map_world_x) / tile_width_scaled) + 1)
+        local start_row = math.max(1, math.floor((camera.view_bounds.y1 - map_world_y) / tile_height_scaled) + 1)
+        local end_row = math.min(self.height, math.ceil((camera.view_bounds.y2 - map_world_y) / tile_height_scaled) + 1)
+        
+        for row = start_row, end_row do
+            for col = start_col, end_col do
+                local tileId = self.tileData[row] and self.tileData[row][col]
+                if tileId and tileId > 0 and self.tiles.quads[tileId] then
+                    local tile_world_x = map_world_x + (col-1) * tile_width_scaled
+                    local tile_world_y = map_world_y + (row-1) * tile_height_scaled
+                    
+                    -- Additional frustum culling check
+                    if camera.isInView(tile_world_x, tile_world_y, tile_width_scaled, tile_height_scaled) then
+                        love.graphics.draw(
+                            self.tiles.tilesetImage,
+                            self.tiles.quads[tileId],
+                            tile_world_x,
+                            tile_world_y,
+                            0,
+                            scale,
+                            scale
+                        )
+                    end
                 end
             end
         end
     end
     
-    map.setTile = function(self, x, y, tileId)
-        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
-            self.tileData[y][x] = tileId
+    map.setTile = function(self, tileX, tileY, tileId)
+        if tileX >= 1 and tileX <= self.width and tileY >= 1 and tileY <= self.height then
+            self.tileData[tileY][tileX] = tileId
         end
     end
     
-    map.getTile = function(self, x, y)
-        if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
-            return self.tileData[y][x]
+    map.getTile = function(self, tileX, tileY)
+        if tileX >= 1 and tileX <= self.width and tileY >= 1 and tileY <= self.height then
+            return self.tileData[tileY][tileX]
         end
         return 0
+    end
+    
+    -- Convert world coordinates to tile coordinates
+    map.worldToTile = function(self, worldX, worldY, scale)
+        scale = scale or 1
+        local tile_width_scaled = self.tiles.tileWidth * scale
+        local tile_height_scaled = self.tiles.tileHeight * scale
+        local relative_x = worldX - self.worldX
+        local relative_y = worldY - self.worldY
+        local tileX = math.floor(relative_x / tile_width_scaled) + 1
+        local tileY = math.floor(relative_y / tile_height_scaled) + 1
+        return tileX, tileY
+    end
+    
+    -- Convert tile coordinates to world coordinates
+    map.tileToWorld = function(self, tileX, tileY, scale)
+        scale = scale or 1
+        local tile_width_scaled = self.tiles.tileWidth * scale
+        local tile_height_scaled = self.tiles.tileHeight * scale
+        local worldX = self.worldX + (tileX - 1) * tile_width_scaled
+        local worldY = self.worldY + (tileY - 1) * tile_height_scaled
+        return worldX, worldY
     end
     return map
 end
@@ -110,7 +153,7 @@ function map.loadMap(mapId)
     -- Load tileset
     local tilesetImage = love.graphics.newImage(mapDef.tileset)
     local tiles = newTiles(tilesetImage, mapDef.tileWidth, mapDef.tileHeight)
-    local mapObject = createMap(tiles, mapDef.mapWidth, mapDef.mapHeight, mapDef.tileData)
+    local mapObject = createMap(tiles, mapDef.mapWidth, mapDef.mapHeight, mapDef.tileData, mapDef.worldX or 0, mapDef.worldY or 0)
     
     -- Store loaded map
     map.loadedMaps[mapId] = {
@@ -150,6 +193,15 @@ end
 -- Get current map data
 function map.getCurrentMap()
     return map.loadedMaps[map.currentMapId]
+end
+
+-- Add current map tiles to dynamic draw list for proper GI rendering
+function map.addCurrentMapToDrawList()
+    local currentMap = map.getCurrentMap()
+    if not currentMap then return {} end
+    
+    -- Use world coordinates instead of screen offsets
+    return addMapToDynamicDrawList(currentMap.map, 0, 0, 1, 0)
 end
 
 -- Spawn entities for current map
@@ -232,7 +284,9 @@ function map.load()
         mapWidth = 70,
         mapHeight = 50,
         tileData = level1TileData,
-        playerSpawn = {x = var.game_width / 2, y = var.game_height / 2},
+        worldX = 0,  -- World position of map origin
+        worldY = 0,  -- World position of map origin
+        playerSpawn = {x = 400, y = 300},  -- World coordinates
         enemies = {
             {x = 300, y = 200},
             {x = 500, y = 300},
@@ -257,7 +311,9 @@ function map.load()
         mapWidth = 20,
         mapHeight = 20,
         tileData = level2TileData,
-        playerSpawn = {x = 200, y = 200},
+        worldX = 1000,  -- Offset this map in world space
+        worldY = 0,
+        playerSpawn = {x = 1200, y = 200},  -- World coordinates
         enemies = {
             {x = 400, y = 300},
             {x = 600, y = 400},
@@ -274,11 +330,11 @@ function map.load()
     map.loadMap("level1")
     map.currentMapId = "level1"
     
-    -- Keep legacy maps for compatibility with existing render code
+    -- Keep legacy maps for compatibility with existing render code but use world coordinates
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
-    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
+    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h, nil, 0, 0)
     for x = 1, 70 do 
         for y = 1, 50 do
             map.map:setTile(x, y, math.random(1,200))
@@ -286,19 +342,19 @@ function map.load()
     end
 
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
-    map.tiles3 = newTiles(tilesetImage3, 98,128)
-    map.map3 = createMap(map.tiles3, var.map_display_w, var.map_display_h)
+    map.tiles3 = newTiles(tilesetImage3, 98, 128)
+    map.map3 = createMap(map.tiles3, var.map_display_w, var.map_display_h, nil, 100, 50)  -- World coordinates
     for x = 2, 5 do
-        for y = 1,3 do
+        for y = 1, 3 do
             map.map3:setTile(x, y, 10)
         end
     end
 
     local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
-    map.tiles4 = newTiles(tilesetImage4, 156,156)
-    map.map4 = createMap(map.tiles4, var.map_display_w, var.map_display_h)
+    map.tiles4 = newTiles(tilesetImage4, 156, 156)
+    map.map4 = createMap(map.tiles4, var.map_display_w, var.map_display_h, nil, 100, 50)  -- World coordinates
     
-    for x = 0,3 do
+    for x = 0, 3 do
         map.map4:setTile(2+x, 3, 1)
     end
 end

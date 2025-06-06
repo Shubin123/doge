@@ -86,9 +86,9 @@ function fire.populate()
             scale_y = fire.scale,
             offset_x = 0,
             offset_y = 0,
-            color = {0.13, 0.37, 1, 1},
+            color = {1.8, 1.2, 0.8, 1}, -- Moderate fire light source
             blend_mode = {"lighten", "premultiplied"},
-            source_object_type = "fire_effect"
+            source_object_type = "fire_light_source"
         })
         
 for i = 1, fire.count do
@@ -131,9 +131,9 @@ for i = 1, fire.count do
             scale_y = fire.scale,
             offset_x = 250,
             offset_y = 50,
-            color = {1, 1, 1, 1},
+            color = {2.0, 1.5, 1.0, 1}, -- Moderate fireball light source
             blend_mode = {"lighten", "premultiplied"},
-            source_object_type = "fire_effect"
+            source_object_type = "fireball_light_source"
         })
     else
         -- Default fire effect
@@ -148,7 +148,7 @@ for i = 1, fire.count do
             scale_y = fire.scale,
             offset_x = 250,
             offset_y = 50,
-            color = {1, 1, 1, 1},
+            color = {1.6, 1.3, 0.9, 1}, -- Moderate default fire light source
             blend_mode = {"lighten", "premultiplied"},
             source_object_type = "fire_effect"
         })

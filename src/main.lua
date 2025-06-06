@@ -37,8 +37,10 @@ enemy_image = 0
 
 W = love.graphics.getWidth()
 H = love.graphics.getHeight()
-game_area_x = (W - var.game_width) / 2
-game_area_y = var.header_height
+-- Remove screen-based offsets in favor of pure world coordinates
+-- game_area_x and game_area_y are now handled by camera transform
+game_area_x = 0  -- No longer needed with proper world coordinate system
+game_area_y = 0  -- No longer needed with proper world coordinate system
 
 -- lighting variables
 -- local ldist = 30 -- 5-80
@@ -61,10 +63,30 @@ function love.load()
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
+    -- Create world boundaries using proper world coordinates
     fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
-        var.game_height + 50, 200,
-        var.game_height + 50)
+    
+    -- Get the current map definition to set proper world boundaries
+    local currentMap = map.getCurrentMap()
+    local world_left = 0
+    local world_top = 0
+    local world_right = 1120  -- 70 * 16 for level1
+    local world_bottom = 800  -- 50 * 16 for level1
+    
+    if currentMap then
+        local mapDef = currentMap.definition
+        world_left = mapDef.worldX or 0
+        world_top = mapDef.worldY or 0
+        world_right = world_left + (mapDef.mapWidth * mapDef.tileWidth)
+        world_bottom = world_top + (mapDef.mapHeight * mapDef.tileHeight)
+    end
+    
+    fence_shape = love.physics.newChainShape(true, 
+        world_left, world_top, 
+        world_right, world_top, 
+        world_right, world_bottom, 
+        world_left, world_bottom
+    )
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
     createArches()
@@ -72,12 +94,24 @@ function love.load()
 
     -- Load map and player
     map.load()
-    map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
+    -- Use world coordinates for legacy maps - these will be generated dynamically in renderer
+    -- No need to pre-generate static map lists since we now use dynamic culling
+    map_a = {}  -- Will be populated dynamically
+    map_b = {}  -- Will be populated dynamically
 
 
     player.load(world)
     enemy.load()
+    
+    -- Set up camera map boundaries using world coordinates
+    local currentMap = map.getCurrentMap()
+    if currentMap then
+        local mapDef = currentMap.definition
+        local mapWorldWidth = mapDef.mapWidth * mapDef.tileWidth
+        local mapWorldHeight = mapDef.mapHeight * mapDef.tileHeight
+        camera.setMapBounds(mapDef.worldX or 0, mapDef.worldY or 0, mapWorldWidth, mapWorldHeight)
+        camera.map_bounds.enabled = true
+    end
 
 
     -- Coins and enemies
@@ -115,8 +149,8 @@ end
 
 local W = love.graphics.getWidth()
 local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
+-- Remove screen-based coordinate calculations
+-- All positioning now handled in world coordinates via camera
 
 
 
@@ -132,27 +166,18 @@ function love.draw()
     shader.prepass()
     camera.apply()
     
-    love.graphics.setColor(1, 1, 1, 0.35)
-    
-    map.map:draw(game_area_x, game_area_y, 1)
+    -- Draw neutral background layer for gameplay visibility
+    love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
+    love.graphics.rectangle("fill", -2000, -2000, 4000, 4000)
     love.graphics.setColor(1, 1, 1, 1)
-
-    -- crtShader:beginCapture()
-    -- portal.draw()
-
+    
     -- Populate and sort dynamic draw list if neccessary
     renderer.populateDynamicDrawList()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    -- Render sorted entities
+    -- Render sorted entities (includes map tiles now)
     renderer.renderSortedDrawList()
     
-    
-
     grass.demo.draw()
-    
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map4:draw(100, game_area_y, 0.8)
 
     -- else
     --     map.map3:draw(100, game_area_y, 1)
@@ -167,10 +192,10 @@ function love.draw()
     -- order is IMPORTANT HERE shader-> smoke -> water
     shader.pass()
     
-    smoke.pass()
+    -- smoke.pass() -- Disabled for seamless shader effects
     
-    water.pass()
-    crtShader.endCapture()        
+    -- water.pass() -- Disabled for seamless shader effects
+    -- crtShader.endCapture() -- Disabled CRT effect for seamless shaders        
     
         
 
@@ -189,7 +214,7 @@ function love.update(dt)
 
     -- if State == "game" then
     player.update(dt)
-    camera.update_framerate_independent(dt, player)
+    camera.update(dt, player)
     -- end
 
     water.update(dt)
@@ -265,10 +290,11 @@ function love.mousepressed(x, y, button, istouch, presses)
         end
     elseif var.State == "game" or var.State == "running" then
         -- Only handle gameplay clicks when actually in game
-        local center_x = love.graphics.getWidth() / 2 -- or player's screen position
-        local center_y = love.graphics.getHeight() / 2
+        -- Convert mouse position to world coordinates
+        local world_x, world_y = camera.screenToWorld(x, y)
+        local player_x, player_y = player.body:getX(), player.body:getY()
 
-        local direction = vec2.new(x - center_x, y - center_y)
+        local direction = vec2.new(world_x - player_x, world_y - player_y)
         local normalized_direction = vec2.norm(direction)
         -- print(fire.count)
         -- if fire.count == 0 then
@@ -293,9 +319,9 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "z" then
         if not zoomToggle then
-            camera.setZoom(2)
+            camera.setZoom(2, player)
         else
-            camera.setZoom(1)
+            camera.setZoom(1, player)
         end
 
         zoomToggle = not zoomToggle
@@ -335,8 +361,17 @@ end
 
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
+        -- Use proper world coordinates based on current map bounds
+        local currentMap = map.getCurrentMap()
+        local mapDef = currentMap and currentMap.definition
+        local mapWorldX = (mapDef and mapDef.worldX) or 0
+        local mapWorldY = (mapDef and mapDef.worldY) or 0
+        local mapWorldWidth = (mapDef and mapDef.mapWidth * mapDef.tileWidth) or 800
+        local mapWorldHeight = (mapDef and mapDef.mapHeight * mapDef.tileHeight) or 600
+        
+        local _bod = love.physics.newBody(world, 
+            math.random(mapWorldX + 50, mapWorldX + mapWorldWidth - 50),
+            math.random(mapWorldY + 50, mapWorldY + mapWorldHeight - 50),
             "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
@@ -346,8 +381,17 @@ end
 
 function createEnemies(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
+        -- Use proper world coordinates based on current map bounds
+        local currentMap = map.getCurrentMap()
+        local mapDef = currentMap and currentMap.definition
+        local mapWorldX = (mapDef and mapDef.worldX) or 0
+        local mapWorldY = (mapDef and mapDef.worldY) or 0
+        local mapWorldWidth = (mapDef and mapDef.mapWidth * mapDef.tileWidth) or 800
+        local mapWorldHeight = (mapDef and mapDef.mapHeight * mapDef.tileHeight) or 600
+        
+        local _bod = love.physics.newBody(world, 
+            math.random(mapWorldX + 50, mapWorldX + mapWorldWidth - 50),
+            math.random(mapWorldY + 50, mapWorldY + mapWorldHeight - 50),
             "dynamic")
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
@@ -357,9 +401,12 @@ end
 
 function createArches()
     arch_shape = love.physics.newRectangleShape(20, 30)
+    -- Use world coordinates for arch placement
+    local arch_start_x = 230  -- World coordinate
+    local arch_start_y = 100  -- World coordinate
     for x = 0, 7 do
         for y = 0, 2 do
-            arch_body = love.physics.newBody(world, 230 + 48 * x, 100 + y * 130, "static")
+            arch_body = love.physics.newBody(world, arch_start_x + 48 * x, arch_start_y + y * 130, "static")
             love.physics.newFixture(arch_body, arch_shape)
         end
     end

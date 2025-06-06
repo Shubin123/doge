@@ -178,7 +178,7 @@ function enemy.populate()
             scale_y = enemy.scale,
             offset_x = 0,
             offset_y = 0,
-            color = {1, 0.4, 0.2, 1},  -- Orange tint for enemy fire
+            color = {1.4, 1.0, 0.6, 1},  -- Moderate orange enemy fire light source
             blend_mode = {"lighten", "premultiplied"},
             source_object_type = "enemy_fire_effect"
         })

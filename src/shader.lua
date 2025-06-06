@@ -3,6 +3,30 @@ shader = {}
 shader.distance = 30
 shader.sample = 40
 
+-- Quality scaling settings
+shader.quality = {
+    adaptive = true,  -- Enable adaptive quality
+    base_distance = 30,  -- Base distance for sampling
+    base_sample = 40,  -- Base sample count
+    min_distance = 15,  -- Minimum distance
+    max_distance = 60,  -- Maximum distance
+    min_sample = 20,  -- Minimum sample count
+    max_sample = 80,  -- Maximum sample count
+    performance_scaling = true,  -- Scale with performance
+    zoom_scaling = true  -- Scale with zoom level
+}
+
+-- Fog of war settings
+shader.fog_of_war = {
+    enabled = true,
+    base_fade_distance = 80,  -- Base fade distance that scales with zoom
+    space_color = {0.02, 0.02, 0.08},  -- More subtle deep space blue
+    space_intensity = 0.4,  -- More subtle intensity
+    star_density = 0.02,
+    min_fade_distance = 20,  -- Minimum fade distance when zoomed in
+    max_fade_distance = 150  -- Maximum fade distance when zoomed out
+}
+
 function shader.load()
     -- Create canvases with specific formats
     scene_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
@@ -18,276 +42,117 @@ function shader.load()
     bloom_canvas1 = love.graphics.newCanvas(W, H, { format = "rgba8" })
     bloom_canvas2 = love.graphics.newCanvas(W, H, { format = "rgba8" })
     final_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
+    gi_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
+    fog_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
     
-    -- Return all visible surface as their UV coords
-    seed_shader = love.graphics.newShader([[
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec4 pixel = Texel(tex, tc);
-            // Add edge detection for sprite outlines
-            float edgeThreshold = 0.3;
-            if (pixel.a > edgeThreshold) {
-                return vec4(tc, 0.0, 1.0);
-            }
-            return vec4(0.0);
-        }
-    ]])
+    -- Load shaders from external files
+    seed_shader = love.graphics.newShader("shaders_/seed.frag")
     
-    -- Enhanced JFA shader with better sampling
-    jfa_shader = love.graphics.newShader([[
-        uniform float stepSize;
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec2 offset = stepSize / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec2 bestPoint = vec2(-2.0);
-            float bestDist = 1e9;
-            
-            // Enhanced 3x3 sampling with slight jitter for smoother results
-            for(float y = -1.0; y <= 1.0; y += 1.0) {
-                for(float x = -1.0; x <= 1.0; x += 1.0) {
-                    vec2 sampleTC = tc + vec2(x, y) * offset;
-                    if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
-                       sampleTC.y < 0.0 || sampleTC.y > 1.0) continue;
-                    
-                    vec2 data = Texel(tex, sampleTC).xy;
-                    if(data.x > 0.0 || data.y > 0.0) {
-                        float dist = length(tc - data);
-                        if(dist < bestDist) {
-                            bestDist = dist;
-                            bestPoint = data;
-                        }
-                    }
-                }
-            }
-            return vec4(bestPoint, 0.0, 1.0);
-        }
-    ]])
+    jfa_shader = love.graphics.newShader("shaders_/jfa.frag")
     
-    -- Enhanced distance field with smooth falloff
-    df_shader = love.graphics.newShader([[
-        uniform float smoothness;
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec2 nearestPoint = Texel(tex, tc).xy;
-            float dist = length(tc - nearestPoint);
-            
-            // Apply smoothstep for nicer falloff
-            dist = smoothstep(0.0, smoothness, dist);
-            
-            return vec4(dist, 0.0, 0.0, 1.0);
-        }
-    ]])
+    df_shader = love.graphics.newShader("shaders_/distance_field.frag")
     
-    -- Enhanced GI shader with modern arcade effects
-    gi_shader = love.graphics.newShader([[
-        uniform sampler2D surfaceTexture;
-        uniform float maxDistance;
-        uniform int sampleCount;
-        uniform float time;
-        uniform vec3 ambientColor;
-        uniform float glowIntensity;
-        uniform float colorVibrancy;
-        
-        const float PI = 3.14159265359;
-        
-        float rand(vec2 co) {
-            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-        }
-        
-        // Color enhancement function
-        vec3 enhanceColor(vec3 color) {
-            // Increase saturation for arcade feel
-            float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-            vec3 saturated = mix(vec3(luminance), color, colorVibrancy);
-            
-            // Apply slight color grading
-            saturated.r = pow(saturated.r, 0.95);
-            saturated.g = pow(saturated.g, 1.0);
-            saturated.b = pow(saturated.b, 1.05);
-            
-            return saturated;
-        }
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            float oneOverRays = 1.0 / float(sampleCount);
-            float tauOverRays = 2.0 * PI * oneOverRays;
-            vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec2 ratio = normalize(oneOverSize);
-            float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
-            
-            vec3 radiance = ambientColor * 0.15; // Arcade-style ambient lighting
-            vec3 glowAccum = vec3(0.0);
-            float noise = rand(tc + vec2(time * 0.01));
-            
-            // Get original pixel for glow calculation
-            vec4 originalPixel = Texel(surfaceTexture, tc);
-            
-            for(int i = 0; i < sampleCount; i++) {
-                float angle = (0.5 + float(i) + noise) * tauOverRays;
-                vec2 rayDirection = vec2(cos(angle), sin(angle));
-                vec2 sampleTC = tc;
-                
-                float totalDistance = 0.0;
-                
-                for (int step = 0; step < maxDistance; step += 1) {
-                    float df = Texel(tex, sampleTC).r;
-                    sampleTC += rayDirection * df * ratio;
-                    totalDistance += df;
-                    
-                    if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
-                       sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
-                    
-                    if (df <= minStepSize) {
-                        vec3 hitColor = Texel(surfaceTexture, sampleTC).rgb;
-                        hitColor = pow(hitColor, vec3(2.2)); // From sRGB
-                        
-                        // Distance-based falloff with glow
-                        float falloff = 1.0 - smoothstep(0.0, maxDistance * 0.8, totalDistance);
-                        falloff = pow(falloff, 0.8); // Softer falloff for arcade feel
-                        
-                        // Add color bleeding for vibrant arcade look
-                        vec3 enhancedColor = enhanceColor(hitColor);
-                        radiance += enhancedColor * falloff;
-                        
-                        // Accumulate glow from bright objects
-                        float brightness = dot(hitColor, vec3(0.299, 0.587, 0.114));
-                        if (brightness > 0.5) {
-                            glowAccum += hitColor * falloff * glowIntensity;
-                        }
-                        
-                        break;
-                    }
-                }
-            }
-            
-            // Average and apply enhancements
-            vec3 finalColor = radiance * oneOverRays;
-            finalColor += glowAccum * oneOverRays * 0.5; // Add glow contribution
-            
-            // Apply tone mapping for arcade style
-            finalColor = finalColor / (finalColor + vec3(1.0));
-            finalColor = pow(finalColor, vec3(1.0 / 2.2)); // To sRGB
-            
-            // Mix with original for sprites
-            if (originalPixel.a > 0.5) {
-                finalColor = mix(finalColor, enhanceColor(originalPixel.rgb), 0.3);
-            }
-            
-            return vec4(finalColor, 1.0);
-        }
-    ]])
+    gi_shader = love.graphics.newShader("shaders_/global_illumination.frag")
     
-    -- Bloom extraction shader
-    bloom_extract = love.graphics.newShader([[
-        uniform float threshold;
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec4 pixel = Texel(tex, tc);
-            float brightness = dot(pixel.rgb, vec3(0.299, 0.587, 0.114));
-            
-            if (brightness > threshold) {
-                return vec4(pixel.rgb * (brightness - threshold), pixel.a);
-            }
-            return vec4(0.0, 0.0, 0.0, 0.0);
-        }
-    ]])
+    bloom_extract = love.graphics.newShader("shaders_/bloom_extract.frag")
     
-    -- Gaussian blur shader for bloom
-    blur_shader = love.graphics.newShader([[
-        uniform vec2 direction;
-        uniform float blurSize;
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec2 onePixel = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec4 result = vec4(0.0);
-            float total = 0.0;
-            
-            // 9-tap Gaussian blur
-            float weights[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
-            
-            result += Texel(tex, tc) * weights[0];
-            total += weights[0];
-            
-            for (int i = 1; i < 5; i++) {
-                vec2 offset = onePixel * direction * float(i) * blurSize;
-                result += Texel(tex, tc + offset) * weights[i];
-                result += Texel(tex, tc - offset) * weights[i];
-                total += weights[i] * 2.0;
-            }
-            
-            return result / total;
-        }
-    ]])
+    blur_shader = love.graphics.newShader("shaders_/blur.frag")
     
-    -- Final composition shader
-    composite_shader = love.graphics.newShader([[
-        uniform sampler2D bloomTexture;
-        uniform float bloomStrength;
-        uniform float contrast;
-        uniform float saturation;
-        uniform vec3 tintColor;
-        
-        vec3 adjustContrast(vec3 color, float contrast) {
-            return (color - 0.5) * contrast + 0.5;
-        }
-        
-        vec3 adjustSaturation(vec3 color, float saturation) {
-            float gray = dot(color, vec3(0.299, 0.587, 0.114));
-            return mix(vec3(gray), color, saturation);
-        }
-        
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            vec4 base = Texel(tex, tc);
-            vec4 bloom = Texel(bloomTexture, tc);
-            
-            // Combine base and bloom
-            vec3 result = base.rgb + bloom.rgb * bloomStrength;
-            
-            // Apply post-processing
-            result = adjustContrast(result, contrast);
-            result = adjustSaturation(result, saturation);
-            
-            // Apply subtle color tint
-            result = mix(result, result * tintColor, 0.1);
-            
-            // Vignette effect
-            float vignette = 1.0 - length(tc - vec2(0.5)) * 0.5;
-            vignette = smoothstep(0.3, 1.0, vignette);
-            result *= vignette;
-            
-            return vec4(result, base.a);
-        }
-    ]])
+    composite_shader = love.graphics.newShader("shaders_/composite.frag")
     
-    -- Set default uniforms
+    fog_of_war_shader = love.graphics.newShader("shaders_/fog_of_war.frag")
+    
+    -- Set default uniforms for playable twilight atmosphere
     df_shader:send("smoothness", 0.05)
-    gi_shader:send("ambientColor", {0.15, 0.1, 0.2}) -- Purple-ish ambient
-    gi_shader:send("glowIntensity", 1.5)
-    gi_shader:send("colorVibrancy", 1.4)
-    bloom_extract:send("threshold", 0.6)
-    blur_shader:send("blurSize", 1.5)
-    composite_shader:send("bloomStrength", 0.8)
+    gi_shader:send("ambientColor", {0.4, 0.4, 0.4}) -- Neutral gray ambient for visibility
+    gi_shader:send("glowIntensity", 1.2) -- Reduced for subtlety
+    gi_shader:send("colorVibrancy", 1.1)
+    bloom_extract:send("threshold", 0.7) -- Higher threshold for selective bloom
+    blur_shader:send("blurSize", 1.0)
+    composite_shader:send("bloomStrength", 0.6) -- Subtle bloom for light sources
+    composite_shader:send("giStrength", 0.5) -- Blend GI with original scene
     composite_shader:send("contrast", 1.1)
-    composite_shader:send("saturation", 1.3)
-    composite_shader:send("tintColor", {1.0, 0.98, 0.95}) -- Slight warm tint
+    composite_shader:send("saturation", 1.2)
+    composite_shader:send("tintColor", {1.0, 1.0, 1.0}) -- Neutral tint for clarity
+    
+    -- Set fog of war uniforms (fade_distance will be set dynamically in pass())
+    fog_of_war_shader:send("space_color", shader.fog_of_war.space_color)
+    fog_of_war_shader:send("space_intensity", shader.fog_of_war.space_intensity)
+    fog_of_war_shader:send("screen_size", {W, H})
 end
 
 function render(in_canvas, shader, target_canvas)
     love.graphics.setCanvas(target_canvas)
-    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.clear(0, 0, 0, 0) -- Clear to transparent
     love.graphics.setShader(shader)
+    love.graphics.setBlendMode("alpha", "premultiplied")
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(in_canvas)
+    love.graphics.setShader()
+    love.graphics.setBlendMode("alpha")
 end
 
 function shader.prepass()
     love.graphics.setCanvas(scene_canvas)
-    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.clear(0, 0, 0, 0) -- Clear to transparent, not gray
+end
+
+function shader.postpass()
+    -- This is where you should draw your scene to scene_canvas
+    love.graphics.setCanvas(scene_canvas)
+end
+
+function shader.updateQuality()
+    if not shader.quality.adaptive then
+        shader.distance = shader.quality.base_distance
+        shader.sample = shader.quality.base_sample
+        return
+    end
+    
+    local quality_factor = 1.0
+    
+    -- Performance scaling
+    if shader.quality.performance_scaling and camera and camera.performance then
+        quality_factor = quality_factor * camera.performance.performance_factor
+    end
+    
+    -- Zoom scaling - higher zoom = need higher quality
+    if shader.quality.zoom_scaling and camera then
+        local zoom_factor = math.max(0.5, math.min(2.0, camera.zoom))
+        quality_factor = quality_factor * zoom_factor
+    end
+    
+    -- View radius scaling - larger view distance = can reduce quality slightly
+    if camera and camera.view_radius then
+        local radius_factor = math.max(0.8, math.min(1.2, 400 / camera.view_radius))
+        quality_factor = quality_factor * radius_factor
+    end
+    
+    -- Clamp quality factor to reasonable range
+    quality_factor = math.max(0.5, math.min(2.0, quality_factor))
+    
+    -- Apply scaling to distance and sample count
+    shader.distance = math.floor(shader.quality.base_distance * quality_factor)
+    shader.sample = math.floor(shader.quality.base_sample * quality_factor)
+    
+    -- Clamp to min/max values
+    shader.distance = math.max(shader.quality.min_distance, 
+                              math.min(shader.quality.max_distance, shader.distance))
+    shader.sample = math.max(shader.quality.min_sample, 
+                            math.min(shader.quality.max_sample, shader.sample))
 end
 
 function shader.pass()
+    -- Update adaptive quality based on performance and camera settings
+    shader.updateQuality()
+    
     -- Update time uniform
     local time = love.timer.getTime()
     gi_shader:send("time", time)
+    
+    -- Apply camera uniforms to shaders for consistent rendering
+    camera.applyToShader(gi_shader)
+    camera.applyToShader(composite_shader)
     
     -- Seed pass
     render(scene_canvas, seed_shader, jfa_canvas1)
@@ -298,12 +163,13 @@ function shader.pass()
     gi_shader:send("sampleCount", shader.sample)
     
     -- JFA passes
-    local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
+    local passes = math.ceil(math.log(math.max(W, H)) / math.log(2)) + 1
     
     for i = 1, passes do
         jfa_shader:send("stepSize", math.pow(2, passes - i))
         
         love.graphics.setCanvas(jfa_canvas2)
+        love.graphics.clear(0, 0, 0, 0)
         love.graphics.setShader(jfa_shader)
         love.graphics.draw(jfa_canvas1)
         
@@ -315,11 +181,11 @@ function shader.pass()
     render(jfa_canvas1, df_shader, df_canvas)
     
     -- Global illumination pass
-    render(df_canvas, gi_shader, bloom_canvas1)
+    render(df_canvas, gi_shader, gi_canvas)
     
     -- Bloom effect
-    -- Extract bright pixels
-    render(bloom_canvas1, bloom_extract, bloom_canvas2)
+    -- Extract bright pixels from scene
+    render(scene_canvas, bloom_extract, bloom_canvas2)
     
     -- Horizontal blur
     blur_shader:send("direction", {1.0, 0.0})
@@ -331,17 +197,44 @@ function shader.pass()
     
     -- Final composition
     composite_shader:send("bloomTexture", bloom_canvas2)
-    render(bloom_canvas1, composite_shader, final_canvas)
+    composite_shader:send("giTexture", gi_canvas)
+    render(scene_canvas, composite_shader, final_canvas)
     
-    -- Draw final results
-    love.graphics.setShader()
-    love.graphics.setCanvas()
-    love.graphics.draw(final_canvas)
-    
-    -- Draw original sprites on top with slight transparency for integration
-    love.graphics.setColor(1, 1, 1, 0.95)
-    love.graphics.draw(scene_canvas)
-    love.graphics.setColor(1, 1, 1, 1)
+    -- Apply fog of war effect if enabled
+    if shader.fog_of_war.enabled then
+        -- Calculate dynamic fade distance based on zoom and view radius
+        local view_radius = camera.view_radius or camera.config.base_view_radius
+        local zoom_factor = 1.0 / camera.zoom  -- Higher zoom = smaller fade distance
+        local fade_distance = shader.fog_of_war.base_fade_distance * zoom_factor
+        fade_distance = math.max(shader.fog_of_war.min_fade_distance, 
+                                math.min(shader.fog_of_war.max_fade_distance, fade_distance))
+        
+        -- Update fog of war uniforms with current camera state
+        fog_of_war_shader:send("camera_position", {camera.x, camera.y})
+        fog_of_war_shader:send("camera_zoom", camera.zoom)
+        fog_of_war_shader:send("view_radius", view_radius)
+        fog_of_war_shader:send("fade_distance", fade_distance)
+        fog_of_war_shader:send("time", time)
+        
+        -- Apply fog of war to final composition
+        render(final_canvas, fog_of_war_shader, fog_canvas)
+        
+        -- Draw fog results
+        love.graphics.setShader()
+        love.graphics.setCanvas()
+        love.graphics.setBlendMode("alpha", "premultiplied")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(fog_canvas)
+        love.graphics.setBlendMode("alpha")
+    else
+        -- Draw final results without fog
+        love.graphics.setShader()
+        love.graphics.setCanvas()
+        love.graphics.setBlendMode("alpha", "premultiplied")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(final_canvas)
+        love.graphics.setBlendMode("alpha")
+    end
 end
 
 return shader

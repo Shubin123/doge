@@ -32,7 +32,8 @@ function newAnimation(image, width, height, duration, numFrames)
 end
 
 function player.load(world)
-    player.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")
+    -- Start player at world coordinates (400, 300) instead of screen-relative coordinates
+    player.body = love.physics.newBody(world, 400, 300, "dynamic")
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.fixture:setGroupIndex(-1)
@@ -218,7 +219,7 @@ function player.draw()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
     -- print( player.animation.duration)
-    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
+    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum], px, py, var.character_rotation, player.scale, player.scale, 32, 32)
 end
 
 function player.collision(fixture_a,fixture_b,contact)

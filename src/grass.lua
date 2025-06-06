@@ -254,60 +254,90 @@ function GrassRenderer:draw()
     self.grassShader:send("screenSize", {love.graphics.getWidth(), love.graphics.getHeight()})
     self.grassShader:send("noiseTexture", noise_texture)
     
-    -- Draw each grass blade
+    -- Draw each grass blade with frustum culling
+    local rendered_count = 0
+    local total_count = #self.grassBlades
+    
     for _, blade in ipairs(self.grassBlades) do
-        love.graphics.push()
+        -- Use distance-based culling - default to not rendering if no camera info
+        local should_render = false
         
-        -- Get wind and player offset
-        local windX = blade.currentWindOffset and blade.currentWindOffset.x or 0
-        local windY = blade.currentWindOffset and blade.currentWindOffset.y or 0
-        
-        -- Position at the base of the grass (roots stay fixed)
-        love.graphics.translate(blade.x, blade.y)
-        love.graphics.rotate(blade.rotation)
-        love.graphics.scale(blade.scale)
-        
-        -- Modify color based on player influence (optional enhancement)
-        local baseColor = blade.color
-        -- if blade.playerInfluence and blade.playerInfluence > 0 then
-        --     -- Slightly brighten grass near player
-        --     local brightnessFactor = 1 + (blade.playerInfluence * 0.2)
-        --     love.graphics.setColor(
-        --         math.min(baseColor[1] * brightnessFactor, 1),
-        --         math.min(baseColor[2] * brightnessFactor, 1),
-        --         math.min(baseColor[3] * brightnessFactor, 1),
-        --         baseColor[4]
-        --     )
-        -- else
-            love.graphics.setColor(baseColor)
-        -- end
-        
-        -- Draw grass blade with bend effect
-        -- Instead of moving the whole blade, we'll draw it as a curved shape
-        local segments = 8  -- Number of segments to create the bend
-        local segmentHeight = blade.height / segments
-        
-        for i = 0, segments - 1 do
-            local t = i / segments  -- Progress from 0 (base) to 1 (tip)
-            local bendFactor = t * t  -- Quadratic curve - more bend at the tip
+        if camera and camera.x and camera.y and camera.view_radius then
+            -- Calculate distance from camera center to grass blade
+            local dx = blade.x - camera.x
+            local dy = blade.y - camera.y
+            local distance = math.sqrt(dx * dx + dy * dy)
             
-            -- Calculate offset for this segment
-            local segmentOffsetX = windX * bendFactor
-            local segmentOffsetY = windY * bendFactor
-            
-            -- Draw segment as a small rectangle
-            love.graphics.push()
-            love.graphics.translate(segmentOffsetX, -i * segmentHeight + segmentOffsetY)
-            
-            -- Taper the width towards the tip
-            local widthFactor = 1 - (t * 0.3)  -- 30% narrower at tip
-            local segmentWidth = blade.width * widthFactor
-            
-            love.graphics.rectangle("fill", -segmentWidth/2, -segmentHeight, segmentWidth, segmentHeight)
-            love.graphics.pop()
+            -- Only render if within view radius with tight culling
+            should_render = distance <= (camera.view_radius * 0.75)  -- Very tight culling
+        elseif camera and camera.x and camera.y then
+            -- Fallback to basic distance check if view_radius not available
+            local dx = blade.x - camera.x
+            local dy = blade.y - camera.y
+            local distance = math.sqrt(dx * dx + dy * dy)
+            should_render = distance <= 300  -- Fixed fallback radius
         end
         
-        love.graphics.pop()
+        if should_render then
+            rendered_count = rendered_count + 1
+            love.graphics.push()
+            
+            -- Get wind and player offset
+            local windX = blade.currentWindOffset and blade.currentWindOffset.x or 0
+            local windY = blade.currentWindOffset and blade.currentWindOffset.y or 0
+            
+            -- Position at the base of the grass (roots stay fixed)
+            love.graphics.translate(blade.x, blade.y)
+            love.graphics.rotate(blade.rotation)
+            love.graphics.scale(blade.scale)
+        
+            -- Modify color based on player influence (optional enhancement)
+            local baseColor = blade.color
+            -- if blade.playerInfluence and blade.playerInfluence > 0 then
+            --     -- Slightly brighten grass near player
+            --     local brightnessFactor = 1 + (blade.playerInfluence * 0.2)
+            --     love.graphics.setColor(
+            --         math.min(baseColor[1] * brightnessFactor, 1),
+            --         math.min(baseColor[2] * brightnessFactor, 1),
+            --         math.min(baseColor[3] * brightnessFactor, 1),
+            --         baseColor[4]
+            --     )
+            -- else
+                love.graphics.setColor(baseColor)
+            -- end
+            
+            -- Draw grass blade with bend effect
+            -- Instead of moving the whole blade, we'll draw it as a curved shape
+            local segments = 8  -- Number of segments to create the bend
+            local segmentHeight = blade.height / segments
+            
+            for i = 0, segments - 1 do
+                local t = i / segments  -- Progress from 0 (base) to 1 (tip)
+                local bendFactor = t * t  -- Quadratic curve - more bend at the tip
+                
+                -- Calculate offset for this segment
+                local segmentOffsetX = windX * bendFactor
+                local segmentOffsetY = windY * bendFactor
+                
+                -- Draw segment as a small rectangle
+                love.graphics.push()
+                love.graphics.translate(segmentOffsetX, -i * segmentHeight + segmentOffsetY)
+                
+                -- Taper the width towards the tip
+                local widthFactor = 1 - (t * 0.3)  -- 30% narrower at tip
+                local segmentWidth = blade.width * widthFactor
+                
+                love.graphics.rectangle("fill", -segmentWidth/2, -segmentHeight, segmentWidth, segmentHeight)
+                love.graphics.pop()
+            end
+            
+            love.graphics.pop()
+        end -- Close the should_render if statement
+    end
+    
+    -- Debug output to see if culling is working
+    if camera and camera.view_radius then
+        -- Uncomment for debugging: print("Grass: rendered " .. rendered_count .. "/" .. total_count .. " (radius: " .. math.floor(camera.view_radius) .. ")")
     end
     
     -- Reset graphics state
@@ -380,9 +410,15 @@ end
     local demo = {}
     
     function demo.load()
-        -- Set grass to appear in bottom half of screen
-        
-        grass:setGrassArea(320, 398, 165, 37, 2000)
+        -- Set grass to cover entire game area with minimal padding since we now have culling
+        local padding = 100 -- Reduced padding since culling handles off-screen grass
+        grass:setGrassArea(
+            -padding, 
+            -padding, 
+            var.game_width + padding * 2, 
+            var.game_height + padding * 2, 
+            1500  -- Reduced density for better performance
+        )
     end
     
     function demo.update(dt)
