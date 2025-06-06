@@ -110,7 +110,9 @@ function renderer.rebuildSpatialGrid()
     -- Get all map tiles and add them to spatial grid
     local currentMapTiles = map.addCurrentMapToDrawList()
     for _, tile in ipairs(currentMapTiles) do
-        renderer.addToSpatialGrid(tile, tile.x, tile.y, 32, 32)
+        local tile_width = tile.width or 32
+        local tile_height = tile.height or 32
+        renderer.addToSpatialGrid(tile, tile.x, tile.y, tile_width, tile_height)
     end
     
     -- Add enemies to spatial grid
@@ -239,7 +241,9 @@ function renderer.populateDynamicDrawList()
         -- Use spatial indexing for more efficient culling
         local visible_tiles = renderer.getObjectsInRadius(camera.x, camera.y, camera.view_radius)
         for _, tile in ipairs(visible_tiles) do
-            if camera.isInView(tile.x, tile.y, 32, 32) and 
+            local tile_width = tile.width or 32
+            local tile_height = tile.height or 32
+            if camera.isInView(tile.x, tile.y, tile_width, tile_height) and 
                not camera.shouldSkipObject(tile.x, tile.y, tile.source_object_type or "map_tile") then
                 table.insert(dynamic_draw_list, tile)
             end
@@ -248,7 +252,9 @@ function renderer.populateDynamicDrawList()
         -- Original linear search
         for i = 1, #currentMapTiles do
             local tile = currentMapTiles[i]
-            if camera.isInView(tile.x, tile.y, 32, 32) and 
+            local tile_width = tile.width or 32
+            local tile_height = tile.height or 32
+            if camera.isInView(tile.x, tile.y, tile_width, tile_height) and 
                not camera.shouldSkipObject(tile.x, tile.y, tile.source_object_type or "map_tile") then
                 table.insert(dynamic_draw_list, tile)
             end
@@ -363,6 +369,11 @@ function renderer.populateDynamicDrawList()
     -- Fire effects drawables
     fire.populate()
     enemy.populate()
+    
+    -- Dynamic particle effects drawables
+    if particle_system then
+        particle_system.populate()
+    end
 end
 
 -- Updated render function to handle shaders
@@ -424,8 +435,34 @@ function renderer.renderSortedDrawList()
         elseif drawable.source_object_type == "background_filler" then
             love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
             
+        -- Handle new map system tiles (from map_manager)
+        elseif drawable.quad and drawable.tileset_image then
+            love.graphics.draw(
+                drawable.tileset_image,
+                drawable.quad,
+                drawable.x,
+                drawable.y,
+                drawable.rotation or 0,
+                drawable.scale_x or 1,
+                drawable.scale_y or 1,
+                drawable.offset_x or 0,
+                drawable.offset_y or 0
+            )
+            
         -- Handle regular image drawing
         elseif drawable.image_or_particles then
+            -- Apply image shader if specified
+            if drawable.image_shader then
+                love.graphics.setShader(drawable.image_shader)
+                
+                -- Send shader uniforms if present
+                if drawable.shader_uniforms then
+                    for uniform_name, uniform_value in pairs(drawable.shader_uniforms) do
+                        drawable.image_shader:send(uniform_name, uniform_value)
+                    end
+                end
+            end
+            
             if drawable.quad then
                 love.graphics.draw(
                     drawable.image_or_particles,
@@ -449,6 +486,11 @@ function renderer.renderSortedDrawList()
                     drawable.offset_x or 0,
                     drawable.offset_y or 0
                 )
+            end
+            
+            -- Reset shader after image drawing
+            if drawable.image_shader then
+                love.graphics.setShader()
             end
         end
     end

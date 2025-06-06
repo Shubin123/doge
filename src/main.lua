@@ -1,6 +1,9 @@
 math.randomseed(os.time())
 
-menu = require("menu")
+main_menu = require("main_menu")
+loading_screen = require("loading_screen")
+game_state = require("game_state")
+character_manager = require("character_manager")
 mymath = require("myMath")
 effects = require("effects")
 var = require("var")
@@ -18,9 +21,13 @@ vec2 = require("vec2")
 vec4 = require("vec4")
 player = require("player")
 enemy = require("enemy")
+enemy_demo = require("enemy_demo")
+particle_system = require("particle_system")
 portal = require("portal")
 crt = require("crt")
 renderer = require("renderer")
+map_editor = require("map_editor")
+map_hotreloader = require("map_hotreloader")
 
 -- hotreloader
 local lurker = require("lurker")
@@ -56,8 +63,14 @@ function love.load()
     statsFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
     gameFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
 
-    -- Initialize the menu
-    menu.load(var.ScreenInfo)
+    -- Initialize game systems
+    game_state.initialize()
+    character_manager.initialize()
+    main_menu.initialize()
+    loading_screen.initialize()
+    
+    -- Set initial game state
+    game_state.showMainMenu()
 
     -- Physics setup
     world = love.physics.newWorld(0, 0)
@@ -138,6 +151,7 @@ function love.load()
     fire.load()
 
     shader.load()
+    particle_system.load()
     water.load()
     smoke.load()
     portal.load()
@@ -145,6 +159,10 @@ function love.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
+    
+    -- Initialize map editor and hot-reloader
+    map_editor.initialize()
+    map_hotreloader.initialize()
 end
 
 local W = love.graphics.getWidth()
@@ -155,78 +173,150 @@ local H = love.graphics.getHeight()
 
 
 function love.draw()
-    if var.State == "menu" then
-        menu.draw()
+    local current_state = game_state.getCurrentState()
+    local states = game_state.getStates()
+    
+    if current_state == states.MAIN_MENU then
+        main_menu.draw()
+        return
+    elseif current_state == states.CHARACTER_SELECT then
+        main_menu.draw()
+        return
+    elseif current_state == states.MAP_SELECT then
+        main_menu.draw()
+        return
+    elseif current_state == states.SETTINGS then
+        main_menu.draw()
+        return
+    elseif current_state == states.CREDITS then
+        main_menu.draw()
+        return
+    elseif current_state == states.LOADING then
+        loading_screen.draw()
+        return
+    elseif current_state == states.SPLASH then
+        -- Draw splash screen (could be added later)
+        love.graphics.clear(0.1, 0.1, 0.1, 1)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf("DOGE ADVENTURES", 0, love.graphics.getHeight()/2 - 50, love.graphics.getWidth(), "center")
         return
     end
     
-
-    love.graphics.push()
     
-    shader.prepass()
-    camera.apply()
-    
-    -- Draw neutral background layer for gameplay visibility
-    love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
-    love.graphics.rectangle("fill", -2000, -2000, 4000, 4000)
-    love.graphics.setColor(1, 1, 1, 1)
-    
-    -- Populate and sort dynamic draw list if neccessary
-    renderer.populateDynamicDrawList()
-    table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    -- Render sorted entities (includes map tiles now)
-    renderer.renderSortedDrawList()
-    
-    grass.demo.draw()
-
-    -- else
-    --     map.map3:draw(100, game_area_y, 1)
-    --     map.map4:draw(100, game_area_y, 0.8)
-    --     player.draw()
-
-    -- end
-
-
-
-    love.graphics.pop()
-    -- order is IMPORTANT HERE shader-> smoke -> water
-    shader.pass()
-    
-    -- smoke.pass() -- Disabled for seamless shader effects
-    
-    -- water.pass() -- Disabled for seamless shader effects
-    -- crtShader.endCapture() -- Disabled CRT effect for seamless shaders        
-    
+    -- Draw game world for playing states
+    if current_state == states.PLAYING or current_state == states.PAUSED or current_state == states.GAME_OVER then
+        love.graphics.push()
         
-
+        shader.prepass()
+        camera.apply()
         
-    mydraw.mydraw() -- ui last
+        -- Draw neutral background layer for gameplay visibility
+        love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
+        love.graphics.rectangle("fill", -2000, -2000, 4000, 4000)
+        love.graphics.setColor(1, 1, 1, 1)
+        
+        -- Populate and sort dynamic draw list if neccessary
+        renderer.populateDynamicDrawList()
+        table.sort(dynamic_draw_list, renderer.sortByRenderY)
+        -- Render sorted entities (includes map tiles now)
+        renderer.renderSortedDrawList()
+        
+        grass.demo.draw()
+
+        love.graphics.pop()
+        -- order is IMPORTANT HERE shader-> smoke -> water
+        shader.pass()
+        
+        mydraw.mydraw() -- ui last
+        
+        -- Draw map editor overlay
+        map_editor.draw()
+        
+        -- Draw pause overlay
+        if current_state == states.PAUSED then
+            love.graphics.setColor(0, 0, 0, 0.7)
+            love.graphics.rectangle("fill", 0, 0, W, H)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf("PAUSED", 0, H/2 - 50, W, "center", 0, 2, 2)
+            love.graphics.printf("Press ESC to resume", 0, H/2 + 20, W, "center")
+        end
+        
+        -- Draw game over overlay
+        if current_state == states.GAME_OVER then
+            love.graphics.setColor(0.8, 0.1, 0.1, 0.6)
+            love.graphics.rectangle("fill", 0, 0, W, H)
+            
+            love.graphics.setColor(1, 1, 1, 1)
+            local font = love.graphics.getFont()
+            love.graphics.printf("YOU DIED", 0, H/2 - 50, W, "center", 0, 2, 2)
+            love.graphics.printf("Press R to restart or ESC for menu", 0, H/2 + 20, W, "center")
+        end
+    end
 
 end
 
 function love.update(dt)
-    if var.State == "menu" then
-        menu.update(dt)
+    -- Always update game state system
+    game_state.update(dt)
+    
+    local current_state = game_state.getCurrentState()
+    local states = game_state.getStates()
+    
+    -- Handle state-specific updates
+    if current_state == states.MAIN_MENU or 
+       current_state == states.CHARACTER_SELECT or 
+       current_state == states.MAP_SELECT or 
+       current_state == states.SETTINGS or 
+       current_state == states.CREDITS then
+        main_menu.update(dt)
+        return
+    elseif current_state == states.LOADING then
+        loading_screen.update(dt)
+        return
+    elseif current_state == states.SPLASH then
+        -- Handle splash screen timer
+        local splash_timer = game_state.getStateData("splash_timer")
+        if splash_timer then
+            splash_timer = splash_timer - dt
+            game_state.setStateData("splash_timer", splash_timer)
+            if splash_timer <= 0 then
+                game_state.showMainMenu()
+            end
+        end
         return
     end
-
-    world:update(dt)
-
-    -- if State == "game" then
-    player.update(dt)
-    camera.update(dt, player)
-    -- end
-
-    water.update(dt)
-    smoke.update(dt)
-    fire.update(dt)
     
-    -- crtShader:setTime(love.timer.getTime())
-    -- crtShader:setMousePos(love.mouse.getX(), love.mouse.getY())
 
-    grass.demo.update(dt)
-    enemy.update(dt)
-    portal.update(dt)
+    -- Game world updates (playing, paused, game_over states)
+    if current_state == states.PLAYING or current_state == states.GAME_OVER then
+        world:update(dt)
+
+        if current_state == states.PLAYING then
+            player.update(dt)
+            camera.update(dt, player)
+        end
+        
+        -- Update the new map system
+        map.update(dt)
+        
+        -- Update map editor and hot-reloader
+        map_editor.update(dt)
+        map_hotreloader.update(dt)
+
+        water.update(dt)
+        smoke.update(dt)
+        fire.update(dt)
+        particle_system.update(dt)
+
+        grass.demo.update(dt)
+        enemy.update(dt)
+        portal.update(dt)
+        
+        -- Check for game over condition
+        if player.health <= 0 and current_state == states.PLAYING then
+            game_state.gameOver("Player defeated")
+        end
+    end
 end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
@@ -263,7 +353,10 @@ local restartcount = tonumber(love.restart) or 0
 function resetGame()
     -- Reset player
     player.health = 100
-    player.body:setLinearVelocity(0, 0)
+    player.death_timer = nil  -- Clear death timer
+    if player.body and not player.body:isDestroyed() then
+        player.body:setLinearVelocity(0, 0)
+    end
     
     -- Reset game variables
     var.player_score = 0
@@ -274,21 +367,32 @@ function resetGame()
     -- Reset enemy system
     enemy.reset()
     
-    -- Use new map system to spawn entities and set player position
-    map.spawnMapEntities()
+    print("Game reset completed")
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
-    if var.State == "menu" then
-        local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
-        if nextStateAction == "running" then
-            resetGame()
-            var.State = "game"
-
-        elseif nextStateAction == "exit" then
-            love.event.quit()
+    local current_state = game_state.getCurrentState()
+    local states = game_state.getStates()
+    
+    -- Handle menu states
+    if current_state == states.MAIN_MENU or 
+       current_state == states.CHARACTER_SELECT or 
+       current_state == states.MAP_SELECT or 
+       current_state == states.SETTINGS or 
+       current_state == states.CREDITS then
+        main_menu.handle_mouse(x, y, button, "press")
+        return
+    end
+    
+    
+    -- Handle gameplay input
+    if current_state == states.PLAYING then
+        -- Check if map editor should handle the input first
+        if map_editor.is_enabled() then
+            local handled = map_editor.handle_mouse(x, y, button, true)
+            if handled then return end
         end
-    elseif var.State == "game" or var.State == "running" then
+        
         -- Only handle gameplay clicks when actually in game
         -- Convert mouse position to world coordinates
         local world_x, world_y = camera.screenToWorld(x, y)
@@ -296,16 +400,13 @@ function love.mousepressed(x, y, button, istouch, presses)
 
         local direction = vec2.new(world_x - player_x, world_y - player_y)
         local normalized_direction = vec2.norm(direction)
-        -- print(fire.count)
-        -- if fire.count == 0 then
+        
         if #fire.fireables < fire.count then
             table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
         end
     end
 
     lurker.scan()
-
-    -- love.event.restart(restartcount + 1)
 end
 
 lurker.preswap = function(file)
@@ -317,21 +418,121 @@ end
 local zoomToggle = false;
 
 function love.keypressed(key)
-    if key == "z" then
-        if not zoomToggle then
-            camera.setZoom(2, player)
-        else
-            camera.setZoom(1, player)
+    local current_state = game_state.getCurrentState()
+    local states = game_state.getStates()
+    
+    -- Handle menu navigation
+    if current_state == states.MAIN_MENU or 
+       current_state == states.CHARACTER_SELECT or 
+       current_state == states.MAP_SELECT or 
+       current_state == states.SETTINGS or 
+       current_state == states.CREDITS then
+        main_menu.handle_input(key, "press")
+        return
+    end
+    
+    -- Handle game state controls
+    if key == "escape" then
+        if current_state == states.PLAYING then
+            game_state.pauseGame()
+        elseif current_state == states.PAUSED then
+            game_state.resumeGame()
+        elseif current_state == states.GAME_OVER then
+            game_state.returnToMainMenu()
         end
-
-        zoomToggle = not zoomToggle
+        return
+    elseif key == "r" and current_state == states.GAME_OVER then
+        -- Restart game
+        loading_screen.start_loading(
+            character_manager.get_selected_character(),
+            game_state.getStateData("selected_map") or "level1",
+            function()
+                resetGame()
+            end
+        )
+        game_state.showLoading("Restarting...")
+        return
     end
-    if key == "p" then
-        fire.pierce = not fire.pierce
-        enemy.addEnemy(var.game_width/2,var.game_height/2)
-        -- var.num_enemies  = var.num_enemies  + 1
+    
+    -- Handle in-game controls
+    if current_state == states.PLAYING then
+        -- Check if map editor should handle the key first
+        if map_editor.handle_key(key, true) then
+            return
+        end
+        
+        if key == "z" then
+            if not zoomToggle then
+                camera.setZoom(2, player)
+            else
+                camera.setZoom(1, player)
+            end
+            zoomToggle = not zoomToggle
+        end
+        
+        if key == "p" then
+            fire.pierce = not fire.pierce
+            enemy.addEnemy(var.game_width/2,var.game_height/2)
+        end
+        
+        -- Toggle map editor
+        if key == "e" then
+            map_editor.toggle()
+        end
+        
+        -- Map switching keys for testing
+        if key == "1" then
+            loading_screen.start_loading(
+                character_manager.get_selected_character(),
+                "level1"
+            )
+            game_state.showLoading("Loading Level 1...")
+        elseif key == "2" then
+            loading_screen.start_loading(
+                character_manager.get_selected_character(),
+                "level2"
+            )
+            game_state.showLoading("Loading Level 2...")
+        elseif key == "3" then
+            loading_screen.start_loading(
+                character_manager.get_selected_character(),
+                "level3"
+            )
+            game_state.showLoading("Loading Level 3...")
+        end
+        
+        -- Hot-reloader commands
+        if key == "f5" then
+            map_hotreloader.reload_all()
+        elseif key == "f6" then
+            map_hotreloader.auto_save_current_map()
+        elseif key == "f7" then
+            map_hotreloader.export_for_external_edit("json")
+        elseif key == "f8" then
+            map_hotreloader.create_dev_template("dev_test", "Development Test Map")
+        end
+        
+        -- Debug info
+        if key == "m" then
+            local debug_info = map.getDebugInfo()
+            print("Map Debug Info:")
+            print("  Current map: " .. (debug_info.current_map or "none"))
+            print("  Transition state: " .. debug_info.transition_state)
+            print("  Cached maps: " .. debug_info.memory_usage.cached_maps)
+            print("  Lua memory: " .. string.format("%.2f", debug_info.memory_usage.lua_memory) .. " KB")
+            
+            local hotreload_info = map_hotreloader.get_debug_info()
+            print("Hot-reload Info:")
+            print("  Enabled: " .. tostring(hotreload_info.enabled))
+            print("  Watched files: " .. hotreload_info.watched_file_count)
+            print("  Watch directory: " .. hotreload_info.watch_directory)
+            
+            local state_info = game_state.getDebugInfo()
+            print("Game State Info:")
+            print("  Current state: " .. game_state.getStateDisplayName(current_state))
+            print("  Memory usage: " .. string.format("%.2f", state_info.memory_usage) .. " KB")
+        end
     end
-
 end
 
 function round(x, n)

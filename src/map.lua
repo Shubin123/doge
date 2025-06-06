@@ -1,6 +1,7 @@
 local map = {}
+local map_manager = require("map_manager")
 
--- Map data structure for modular maps
+-- Legacy compatibility layer - redirect to new system
 map.currentMapId = "level1"
 map.mapDefinitions = {}
 map.loadedMaps = {}
@@ -197,6 +198,13 @@ end
 
 -- Add current map tiles to dynamic draw list for proper GI rendering
 function map.addCurrentMapToDrawList()
+    -- Use new map manager system
+    local tiles = map_manager.get_visible_tiles()
+    if #tiles > 0 then
+        return tiles
+    end
+    
+    -- Fallback to legacy system
     local currentMap = map.getCurrentMap()
     if not currentMap then return {} end
     
@@ -206,130 +214,30 @@ end
 
 -- Spawn entities for current map
 function map.spawnMapEntities()
-    local currentMap = map.getCurrentMap()
-    if not currentMap then return end
-    
-    local mapDef = currentMap.definition
-    
-    -- Create shapes if they don't exist
-    if not coin_shape then
-        coin_shape = love.physics.newCircleShape(5)
-    end
-    if not enemy_shape then
-        enemy_shape = love.physics.newCircleShape(10)
-    end
-    
-    -- Clear existing entities
-    for i = #coin_bods, 1, -1 do
-        coin_bods[i]:destroy()
-        table.remove(coin_bods, i)
-    end
-    
-    for i = #enemies_bods, 1, -1 do
-        enemies_bods[i]:destroy()
-        table.remove(enemies_bods, i)
-    end
-    
-    -- Spawn collectibles
-    for _, collectible in ipairs(mapDef.collectibles) do
-        local body = love.physics.newBody(world, collectible.x, collectible.y, "dynamic")
-        table.insert(coin_bods, body)
-        local fixture = love.physics.newFixture(body, coin_shape)
-        fixture:setGroupIndex(69)
-    end
-    
-    -- Spawn enemies
-    for _, enemyData in ipairs(mapDef.enemies) do
-        local body = love.physics.newBody(world, enemyData.x, enemyData.y, "dynamic")
-        table.insert(enemies_bods, body)
-        local fixture = love.physics.newFixture(body, enemy_shape)
-        fixture:setGroupIndex(-777)
-    end
-    
-    -- Set player position
-    if player and player.body then
-        player.body:setPosition(mapDef.playerSpawn.x, mapDef.playerSpawn.y)
-    end
-    
-    -- Update counters
-    var.num_coins = #coin_bods
-    var.num_enemies = #enemies_bods
+    -- Use new map manager system - it handles entity spawning internally
+    -- This function kept for compatibility but actual work is done by map_manager
+    print("Legacy map.spawnMapEntities() called - new system handles this automatically")
 end
 
 function map.load()
-    -- Generate tile data for level1
-    local level1TileData = {}
-    for y = 1, 50 do
-        level1TileData[y] = {}
-        for x = 1, 70 do
-            level1TileData[y][x] = math.random(1,200)
-        end
+    -- Initialize the new map manager system
+    map_manager.initialize()
+    
+    -- Load the first map using the new system
+    local result = map_manager.switch_to_map("level1", function(loaded_map)
+        print("Initial map loaded: " .. loaded_map.id)
+    end)
+    
+    if not result then
+        print("Failed to load initial map, falling back to legacy system")
+        map.loadLegacyMaps()
+    else
+        map.currentMapId = "level1"
     end
-    
-    -- Generate tile data for level2
-    local level2TileData = {}
-    for y = 1, 20 do
-        level2TileData[y] = {}
-        for x = 1, 20 do
-            level2TileData[y][x] = math.random(1,5)
-        end
-    end
-    
-    -- Define example maps
-    map.defineMap("level1", {
-        name = "Grassland Level",
-        tileset = "gfx/TileSet/TX Tileset Grass.png",
-        tileWidth = 16,
-        tileHeight = 16,
-        mapWidth = 70,
-        mapHeight = 50,
-        tileData = level1TileData,
-        worldX = 0,  -- World position of map origin
-        worldY = 0,  -- World position of map origin
-        playerSpawn = {x = 400, y = 300},  -- World coordinates
-        enemies = {
-            {x = 300, y = 200},
-            {x = 500, y = 300},
-            {x = 700, y = 400},
-            {x = 200, y = 500},
-            {x = 600, y = 150}
-        },
-        collectibles = {
-            {x = 250, y = 250},
-            {x = 350, y = 350},
-            {x = 450, y = 450},
-            {x = 550, y = 200},
-            {x = 400, y = 500}
-        }
-    })
-    
-    map.defineMap("level2", {
-        name = "Forest Level", 
-        tileset = "gfx/TileSet/TX Plant.png",
-        tileWidth = 156,
-        tileHeight = 156,
-        mapWidth = 20,
-        mapHeight = 20,
-        tileData = level2TileData,
-        worldX = 1000,  -- Offset this map in world space
-        worldY = 0,
-        playerSpawn = {x = 1200, y = 200},  -- World coordinates
-        enemies = {
-            {x = 400, y = 300},
-            {x = 600, y = 400},
-            {x = 500, y = 500}
-        },
-        collectibles = {
-            {x = 300, y = 300},
-            {x = 500, y = 300},
-            {x = 400, y = 400}
-        }
-    })
-    
-    -- Load the first map
-    map.loadMap("level1")
-    map.currentMapId = "level1"
-    
+end
+
+-- Fallback legacy map loading
+function map.loadLegacyMaps()
     -- Keep legacy maps for compatibility with existing render code but use world coordinates
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     
@@ -362,5 +270,42 @@ end
 -- function map.getMap()
 --     return map.map
 -- end
+
+-- Add new map system interface functions
+function map.update(dt)
+    map_manager.update(dt)
+end
+
+function map.switchToMap(map_id, callback)
+    return map_manager.switch_to_map(map_id, callback)
+end
+
+function map.getCurrentMapObject()
+    return map_manager.get_current_map()
+end
+
+function map.getWorldBounds()
+    return map_manager.get_world_bounds()
+end
+
+function map.isLoading()
+    return map_manager.is_loading()
+end
+
+function map.getTileAtWorldPos(world_x, world_y)
+    return map_manager.get_tile_at_world_pos(world_x, world_y)
+end
+
+function map.setTileAtWorldPos(world_x, world_y, tile_id)
+    return map_manager.set_tile_at_world_pos(world_x, world_y, tile_id)
+end
+
+function map.getDebugInfo()
+    return map_manager.get_debug_info()
+end
+
+function map.cleanup()
+    map_manager.cleanup()
+end
 
 return map

@@ -18,7 +18,7 @@ shader.quality = {
 
 -- Fog of war settings - reduced density for better visibility
 shader.fog_of_war = {
-    enabled = true,
+    enabled = false,
     base_fade_distance = 140,  -- Increased for less dense fog
     space_color = {0.01, 0.01, 0.05},  -- Darker space for more contrast
     space_intensity = 0.25,  -- Reduced intensity for subtle background

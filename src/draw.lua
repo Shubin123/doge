@@ -72,7 +72,9 @@ function draw.mydraw()
     love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
     
     -- Debug info
-    love.graphics.print("State: " .. var.State, 10, 70)
+    local game_state = require("game_state")
+    local current_state = game_state.getCurrentState()
+    love.graphics.print("State: " .. (current_state or "unknown"), 10, 70)
 
     
 end

@@ -40,7 +40,6 @@ var.sprite_width = 100
 }
  var.points = {}
 
- var.State = "menu"
  var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
 
  var.game_width = 800
