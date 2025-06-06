@@ -405,7 +405,7 @@ function renderer.renderSortedDrawList()
         if drawable.shader then
             -- Set shader and parameters
             love.graphics.setShader(drawable.shader)
-            if drawable.shader_params then
+            if drawable.shader_params and drawable.source_object_type == "portal_shader" then
                 drawable.shader:send("time", drawable.shader_params.time)
                 drawable.shader:send("spin_time", drawable.shader_params.spin_time)
                 drawable.shader:send("colour_1", drawable.shader_params.colour_1)

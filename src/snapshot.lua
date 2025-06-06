@@ -146,7 +146,7 @@ function snapshot.apply(game_state)
                 if client_id ~= own_client_id then
                     other_players[client_id] = player_data
                 else
-                    print(player_data.health)
+                    -- print(player_data.health)
                     player.health = player_data.health
                 end
             end

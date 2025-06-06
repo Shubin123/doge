@@ -115,7 +115,9 @@ function love.load()
 
 
     -- Shaders
-    grass.demo.load()
+    grass.public.load()
+
+    --  grass:setGrassArea(320, 398, 165, 37, 2000)
     fire.load()
 
     shader.load()
@@ -160,6 +162,8 @@ function love.draw()
 
     -- Populate and sort dynamic draw list if neccessary
 
+    grass.public.draw()
+    
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
 
@@ -179,14 +183,13 @@ function love.draw()
 
 
 
-    grass.demo.draw()
+    
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
     shader.pass()
 
     smoke.pass()
-
     water.pass()
     crtShader.endCapture()
 
@@ -218,7 +221,7 @@ function love.update(dt)
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
-    grass.demo.update(dt)
+    grass.public.update(dt)
     portal.update(dt)
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)        
