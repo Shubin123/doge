@@ -2,6 +2,7 @@ local player = {}
 player.health = 100
 player.online = {}
 player.online.bodies = {}
+player.online.health = {}
 
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}

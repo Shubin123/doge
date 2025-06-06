@@ -205,9 +205,23 @@ function enemy.collision(fixture_a, fixture_b, contact)
         if (var.multiplayer == 1 or not var.multiplayer) then
         if player and player.body and not_enemy_proj:getGroupIndex() == -1 then
             -- Damage player or trigger player hit logic here
-            print("Player hit by enemy fire! or collided with enemy", var.multiplayer or "local")
-            player.health = player.health - 1
+            -- print("Player hit by enemy fire! or collided with enemy", not_enemy_proj:getBody())
+            -- print(player.online.bodies)
+            local hit_client = false -- for every collision check through client bodies if the collision was made was it then dont hit the player aswell
+            for k,body in pairs(player.online.bodies) do
+            -- print(body == not_enemy_proj:getBody())
+                if body == not_enemy_proj:getBody() then
+            -- player.health = player.health - 1
+                    -- print(k)
+                    -- game_state
+                       player.online.health[k] =  player.online.health[k] - 1
+                    hit_client = true
+                end
 
+            end
+            if not hit_client then
+            player.health = player.health - 1
+            end
             -- You can add player damage logic here
         end
         end

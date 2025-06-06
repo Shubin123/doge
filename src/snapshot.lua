@@ -29,8 +29,15 @@ function snapshot.create()
         
         -- Add all accumulated client player data
         for client_id, player_data in pairs(accumulated_game_state.players) do
+            -- print(client_id, player_data)
             if client_id ~= "client_1" then -- Don't overwrite host data
                 game_state.players[client_id] = player_data
+                local client_idNum = tonumber(string.sub(client_id,#client_id))
+                -- print(client_idNum)
+                
+                game_state.players[client_id].health = player.online.health[client_idNum]
+                -- game_state.players[client_id].health = 69
+                
             end
         end
         
@@ -73,6 +80,8 @@ function snapshot.create()
                 end
             end
         end
+
+        -- print(game_state.players)
         
     else
         -- CLIENT: Create minimal update with player data and fire effects
@@ -82,6 +91,8 @@ function snapshot.create()
             player_data = renderer.local_player_state,
             fire_effects = fire.getNetworkData() -- Clients send their fire effects
         }
+        
+
     end
     
     return game_state
@@ -134,12 +145,28 @@ function snapshot.apply(game_state)
             for client_id, player_data in pairs(game_state.players) do
                 if client_id ~= own_client_id then
                     other_players[client_id] = player_data
+                else
+                    print(player_data.health)
+                    player.health = player_data.health
                 end
             end
             
             renderer.setNetworkedPlayers(other_players)
         end
-        
+
+         if game_state.fire_effects then
+            -- Filter out own fire effects to avoid duplication
+            local other_fires = {}
+            local own_client_prefix = "client_" .. var.multiplayer .. "_"
+            
+            for fire_id, fire_data in pairs(game_state.fire_effects) do
+                if not string.match(fire_id, "^" .. own_client_prefix) then
+                    other_fires[fire_id] = fire_data
+                end
+            end
+            
+            renderer.setNetworkedFireEffects(other_fires)
+        end
         
         if game_state.enemies then
             renderer.setNetworkedEnemies(game_state.enemies)
