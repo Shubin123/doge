@@ -140,19 +140,6 @@ function snapshot.apply(game_state)
             renderer.setNetworkedPlayers(other_players)
         end
         
-        if game_state.fire_effects then
-            -- Filter out own fire effects to avoid duplication
-            local other_fires = {}
-            local own_client_prefix = "client_" .. var.multiplayer .. "_"
-            
-            for fire_id, fire_data in pairs(game_state.fire_effects) do
-                if not string.match(fire_id, "^" .. own_client_prefix) then
-                    other_fires[fire_id] = fire_data
-                end
-            end
-            
-            renderer.setNetworkedFireEffects(other_fires)
-        end
         
         if game_state.enemies then
             renderer.setNetworkedEnemies(game_state.enemies)
