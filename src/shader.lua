@@ -16,15 +16,15 @@ shader.quality = {
     zoom_scaling = true  -- Scale with zoom level
 }
 
--- Fog of war settings
+-- Fog of war settings - reduced density for better visibility
 shader.fog_of_war = {
     enabled = true,
-    base_fade_distance = 80,  -- Base fade distance that scales with zoom
-    space_color = {0.02, 0.02, 0.08},  -- More subtle deep space blue
-    space_intensity = 0.4,  -- More subtle intensity
-    star_density = 0.02,
-    min_fade_distance = 20,  -- Minimum fade distance when zoomed in
-    max_fade_distance = 150  -- Maximum fade distance when zoomed out
+    base_fade_distance = 140,  -- Increased for less dense fog
+    space_color = {0.01, 0.01, 0.05},  -- Darker space for more contrast
+    space_intensity = 0.25,  -- Reduced intensity for subtle background
+    star_density = 0.008,  -- Reduced for smaller, more realistic stars
+    min_fade_distance = 60,  -- Increased minimum for less aggressive fade
+    max_fade_distance = 250  -- Increased maximum for gentler transition
 }
 
 function shader.load()
