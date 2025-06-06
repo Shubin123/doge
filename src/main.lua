@@ -130,10 +130,8 @@ function love.draw()
     love.graphics.push()
     
     shader.prepass()
-    
-    
-    
     camera.apply()
+    
     love.graphics.setColor(1, 1, 1, 0.35)
     
     map.map:draw(game_area_x, game_area_y, 1)
@@ -282,7 +280,6 @@ function love.keypressed(key)
     if key == "z" then
         if not zoomToggle then
             camera.setZoom(2)
-            -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
         end
