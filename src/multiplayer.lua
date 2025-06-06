@@ -199,9 +199,7 @@ function multiplayer:_handleMessage(data, peer, role)
     -- Decompress the data, then decode JSON
     local decompressed_data = love.data.decompress("string", "zlib", data)
     local game_state = json.decode(decompressed_data)
-    -- for k,v in pairs(game_state) do print(k,v) end
-    if not game_state then return end
-    -- print(game_state.client_id)
+    
     if role == "client" then
         -- print("")
         -- print(data)
