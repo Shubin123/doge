@@ -332,7 +332,7 @@ function multiplayer.load()
     mp = multiplayer.new({
         port = 6750,
         max_peers = 8,
-        timeout = 1000 --IMPORANT !!!
+        timeout = 10 --IMPORANT !!!
     })
 
 
