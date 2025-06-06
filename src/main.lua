@@ -280,7 +280,7 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "z" then
         if not zoomToggle then
-            camera.setZoom(0.3)
+            camera.setZoom(2)
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
