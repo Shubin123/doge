@@ -1,5 +1,5 @@
 local sprite = {}
-sprite.__index = Player
+sprite.__index = sprite
 
 function sprite:new(spriteImg, numRows, numColumns)
     local self          = setmetatable({}, sprite)

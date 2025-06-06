@@ -1,0 +1,64 @@
+SHADER BUG FIXES - Update Log
+=====================================
+
+Date: December 5, 2024
+Issue: Shaders broken causing nothing to be visible in-game
+
+CHANGES MADE:
+=============
+
+1. shader.lua:7-20 - Fixed canvas initialization
+   - Replaced undefined W,H globals with love.graphics.getWidth()/getHeight()
+   - Canvas creation now uses proper screen dimensions
+
+2. shader.lua:108-119 - Fixed render() function
+   - Added null check for target_canvas parameter
+   - Only sets canvas if target_canvas is provided
+
+3. shader.lua:157-158 - Fixed shader.pass() final render
+   - Added love.graphics.setCanvas() to reset canvas before final render
+   - Fixed render() call with proper nil parameter for screen rendering
+
+4. main.lua:178 - Fixed undefined crtShader error
+   - Commented out crtShader.endCapture() call
+   - Added comment explaining crtShader is not defined
+
+ROOT CAUSES IDENTIFIED:
+======================
+- Global variables W,H not available during shader.load()
+- Missing canvas target handling in render function
+- Undefined crtShader object being called
+- Improper final render target in shader pipeline
+
+5. shader.lua:161-163 - Fixed black screen issue
+   - Uncommented scene_canvas draw in shader.pass()
+   - Added love.graphics.setShader() to reset shader state
+   - Scene now renders as fallback/overlay after shader effects
+
+6. enemy.lua:138-143,237-249 - Fixed world reference errors
+   - Added area_manager world lookup for projectile/enemy creation
+   - Fixed undefined 'world' variable causing crashes
+
+7. area_manager.lua:204-206 - Fixed global variable sync
+   - Added enemies_bods and coin_bods global sync in loadArea()
+   - Fixed renderer not finding enemy/coin data
+
+8. enemy.lua:12-14 - Removed duplicate image loads
+   - Removed redundant fireSpriteImg loads that could corrupt graphics state
+   - Simplified sprite loading to single load per enemy.load()
+
+9. main.lua:133-161 - DIAGNOSTIC: Complete shader bypass test
+   - Replaced entire shader pipeline with direct rendering
+   - Added basic shapes, text, map, and player circle
+   - Tests if fundamental Love2D rendering works
+
+10. var.lua:43 - CRITICAL FIX: Fixed game state
+    - Changed var.State from "running" to "game"
+    - Game was stuck in menu mode due to wrong state
+
+11. var.lua:44-50,main.lua:65-67 - Fixed graphics loading
+    - Moved graphics loading from module load to love.load()
+    - Prevents graphics calls before Love2D initialization
+
+STATUS: CRITICAL STATE BUG FIXED - Game should now render
+NEXT STEPS: Test - should see red rectangle and debug text

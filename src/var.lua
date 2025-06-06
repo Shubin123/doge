@@ -14,7 +14,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 100
+var.num_enemies = 1
 var.enemies_bods = {}
 
 var.sprite_height = 100
@@ -40,17 +40,13 @@ var.sprite_width = 100
 }
  var.points = {}
 
- var.State = "running"
- var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
+ var.State = "game"  -- Changed from "running" to "game"
+ var.cursorImage = nil  -- Will be loaded in love.load()
 
  var.game_width = 800
  var.game_height = 800
  var.header_height = 50
 
-var.nullquad = love.graphics.newQuad(
-            0, 0,                        -- x, y position in the texture (top-left corner)
-            0, 0, -- width, height of the quad
-            0, 0  -- total texture width, height
-        )
+var.nullquad = nil  -- Will be created in love.load()
 
 return var

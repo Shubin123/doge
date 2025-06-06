@@ -1,10 +1,12 @@
 math.randomseed(os.time())
 
+local area_manager = require("area_manager")
+
 menu = require("menu")
 mymath = require("myMath")
 effects = require("effects")
 var = require("var")
-map = require("map")
+local map = require("map")
 player = require("player")
 mydraw = require("draw")
 shader = require("shader")
@@ -26,7 +28,6 @@ renderer = require("renderer")
 local lurker = require("lurker")
 
 -- Game variables
-world = 0
 local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
@@ -45,47 +46,60 @@ game_area_y = var.header_height
 -- local lsample = 40 -- 10-64
 
 function love.load()
+    print("LOVE.LOAD STARTING")
+    print("var.State at start:", var.State or "nil")
+    
     -- love.mouse.setVisible(false)
 
     -- Window setup
+    print("Setting window mode:", var.screen_width, var.screen_height)
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
+    print("Window setup success:", success)
 
     -- Load fonts
+    print("Loading fonts...")
     statsFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
     gameFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
+    
+    -- Load graphics that were moved from var.lua
+    print("Loading cursor and nullquad...")
+    var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
+    var.nullquad = love.graphics.newQuad(0, 0, 0, 0, 0, 0)
 
     -- Initialize the menu
     menu.load(var.ScreenInfo)
 
-    -- Physics setup
-    world = love.physics.newWorld(0, 0)
-    world:setCallbacks(beginContact, endContact, preSolve, postSolve)
+    -- Physics setup is now handled by area_manager
 
-    fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
-        var.game_height + 50, 200,
-        var.game_height + 50)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    -- fence_body = love.physics.newBody(nil, 0, 0, "static") -- Body created without a world initially
+    -- fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
+    --     var.game_height + 50, 200,
+    --     var.game_height + 50)
+    -- fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
-    createArches()
-    -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
+    -- createArches() -- Arches also need to be handled per area if they are physical objects
 
     -- Load map and player
     map.load()
-    map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
+    -- map_a and map_b are now handled by area_manager and renderer
 
+    -- Initial area load
+    area_manager.loadArea("overworld")
+    if player and player.body then
+        print("Main.lua love.load: Player body type after load: " .. player.body:getType())
+    else
+        print("Main.lua love.load: Player or player.body not available after area_manager.loadArea")
+    end
 
-    player.load(world)
-    enemy.load()
-
+    enemy.load() -- Enemy loading might need to be per area as well
 
     -- Coins and enemies
-    coin_shape = love.physics.newCircleShape(5)
-    createCoins(var.num_coins)
+    -- Coins and enemies are now created within area load functions
+    -- coin_shape = love.physics.newCircleShape(5)
+    -- createCoins(var.num_coins)
 
-    enemy_shape = love.physics.newCircleShape(10)
-    createEnemies(var.num_enemies)
+    -- enemy_shape = love.physics.newCircleShape(10)
+    -- createEnemies(var.num_enemies)
 
     -- Graphics
     coin_image = love.graphics.newImage("gfx/coin.png")
@@ -121,92 +135,28 @@ local game_area_y = var.header_height
 
 
 function love.draw()
+    print("LOVE.DRAW CALLED - State:", var.State or "nil")
+    
     if var.State == "menu" then
+        print("Drawing menu")
         menu.draw()
         return
     end
     
-
-    love.graphics.push()
+    print("Drawing game - bypassing shaders")
     
-    shader.prepass()
+    -- Minimal test without camera or push/pop
+    love.graphics.setColor(1, 0, 0, 1) -- Red
+    love.graphics.rectangle("fill", 100, 100, 200, 200)
     
+    love.graphics.setColor(1, 1, 1, 1) -- White
+    love.graphics.print("BASIC TEST - NO CAMERA", 10, 10)
+    love.graphics.print("State: " .. tostring(var.State), 10, 30)
     
-    
-    camera.apply()
-    love.graphics.setColor(1, 1, 1, 0.35)
-    
-    map.map:draw(game_area_x, game_area_y, 1)
-    love.graphics.setColor(1, 1, 1, 1)
-
-    -- crtShader:beginCapture()
-    -- portal.draw()
-
-    -- Populate and sort dynamic draw list if neccessary
-    renderer.populateDynamicDrawList()
-    table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    -- Render sorted entities
-    renderer.renderSortedDrawList()
-    
-    
-
-    grass.demo.draw()
-    
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map3:draw(100, game_area_y, 1)
-    -- map.map4:draw(100, game_area_y, 0.8)
-
-    -- else
-    --     map.map3:draw(100, game_area_y, 1)
-    --     map.map4:draw(100, game_area_y, 0.8)
-    --     player.draw()
-
-    -- end
-
-
-
-    love.graphics.pop()
-    -- order is IMPORTANT HERE shader-> smoke -> water
-    shader.pass()
-    
-    smoke.pass()
-    
-    water.pass()
-    crtShader.endCapture()        
-    
-        
-
-        
-    mydraw.mydraw() -- ui last
+    print("Basic shapes drawn")
 
 end
 
-function love.update(dt)
-    if var.State == "menu" then
-        menu.update(dt)
-        -- return
-    elseif State == "running" then
-        var.State = "game"
-    end
-
-    world:update(dt)
-
-    -- if State == "game" then
-    player.update(dt)
-    camera.update_framerate_independent(dt, player)
-    -- end
-
-    water.update(dt)
-    smoke.update(dt)
-    fire.update(dt)
-    
-    -- crtShader:setTime(love.timer.getTime())
-    -- crtShader:setMousePos(love.mouse.getX(), love.mouse.getY())
-
-    grass.demo.update(dt)
-    enemy.update(dt)
-    portal.update(dt)
-end
 
 function checkBounds(cx1, cy1, cx2, cy2, x, y)
     -- print(cx1,cy1,cx2,cy2,x,y)
@@ -322,27 +272,6 @@ function quad_in_out(a, b, t)
     end
 end
 
-function createCoins(n)
-    for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
-            "dynamic")
-        table.insert(coin_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, coin_shape)
-        _fixture:setGroupIndex(69)
-    end
-end
-
-function createEnemies(n)
-    for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
-            "dynamic")
-        table.insert(enemies_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, enemy_shape)
-        _fixture:setGroupIndex(-777)
-    end
-end
 
 function createArches()
     arch_shape = love.physics.newRectangleShape(20, 30)
@@ -392,7 +321,8 @@ function createAnimation(image, width, height, duration, numFrames)
 end
 
 function beginContact(fixture_a, fixture_b, contact)
-    -- player.collision(fixture_a,fixture_b,contact)
+    print("beginContact CALLED: Fixture A Group: " .. tostring(fixture_a:getGroupIndex()) .. ", Fixture B Group: " .. tostring(fixture_b:getGroupIndex())) -- DEBUG
+    player.collision(fixture_a,fixture_b,contact) -- Make sure player's collision logic is called
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     
@@ -417,4 +347,89 @@ function preSolve(a, b, contact)
 end
 
 function postSolve(a, b, contact, normalimpulse, tangentimpulse)
+end
+
+-- Function to check if the player is touching a portal
+function checkPortalCollision()
+  if not player or not player.body then return end -- Guard against player not being loaded
+  local player_x, player_y = player.getPosition()
+  local current_area = area_manager.getCurrentArea()
+
+  -- print("checkPortalCollision: Player at (" .. string.format("%.2f", player_x) .. ", " .. string.format("%.2f", player_y) .. ")") -- Optional: very verbose
+
+  if current_area and current_area.transition_points then
+    -- print("checkPortalCollision: Current area: " .. current_area.area_id .. " has " .. #current_area.transition_points .. " transition point(s).")
+    for i, portal_data in ipairs(current_area.transition_points) do
+      local portal_x, portal_y = portal_data.x, portal_data.y
+      local distance = math.sqrt((player_x - portal_x)^2 + (player_y - portal_y)^2)
+      
+      -- More detailed logging for each portal check, can be commented out if too verbose
+      -- print("checkPortalCollision: Checking portal " .. i .. " at (" .. portal_x .. ", " .. portal_y .. ") to " .. portal_data.target_area_id .. ". Distance: " .. string.format("%.2f", distance))
+
+      -- Check if the player is within a certain range of the portal
+      if distance < 20 then -- Increased threshold slightly for easier activation
+        print("checkPortalCollision: Player is NEAR portal " .. i .. " to " .. portal_data.target_area_id .. "! Distance: " .. string.format("%.2f", distance) .. ". Triggering transition.")
+        area_manager.transitionArea(portal_data.target_area_id, portal_data.target_x, portal_data.target_y)
+        break -- Exit the loop after transitioning
+      end
+    end
+  else
+    if not current_area then
+      print("checkPortalCollision: No current_area defined.")
+    elseif not current_area.transition_points or #current_area.transition_points == 0 then
+      -- print("checkPortalCollision: Current area " .. (current_area.area_id or "UNKNOWN") .. " has no transition points.") -- Optional: can be verbose
+    end
+  end
+end
+
+-- Call checkPortalCollision in the love.update function
+function love.update(dt)
+  if var.State == "menu" then
+    menu.update(dt)
+    -- return
+  elseif State == "running" then
+    var.State = "game"
+  end
+
+  -- Update the current area's physics world
+  local current_area = area_manager.getCurrentArea()
+  -- print("Main.lua love.update: dt = " .. tostring(dt)) -- Commented out for less verbose logging
+
+  if current_area and current_area.physics_world then
+      -- if player and player.body then -- Commented out block for less verbose logging
+          -- local pre_px, pre_py = player.getPosition()
+          -- print("Main.lua love.update: Player pos BEFORE world:update(): " .. pre_px .. ", " .. pre_py .. " (World: " .. tostring(current_area.physics_world) .. ")")
+      -- end
+
+      current_area.physics_world:update(dt)
+
+      -- if player and player.body then -- Commented out block for less verbose logging
+          -- local post_px, post_py = player.getPosition()
+          -- print("Main.lua love.update: Player pos AFTER world:update(): " .. post_px .. ", " .. post_py)
+      -- end
+  else
+      if not current_area then
+          print("Main.lua love.update: No current_area.") -- This is important, keep it
+      elseif not current_area.physics_world then
+          print("Main.lua love.update: current_area has no physics_world: " .. current_area.area_id) -- This is important, keep it
+      end
+  end
+
+  -- if State == "game" then
+  player.update(dt) -- player.update logs are already commented out
+  camera.update_framerate_independent(dt, player)
+  -- end
+
+  water.update(dt)
+  smoke.update(dt)
+  fire.update(dt)
+  
+  -- crtShader:setTime(love.timer.getTime())
+  -- crtShader:setMousePos(love.mouse.getX(), love.mouse.getY())
+
+  grass.demo.update(dt)
+  enemy.update(dt)
+  portal.update(dt)
+
+  checkPortalCollision() -- Add this line to call the function
 end

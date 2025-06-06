@@ -130,4 +130,7 @@ end
 --     return map.map
 -- end
 
+map.newTiles = newTiles
+map.createMap = createMap
+
 return map

@@ -9,24 +9,19 @@ enemy.detection_range = 300  -- pixels
 enemy.projectile_speed = 400
 enemy_projectile_bodies = {}
 
--- Reuse the same fire sprite from the fire module
-local function getFireSprite()
-    -- if sprite.spriteImg then
-    --     return spriteImg
-    -- else
-    --     return love.graphics.newImage('gfx/firelowres.png')
-    -- end
-     return love.graphics.newImage('gfx/firelowres.png')
-end
-
 function enemy.load()
-    -- local fireImg = getFireSprite()
-    
-    -- Create particle system for enemy projectiles (different color/settings
-    Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
-    print(fireSpriteImg)
+    -- Load the fire sprite image once
+    local fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
+
+    -- Create a sprite instance
+    local fireSpriteInstance = sprite:new(fireSpriteImg, 8, 8)
+
+    -- Construct quads using the sprite instance
+    local Quads = fireSpriteInstance:constructsprite(fireSpriteImg, 8, 8)
+
+    -- Create particle system for enemy projectiles (different color/settings)
     enemy.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 200)
-    
+
     -- ENEMY PROJECTILE CONFIGURATION (different from player fire)
     enemy.particleSystem:setParticleLifetime(0.8, 1.5)
     enemy.particleSystem:setEmissionRate(12)
@@ -35,14 +30,15 @@ function enemy.load()
     enemy.particleSystem:setSpeed(10, 30)
     enemy.particleSystem:setLinearDamping(0.2)
     enemy.particleSystem:setSpin(-0.5, 0.5)
-    enemy.particleSystem:setColors(255, 100, 50, 255, 255, 50, 0, 0.1)  -- Orange/red fire
+    enemy.particleSystem:setColors(255, 100, 50, 255, 255, 50, 0, 25)  -- Orange/red fire, corrected alpha
     if Quads then
         enemy.particleSystem:setQuads(Quads)
     end
     enemy.particleSystem:setRotation(0, 2 * 3.14)
-    enemy.particleSystem:setOffset(sprite:getTileSize())
+    -- Use the instance to get tile size
+    enemy.particleSystem:setOffset(fireSpriteInstance:getTileSize())
     enemy.particleSystem:setInsertMode('bottom')
-    
+
     -- Initialize fire times for existing enemies
     for i = 1, #enemies_bods do
         enemy.last_fire_times[i] = 0
@@ -129,7 +125,12 @@ function enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)
     }
     
     -- Create physics body for projectile
-    local proj_body = love.physics.newBody(world, enemy_x, enemy_y, "dynamic")
+    local area_manager = require("area_manager")
+    local current_area = area_manager.getCurrentArea()
+    if not current_area or not current_area.physics_world then
+        return -- No valid world to create projectile in
+    end
+    local proj_body = love.physics.newBody(current_area.physics_world, enemy_x, enemy_y, "dynamic")
     local proj_fixture = love.physics.newFixture(proj_body, love.physics.newCircleShape(15))
     proj_fixture:setGroupIndex(-777)  -- Different group from player fire (-1)
     
@@ -225,10 +226,16 @@ end
 -- Helper function to spawn a new enemy on the map
 function enemy.addEnemy(x, y)
     -- Create new enemy physics body
-    local enemy_body = love.physics.newBody(world, x, y, "dynamic")
+    local area_manager = require("area_manager")
+    local current_area = area_manager.getCurrentArea()
+    if not current_area or not current_area.physics_world then
+        return nil, nil -- No valid world to create enemy in
+    end
+    local enemy_body = love.physics.newBody(current_area.physics_world, x, y, "dynamic")
     local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
     enemy_fixture:setGroupIndex(-777)
-    -- Add to enemies_bods table
+    -- Add to both area's enemies_bods and global enemies_bods
+    table.insert(current_area.enemies_bods, enemy_body)
     table.insert(enemies_bods, enemy_body)
     local enemy_index = #enemies_bods
     
@@ -241,6 +248,20 @@ end
 -- Helper function to remove enemy data (call when enemy dies)
 function enemy.removeEnemy(enemy_index)
     enemy.last_fire_times[enemy_index] = nil
+end
+
+function enemy.unload()
+    print("Enemy: Unloading enemy objects and physics bodies.")
+    -- Destroy all enemy physics bodies
+    for i = #enemies_bods, 1, -1 do
+        if enemies_bods[i] and enemies_bods[i]:isValid() then
+            enemies_bods[i]:destroy()
+        end
+        table.remove(enemies_bods, i)
+    end
+    enemies_bods = {} -- Ensure the table is empty
+    enemy.last_fire_times = {} -- Clear fire times
+    print("Enemy: Unloading complete.")
 end
 
 return enemy

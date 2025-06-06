@@ -1,19 +1,23 @@
 shader = {}
 
-shader.distance = 30
-shader.sample = 40
+shader.distance = 40
+shader.sample = 16
 
 function shader.load()
+    -- Get screen dimensions
+    local screen_w = love.graphics.getWidth()
+    local screen_h = love.graphics.getHeight()
+    
     -- Create canvases with specific formats
     -- print("shader width", width)
-    scene_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
+    scene_canvas = love.graphics.newCanvas(screen_w, screen_h, { format = "rgba8" })
 
     -- JFA needs two canvases for ping-pong, RG for UV
-    jfa_canvas1 = love.graphics.newCanvas(W, H, { format = "rg16f" })
-    jfa_canvas2 = love.graphics.newCanvas(W, H, { format = "rg16f" })
+    jfa_canvas1 = love.graphics.newCanvas(screen_w, screen_h, { format = "rg16f" })
+    jfa_canvas2 = love.graphics.newCanvas(screen_w, screen_h, { format = "rg16f" })
 
     -- Distance field canvas, R for distance
-    df_canvas = love.graphics.newCanvas(W, H, { format = "r16f" })
+    df_canvas = love.graphics.newCanvas(screen_w, screen_h, { format = "r16f" })
 
     -- Return all visible surface as their UV coords
     seed_shader = love.graphics.newShader([[
@@ -102,9 +106,10 @@ function shader.load()
 end
 
 function render(in_canvas, shader, target_canvas)
-    
-    love.graphics.setCanvas(target_canvas)
-    love.graphics.clear(0, 0, 0, 0)
+    if target_canvas then
+        love.graphics.setCanvas(target_canvas)
+        love.graphics.clear(0, 0, 0, 0)
+    end
     -- love.graphics.clear(255,255,255,0.1,1,1)
     love.graphics.setShader(shader)
     
@@ -150,11 +155,12 @@ function shader.pass()
     render(jfa_canvas1, df_shader, df_canvas)
 
     -- Global illumination pass
-    render(df_canvas, gi_shader)
+    love.graphics.setCanvas()
+    render(df_canvas, gi_shader, nil)
     
-    --if water / smoke doesnt get drawn then these last two calls are necessary
-    -- love.graphics.setShader() 
-    -- love.graphics.draw(scene_canvas)
+    -- Always draw the original scene as fallback/overlay
+    love.graphics.setShader() 
+    love.graphics.draw(scene_canvas)
 
 end
 

@@ -1,5 +1,6 @@
 local renderer = {}
 -- Dynamic draw list for Y-sorting
+local area_manager = require("area_manager")
 dynamic_draw_list = {}
 
 -- Sorting function for Y-axis rendering
@@ -10,8 +11,21 @@ flipQuads = true
 -- Function to populate dynamic draw list
 function renderer.populateDynamicDrawList()
     -- Clear the list
-    dynamic_draw_list = { unpack(map_a, 1, #map_a) }
-    rebuildArray(dynamic_draw_list, map_b)
+    dynamic_draw_list = {}
+
+    -- Get the current area
+    local current_area = area_manager.getCurrentArea()
+
+    -- Add map layers from the current area
+    if current_area and current_area.map_layers then
+        for _, map_layer in ipairs(current_area.map_layers) do
+            -- Assuming addMapToDynamicDrawList takes map data and returns drawables
+            -- Need to determine appropriate x, y, scale, and base_sort_y for each layer
+            -- For now, using placeholder values or assuming map data includes positioning
+            local map_drawables = addMapToDynamicDrawList(map_layer, 100, var.header_height, 1, 200) -- Adjust parameters as needed
+            rebuildArray(dynamic_draw_list, map_drawables)
+        end
+    end
 
     -- Player drawable
     local px, py = player.body:getX(), player.body:getY()
@@ -35,20 +49,26 @@ function renderer.populateDynamicDrawList()
     })
     
     -- Portal shader drawable (positioned at specific location)
-    table.insert(dynamic_draw_list, {
-        sort_y = 370, -- Adjust depth as needed
-        shader = portal.SHADERS["portal"],
-        shader_params = portal.params,
-        x = 236,
-        y = 190,
-        width = 35,
-        height = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "alpha" },
-        source_object_type = "portal_shader"
-    })
+    -- Need to get portal positions from the current area's transition_points
+    if current_area and current_area.transition_points then
+        for _, portal_data in ipairs(current_area.transition_points) do
+            table.insert(dynamic_draw_list, {
+                sort_y = portal_data.y + 180, -- Adjust depth as needed
+                shader = portal.SHADERS["portal"],
+                shader_params = portal.params, -- Assuming portal.params is globally accessible or managed
+                x = portal_data.x,
+                y = portal_data.y,
+                width = 35, -- Assuming portal size
+                height = 50, -- Assuming portal size
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" },
+                source_object_type = "portal_shader"
+            })
+        end
+    end
     
     -- Enemies drawables
+    -- Assuming enemies_bods is now populated by area_manager.loadArea
     for i = 1, #enemies_bods do
         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
         local enemy_sort_y = ey + (enemy_image:getHeight() * 0.1) / 2
@@ -71,6 +91,7 @@ function renderer.populateDynamicDrawList()
     end
 
     -- Coins drawables
+    -- Assuming coin_bods is now populated by area_manager.loadArea
     for i = 1, #coin_bods do
         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
         local coin_sort_y = cy + (coin_image:getHeight() * 0.5) / 2
@@ -93,8 +114,11 @@ function renderer.populateDynamicDrawList()
     end
 
     -- Fire effects drawables
-    fire.populate()
-    enemy.populate()
+    -- Assuming fire bodies are now populated by area_manager.loadArea
+    -- Need to iterate through fire bodies and add drawables
+    -- This part needs to be implemented based on how fire effects are drawn
+    -- For now, leaving this section as a placeholder or using existing fire drawing logic if it's separate
+    -- The previous fire.populate call is removed as it's in area_manager
 end
 
 -- Updated render function to handle shaders

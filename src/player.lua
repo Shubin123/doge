@@ -1,3 +1,4 @@
+local area_manager = require("area_manager")
 local player = {}
 player.health = 100
 
@@ -31,21 +32,40 @@ function newAnimation(image, width, height, duration, numFrames)
     return animation
 end
 
-function player.load(world)
-    player.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")
+function player.load(world, start_x, start_y)
+    -- Destroy existing body if it exists
+    if player.body then
+        player.body:destroy()
+        player.body = nil
+    end
+    player.body = love.physics.newBody(world, start_x, start_y, "dynamic")
+    player.body:setAwake(true) -- Ensure the body is awake immediately after creation
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.fixture:setGroupIndex(-1)
     player.character = love.graphics.newImage("gfx/doge.png")
     player.width, player.height = player.character:getDimensions()
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
-    
+
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
     player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/jump.png"), 64, 65, 2, 10)
 
+    -- Reset player state and velocity
+    player.body:setLinearVelocity(0, 0)
+    player.isDodging = false
+    player.dodgeTimer = 0
+    player.dodgeCooldownTimer = 0
+
+    print("Player load: Loaded at: " .. start_x .. ", " .. start_y .. " in world: " .. tostring(world) .. ". Initial Body Pos: " .. player.body:getX() .. ", " .. player.body:getY())
+    print("Player load: Body active: " .. tostring(player.body:isActive()) .. ", Awake: " .. tostring(player.body:isAwake()))
 end
 
 function player.update(dt)
+    if not player.body then
+        -- print("Player update start: NO BODY") -- Commented out for less verbose logging
+        return
+    end
+    -- print("Player update start: Pos: " .. player.body:getX() .. ", " .. player.body:getY() .. " Vel: " .. player.body:getLinearVelocity() .. " Active: " .. tostring(player.body:isActive()) .. " Awake: " .. tostring(player.body:isAwake())) -- Commented out
     if player.health <= 0 then
         var.State = "menu"
     end
@@ -119,80 +139,83 @@ function player.update(dt)
     
     -- Get current velocity
     local vx, vy = player.body:getLinearVelocity()
-    
+
     -- Track if keys are pressed for this frame
     local keyPressed = false
-    
+
     -- Calculate input direction
     local inputX, inputY = 0, 0
-    
+
     if love.keyboard.isDown("a") then
         inputX = inputX - 1
         keyPressed = true
     end
-    
+
     if love.keyboard.isDown("d") then
         inputX = inputX + 1
         keyPressed = true
     end
-    
+
     if love.keyboard.isDown("w") then
         inputY = inputY - 1
         keyPressed = true
     end
-    
+
     if love.keyboard.isDown("s") then
         inputY = inputY + 1
         keyPressed = true
     end
-    
+
     -- Normalize diagonal movement to maintain consistent speed
     if inputX ~= 0 and inputY ~= 0 then
         local length = math.sqrt(inputX * inputX + inputY * inputY)
         inputX = inputX / length
         inputY = inputY / length
     end
-    
+
     -- Apply acceleration in the input direction
     local targetVX = inputX * maxSpeed
     local targetVY = inputY * maxSpeed
-    
+
     -- Smoothly interpolate toward target velocity
     local newVX, newVY
-    
+
+    local lerpFactor = math.min(dt * acceleration / maxSpeed, 1) -- Factor for smooth acceleration
+
     if keyPressed then
         -- When keys are pressed, accelerate toward target velocity
-        newVX = vx + (targetVX - vx) * math.min(dt * acceleration / maxSpeed, 1)
-        newVY = vy + (targetVY - vy) * math.min(dt * acceleration / maxSpeed, 1)
+        newVX = vx + (targetVX - vx) * lerpFactor
+        newVY = vy + (targetVY - vy) * lerpFactor
     else
         -- When no keys are pressed, apply friction
-        newVX = vx * friction
-        newVY = vy * friction
-        
+        local frictionFactor = 0.9 -- Adjusted friction for smoother deceleration
+        newVX = vx * frictionFactor
+        newVY = vy * frictionFactor
+
         -- Stop completely if moving very slowly
-        if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
+        if math.abs(newVX) < 1 and math.abs(newVY) < 1 then -- Lowered threshold for stopping
             newVX, newVY = 0, 0
         end
     end
-    
+
     -- Apply the calculated velocity
     player.body:setLinearVelocity(newVX, newVY)
-    
+
     -- Update animation
     player.animation.currentTime = player.animation.currentTime + dt
-    
+
     if player.animation.currentTime >= player.animation.duration then
         player.animation.currentTime = player.animation.currentTime - player.animation.duration
     end
-    
+
     -- Update facing direction based on movement
     if newVX ~= 0 or newVY ~= 0 then
         -- Only update direction when actually moving
         local moveMagnitude = math.sqrt(newVX * newVX + newVY * newVY)
-        if moveMagnitude > 10 then
+        if moveMagnitude > 1 then -- Lowered threshold for updating direction
             -- Calculate direction angle
             player.direction = math.atan2(newVY, newVX)
-            
+
             -- Determine animation based on movement direction
             if math.abs(newVX) > math.abs(newVY) then
                 if newVX > 0 then
@@ -212,6 +235,9 @@ function player.update(dt)
         -- Set idle animation when not moving
         player.currentAnimation = "idle"
     end
+    -- Temporary logging for debugging movement
+    local current_vx, current_vy = player.body:getLinearVelocity()
+    -- print("Player update: Velocity = (" .. current_vx .. ", " .. current_vy .. "), Input = (" .. inputX .. ", " .. inputY .. "), isDodging = " .. tostring(player.isDodging)) -- Commented out for less verbose logging
 end
 
 function player.draw()
@@ -225,31 +251,54 @@ function player.collision(fixture_a,fixture_b,contact)
     local body_a = fixture_a:getBody()
     local body_b = fixture_b:getBody()
 
-    local not_player -- either enemy or coin for now
+    local other_body
+    local other_fixture
     if body_a == player.body then
-        not_player = body_b
+        other_body = body_b
+        other_fixture = fixture_b
     elseif body_b == player.body then
-        not_player = body_a
+        other_body = body_a
+        other_fixture = fixture_a
     else
+        -- This collision doesn't involve the player, so ignore it here.
+        -- print("player.collision: Neither body is player. Body A type: " .. body_a:getType() .. ", Body B type: " .. body_b:getType())
         return
     end
-    -- print(fixture_a:getGroupIndex(),fixture_b:getGroupIndex())
-    
-    -- print(fixture_a:getMask(),fixture_b:getMask())
-    -- print(fixture_a:getCategory(),fixture_b:getCategory())
-    
 
-    
-    if checkDestroy(coin_bods, not_player) then
-        var.player_score = var.player_score + 1
-        var.num_coins = var.num_coins -1
-        
-    elseif  checkDestroy(enemies_bods, not_player) then
-        player.health = player.health - 1
-        -- var.num_enemies = var.num_enemies - 1
-     
-     end
+    local current_area = area_manager.getCurrentArea()
+    if not current_area then
+        print("player.collision: CRITICAL - No current_area found!")
+        return
+    end
 
+    local other_group_idx = other_fixture:getGroupIndex()
+    print("player.collision: Player (Group " .. fixture_a:getGroupIndex() .. ") collided with Other (Group " .. other_group_idx .. "). Other body type: " .. other_body:getType())
+
+    -- Check against current area's coins
+    if current_area.coin_bods and #current_area.coin_bods > 0 then
+        if checkDestroy(current_area.coin_bods, other_body) then
+            print("player.collision: Destroyed a coin from current area.")
+            var.player_score = var.player_score + 1
+            -- Note: var.num_coins might be desynced if not managed carefully with area transitions.
+            -- For now, focusing on collision.
+            return -- Assuming coin collision means no other type of collision for this event
+        end
+    end
+
+    -- Check against current area's enemies
+    if current_area.enemies_bods and #current_area.enemies_bods > 0 then
+        if checkDestroy(current_area.enemies_bods, other_body) then
+            print("player.collision: Collided with an enemy from current area.")
+            player.health = player.health - 1
+            -- var.num_enemies might also be desynced.
+            return -- Assuming enemy collision means no other type of collision
+        end
+    end
+    
+    -- If it's not a coin or an enemy from the current area, it might be a wall or other static object.
+    -- Box2D should handle the physical collision response (stopping) by default for dynamic vs static.
+    -- If player is still passing through walls, the issue might be elsewhere (e.g. fixture properties, world updates).
+    print("player.collision: Collision with non-coin/enemy object. Type: " .. other_body:getType() .. ", Group: " .. other_group_idx .. ". Default Box2D response should occur.")
 
 end
 
@@ -259,6 +308,23 @@ end
 
 function player.getAnimation()
     return player.animation
+end
+
+function player.moveTo(x, y)
+  if player.body then
+    player.body:setPosition(x, y)
+    print("Player moveTo: Moved to: " .. x .. ", " .. y .. ". Body Active: " .. tostring(player.body:isActive()) .. ", Awake: " .. tostring(player.body:isAwake()))
+  else
+    print("Player moveTo: Attempted to move, but NO BODY.")
+  end
+end
+
+function player.unload()
+    if player.body then
+        print("Player unload: Destroying body. Current Pos: " .. player.body:getX() .. ", " .. player.body:getY() .. " Active: " .. tostring(player.body:isActive()))
+        player.body:destroy()
+        player.body = nil
+    end
 end
 
 return player
