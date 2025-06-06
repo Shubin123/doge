@@ -24,7 +24,6 @@ function enemy.load()
     
     -- Create particle system for enemy projectiles (different color/settings
     Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
-    print(fireSpriteImg)
     enemy.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 200)
     
     -- ENEMY PROJECTILE CONFIGURATION (different from player fire)
@@ -178,7 +177,7 @@ function enemy.populate()
             scale_y = enemy.scale,
             offset_x = 0,
             offset_y = 0,
-            color = {1.4, 1.0, 0.6, 1},  -- Moderate orange enemy fire light source
+            color = {1, 0.4, 0.2, 1},  -- Orange tint for enemy fire
             blend_mode = {"lighten", "premultiplied"},
             source_object_type = "enemy_fire_effect"
         })
@@ -203,12 +202,30 @@ function enemy.collision(fixture_a, fixture_b, contact)
         local proj_body = enemy_proj_fixture:getBody()
         
         -- Check if it hit the player
-        if player and player.body and not_enemy_proj:getBody() == player.body then
+        if (var.multiplayer == 1 or not var.multiplayer) then
+        if player and player.body and not_enemy_proj:getGroupIndex() == -1 then
             -- Damage player or trigger player hit logic here
-            -- print("Player hit by enemy fire!")
+            -- print("Player hit by enemy fire! or collided with enemy", not_enemy_proj:getBody())
+            -- print(player.online.bodies)
+            local hit_client = false -- for every collision check through client bodies if the collision was made was it then dont hit the player aswell
+            for k,body in pairs(player.online.bodies) do
+            -- print(body == not_enemy_proj:getBody())
+                if body == not_enemy_proj:getBody() then
+            -- player.health = player.health - 1
+                    -- print(k)
+                    -- game_state
+                       player.online.health[k] =  player.online.health[k] - 1
+                    hit_client = true
+                end
+
+            end
+            if not hit_client then
             player.health = player.health - 1
+            end
             -- You can add player damage logic here
         end
+        end
+
         
         -- Remove the projectile
         for i = #enemy_projectile_bodies, 1, -1 do
@@ -241,24 +258,6 @@ end
 -- Helper function to remove enemy data (call when enemy dies)
 function enemy.removeEnemy(enemy_index)
     enemy.last_fire_times[enemy_index] = nil
-end
-
--- Reset function for game restart
-function enemy.reset()
-    -- Clear all enemy projectiles
-    for i = #enemy_projectile_bodies, 1, -1 do
-        enemy_projectile_bodies[i]:destroy()
-        table.remove(enemy_projectile_bodies, i)
-    end
-    
-    enemy.projectiles = {}
-    enemy.last_fire_times = {}
-    enemy.t = 0
-    
-    -- Initialize fire times for existing enemies
-    for i = 1, #enemies_bods do
-        enemy.last_fire_times[i] = 0
-    end
 end
 
 return enemy

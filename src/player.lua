@@ -1,6 +1,8 @@
 local player = {}
 player.health = 100
-
+player.online = {}
+player.online.bodies = {}
+player.online.health = {}
 
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
@@ -32,8 +34,7 @@ function newAnimation(image, width, height, duration, numFrames)
 end
 
 function player.load(world)
-    -- Start player at world coordinates (400, 300) instead of screen-relative coordinates
-    player.body = love.physics.newBody(world, 400, 300, "dynamic")
+    player.body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.fixture:setGroupIndex(-1)
@@ -43,6 +44,17 @@ function player.load(world)
     
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
     player.animation = newAnimation(love.graphics.newImage("gfx/testCharacter/jump.png"), 64, 65, 2, 10)
+
+    -- for i=1,mp.max_peers do 
+
+    -- table.insert(player.online.bodies,  love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic")  )-- set an online player body for testing
+    
+    -- player.online.fixture = love.physics.newFixture(player.online.bodies[i], player.shape)
+    -- player.online.fixture:setGroupIndex(-1)
+    --assuming online players size is same -- doesnt have to be but would have to have more replicated data
+    
+    -- end
+
 
 end
 
@@ -213,13 +225,16 @@ function player.update(dt)
         -- Set idle animation when not moving
         player.currentAnimation = "idle"
     end
+
+
+    
 end
 
 function player.draw()
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
     -- print( player.animation.duration)
-    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum], px, py, var.character_rotation, player.scale, player.scale, 32, 32)
+    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
 end
 
 function player.collision(fixture_a,fixture_b,contact)
