@@ -214,7 +214,7 @@ function love.update(dt)
     -- t = 0
     -- end
     player.update(dt)
-    camera.update_framerate_independent(dt, player)
+    camera.update(dt, player)
     water.update(dt)
     smoke.update(dt)
     fire.update(dt)
