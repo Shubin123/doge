@@ -241,7 +241,7 @@ function transitionArea(target_area_id, target_x, target_y)
   print("AreaManager transitionArea: Starting transition from " .. (current_area_id or "nil") .. " to " .. target_area_id .. " at " .. target_x .. ", " .. target_y)
   if current_area_id ~= nil then
     print("AreaManager transitionArea: Unloading current area: " .. current_area_id)
-    unloadArea(current_area_id)
+    -- unloadArea(current_area_id)
     print("AreaManager transitionArea: Current area " .. current_area_id .. " unloaded.")
   end
   print("AreaManager transitionArea: Loading target area: " .. target_area_id)

@@ -1,5 +1,5 @@
 local portal = {}
-
+portal.values = vec4.new(236, 200, 50, 35) -- ~x,~y, z is width , w is height
 function portal.load()
     
     -- Initialize shader test
@@ -106,6 +106,9 @@ vec4 effect( vec4 colour, Image texture, vec2 texture_coords, vec2 screen_coords
     -- for name, shader in pairs(portal.SHADERS) do
     --     print("  - " .. name)
     -- end
+    local portal_body = love.physics.newBody(area_manager.areas["overworld"].physics_world, portal.values.x + 20, portal.values.y + 20, "static")
+    love.physics.newFixture(portal_body, love.physics.newRectangleShape(portal.values.w*0.6,portal.values.z*0.6)):setGroupIndex(55) -- set to the same negative index as player for no collision
+
 end
 
 function portal.update(dt)
@@ -138,7 +141,7 @@ function portal.draw()
     
         -- Apply shader and draw a fullscreen quad
         love.graphics.setShader(shader)
-        love.graphics.rectangle("fill", 236, 200, 35, 50)
+        love.graphics.rectangle("fill",portal.values.x , portal.values.y, portal.values.w, portal.values.z)
         
     
 
@@ -170,7 +173,48 @@ function portal.draw()
 end
 
 
+-- Function to check if the player is touching a portal
+function checkPortalCollision()
+  if not player or not player.body then return end -- Guard against player not being loaded
+  local player_x, player_y = player.getPosition()
+  local current_area = area_manager.getCurrentArea()
+
+  -- print("checkPortalCollision: Player at (" .. string.format("%.2f", player_x) .. ", " .. string.format("%.2f", player_y) .. ")") -- Optional: very verbose
+
+  if current_area and current_area.transition_points then
+    -- print("checkPortalCollision: Current area: " .. current_area.area_id .. " has " .. #current_area.transition_points .. " transition point(s).")
+    for i, portal_data in ipairs(current_area.transition_points) do
+      local portal_x, portal_y = portal_data.x, portal_data.y
+      local distance = math.sqrt((player_x - portal_x)^2 + (player_y - portal_y)^2)
+      
+      -- More detailed logging for each portal check, can be commented out if too verbose
+      -- print("checkPortalCollision: Checking portal " .. i .. " at (" .. portal_x .. ", " .. portal_y .. ") to " .. portal_data.target_area_id .. ". Distance: " .. string.format("%.2f", distance))
+
+      -- Check if the player is within a certain range of the portal
+      if distance < 20 then -- Increased threshold slightly for easier activation
+        print("checkPortalCollision: Player is NEAR portal " .. i .. " to " .. portal_data.target_area_id .. "! Distance: " .. string.format("%.2f", distance) .. ". Triggering transition.")
+        
+        -- print(type(portal_data.target_area_id))
+        area_manager.transitionArea(portal_data.target_area_id, portal_data.target_x, portal_data.target_y)
+        break -- Exit the loop after transitioning
+      end
+    end
+  else
+    if not current_area then
+      print("checkPortalCollision: No current_area defined.")
+    elseif not current_area.transition_points or #current_area.transition_points == 0 then
+      -- print("checkPortalCollision: Current area " .. (current_area.area_id or "UNKNOWN") .. " has no transition points.") -- Optional: can be verbose
+    end
+  end
+end
 
 
+function portal.collision(fixture_a,fixture_b,contact)
+    local body_a,bpdy_b
+    if (fixture_a:getGroupIndex() == -1  or fixture_b:getGroupIndex()  == -1) and (fixture_a:getGroupIndex() == 55  or fixture_b:getGroupIndex()  == 55)  and var.enablePortals == true then
+        
+        area_manager.transitionArea("test_map", 1, 1)
+    end
+end
 
 return portal

@@ -1,6 +1,6 @@
 math.randomseed(os.time())
 
-local area_manager = require("area_manager")
+area_manager = require("area_manager")
 
 menu = require("menu")
 mymath = require("myMath")
@@ -134,26 +134,88 @@ local game_area_y = var.header_height
 
 
 
-function love.draw()
-    print("LOVE.DRAW CALLED - State:", var.State or "nil")
+-- function love.draw()
+--     print("LOVE.DRAW CALLED - State:", var.State or "nil")
     
+--     if var.State == "menu" then
+--         print("Drawing menu")
+--         menu.draw()
+--         return
+--     end
+    
+--     print("Drawing game - bypassing shaders")
+    
+--     -- Minimal test without camera or push/pop
+--     love.graphics.setColor(1, 0, 0, 1) -- Red
+--     love.graphics.rectangle("fill", 100, 100, 200, 200)
+    
+--     love.graphics.setColor(1, 1, 1, 1) -- White
+--     love.graphics.print("BASIC TEST - NO CAMERA", 10, 10)
+--     love.graphics.print("State: " .. tostring(var.State), 10, 30)
+    
+--     print("Basic shapes drawn")
+
+-- end
+
+
+function love.draw()
     if var.State == "menu" then
-        print("Drawing menu")
         menu.draw()
         return
     end
     
-    print("Drawing game - bypassing shaders")
+
+    love.graphics.push()
     
-    -- Minimal test without camera or push/pop
-    love.graphics.setColor(1, 0, 0, 1) -- Red
-    love.graphics.rectangle("fill", 100, 100, 200, 200)
+    shader.prepass()
     
-    love.graphics.setColor(1, 1, 1, 1) -- White
-    love.graphics.print("BASIC TEST - NO CAMERA", 10, 10)
-    love.graphics.print("State: " .. tostring(var.State), 10, 30)
     
-    print("Basic shapes drawn")
+    
+    camera.apply()
+    love.graphics.setColor(1, 1, 1, 0.35)
+    
+    map.map:draw(game_area_x, game_area_y, 1)
+    love.graphics.setColor(1, 1, 1, 1)
+
+    -- crtShader:beginCapture()
+    -- portal.draw()
+
+    -- Populate and sort dynamic draw list if neccessary
+    renderer.populateDynamicDrawList()
+    table.sort(dynamic_draw_list, renderer.sortByRenderY)
+    -- Render sorted entities
+    renderer.renderSortedDrawList()
+    
+    
+
+    grass.demo.draw()
+    
+    -- map.map3:draw(100, game_area_y, 1)
+    -- map.map3:draw(100, game_area_y, 1)
+    -- map.map4:draw(100, game_area_y, 0.8)
+
+    -- else
+    --     map.map3:draw(100, game_area_y, 1)
+    --     map.map4:draw(100, game_area_y, 0.8)
+    --     player.draw()
+
+    -- end
+
+
+
+    love.graphics.pop()
+    -- order is IMPORTANT HERE shader-> smoke -> water
+    shader.pass()
+    
+    smoke.pass()
+    
+    water.pass()
+    crtShader.endCapture()        
+    
+        
+
+        
+    mydraw.mydraw() -- ui last
 
 end
 
@@ -210,9 +272,9 @@ function love.mousepressed(x, y, button, istouch, presses)
     local normalized_direction = vec2.norm(direction)
     -- print(fire.count)
     -- if fire.count == 0 then
-    if #fire.fireables < fire.count then
-        table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
-    end
+    -- if #fire.fireables < fire.count then
+    --     table.insert(fire.fireables, { vec2.new(0, 0), normalized_direction, false })
+    -- end
 
 
     lurker.scan()
@@ -240,8 +302,10 @@ function love.keypressed(key)
         zoomToggle = not zoomToggle
     end
     if key == "p" then
-        fire.pierce = not fire.pierce
-        enemy.addEnemy(var.game_width/2,var.game_height/2)
+        debug.debug()
+        -- fire.pierce = not fire.pierce
+        -- enemy.addEnemy(var.game_width/2,var.game_height/2)
+
         -- var.num_enemies  = var.num_enemies  + 1
     end
 
@@ -322,6 +386,7 @@ end
 
 function beginContact(fixture_a, fixture_b, contact)
     print("beginContact CALLED: Fixture A Group: " .. tostring(fixture_a:getGroupIndex()) .. ", Fixture B Group: " .. tostring(fixture_b:getGroupIndex())) -- DEBUG
+    portal.collision(fixture_a,fixture_b,contact)
     player.collision(fixture_a,fixture_b,contact) -- Make sure player's collision logic is called
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
@@ -349,38 +414,7 @@ end
 function postSolve(a, b, contact, normalimpulse, tangentimpulse)
 end
 
--- Function to check if the player is touching a portal
-function checkPortalCollision()
-  if not player or not player.body then return end -- Guard against player not being loaded
-  local player_x, player_y = player.getPosition()
-  local current_area = area_manager.getCurrentArea()
 
-  -- print("checkPortalCollision: Player at (" .. string.format("%.2f", player_x) .. ", " .. string.format("%.2f", player_y) .. ")") -- Optional: very verbose
-
-  if current_area and current_area.transition_points then
-    -- print("checkPortalCollision: Current area: " .. current_area.area_id .. " has " .. #current_area.transition_points .. " transition point(s).")
-    for i, portal_data in ipairs(current_area.transition_points) do
-      local portal_x, portal_y = portal_data.x, portal_data.y
-      local distance = math.sqrt((player_x - portal_x)^2 + (player_y - portal_y)^2)
-      
-      -- More detailed logging for each portal check, can be commented out if too verbose
-      -- print("checkPortalCollision: Checking portal " .. i .. " at (" .. portal_x .. ", " .. portal_y .. ") to " .. portal_data.target_area_id .. ". Distance: " .. string.format("%.2f", distance))
-
-      -- Check if the player is within a certain range of the portal
-      if distance < 20 then -- Increased threshold slightly for easier activation
-        print("checkPortalCollision: Player is NEAR portal " .. i .. " to " .. portal_data.target_area_id .. "! Distance: " .. string.format("%.2f", distance) .. ". Triggering transition.")
-        area_manager.transitionArea(portal_data.target_area_id, portal_data.target_x, portal_data.target_y)
-        break -- Exit the loop after transitioning
-      end
-    end
-  else
-    if not current_area then
-      print("checkPortalCollision: No current_area defined.")
-    elseif not current_area.transition_points or #current_area.transition_points == 0 then
-      -- print("checkPortalCollision: Current area " .. (current_area.area_id or "UNKNOWN") .. " has no transition points.") -- Optional: can be verbose
-    end
-  end
-end
 
 -- Call checkPortalCollision in the love.update function
 function love.update(dt)
@@ -431,5 +465,5 @@ function love.update(dt)
   enemy.update(dt)
   portal.update(dt)
 
-  checkPortalCollision() -- Add this line to call the function
+--   checkPortalCollision() -- Add this line to call the function
 end

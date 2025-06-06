@@ -6,6 +6,7 @@ var.screen_flags = {
     ["resizable"] = true,
     ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
 }
+var.enablePortals = false
 
 var.character_rotation = 0
 var.prev_x = 0

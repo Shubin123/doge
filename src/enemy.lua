@@ -254,7 +254,7 @@ function enemy.unload()
     print("Enemy: Unloading enemy objects and physics bodies.")
     -- Destroy all enemy physics bodies
     for i = #enemies_bods, 1, -1 do
-        if enemies_bods[i] and enemies_bods[i]:isValid() then
+        if enemies_bods[i] then
             enemies_bods[i]:destroy()
         end
         table.remove(enemies_bods, i)
