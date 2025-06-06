@@ -213,9 +213,13 @@ function multiplayer:_handleMessage(data, peer, role)
         
         local player_id =  tonumber(string.sub(game_state.client_id,#game_state.client_id))
         if  not player.online.bodies[player_id] then 
+            
             player.online.bodies[player_id] = love.physics.newBody(world, game_state.player_data.x, game_state.player_data.y)
             player.online.fixture = love.physics.newFixture(player.online.bodies[player_id], player.shape)
             player.online.fixture:setGroupIndex(-1)
+            player.online.health[player_id] = 100
+
+
         end
         player.online.bodies[player_id]:setPosition(game_state.player_data.x,game_state.player_data.y)
 
