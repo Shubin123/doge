@@ -162,7 +162,7 @@ function love.draw()
 
     -- Populate and sort dynamic draw list if neccessary
 
-    grass.public.draw()
+    
     
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
@@ -182,7 +182,7 @@ function love.draw()
     renderer.renderSortedDrawList()
 
 
-
+grass.public.draw()
     
 
     love.graphics.pop()
