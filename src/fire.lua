@@ -7,6 +7,7 @@ fire.count = 10
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
 fire_instances = {} -- no collision on these for now
+fire_draw_data = {} -- cached draw data updated only in fire.update()
 -- local sprite = require('sprite')
 
 fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
@@ -34,11 +35,93 @@ function fire.load()
     for i = 1, fire.count do
         table.insert(fire_instances, vec2.new(0, 0))
     end
+    
+    -- Initialize draw data cache
+    fire_draw_data = {}
 end
 
 function fire.update(dt)
     fire.particleSystem:update(dt)
     fire.t = fire.t + dt
+    
+    -- Clear previous draw data
+    fire_draw_data = {}
+    
+    -- Update fire instance positions
+    for i, fire_instance in pairs(fire_instances) do
+        fire_instance.x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
+        fire_instance.y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
+        
+        -- Cache draw data for fire instances
+        table.insert(fire_draw_data, {
+            sort_y = fire_instance.y + 100,
+            image_or_particles = fire.particleSystem,
+            quad = nil,
+            x = fire_instance.x,
+            y = fire_instance.y,
+            rotation = 0,
+            scale_x = fire.scale,
+            scale_y = fire.scale,
+            offset_x = 250,
+            offset_y = 50,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "lighten", "premultiplied" },
+            source_object_type = "fire_effect"
+        })
+    end
+    
+    -- Update fireables positions and physics
+    for i, fireable in pairs(fire.fireables) do
+        if fireable[1] then
+            if not fireable[3] then
+                -- Set starting position
+                -- fireable[1] = vec2.new(fire_instances[i].x, fire_instances[i].y)
+                
+                -- Only create physics bodies on host (var.multiplayer == 1)
+                -- Clients still initialize fireballs for visual purposes but no physics
+                -- if (var.multiplayer == 1) then
+                    -- print(vec2.norm(fireable[1]))
+                    local _bod = love.physics.newBody(world, fireable[1].x - 200, fireable[1].y - 45, "dynamic")
+                    table.insert(fire_bodies, i, _bod)
+                    local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
+                    _fixture:setGroupIndex(-1)
+                    -- _fixture:setFilterData(500,1, -1)
+                    -- _bod:applyForce(fireable[2].x *fire.t,fireable[2].y*fire.t)
+                -- end
+                fireable[3] = 1 -- initialized (both host and client mark as initialized)
+                -- direction is already stored in [2]
+
+            else
+                -- Move fireball using the pre-calculated direction
+                -- This happens on both host and clients for local prediction/rendering
+                fireable[1] = fireable[1] + fireable[2] * 2
+                
+                -- Only update physics body position on host
+                if (var.multiplayer == 1) and fire_bodies[i] then
+                    fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+                elseif not var.multiplayer then
+                    fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+                end
+            end
+            
+            -- Cache draw data for fireables
+            table.insert(fire_draw_data, {
+                sort_y = fireable[1].y + 100,
+                image_or_particles = fire.particleSystem,
+                quad = nil,
+                x = fireable[1].x,
+                y = fireable[1].y,
+                rotation = 0,
+                scale_x = fire.scale,
+                scale_y = fire.scale,
+                offset_x = 250,
+                offset_y = 50,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "lighten", "premultiplied" },
+                source_object_type = "fire_effect"
+            })
+        end
+    end
 end
 
 function fire.draw()
@@ -91,88 +174,10 @@ function fire.populate()
         source_object_type = "fire_effect"
     })
 
-    for i, fire_instance in pairs(fire_instances) do
-    -- local fire_instance_x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
-    -- local fire_instance_y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
-    
-    fire_instance.x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
-    -- fire_instance.x = player.body:getX() + 10
-    
-    fire_instance.y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
-    -- fire_instance.y = player.body:getY() + 10
-    -- table.insert(fire_instances, {fire_instance_x, fire_instance_y})
-    
-    -- Default fire effect
-    table.insert(dynamic_draw_list, {
-        sort_y = fire_instance.y + 100,
-        image_or_particles = fire.particleSystem,
-        quad = nil,
-        x = fire_instance.x,
-        y = fire_instance.y,
-        rotation = 0,
-        scale_x = fire.scale,
-        scale_y = fire.scale,
-        offset_x = 250,
-        offset_y = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "lighten", "premultiplied" },
-        source_object_type = "fire_effect"
-    })
-end
-
--- Fireables loop using pairs
-for i, fireable in pairs(fire.fireables) do
-    if fireable[1] then
-        if not fireable[3] then
-            -- Set starting position
-            -- fireable[1] = vec2.new(fire_instances[i].x, fire_instances[i].y)
-            
-            -- Only create physics bodies on host (var.multiplayer == 1)
-            -- Clients still initialize fireballs for visual purposes but no physics
-            -- if (var.multiplayer == 1) then
-                -- print(vec2.norm(fireable[1]))
-                local _bod = love.physics.newBody(world, fireable[1].x - 200, fireable[1].y - 45, "dynamic")
-                table.insert(fire_bodies, i, _bod)
-                local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
-                _fixture:setGroupIndex(-1)
-                -- _fixture:setFilterData(500,1, -1)
-                -- _bod:applyForce(fireable[2].x *fire.t,fireable[2].y*fire.t)
-            -- end
-            fireable[3] = 1 -- initialized (both host and client mark as initialized)
-            -- direction is already stored in [2]
-
-        else
-            -- Move fireball using the pre-calculated direction
-            -- This happens on both host and clients for local prediction/rendering
-            fireable[1] = fireable[1] + fireable[2] * 2
-            
-            -- Only update physics body position on host
-            if (var.multiplayer == 1) and fire_bodies[i] then
-                fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
-            elseif not var.multiplayer then
-                fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
-            end
-        end
-        
-        -- Draw fireball (happens on all clients for local prediction)
-        table.insert(dynamic_draw_list, {
-            sort_y = fireable[1].y + 100,
-            image_or_particles = fire.particleSystem,
-            quad = nil,
-            x = fireable[1].x,
-            y = fireable[1].y,
-            rotation = 0,
-            scale_x = fire.scale,
-            scale_y = fire.scale,
-            offset_x = 250,
-            offset_y = 50,
-            color = { 1, 1, 1, 1 },
-            blend_mode = { "lighten", "premultiplied" },
-            source_object_type = "fire_effect"
-        })
+    -- Add all cached draw data to dynamic_draw_list
+    for _, draw_item in pairs(fire_draw_data) do
+        table.insert(dynamic_draw_list, draw_item)
     end
-end
-    
 end
 
 function fire.collision(fixture_a, fixture_b, contact)
