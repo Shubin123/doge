@@ -79,7 +79,7 @@ function shader.load()
             vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
             vec2 ratio = normalize(oneOverSize);
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
-            vec3 radiance = vec3(0); //shift down (-) for night or up (+) for day
+            vec3 radiance = vec3(1); //shift down (-) for night or up (+) for day
             float noise = rand(tc);
             for(int i = 0; i < sampleCount; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle

@@ -7,3 +7,4 @@ gfx/.DS_Store
 game.love
 .vscode/settings.json
 /misc/love-11.5-win64
+*.sav

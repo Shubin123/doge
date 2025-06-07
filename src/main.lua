@@ -25,7 +25,7 @@ crt = require("crt")
 renderer = require("renderer")
 snapshot = require("snapshot")
 blur = require ("blur")
-
+serial = require("serial")
 
 multiplayer = require("multiplayer")
 
@@ -153,11 +153,13 @@ function love.draw()
     --     return
     end
     
-
+    if var.graphics_high then
+    shader.prepass()
+    end
     love.graphics.push()
     
+    
 
-    shader.prepass()
     camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
@@ -191,14 +193,13 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
-    
+    if var.graphics_high then
     shader.pass()
-
     smoke.pass()
     water.pass()
     crtShader.endCapture()
     blur.pass()
-
+    end
 
 
     mydraw.mydraw() -- ui last
