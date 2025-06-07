@@ -204,7 +204,8 @@ function GrassRenderer:setGrassArea(x, y, width, height, density)
         local r = 0.2 + love.math.random() * 0.3
         local g = 0.8 + love.math.random() * 0.4
         local b = 0.1 + love.math.random() * 0.2
-        local a = 0.8
+        -- local a = 0.8 
+        local a = mymath.realRandom(0,0.1) + mymath.realRandom(0,0.2) + mymath.realRandom(0,0.3) - mymath.realRandom(0,0.05)
         
         -- Wind properties (stored in texture coordinates for shader access)
         local windPhase = love.math.random() * math.pi * 2
@@ -331,12 +332,17 @@ function GrassRenderer:draw()
     self.grassShader:send("ambientColor", {0.3, 0.4, 0.3})
     
     -- Single draw call for all grass!
+    -- love.graphics.setBlendMode("subrract", "premultiplied")
     love.graphics.setColor(1, 1, 1, 1)
+    -- love.graphics.setBlendMode("add")
+    
     love.graphics.draw(self.grassMesh)
     
     -- Reset state
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setShader()
+    -- love.graphics.setBlendMode("alpha") -- reset
+
     love.graphics.pop()
 end
 

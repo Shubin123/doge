@@ -162,8 +162,8 @@ function love.draw()
 
     -- Populate and sort dynamic draw list if neccessary
 
-    grass.public.draw()
     
+    grass.public.draw()
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
 
