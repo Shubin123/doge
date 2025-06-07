@@ -1,3 +1,4 @@
+-- very simillar to snap shot system however, when saving locally, we need to reset the game ai behaviours of the enemy first.
 local serial = {}
 
 function serial.create()
@@ -93,13 +94,16 @@ function serial.apply(game_state)
         for i, enemy_data in pairs(game_state.enemies) do
             if enemy_data.active then
                 -- Create new enemy body (you'll need to adapt this to your enemy creation system)
-                local enemy_body = love.physics.newBody(world, enemy_data.x, enemy_data.y, "dynamic")
-                -- local _fixtures = 
-                local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
-                enemy_fixture:setGroupIndex(-777)
-                -- Add appropriate shape and fixture based on your enemy system
-                -- This is just an example - adapt to your actual enemy creation code
-                table.insert(enemies_bods, enemy_body)
+                -- local enemy_body = love.physics.newBody(world, enemy_data.x, enemy_data.y, "dynamic")
+
+
+                enemy.addEnemy(enemy_data.x, enemy_data.y)
+                -- -- local _fixtures = 
+                -- local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
+                -- enemy_fixture:setGroupIndex(-777)
+                -- -- Add appropriate shape and fixture based on your enemy system
+                -- -- This is just an example - adapt to your actual enemy creation code
+                -- table.insert(enemies_bods, enemy_body)
             end
         end
     end
