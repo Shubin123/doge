@@ -117,7 +117,7 @@ function smoke.load()
                 vec4 reflectionColor = Texel(reflectionTexture, reflectionTC);
                 
                 // Add blue tint to smoke
-                vec4 smokeColor = vec4(0.1, 0.1, 0.1, 0.6);
+                vec4 smokeColor = vec4(0.1, 0.1, 0.9, 0.3);
                 
                 // Fade reflection based on y-position within smoke area
                 float reflectionFactor = reflectionStrength * (1.0 - (relPos.y / smokeBounds.w) * 0.5);

@@ -82,14 +82,23 @@ function camera.update(dt, player)
     -- print(math.abs(camera.target_zoom - camera.zoom))
     
     if math.abs(camera.target_zoom - camera.zoom) < 0.001 then
-  
         camera.zoom = camera.target_zoom
-       
+        -- if blur.is_enabled() then
+        
+        -- blur.disable()
+        -- blur.set_radius(3)
+        -- end
 
     else
         -- shader.sample = 4
         -- shader.distance = 10
+        -- if not blur.is_enabled() then
+        -- blur.enable()
+        -- blur.set_radius(5*math.abs(camera.target_zoom - camera.zoom))
+        -- end
+        
     end
 end
+
 
 return camera

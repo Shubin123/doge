@@ -15,8 +15,9 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 0
+var.num_enemies = 10
 var.enemies_bods = {}
+
 
 var.max_grass = 20000 -- max grass blades per quadrant
 

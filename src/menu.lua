@@ -1,5 +1,5 @@
 local menu = {}
-
+menu.blur = false
 local font
 local ps
 local startButton = { y = 250, text = "[ Start Game ]" }
@@ -27,7 +27,7 @@ function menu.load(screenInfo)
     -- Create and configure the particle system for a Star Wars-like starfield
     ps = love.graphics.newParticleSystem(particle, 1000)
     ps:setParticleLifetime(6, 12)  -- Particles live long enough to cross the screen
-    ps:setEmissionRate(20)         -- Emit 20 particles per second for a denser field
+    ps:setEmissionRate(10)         -- Emit 20 particles per second for a denser field
     ps:setSizes(2)                 -- Small size for star-like dots
     ps:setColors({0.5,0.5,0.5,0}, {0.5,0.5,0.5,0.5}, {0.5,0.5,0.5,0})  -- Fade in and out for a twinkling effect
     ps:setSpeed(50, 100)           -- Varying speeds for depth
@@ -58,6 +58,9 @@ function menu.draw()
     love.graphics.printf("Game Version = alpha 0.0.2", 0, 125, var.screen_width/0.8, "center", 0, 0.8, 0.8)
     love.graphics.printf(startButton.text, 0, startButton.y, var.screen_width, "center")
     love.graphics.printf(exitButton.text, 0, exitButton.y, var.screen_width, "center")
+
+
+    -- insert blur shader pass here potentially
 end
 
 -- Handle mouse presses

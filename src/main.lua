@@ -1,4 +1,6 @@
-math.randomseed(os.time())
+
+
+-- math.randomseed(os.time())
 
 menu = require("menu")
 mymath = require("myMath")
@@ -22,6 +24,8 @@ portal = require("portal")
 crt = require("crt")
 renderer = require("renderer")
 snapshot = require("snapshot")
+blur = require ("blur")
+
 
 multiplayer = require("multiplayer")
 
@@ -43,6 +47,7 @@ W = love.graphics.getWidth()
 H = love.graphics.getHeight()
 game_area_x = (W - var.game_width) / 2
 game_area_y = var.header_height
+
 
 -- lighting variables
 -- local ldist = 30 -- 5-80
@@ -125,6 +130,7 @@ function love.load()
     smoke.load()
     portal.load()
     crt.load()
+    blur.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -143,26 +149,23 @@ local game_area_y = var.header_height
 function love.draw()
     if var.State == "menu" then
         menu.draw()
-        return
+        -- blur.enable()
+    --     return
     end
-
+    
 
     love.graphics.push()
+    
 
     shader.prepass()
-
-
-
     camera.apply()
-    love.graphics.setColor(1, 1, 1, 0.35)
 
+    love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
 
-    -- Populate and sort dynamic draw list if neccessary
-
-    
+    -- Populate and sort dynamic draw list if neccessary    
     grass.public.draw()
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
@@ -170,10 +173,11 @@ function love.draw()
         if var.multiplayer == 1 then
             renderer.populateDynamicDrawListNETHOST()
         end
-
     else
         renderer.populateDynamicDrawList()
     end
+    
+    
 
 
 
@@ -187,12 +191,13 @@ function love.draw()
 
     love.graphics.pop()
     -- order is IMPORTANT HERE shader-> smoke -> water
+    
     shader.pass()
 
     smoke.pass()
     water.pass()
     crtShader.endCapture()
-
+    blur.pass()
 
 
 
@@ -200,9 +205,11 @@ function love.draw()
 end
 
 local t = 0
-function love.update(dt)
+function love.update(dt) --assume online cannot pause right now. debugger still works
     if var.State == "menu" then
         menu.update(dt)
+        if not var.multiplayer then return end -- cannot pause the game in multiplayer.lua:92 Error during service. otherwise game physics pauses nicely
+
         -- return
     elseif State == "running" then
         var.State = "game"
@@ -223,9 +230,13 @@ function love.update(dt)
     fire.update(dt)
     grass.public.update(dt)
     portal.update(dt)
+    blur.update(dt)
+    
     if var.multiplayer == 1 or not var.multiplayer  then
-        enemy.update(dt)        
+        enemy.update(dt)
     end
+
+
 end
 
 
@@ -292,9 +303,20 @@ function love.keypressed(key)
         zoomToggle = not zoomToggle
     end
     if key == "p" then
-        fire.pierce = not fire.pierce
-        enemy.addEnemy(var.game_width / 2, var.game_height / 2)
+        -- fire.pierce = not fire.pierce
+        -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
         -- var.num_enemies  = var.num_enemies  + 1
+
+        debug.debug()
+    end
+
+    if key == "escape" then
+        var.State = (var.State == "menu") and "running" or "menu" 
+        
+        menu.blur = not menu.blur
+        blur.blur_enabled = not blur.blur_enabled
+        
+        -- blur.set_radius(0.00001)
     end
 end
 
