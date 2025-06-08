@@ -308,4 +308,140 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
     return dynamic_draw_lists
 end
 
+-- NEW: Serialization functions for save/load system
+
+-- Create serializable map data for saving
+function map.createSaveData()
+    local map_data = {}
+    
+    -- Capture base tile map data
+    if map.map and map.map.tileData then
+        map_data.base_tiles = {
+            width = map.map.width,
+            height = map.map.height,
+            tile_data = {}
+        }
+        
+        -- Deep copy tile data
+        for y = 1, map.map.height do
+            map_data.base_tiles.tile_data[y] = {}
+            for x = 1, map.map.width do
+                map_data.base_tiles.tile_data[y][x] = map.map.tileData[y] and map.map.tileData[y][x] or 0
+            end
+        end
+    end
+    
+    -- Capture arch instances
+    map_data.arches = {}
+    for i, arch in ipairs(map.archInstances) do
+        map_data.arches[i] = {
+            pivot_x = arch.pivot_x,
+            pivot_y = arch.pivot_y,
+            id = arch.id,
+            visual_offset_x = arch.visual_offset_x,
+            visual_offset_y = arch.visual_offset_y
+        }
+    end
+    
+    -- Capture tree instances
+    map_data.trees = {}
+    for i, tree in ipairs(map.treeInstances) do
+        map_data.trees[i] = {
+            x = tree.x,
+            y = tree.y,
+            id = tree.id
+        }
+    end
+    
+    return map_data
+end
+
+-- Restore map from save data
+function map.restore(map_data)
+    if not map_data then
+        return true -- No map data to restore, but not an error
+    end
+    
+    -- Restore base tile map
+    if map_data.base_tiles and map.map then
+        -- Ensure map dimensions match or resize if needed
+        if map.map.width ~= map_data.base_tiles.width or map.map.height ~= map_data.base_tiles.height then
+            map.map.width = map_data.base_tiles.width
+            map.map.height = map_data.base_tiles.height
+            map.map.tileData = {}
+        end
+        
+        -- Restore tile data
+        for y = 1, map_data.base_tiles.height do
+            map.map.tileData[y] = {}
+            for x = 1, map_data.base_tiles.width do
+                map.map.tileData[y][x] = map_data.base_tiles.tile_data[y] and map_data.base_tiles.tile_data[y][x] or 0
+            end
+        end
+    end
+    
+    -- Clear existing arches
+    for _, arch in ipairs(map.archInstances) do
+        arch:destroy()
+    end
+    map.archInstances = {}
+    
+    -- Restore arches
+    if map_data.arches then
+        for _, arch_data in ipairs(map_data.arches) do
+            local new_arch = map.createArches(arch_data.pivot_x, arch_data.pivot_y)
+            map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- reload 
+            -- Restore any additional arch properties if needed
+            if arch_data.visual_offset_x then
+                new_arch.visual_offset_x = arch_data.visual_offset_x
+            end
+            if arch_data.visual_offset_y then
+                new_arch.visual_offset_y = arch_data.visual_offset_y
+            end
+        end
+    end
+    
+    -- Clear existing trees
+    for _, tree in ipairs(map.treeInstances) do
+        tree:destroy()
+    end
+    map.treeInstances = {}
+    
+    -- Restore trees
+    if map_data.trees then
+        for _, tree_data in ipairs(map_data.trees) do
+            map.createTree(tree_data.x, tree_data.y)
+            map_b = map.addMapToDynamicDrawList(map.tree, 0,0,1,200)
+        end
+    end
+    
+    return true
+end
+
+-- Clear all dynamic map objects (useful for resetting/loading)
+function map.clearDynamicObjects()
+    -- Clear arches
+    for _, arch in ipairs(map.archInstances) do
+        arch:destroy()
+    end
+    map.archInstances = {}
+    
+    -- Clear trees
+    for _, tree in ipairs(map.treeInstances) do
+        tree:destroy()
+    end
+    map.treeInstances = {}
+end
+
+-- Get summary of current map state
+function map.getSummary()
+    return {
+        arch_count = #map.archInstances,
+        tree_count = #map.treeInstances,
+        map_width = map.map and map.map.width or 0,
+        map_height = map.map and map.map.height or 0,
+        has_tiles = map.map and map.map.tileData ~= nil
+    }
+end
+
 return map

@@ -1,4 +1,4 @@
--- very simillar to snap shot system however, when saving locally, we need to reset the game ai behaviours of the enemy first.
+-- Enhanced serial module with map data serialization
 local serial = {}
 
 function serial.create()
@@ -37,7 +37,10 @@ function serial.create()
     end
 
     -- Capture fire effects
-    game_state.fire_effects = fire.getNetworkData() or {} --works fine for offline / serial 
+    game_state.fire_effects = fire.getNetworkData() or {}
+
+    -- NEW: Capture map data
+    game_state.map_data = serial.captureMapData()
 
     -- Capture additional game state data
     game_state.game_data = {
@@ -50,13 +53,66 @@ function serial.create()
 
     -- Add metadata
     game_state.metadata = {
-        version = "1.0",
+        version = "1.1", -- Incremented version for map data support
         timestamp = os.time(),
         save_type = "offline"
     }
 
     return game_state
 end
+
+-- NEW: Function to capture map data including arches and trees
+function serial.captureMapData()
+    local map_data = {}
+    
+    -- Capture base tile map data if map module is available
+    if map and map.map and map.map.tileData then
+        map_data.base_tiles = {
+            width = map.map.width,
+            height = map.map.height,
+            tile_data = {}
+        }
+        
+        -- Deep copy tile data
+        for y = 1, map.map.height do
+            map_data.base_tiles.tile_data[y] = {}
+            for x = 1, map.map.width do
+                map_data.base_tiles.tile_data[y][x] = map.map.tileData[y] and map.map.tileData[y][x] or 0
+            end
+        end
+    end
+    
+    -- Capture arch instances
+    map_data.arches = {}
+    if map and map.archInstances then
+        for i, arch in ipairs(map.archInstances) do
+            map_data.arches[i] = {
+                pivot_x = arch.pivot_x,
+                pivot_y = arch.pivot_y,
+                id = arch.id,
+                visual_offset_x = arch.visual_offset_x,
+                visual_offset_y = arch.visual_offset_y
+            }
+        end
+    end
+    
+    -- Capture tree instances
+    map_data.trees = {}
+    if map and map.treeInstances then
+        for i, tree in ipairs(map.treeInstances) do
+            map_data.trees[i] = {
+                x = tree.x,
+                y = tree.y,
+                id = tree.id
+            }
+        end
+    end
+    
+    return map_data
+end
+
+
+
 
 function serial.apply(game_state)
     -- Validate the save data
@@ -93,17 +149,7 @@ function serial.apply(game_state)
         -- Recreate enemies from save data
         for i, enemy_data in pairs(game_state.enemies) do
             if enemy_data.active then
-                -- Create new enemy body (you'll need to adapt this to your enemy creation system)
-                -- local enemy_body = love.physics.newBody(world, enemy_data.x, enemy_data.y, "dynamic")
-
-
                 enemy.addEnemy(enemy_data.x, enemy_data.y)
-                -- -- local _fixtures = 
-                -- local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
-                -- enemy_fixture:setGroupIndex(-777)
-                -- -- Add appropriate shape and fixture based on your enemy system
-                -- -- This is just an example - adapt to your actual enemy creation code
-                -- table.insert(enemies_bods, enemy_body)
             end
         end
     end
@@ -134,7 +180,15 @@ function serial.apply(game_state)
         end
     end
 
-    -- Restore fire effects
+    -- NEW: Restore map data
+    if game_state.map_data then
+        local success = map.restore(game_state.map_data)
+        if not success then
+            return false, "Failed to restore map data"
+        end
+    end
+
+    -- Restore fire effects (commented out in original)
     -- if game_state.fire_effects then
     --     fire.loadNetworkData(game_state.fire_effects)
     -- end
@@ -160,20 +214,15 @@ function serial.saveToFile(filename)
     local compressed_data = love.data.compress("string", "zlib", json_string, 9)
 
     -- Write to file
-    -- local success = love.filesystem.write(filename, compressed_data)
-
     local f = io.open(filename, "w")
+    if not f then
+        return false, "Failed to open file for writing"
+    end
 
     f:write(compressed_data) -- 3x smaller than raw json even on small data
-
     f:close()
 
-
-    -- if success then
-    --     return true, "Game saved successfully"
-    -- else
-    --     return false, "Failed to save game"
-    -- end
+    return true, "Game saved successfully"
 end
 
 -- Load game state from file
@@ -262,7 +311,7 @@ function serial.deleteSave(filename)
     return success ~= nil
 end
 
--- Quick save function (saves to "quicksave.sav"). the io read/write may not work on ios.
+-- Quick save function (saves to "quicksave.sav")
 function serial.quickSave()
     return serial.saveToFile("./quicksave.sav")
 end
@@ -270,6 +319,55 @@ end
 -- Quick load function (loads from "quicksave.sav")
 function serial.quickLoad()
     return serial.loadFromFile("./quicksave.sav")
+end
+
+-- NEW: Utility function to get save file info including map data summary
+function serial.getSaveInfo(filename)
+    local f = io.open(filename, "r")
+    if not f then
+        return nil, "Save file not found"
+    end
+    
+    local compressed_data = f:read("*all")
+    f:close()
+    
+    if not compressed_data or compressed_data == "" then
+        return nil, "Failed to read save file"
+    end
+    
+    local success, decompressed_data = pcall(love.data.decompress, "string", "zlib", compressed_data)
+    if not success then
+        return nil, "Failed to decompress save file"
+    end
+    
+    local success, game_state = pcall(json.decode, decompressed_data)
+    if not success then
+        return nil, "Failed to parse save file"
+    end
+    
+    -- Extract summary information
+    local info = {
+        version = game_state.metadata and game_state.metadata.version or "Unknown",
+        timestamp = game_state.metadata and game_state.metadata.timestamp or 0,
+        level = game_state.game_data and game_state.game_data.level or "Unknown",
+        score = game_state.game_data and game_state.game_data.score or 0,
+        time_played = game_state.game_data and game_state.game_data.time_played or 0,
+        enemy_count = game_state.enemies and #game_state.enemies or 0,
+        coin_count = game_state.coins and #game_state.coins or 0,
+    }
+    
+    -- Add map data summary if available
+    if game_state.map_data then
+        info.arch_count = game_state.map_data.arches and #game_state.map_data.arches or 0
+        info.tree_count = game_state.map_data.trees and #game_state.map_data.trees or 0
+        info.has_map_tiles = game_state.map_data.base_tiles ~= nil
+    else
+        info.arch_count = 0
+        info.tree_count = 0
+        info.has_map_tiles = false
+    end
+    
+    return info, "Success"
 end
 
 return serial

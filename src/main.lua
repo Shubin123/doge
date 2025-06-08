@@ -199,8 +199,8 @@ function love.draw()
     end
 
 
-    -- mydraw.mydraw() -- ui last
-    editor.debugDraw()
+    mydraw.mydraw() -- ui last
+    -- editor.debugDraw()
 end
 
 local t = 0
