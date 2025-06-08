@@ -61,18 +61,18 @@ function draw.mydraw()
     -- love.graphics.setScissor()
     
     -- Draw white borders
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("line", 0, 0, W, var.header_height)
-    if left_panel_width > 0 then
-        love.graphics.rectangle("line", 0, var.header_height, left_panel_width, H - var.header_height)
-    end
-    if right_panel_width > 0 then
-        love.graphics.rectangle("line", right_panel_x, var.header_height, right_panel_width, H -var.header_height)
-    end
-    love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
+    -- love.graphics.setColor(1, 1, 1)
+    -- love.graphics.rectangle("line", 0, 0, W, var.header_height)
+    -- if left_panel_width > 0 then
+    --     love.graphics.rectangle("line", 0, var.header_height, left_panel_width, H - var.header_height)
+    -- end
+    -- if right_panel_width > 0 then
+    --     love.graphics.rectangle("line", right_panel_x, var.header_height, right_panel_width, H -var.header_height)
+    -- end
+    -- love.graphics.rectangle("line", game_area_x, game_area_y, var.game_width, var.game_height)
     
-    -- Debug info
-    love.graphics.print("State: " .. (var.multiplayer or "localhost") , 10, 70)
+    -- -- Debug info
+    -- love.graphics.print("State: " .. (var.multiplayer or "localhost") , 10, 70)
 
     
 end

@@ -26,6 +26,7 @@ renderer = require("renderer")
 snapshot = require("snapshot")
 blur = require ("blur")
 serial = require("serial")
+editor = require("editor")
 
 multiplayer = require("multiplayer")
 
@@ -89,12 +90,9 @@ function love.load()
     enemy.load()
 
 
-    -- Coins and enemies
+    -- Coins and enemies 
     
-    
-    
-
-
+    -- physics
 
     -- print(shape_sizes)
     coin_shape = love.physics.newCircleShape(5)
@@ -103,10 +101,7 @@ function love.load()
     enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
 
-    
-
     -- Graphics
-    
     if var.num_coins > 0 then
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
@@ -117,6 +112,8 @@ function love.load()
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
 
+
+    -- editor.load()
 
 
     -- Shaders
@@ -207,6 +204,8 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
+    -- editor.update(dt)
+
     if var.State == "menu" then
         menu.update(dt)
         if not var.multiplayer then return end -- cannot pause the game in multiplayer.lua:92 Error during service. otherwise game physics pauses nicely
@@ -278,6 +277,7 @@ function love.mousepressed(x, y, button, istouch, presses)
         
     end
 
+    editor.mousepressed(x, y, button)
 
     lurker.scan()
 
@@ -420,6 +420,8 @@ function beginContact(fixture_a, fixture_b, contact)
     -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
+    editor.collision(fixture_a, fixture_b, contact)
+
 
 end
 
