@@ -120,9 +120,10 @@ function map_hotreloader.reload_map_file(file_path)
         map_loader.cache_map(current_map_id, nil)
         
         -- Switch to reloaded map
-        map_manager.switch_to_map(current_map_id, function(reloaded_map)
+        local reloaded_map = map_manager.loadMap(current_map_id)
+        if reloaded_map then
             print("Successfully hot-reloaded map: " .. current_map_id)
-        end)
+        end
     end
     
     file_info.loaded = true

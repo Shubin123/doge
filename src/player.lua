@@ -33,8 +33,8 @@ function newAnimation(image, width, height, duration, numFrames)
 end
 
 function player.load(world)
-    -- Start player at world coordinates (400, 300) instead of screen-relative coordinates
-    player.body = love.physics.newBody(world, 400, 300, "dynamic")
+    -- Start player at center of expanded world
+    player.body = love.physics.newBody(world, 2000, 1500, "dynamic")
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.fixture:setGroupIndex(-1)
@@ -191,9 +191,9 @@ function player.update(dt)
     end
     
     -- Normal movement (only when not dodging)
-    local maxSpeed = player.speed or 100
-    local acceleration = 2000
-    local friction = 0.85
+    local maxSpeed = player.speed or 150  -- Increased speed
+    local acceleration = 3000  -- Faster acceleration
+    local friction = 0.9  -- Smoother deceleration
     
     -- Get current velocity
     local vx, vy = player.body:getLinearVelocity()

@@ -7,9 +7,125 @@
 -- under the terms of the MIT license. See LICENSE for details.
 --
 
--- Assumes lume is in the same directory as this file if it does not exist
--- as a global
-local lume = rawget(_G, "lume") or require((...):gsub("[^/.\\]+$", "lume"))
+-- Minimal lume functions embedded to remove dependency
+local function each(tbl, fn)
+  if type(tbl) == "table" then
+    for i, v in ipairs(tbl) do
+      fn(v, i)
+    end
+  end
+  return tbl
+end
+
+local function map(tbl, fn)
+  local result = {}
+  if type(tbl) == "table" then
+    for i, v in ipairs(tbl) do
+      result[i] = fn(v, i)
+    end
+  end
+  return result
+end
+
+local function filter(tbl, fn)
+  local result = {}
+  if type(tbl) == "table" then
+    for i, v in ipairs(tbl) do
+      if fn(v, i) then
+        table.insert(result, v)
+      end
+    end
+  end
+  return result
+end
+
+local function concat(...)
+  local result = {}
+  for i = 1, select("#", ...) do
+    local tbl = select(i, ...)
+    if type(tbl) == "table" then
+      for j = 1, #tbl do
+        table.insert(result, tbl[j])
+      end
+    end
+  end
+  return result
+end
+
+local function format(str, vars)
+  if not vars then return str end
+  return (str:gsub("{(%d+)}", function(i)
+    return tostring(vars[tonumber(i)])
+  end))
+end
+
+local function trim(str, chars)
+  if not str then return "" end
+  chars = chars or "%s"
+  return str:match("^[" .. chars .. "]*(.-)[" .. chars .. "]*$")
+end
+
+local function color(hex, base)
+  base = base or 1
+  hex = hex:gsub("#", "")
+  local r = tonumber(hex:sub(1, 2), 16) / 255
+  local g = tonumber(hex:sub(3, 4), 16) / 255
+  local b = tonumber(hex:sub(5, 6), 16) / 255
+  if base == 256 then
+    return {r, g, b}
+  end
+  return r, g, b
+end
+
+local function smooth(a, b, t)
+  t = math.max(0, math.min(1, t))
+  return a + (b - a) * t * t * (3 - 2 * t)
+end
+
+local function pingpong(t)
+  return 1 - math.abs(1 - (t % 2))
+end
+
+local function time(fn, ...)
+  local start = love.timer.getTime()
+  local ok, result = pcall(fn, ...)
+  local elapsed = love.timer.getTime() - start
+  return elapsed, ok, result
+end
+
+local function hotswap(modname)
+  local oldglobal = _G
+  local updated = {}
+  local function update(old, new)
+    if type(old) ~= "table" then return new end
+    if updated[old] then return old end
+    updated[old] = true
+    for k, v in pairs(new) do
+      if type(v) == "table" then
+        old[k] = update(old[k], v)
+      else
+        old[k] = v
+      end
+    end
+    return old
+  end
+  local err = nil
+  local function onerror(e)
+    err = e
+  end
+  local oldmod = package.loaded[modname]
+  package.loaded[modname] = nil
+  local ok, newmod = xpcall(require, onerror, modname)
+  if not ok then
+    package.loaded[modname] = oldmod
+    return nil, err
+  end
+  if type(oldmod) == "table" then
+    update(oldmod, newmod)
+    package.loaded[modname] = oldmod
+  end
+  return oldmod
+end
 
 local lurker = { _version = "1.0.1" }
 
@@ -54,13 +170,13 @@ function lurker.init()
   lurker.funcwrappers = {}
   lurker.lovefuncs = {}
   lurker.state = "init"
-  lume.each(lurker.getchanged(), lurker.resetfile)
+  each(lurker.getchanged(), lurker.resetfile)
   return lurker
 end
 
 
 function lurker.print(...)
-  print("[lurker] " .. lume.format(...))
+  print("[lurker] " .. format(...))
 end
 
 
@@ -68,12 +184,12 @@ function lurker.listdir(path, recursive, skipdotfiles)
   path = (path == ".") and "" or path
   local function fullpath(x) return path .. "/" .. x end
   local t = {}
-  for _, f in pairs(lume.map(dir(path), fullpath)) do
+  for _, f in pairs(map(dir(path), fullpath)) do
     if not skipdotfiles or not f:match("/%.[^/]*$") then
       if recursive and isdir(f) then
-        t = lume.concat(t, lurker.listdir(f, true, true))
+        t = concat(t, lurker.listdir(f, true, true))
       else
-        table.insert(t, lume.trim(f, "/"))
+        table.insert(t, trim(f, "/"))
       end
     end
   end
@@ -128,14 +244,14 @@ function lurker.onerror(e, nostacktrace)
   end
 
   local stacktrace = nostacktrace and "" or
-                     lume.trim((debug.traceback("", 2):gsub("\t", "")))
-  local msg = lume.format("{1}\n\n{2}", {e, stacktrace})
+                     trim((debug.traceback("", 2):gsub("\t", "")))
+  local msg = format("{1}\n\n{2}", {e, stacktrace})
   local colors = {
-    { lume.color("#1e1e2c", 256) },
-    { lume.color("#f0a3a3", 256) },
-    { lume.color("#92b5b0", 256) },
-    { lume.color("#66666a", 256) },
-    { lume.color("#cdcdcd", 256) },
+    { color("#1e1e2c", 256) },
+    { color("#f0a3a3", 256) },
+    { color("#92b5b0", 256) },
+    { color("#66666a", 256) },
+    { color("#cdcdcd", 256) },
   }
   love.graphics.reset()
   love.graphics.setFont(love.graphics.newFont(12))
@@ -145,7 +261,7 @@ function lurker.onerror(e, nostacktrace)
     local width = love.graphics.getWidth()
 
     local function drawhr(pos, color1, color2)
-      local animpos = lume.smooth(pad, width - pad - 8, lume.pingpong(time()))
+      local animpos = smooth(pad, width - pad - 8, pingpong(time()))
       if color1 then love.graphics.setColor(color1) end
       love.graphics.rectangle("fill", pad, pos, width - pad*2, 1)
       if color2 then love.graphics.setColor(color2) end
@@ -211,7 +327,7 @@ function lurker.getchanged()
   local function fn(f)
     return f:match("%.lua$") and lurker.files[f] ~= lastmodified(f)
   end
-  return lume.filter(lurker.listdir(lurker.path, true, true), fn)
+  return filter(lurker.listdir(lurker.path, true, true), fn)
 end
 
 
@@ -236,7 +352,7 @@ function lurker.hotswapfile(f)
     return
   end
   local modname = lurker.modname(f)
-  local t, ok, err = lume.time(lume.hotswap, modname)
+  local t, ok, err = time(hotswap, modname)
   if ok then
     lurker.print("Swapped '{1}' in {2} secs", {f, t})
   else
@@ -261,7 +377,7 @@ function lurker.scan()
     lurker.exitinitstate()
   end
   local changed = lurker.getchanged()
-  lume.each(changed, lurker.hotswapfile)
+  each(changed, lurker.hotswapfile)
   return changed
 end
 

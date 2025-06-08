@@ -48,6 +48,17 @@ enemy.types = {
         aura_color = {0.3, 0.8, 1.0},
         death_color = {0.1, 0.6, 1.0},
         experience = 50
+    },
+    fireballer = {
+        health = 8,
+        speed = 110,
+        damage = 2,
+        fire_rate = 1.2,
+        detection_range = 450,
+        sprite_sheet = "enemy.jpg",
+        aura_color = {1.0, 0.4, 0.1},
+        death_color = {1.0, 0.2, 0.0},
+        experience = 35
     }
 }
 
@@ -132,6 +143,13 @@ function enemy.load()
             death = "ice",
             impact = "energy", 
             colors = {energy = true, ice = true}
+        },
+        fireballer = {
+            aura = "fire",
+            projectile = "fire",
+            death = "fire",
+            impact = "impact",
+            colors = {fire = true}
         }
     }
     
@@ -686,6 +704,11 @@ function enemy.collision(fixture_a, fixture_b, contact)
             if projectile_data then
                 local damage = projectile_data[7] or 1 -- Get damage from projectile
                 player.health = player.health - damage
+                
+                -- Create blood burst effect when player is hit
+                if particle_system then
+                    particle_system.createEffect(particle_system.EFFECT_TYPES.BLOOD, proj_x, proj_y, {count=20})
+                end
                 
                 -- Add enhanced hit effects
                 if effects and effects.newHitMarker then

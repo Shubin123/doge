@@ -530,10 +530,7 @@ function map_editor.create_new_map(id, name, width, height)
     map_loader.register_map(template)
     
     -- Switch to new map
-    map_manager.switch_to_map(id, function(loaded_map)
-        print("Created and loaded new map: " .. id)
-        map_editor.save_state()
-    end)
+    map_manager.loadMap(id)
     
     return true
 end
@@ -550,10 +547,7 @@ function map_editor.load_map_file(file_path)
     map_loader.register_map(loaded_data.definition)
     
     -- Switch to loaded map
-    map_manager.switch_to_map(loaded_data.definition.id, function(loaded_map)
-        print("Loaded map from file: " .. file_path)
-        map_editor.save_state()
-    end)
+    map_manager.loadMap(loaded_data.definition.id)
     
     return true
 end

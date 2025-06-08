@@ -62,6 +62,9 @@ function shader.load()
     
     fog_of_war_shader = love.graphics.newShader("shaders_/fog_of_war.frag")
     
+    shader.pixel_shader = love.graphics.newShader("shaders_/pixel.frag")
+    shader.pixel_enabled = false
+    
     -- Set default uniforms for playable twilight atmosphere
     df_shader:send("smoothness", 0.05)
     gi_shader:send("ambientColor", {0.4, 0.4, 0.4}) -- Neutral gray ambient for visibility
@@ -140,6 +143,10 @@ function shader.updateQuality()
                               math.min(shader.quality.max_distance, shader.distance))
     shader.sample = math.max(shader.quality.min_sample, 
                             math.min(shader.quality.max_sample, shader.sample))
+end
+
+function shader.setPixelEnabled(on)
+    shader.pixel_enabled = on
 end
 
 function shader.pass()
@@ -224,7 +231,15 @@ function shader.pass()
         love.graphics.setCanvas()
         love.graphics.setBlendMode("alpha", "premultiplied")
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(fog_canvas)
+        if shader.pixel_enabled then
+            shader.pixel_shader:send("pixel_size", 8.0)
+            shader.pixel_shader:send("screen_size", {W, H})
+            love.graphics.setShader(shader.pixel_shader)
+            love.graphics.draw(fog_canvas)
+            love.graphics.setShader()
+        else
+            love.graphics.draw(fog_canvas)
+        end
         love.graphics.setBlendMode("alpha")
     else
         -- Draw final results without fog
@@ -232,7 +247,15 @@ function shader.pass()
         love.graphics.setCanvas()
         love.graphics.setBlendMode("alpha", "premultiplied")
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(final_canvas)
+        if shader.pixel_enabled then
+            shader.pixel_shader:send("pixel_size", 8.0)
+            shader.pixel_shader:send("screen_size", {W, H})
+            love.graphics.setShader(shader.pixel_shader)
+            love.graphics.draw(final_canvas)
+            love.graphics.setShader()
+        else
+            love.graphics.draw(final_canvas)
+        end
         love.graphics.setBlendMode("alpha")
     end
 end

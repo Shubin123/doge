@@ -2,6 +2,8 @@ local loading_screen = {}
 local game_state = require("game_state")
 local map_manager = require("map_manager")
 local character_manager = require("character_manager")
+local loading_coordinator = require("loading_coordinator")
+local settings_manager = require("settings_manager")
 
 -- Loading configuration
 local loading_config = {
@@ -25,18 +27,21 @@ local loading_state = {
     tip_timer = 0,
     current_tip_index = 1,
     
-    -- Loading tasks
-    tasks = {},
-    current_task_index = 1,
-    completed_tasks = 0,
-    total_tasks = 0,
-    
     -- Selected character and map
     selected_character = nil,
     selected_map = nil,
     
     -- Callbacks
-    completion_callback = nil
+    completion_callback = nil,
+    
+    -- Loading status
+    is_loading = false,
+    completed = false,
+    
+    -- Fade state for shader transitions
+    fadeState = nil, -- 'out', 'in', or nil
+    fadeProgress = 0,
+    map_load_started = false
 }
 
 -- Loading tips
@@ -55,8 +60,9 @@ local loading_tips = {
     "Watch out for enemy patterns and behaviors"
 }
 
--- Fonts
+-- Fonts and shaders
 local fonts = {}
+local map_transition_shader = nil
 
 -- Initialize loading screen
 function loading_screen.initialize()
@@ -64,6 +70,43 @@ function loading_screen.initialize()
     fonts.title = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 32)
     fonts.text = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 18)
     fonts.small = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 14)
+    
+    -- Load map transition shader
+    map_transition_shader = love.graphics.newShader('src/shaders_/map_transition.frag')
+    
+    -- Register LoadingCoordinator callbacks
+    loading_coordinator.registerStart(function()
+        loading_state.is_loading = true
+        loading_state.progress = 0
+        loading_state.smooth_progress = 0
+        loading_state.current_task = "Starting..."
+        loading_state.completed = false
+        print("Loading started")
+    end)
+    
+    loading_coordinator.registerProgress(function(percent, message)
+        loading_state.progress = percent / 100.0  -- Convert percent to 0-1 range
+        loading_state.current_task = message or "Loading..."
+        print("Loading progress: " .. percent .. "% - " .. (message or ""))
+    end)
+    
+    loading_coordinator.registerComplete(function(success, err)
+        loading_state.is_loading = false
+        if success then
+            loading_state.progress = 1.0
+            loading_state.current_task = "Complete!"
+            print("Loading completed successfully")
+            -- If using shaders, start fade in, otherwise complete immediately
+            if settings_manager.get_setting("graphics", "use_map_shaders") and loading_state.fadeState then
+                loading_state.fadeState = 'in'
+                loading_state.fadeProgress = 1.0
+            end
+            loading_screen.complete_loading()
+        else
+            loading_state.current_task = "Error: " .. (err or "Unknown error")
+            print("Loading failed: " .. (err or "Unknown error"))
+        end
+    end)
     
     print("Loading screen initialized")
 end
@@ -80,82 +123,34 @@ function loading_screen.start_loading(character_id, map_id, completion_callback)
     loading_state.animation_time = 0
     loading_state.tip_timer = 0
     loading_state.current_tip_index = math.random(1, #loading_tips)
-    loading_state.current_task_index = 1
-    loading_state.completed_tasks = 0
     loading_state.completed = false
+    loading_state.map_load_started = false
     
-    -- Define loading tasks
-    loading_state.tasks = {
-        {
-            name = "Loading character data...",
-            duration = 0.5,
-            action = function()
-                local character = character_manager.load_character(character_id)
-                if not character then
-                    print("Failed to load character: " .. (character_id or "unknown"))
-                    return false
-                end
-                return true
-            end
-        },
-        {
-            name = "Preparing game world...",
-            duration = 0.8,
-            action = function()
-                -- Initialize physics world if needed
-                return true
-            end
-        },
-        {
-            name = "Loading map: " .. (map_id or "default"),
-            duration = 1.2,
-            action = function()
-                local map_to_load = map_id or "level1"
-                print("Attempting to load map: " .. map_to_load)
-                
-                -- Try to load the map synchronously using map loader
-                local map_loader = require("map_loader")
-                local loaded_map = map_loader.load_map_sync(map_to_load)
-                
-                if loaded_map then
-                    print("Map loaded successfully: " .. map_to_load)
-                    return true
-                else
-                    print("Failed to load map: " .. map_to_load)
-                    return false
-                end
-            end
-        },
-        {
-            name = "Spawning entities...",
-            duration = 0.6,
-            action = function()
-                -- Entities are spawned automatically by map_manager
-                return true
-            end
-        },
-        {
-            name = "Initializing systems...",
-            duration = 0.4,
-            action = function()
-                -- Initialize any additional game systems
-                return true
-            end
-        },
-        {
-            name = "Finalizing...",
-            duration = 0.3,
-            action = function()
-                -- Final setup
-                return true
-            end
-        }
-    }
+    -- Initialize fade state if shaders are enabled
+    if settings_manager.get_setting("graphics", "use_map_shaders") then
+        loading_state.fadeState = 'out'
+        loading_state.fadeProgress = 0
+    else
+        loading_state.fadeState = nil
+        loading_state.fadeProgress = 0
+    end
     
-    loading_state.total_tasks = #loading_state.tasks
-    loading_state.current_task = loading_state.tasks[1].name
+    -- Load character data first (synchronously)
+    local character = character_manager.load_character(character_id)
+    if not character then
+        print("Failed to load character: " .. (character_id or "unknown"))
+        loading_state.current_task = "Error: Failed to load character"
+        return
+    end
     
-    print("Started loading - Character: " .. character_id .. ", Map: " .. (map_id or "default"))
+    -- Start loading via coordinator (only if shaders are disabled or we're not using fade)
+    local map_to_load = map_id or "level1"
+    if not settings_manager.get_setting("graphics", "use_map_shaders") then
+        print("Started loading - Character: " .. character_id .. ", Map: " .. map_to_load)
+        loading_coordinator.startLoading(map_to_load)
+    else
+        print("Started fade out - Character: " .. character_id .. ", Map: " .. map_to_load)
+    end
 end
 
 -- Update loading screen
@@ -169,59 +164,33 @@ function loading_screen.update(dt)
         loading_state.current_tip_index = (loading_state.current_tip_index % #loading_tips) + 1
     end
     
+    -- Handle fade state transitions
+    if loading_state.fadeState == 'out' then
+        -- Fade out progress
+        loading_state.fadeProgress = loading_state.fadeProgress + dt * 2.0 -- 0.5 second fade
+        if loading_state.fadeProgress >= 1.0 then
+            loading_state.fadeProgress = 1.0
+            -- Start map loading if not already started
+            if not loading_state.map_load_started then
+                loading_state.map_load_started = true
+                local map_to_load = loading_state.selected_map or "level1"
+                print("Started loading after fade out - Map: " .. map_to_load)
+                loading_coordinator.startLoading(map_to_load)
+            end
+        end
+    elseif loading_state.fadeState == 'in' then
+        -- Fade in progress
+        loading_state.fadeProgress = loading_state.fadeProgress - dt * 2.0 -- 0.5 second fade
+        if loading_state.fadeProgress <= 0.0 then
+            loading_state.fadeProgress = 0.0
+            loading_state.fadeState = nil
+        end
+    end
+    
     -- Update smooth progress
     local target_progress = loading_state.progress
     loading_state.smooth_progress = loading_state.smooth_progress + 
         (target_progress - loading_state.smooth_progress) * loading_config.progress_smooth_speed * dt
-    
-    -- Process loading tasks
-    if loading_state.current_task_index <= loading_state.total_tasks then
-        local current_task = loading_state.tasks[loading_state.current_task_index]
-        
-        -- Simulate task duration or execute actual task
-        if current_task.timer == nil then
-            current_task.timer = 0
-            loading_state.current_task = current_task.name
-        end
-        
-        current_task.timer = current_task.timer + dt
-        
-        -- Update progress within current task
-        local task_progress = math.min(1, current_task.timer / current_task.duration)
-        local base_progress = (loading_state.current_task_index - 1) / loading_state.total_tasks
-        local task_contribution = task_progress / loading_state.total_tasks
-        loading_state.progress = base_progress + task_contribution
-        
-        -- Complete task when timer expires
-        if current_task.timer >= current_task.duration then
-            -- Execute task action
-            local success = true
-            if current_task.action then
-                success = current_task.action()
-            end
-            
-            if success then
-                loading_state.completed_tasks = loading_state.completed_tasks + 1
-                loading_state.current_task_index = loading_state.current_task_index + 1
-                
-                if loading_state.current_task_index <= loading_state.total_tasks then
-                    loading_state.current_task = loading_state.tasks[loading_state.current_task_index].name
-                end
-            else
-                -- Handle task failure
-                print("Loading task failed: " .. current_task.name)
-                loading_state.current_task = "Error loading map - Check console"
-                loading_state.progress = 0.5 -- Stop at ~50% to show the error
-                return -- Stop processing tasks
-            end
-        end
-    else
-        -- All tasks completed
-        loading_state.progress = 1
-        
-        -- Complete immediately when all tasks are done, don't wait for smooth progress
-        loading_screen.complete_loading()
-    end
 end
 
 -- Complete loading and transition to game
@@ -241,13 +210,13 @@ function loading_screen.complete_loading()
     end
     
     -- Get spawn position from selected map
-    local current_map = map_manager.get_current_map()
+    local current_context = map_manager.getCurrentContext()
     local spawn_x = 400
     local spawn_y = 300
     
-    if current_map and current_map.definition.player_spawn then
-        spawn_x = current_map.definition.player_spawn.x
-        spawn_y = current_map.definition.player_spawn.y
+    if current_context and current_context.definition and current_context.definition.playerSpawn then
+        spawn_x = current_context.definition.playerSpawn.x
+        spawn_y = current_context.definition.playerSpawn.y
     end
     
     -- Create new player instance with selected character
@@ -320,6 +289,16 @@ function loading_screen.draw()
     -- Clear background
     love.graphics.clear(loading_config.background_color)
     
+    -- Apply shader if enabled and we have fade state
+    local use_shader = settings_manager.get_setting("graphics", "use_map_shaders") and 
+                      map_transition_shader and loading_state.fadeState
+    
+    if use_shader then
+        love.graphics.setShader(map_transition_shader)
+        map_transition_shader:send("fade_amount", loading_state.fadeProgress)
+        map_transition_shader:send("blur", false) -- No blur for loading screen
+    end
+    
     -- Draw animated background
     loading_screen.draw_background()
     
@@ -365,6 +344,11 @@ function loading_screen.draw()
     
     -- Draw spinner
     loading_screen.draw_spinner()
+    
+    -- Reset shader
+    if use_shader then
+        love.graphics.setShader(nil)
+    end
     
     -- Reset color
     love.graphics.setColor(1, 1, 1, 1)
@@ -466,15 +450,6 @@ function loading_screen.set_progress(progress, task_text)
     end
 end
 
--- Add custom loading task
-function loading_screen.add_task(name, duration, action)
-    table.insert(loading_state.tasks, {
-        name = name,
-        duration = duration,
-        action = action
-    })
-    loading_state.total_tasks = #loading_state.tasks
-end
 
 -- Check if loading is complete
 function loading_screen.is_complete()
@@ -487,8 +462,7 @@ function loading_screen.get_progress()
         progress = loading_state.progress,
         smooth_progress = loading_state.smooth_progress,
         current_task = loading_state.current_task,
-        completed_tasks = loading_state.completed_tasks,
-        total_tasks = loading_state.total_tasks
+        is_loading = loading_state.is_loading
     }
 end
 

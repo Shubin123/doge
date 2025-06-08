@@ -10,15 +10,15 @@ camera.target_zoom = 1.0
 
 -- Camera settings
 camera.config = {
-    lerp_speed = 15.0,
+    lerp_speed = 8.0,  -- Smoother following (lower = smoother)
     zoom_speed = 12.0,
-    dead_zone = 60,  -- Restored deadzone with larger size
-    dead_zone_lean = 0.3,  -- How much camera leans within deadzone (0.0 - 1.0)
-    look_ahead_time = 0.1,
-    look_ahead_weight = 0.1,
+    dead_zone = 40,  -- Smaller deadzone for more responsive following
+    dead_zone_lean = 0.2,  -- Less leaning for smoother movement
+    look_ahead_time = 0.15,  -- Better prediction
+    look_ahead_weight = 0.2,  -- Stronger look-ahead
     culling_margin = 200,
-    mouse_influence = 0.15,  -- How much mouse pulls camera (0.0 - 1.0)
-    mouse_max_distance = 150,  -- Maximum distance mouse can pull camera
+    mouse_influence = 0.1,  -- Reduced mouse influence for smoother movement
+    mouse_max_distance = 120,  -- Reduced max distance
     -- Enhanced culling settings
     use_circular_culling = true,  -- Use circular instead of square culling
     dynamic_culling = true,  -- Adjust culling based on zoom and performance
@@ -42,13 +42,13 @@ camera.performance = {
     sample_count = 60
 }
 
--- Map boundaries
+-- Map boundaries (updated for expanded world)
 camera.map_bounds = {
     enabled = true,
-    x = 200, y = 50,
-    width = 800, height = 800,
+    x = 0, y = 0,
+    width = 4000, height = 3000,
     soft_edges = true,
-    resistance = 0.8
+    resistance = 0.9  -- Slightly stronger resistance for smoother boundary behavior
 }
 
 -- Shader uniforms for integration

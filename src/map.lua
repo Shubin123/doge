@@ -144,30 +144,48 @@ end
 
 -- Load a specific map by ID
 function map.loadMap(mapId)
-    if not map.mapDefinitions[mapId] then
-        print("Error: Map definition not found for " .. mapId)
-        return false
+    print("DEPRECATION WARNING: map.loadMap() is deprecated. Use MapManager.switchToMap() instead.")
+    
+    -- Forward to new system with blocking wait for legacy compatibility
+    local success = false
+    local completed = false
+    
+    map_manager.switchToMap(mapId, function(result, error)
+        success = result
+        completed = true
+        if not result then
+            print("Error loading map " .. mapId .. ": " .. tostring(error))
+        end
+    end)
+    
+    -- Block until completion for legacy sync behavior
+    while not completed do
+        coroutine.yield()
     end
     
-    local mapDef = map.mapDefinitions[mapId]
+    if success then
+        map.currentMapId = mapId
+        -- Update legacy data structures for compatibility
+        local context = map_manager.getCurrentContext()
+        if context then
+            map.loadedMaps[mapId] = {
+                definition = { id = mapId },
+                context = context
+            }
+        end
+    end
     
-    -- Load tileset
-    local tilesetImage = love.graphics.newImage(mapDef.tileset)
-    local tiles = newTiles(tilesetImage, mapDef.tileWidth, mapDef.tileHeight)
-    local mapObject = createMap(tiles, mapDef.mapWidth, mapDef.mapHeight, mapDef.tileData, mapDef.worldX or 0, mapDef.worldY or 0)
-    
-    -- Store loaded map
-    map.loadedMaps[mapId] = {
-        definition = mapDef,
-        map = mapObject,
-        tiles = tiles
-    }
-    
-    return true
+    return success
 end
 
 -- Unload a specific map
 function map.unloadMap(mapId)
+    print("DEPRECATION WARNING: map.unloadMap() is deprecated. Use MapManager.unloadContext() instead.")
+    
+    -- Forward to new system
+    map_manager.unloadContext(mapId)
+    
+    -- Clean up legacy data structures
     if map.loadedMaps[mapId] then
         map.loadedMaps[mapId] = nil
         collectgarbage()
@@ -176,32 +194,66 @@ end
 
 -- Switch to a different map
 function map.switchToMap(mapId)
-    if not map.loadedMaps[mapId] then
-        if not map.loadMap(mapId) then
-            return false
+    print("DEPRECATION WARNING: map.switchToMap() is deprecated. Use MapManager.switchToMap() instead.")
+    
+    -- Forward to new system with blocking wait for legacy compatibility
+    local success = false
+    local completed = false
+    
+    map_manager.switchToMap(mapId, function(result, error)
+        success = result
+        completed = true
+        if not result then
+            print("Failed to switch to map " .. mapId .. ": " .. tostring(error))
+        end
+    end)
+    
+    -- Block until completion for legacy sync behavior
+    while not completed do
+        coroutine.yield()
+    end
+    
+    if success then
+        map.currentMapId = mapId
+        -- Update legacy data structures for compatibility
+        local context = map_manager.getCurrentContext()
+        if context then
+            map.loadedMaps[mapId] = {
+                definition = { id = mapId },
+                context = context
+            }
         end
     end
     
-    -- Unload current map if different
-    if map.currentMapId ~= mapId and map.loadedMaps[map.currentMapId] then
-        map.unloadMap(map.currentMapId)
-    end
-    
-    map.currentMapId = mapId
-    return true
+    return success
 end
 
 -- Get current map data
 function map.getCurrentMap()
+    print("DEPRECATION WARNING: map.getCurrentMap() is deprecated. Use MapManager.getCurrentContext() instead.")
+    
+    -- Try new system first
+    local context = map_manager.getCurrentContext()
+    if context and context.definition then
+        return {
+            definition = context.definition,
+            context = context
+        }
+    end
+    
+    -- Fallback to legacy data
     return map.loadedMaps[map.currentMapId]
 end
 
 -- Add current map tiles to dynamic draw list for proper GI rendering
 function map.addCurrentMapToDrawList()
-    -- Use new map manager system
-    local tiles = map_manager.get_visible_tiles()
-    if #tiles > 0 then
-        return tiles
+    print("DEPRECATION WARNING: map.addCurrentMapToDrawList() is deprecated. Use MapManager drawing system instead.")
+    
+    -- Forward to new system - MapManager handles drawing internally
+    local context = map_manager.getCurrentContext()
+    if context then
+        -- New system handles this automatically through context:draw()
+        return {}
     end
     
     -- Fallback to legacy system
@@ -214,25 +266,43 @@ end
 
 -- Spawn entities for current map
 function map.spawnMapEntities()
-    -- Use new map manager system - it handles entity spawning internally
-    -- This function kept for compatibility but actual work is done by map_manager
-    print("Legacy map.spawnMapEntities() called - new system handles this automatically")
+    print("DEPRECATION WARNING: map.spawnMapEntities() is deprecated. New MapManager system handles entity spawning automatically.")
+    -- New system handles entity spawning internally during map loading
+    -- This function kept for compatibility but no action needed
 end
 
 function map.load()
-    -- Initialize the new map manager system
-    map_manager.initialize()
+    print("DEPRECATION WARNING: map.load() is deprecated. Initialize MapManager directly and use switchToMap().")
     
-    -- Load the first map using the new system
-    local result = map_manager.switch_to_map("level1", function(loaded_map)
-        print("Initial map loaded: " .. loaded_map.id)
+    -- Initialize the new map manager system - requires physics world
+    if not map_manager.world then
+        print("Warning: MapManager not initialized with physics world. Legacy system may not work properly.")
+    end
+    
+    -- Try to load initial map using new system
+    local success = false
+    local completed = false
+    
+    map_manager.switchToMap("level1", function(result, error)
+        success = result
+        completed = true
+        if result then
+            print("Initial map loaded via MapManager: level1")
+            map.currentMapId = "level1"
+        else
+            print("Failed to load initial map via MapManager: " .. tostring(error))
+        end
     end)
     
-    if not result then
-        print("Failed to load initial map, falling back to legacy system")
+    -- Block until completion for legacy sync behavior
+    while not completed do
+        coroutine.yield()
+    end
+    
+    -- Fallback to legacy system if new system failed
+    if not success then
+        print("Falling back to legacy map loading system")
         map.loadLegacyMaps()
-    else
-        map.currentMapId = "level1"
     end
 end
 
@@ -276,36 +346,56 @@ function map.update(dt)
     map_manager.update(dt)
 end
 
-function map.switchToMap(map_id, callback)
-    return map_manager.switch_to_map(map_id, callback)
-end
-
 function map.getCurrentMapObject()
-    return map_manager.get_current_map()
+    print("DEPRECATION WARNING: map.getCurrentMapObject() is deprecated. Use MapManager.getCurrentContext() instead.")
+    return map_manager.getCurrentContext()
 end
 
 function map.getWorldBounds()
-    return map_manager.get_world_bounds()
+    print("DEPRECATION WARNING: map.getWorldBounds() is deprecated. Access bounds through MapContext instead.")
+    local context = map_manager.getCurrentContext()
+    if context and context.getWorldBounds then
+        return context:getWorldBounds()
+    end
+    return nil
 end
 
 function map.isLoading()
-    return map_manager.is_loading()
+    print("DEPRECATION WARNING: map.isLoading() is deprecated. Use MapManager progress callbacks instead.")
+    -- Check if any async operations are in progress
+    return map_manager.getCurrentContext() == nil and map.currentMapId ~= nil
 end
 
 function map.getTileAtWorldPos(world_x, world_y)
-    return map_manager.get_tile_at_world_pos(world_x, world_y)
+    print("DEPRECATION WARNING: map.getTileAtWorldPos() is deprecated. Access tiles through MapContext instead.")
+    local context = map_manager.getCurrentContext()
+    if context and context.getTileAtWorldPos then
+        return context:getTileAtWorldPos(world_x, world_y)
+    end
+    return nil
 end
 
 function map.setTileAtWorldPos(world_x, world_y, tile_id)
-    return map_manager.set_tile_at_world_pos(world_x, world_y, tile_id)
+    print("DEPRECATION WARNING: map.setTileAtWorldPos() is deprecated. Access tiles through MapContext instead.")
+    local context = map_manager.getCurrentContext()
+    if context and context.setTileAtWorldPos then
+        return context:setTileAtWorldPos(world_x, world_y, tile_id)
+    end
+    return false
 end
 
 function map.getDebugInfo()
-    return map_manager.get_debug_info()
+    print("DEPRECATION WARNING: map.getDebugInfo() is deprecated. Access debug info through MapContext instead.")
+    local context = map_manager.getCurrentContext()
+    if context and context.getDebugInfo then
+        return context:getDebugInfo()
+    end
+    return {}
 end
 
 function map.cleanup()
-    map_manager.cleanup()
+    print("DEPRECATION WARNING: map.cleanup() is deprecated. Use MapManager.unloadAll() instead.")
+    map_manager.unloadAll()
 end
 
 return map
