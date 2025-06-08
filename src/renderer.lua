@@ -262,11 +262,11 @@ function renderer.populateDynamicDrawList()
 
     -- Portal shader drawable (positioned at specific location)
     table.insert(dynamic_draw_list, {
-        sort_y = 370, -- Adjust depth as needed
+        sort_y = 315, -- Adjust depth as needed
         shader = portal.SHADERS["portal"],
         shader_params = portal.params,
-        x = 236,
-        y = 190,
+        x = 290,
+        y = 150,
         width = 35,
         height = 50,
         color = { 1, 1, 1, 1 },
@@ -462,44 +462,6 @@ function rebuildArray(arr, innerElements)
     end
 end
 
-function addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
-    map_x = map_x or 0
-    map_y = map_y or 0
-    map_scale = map_scale or 1
 
-    local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
-    local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))
-
-    local dynamic_draw_lists = {}
-
-    for row = 1, max_tiles_y do
-        for col = 1, max_tiles_x do
-            local tileId = mapData.tileData[row] and mapData.tileData[row][col]
-            if tileId and tileId > 0 and mapData.tiles.quads[tileId] then
-                local tile_x = map_x + (col - 1) * mapData.tiles.tileWidth * map_scale
-                local tile_y = map_y + (row - 1) * mapData.tiles.tileHeight * map_scale
-                local tile_sort_y = base_sort_y + tile_y -- Use tile's Y position for sorting
-
-                table.insert(dynamic_draw_lists, {
-                    sort_y = tile_sort_y,
-                    image_or_particles = mapData.tiles.tilesetImage,
-                    quad = mapData.tiles.quads[tileId],
-                    x = tile_x,
-                    y = tile_y,
-                    rotation = 0,
-                    scale_x = map_scale,
-                    scale_y = map_scale,
-                    offset_x = 0,
-                    offset_y = 0,
-                    color = { 1, 1, 1, 1 },
-                    blend_mode = { "alpha" },
-                    source_object_type = "map_tile"
-                })
-            end
-        end
-    end
-
-    return dynamic_draw_lists
-end
 
 return renderer

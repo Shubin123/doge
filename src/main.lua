@@ -27,7 +27,6 @@ snapshot = require("snapshot")
 blur = require ("blur")
 serial = require("serial")
 editor = require("editor")
-
 multiplayer = require("multiplayer")
 
 -- hotreloader / helpers
@@ -77,13 +76,14 @@ function love.load()
         var.game_height + 50)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
-    createArches()
+    map.createArches(300,200)
+    map.createTree(400,100)
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
 
     -- Load map and player
     map.load()
-    map_a = addMapToDynamicDrawList(map.map3, 100, game_area_y, 1, 200) -- base_sort_y of 200 for arches
-    map_b = addMapToDynamicDrawList(map.map4, 100, game_area_y, 0.8, 240)
+    map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+    map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
 
     multiplayer.load()
     player.load(world)
@@ -101,7 +101,7 @@ function love.load()
     enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
 
-    -- Graphics
+    -- Graphicsw
     if var.num_coins > 0 then
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
@@ -113,7 +113,7 @@ function love.load()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
 
-    -- editor.load()
+    editor.load(world,map)
 
 
     -- Shaders
@@ -199,7 +199,8 @@ function love.draw()
     end
 
 
-    mydraw.mydraw() -- ui last
+    -- mydraw.mydraw() -- ui last
+    editor.debugDraw()
 end
 
 local t = 0
@@ -239,17 +240,12 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
 end
 
-
-
-
 function love.resize(w, h)
     var.screen_width = w
     var.screen_height = h
     var.ScreenInfo.screen_width = w
     var.ScreenInfo.screen_height = h
 end
-
-local restartcount = tonumber(love.restart) or 0
 
 function love.mousepressed(x, y, button, istouch, presses)
     if var.State == "menu" then
@@ -280,8 +276,6 @@ function love.mousepressed(x, y, button, istouch, presses)
     editor.mousepressed(x, y, button)
 
     lurker.scan()
-
-    -- love.event.restart(restartcount + 1)
 end
 
 lurker.preswap = function(file)
@@ -307,7 +301,7 @@ function love.keypressed(key)
         -- fire.pierce = not fire.pierce
         -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
         -- var.num_enemies  = var.num_enemies  + 1
-
+        
         debug.debug()
     end
 
@@ -319,6 +313,8 @@ function love.keypressed(key)
         
         -- blur.set_radius(0.00001)
     end
+
+    editor.keypressed(key)
 end
 
 function round(x, n)
@@ -368,15 +364,6 @@ function createEnemies(n)
     end
 end
 
-function createArches()
-    arch_shape = love.physics.newRectangleShape(20, 30)
-    for x = 0, 7 do
-        for y = 0, 2 do
-            arch_body = love.physics.newBody(world, 230 + 48 * x, 100 + y * 130, "static")
-            love.physics.newFixture(arch_body, arch_shape)
-        end
-    end
-end
 
 function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
@@ -420,7 +407,7 @@ function beginContact(fixture_a, fixture_b, contact)
     -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
-    editor.collision(fixture_a, fixture_b, contact)
+    -- editor.collision(fixture_a, fixture_b, contact)
 
 
 end

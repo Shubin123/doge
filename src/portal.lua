@@ -138,7 +138,7 @@ function portal.draw()
     
         -- Apply shader and draw a fullscreen quad
         love.graphics.setShader(shader)
-        love.graphics.rectangle("fill", 236, 200, 35, 50)
+        love.graphics.rectangle("fill", 300, 200, 35, 50)
         
     
 

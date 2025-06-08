@@ -1,95 +1,68 @@
 local editor = {}
 
 -- Initialize the editor module
-function editor.load(world)
+function editor.load(world, mapModule)
     editor.world = world
-    editor.selectedBody = nil
-    editor.tempBody = nil
-    editor.tempFixture = nil
-    editor.collisions = {}
+    editor.map = mapModule
+    editor.selectedObject = nil
     editor.mouseX = 0
     editor.mouseY = 0
     editor.isPressed = false
+    editor.dragOffset = {x = 0, y = 0}
+    editor.mode = "select" -- "select", "create_arch", "create_tree"
 end
 
--- Create a temporary collision detector at mouse position
-function editor.createTempCollider(x, y, radius)
-    radius = radius or 10 -- Default radius for detection
-    
-    -- Clean up existing temp collider
-    if editor.tempBody then
-        editor.tempBody:destroy()
-        editor.tempBody = nil
-        editor.tempFixture = nil
-    end
-    
-    -- Clear previous collisions
-    editor.collisions = {}
-    
-    -- Create temporary body for collision detection
-    editor.tempBody = love.physics.newBody(world, x, y, "dynamic")
-    local shape = love.physics.newCircleShape(radius)
-    editor.tempFixture = love.physics.newFixture(editor.tempBody, shape)
-    
-    -- Make it a sensor so it doesn't physically interact
-    editor.tempFixture:setSensor(true)
-    editor.tempFixture:setUserData("temp_collider")
-    
-    return editor.tempBody, editor.tempFixture
+-- Set editor mode
+function editor.setMode(mode)
+    editor.mode = mode
 end
 
--- Collision callback function (called from main beginContact)
-function editor.collision(fixtureA, fixtureB, contact)
-    -- Only process if we have a temp fixture active
-    if not editor.tempFixture then
-        return
-    end
-    
-    local mouseFixture, otherFixture = nil, nil
-    
-    if fixtureA == editor.tempFixture then
-        mouseFixture = fixtureA
-        otherFixture = fixtureB
-    elseif fixtureB == editor.tempFixture then
-        mouseFixture = fixtureB
-        otherFixture = fixtureA
-    end
-    
-    if mouseFixture and otherFixture then
-        local otherBody = otherFixture:getBody()
-        
-        -- Don't add static bodies or bodies that are already in the list
-        if otherBody:getType() == "dynamic" then
-            local alreadyExists = false
-            for _, collision in ipairs(editor.collisions) do
-                if collision.body == otherBody then
-                    alreadyExists = true
-                    break
-                end
-            end
-            
-            if not alreadyExists then
-                table.insert(editor.collisions, {
-                    body = otherBody,
-                    fixture = otherFixture
-                })
-            end
-        end
-    end
-    
-    return editor.collisions
+-- Get editor mode
+function editor.getMode()
+    return editor.mode
 end
 
 -- Handle mouse press events
 function editor.mousepressed(x, y, button)
-    print("wow")
     if button == 1 then -- Left mouse button
         editor.mouseX = x
         editor.mouseY = y
         editor.isPressed = true
         
-        -- Create temp collider at mouse position to detect what we're clicking on
-        editor.createTempCollider(x, y)
+        if editor.mode == "select" then
+            -- Find object at mouse position
+            editor.selectedObject = editor.findObjectAtPosition(x, y)
+            
+            if editor.selectedObject then
+                -- Calculate drag offset
+                if editor.selectedObject.type == "arch" then
+                    editor.dragOffset.x = x - editor.selectedObject.pivot_x
+                    editor.dragOffset.y = y - editor.selectedObject.pivot_y
+                elseif editor.selectedObject.type == "tree" then
+                    editor.dragOffset.x = x - editor.selectedObject.x
+                    editor.dragOffset.y = y - editor.selectedObject.y
+                end
+            end
+            
+        elseif editor.mode == "create_arch" then
+            -- Create new arch at mouse position
+            -- print(x,y)
+            map.createArches(x, y)
+            map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+            
+            
+        elseif editor.mode == "create_tree" then
+            -- Create new tree at mouse position
+            map.createTree(x, y)
+            map_b = map.addMapToDynamicDrawList(map.tree, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+
+        end
+    elseif button == 2 then -- Right mouse button
+        -- Delete object at position
+        local objectToDelete = editor.findObjectAtPosition(x, y)
+        if objectToDelete then
+            editor.deleteObject(objectToDelete)
+        end
     end
 end
 
@@ -103,64 +76,158 @@ end
 function editor.mousereleased(x, y, button)
     if button == 1 then
         editor.isPressed = false
-        
-        -- Clean up temp collider
-        if editor.tempBody then
-            editor.tempBody:destroy()
-            editor.tempBody = nil
-            editor.tempFixture = nil
-        end
-        
-        editor.selectedBody = nil
-        editor.collisions = {}
+        editor.selectedObject = nil
+        editor.dragOffset = {x = 0, y = 0}
     end
 end
 
--- Get currently selected body
-function editor.getSelectedBody()
-    return editor.selectedBody
+-- Find object at world position using physics world query
+function editor.findObjectAtPosition(x, y)
+    local foundObjects = {}
+    
+    -- Query a small area around the mouse position
+    editor.world:queryBoundingBox(x - 5, y - 5, x + 5, y + 5, function(fixture)
+        local userData = fixture:getUserData()
+        if userData and type(userData) == "table" then
+            if userData.type == "arch" then
+                -- Find the arch object
+                for _, arch in ipairs(editor.map.archInstances) do
+                    if arch.id == userData.id then
+                        table.insert(foundObjects, {object = arch, type = "arch", priority = 1})
+                        break
+                    end
+                end
+            elseif userData.type == "tree" then
+                -- Find the tree object
+                for _, tree in ipairs(editor.map.treeInstances) do
+                    if tree.id == userData.id then
+                        table.insert(foundObjects, {object = tree, type = "tree", priority = 2})
+                        break
+                    end
+                end
+            end
+        end
+        return true -- Continue querying
+    end)
+    
+    -- Return the highest priority object (arch before tree)
+    if #foundObjects > 0 then
+        table.sort(foundObjects, function(a, b) return a.priority < b.priority end)
+        local result = foundObjects[1].object
+        result.type = foundObjects[1].type
+        return result
+    end
+    
+    return nil
 end
 
--- Get current collisions
-function editor.getCollisions()
-    return editor.collisions
+-- Delete an object
+function editor.deleteObject(obj)
+    if obj.type == "arch" then
+        -- Remove from arch instances
+        for i, arch in ipairs(editor.map.archInstances) do
+            if arch.id == obj.id then
+                arch:destroy()
+                table.remove(editor.map.archInstances, i)
+                break
+            end
+        end
+    elseif obj.type == "tree" then
+        -- Remove from tree instances
+        for i, tree in ipairs(editor.map.treeInstances) do
+            if tree.id == obj.id then
+                tree:destroy()
+                table.remove(editor.map.treeInstances, i)
+                break
+            end
+        end
+    end
 end
 
 -- Update function (call this in love.update)
 function editor.update(dt)
-    -- Always keep temp collider active and following mouse
-    if not editor.tempBody then
-        editor.createTempCollider(editor.mouseX, editor.mouseY)
-    else
-        editor.tempBody:setPosition(editor.mouseX, editor.mouseY)
-    end
-    
-    -- If mouse is pressed and we have collisions, select and move the first body
-    if editor.isPressed and #editor.collisions > 0 then
-        if not editor.selectedBody then
-            editor.selectedBody = editor.collisions[1].body
-        end
+    -- Move selected object if dragging
+    if editor.isPressed and editor.selectedObject and editor.mode == "select" then
+        local newX = editor.mouseX - editor.dragOffset.x
+        local newY = editor.mouseY - editor.dragOffset.y
         
-        -- Directly move the selected body to mouse position
-        if editor.selectedBody and editor.selectedBody:getType() == "dynamic" then
-            editor.selectedBody:setPosition(editor.mouseX, editor.mouseY)
-            -- Reset velocity to prevent physics from interfering
-            editor.selectedBody:setLinearVelocity(0, 0)
-            editor.selectedBody:setAngularVelocity(0)
+        if editor.selectedObject.move then
+            editor.selectedObject:move(newX, newY)
         end
     end
 end
 
--- Clean up resources
-function editor.cleanup()
-    if editor.tempBody then
-        editor.tempBody:destroy()
-        editor.tempBody = nil
-        editor.tempFixture = nil
+-- Handle keyboard input for mode switching
+function editor.keypressed(key)
+    if key == "1" then
+        editor.setMode("select")
+    elseif key == "2" then
+        editor.setMode("create_arch")
+
+    elseif key == "3" then
+        editor.setMode("create_tree")
+    elseif key == "escape" then
+        editor.setMode("select")
+        editor.selectedObject = nil
+    end
+end
+
+-- Debug drawing function
+function editor.debugDraw()
+    local font = love.graphics.getFont()
+    
+    -- Draw mode indicator
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print("Mode: " .. editor.mode, 10, 10)
+    love.graphics.print("1: Select | 2: Create Arch | 3: Create Tree | RMB: Delete", 10, 30)
+    
+    -- Draw mouse cursor based on mode
+    if editor.mode == "select" then
+        love.graphics.setColor(1, 1, 0, 0.7) -- Yellow
+        love.graphics.circle("line", editor.mouseX, editor.mouseY, 8)
+    elseif editor.mode == "create_arch" then
+        love.graphics.setColor(0, 1, 0, 0.7) -- Green
+        love.graphics.circle("fill", editor.mouseX, editor.mouseY, 5)
+        love.graphics.print("Arch", editor.mouseX + 10, editor.mouseY - 5)
+    elseif editor.mode == "create_tree" then
+        love.graphics.setColor(0, 0, 1, 0.7) -- Blue
+        love.graphics.circle("fill", editor.mouseX, editor.mouseY, 5)
+        love.graphics.print("Tree", editor.mouseX + 10, editor.mouseY - 5)
     end
     
-    editor.selectedBody = nil
-    editor.collisions = {}
+    -- Draw selected object highlight
+    if editor.selectedObject then
+        love.graphics.setColor(1, 0, 0, 0.8) -- Red
+        if editor.selectedObject.type == "arch" then
+            love.graphics.circle("line", editor.selectedObject.pivot_x, editor.selectedObject.pivot_y, 15)
+            love.graphics.print("Selected Arch " .. editor.selectedObject.id, 10, 60)
+        elseif editor.selectedObject.type == "tree" then
+            love.graphics.circle("line", editor.selectedObject.x + 78, editor.selectedObject.y + 78, 15)
+            love.graphics.print("Selected Tree " .. editor.selectedObject.id, 10, 60)
+        end
+    end
+    
+    -- Draw object counts
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print("Arches: " .. #editor.map.archInstances, 10, 80)
+    love.graphics.print("Trees: " .. #editor.map.treeInstances, 10, 100)
+    
+    love.graphics.setColor(1, 1, 1, 1) -- Reset color
+end
+
+-- Get selected object info
+function editor.getSelectedObject()
+    return editor.selectedObject
+end
+
+-- Clear selection
+function editor.clearSelection()
+    editor.selectedObject = nil
+end
+
+-- Clean up resources
+function editor.cleanup()
+    editor.selectedObject = nil
 end
 
 return editor
