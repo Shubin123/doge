@@ -1,3 +1,5 @@
+local UniformBuilder = require("UniformBuilder")
+
 shader = {}
 
 shader.distance = 40
@@ -9,6 +11,8 @@ shader.ambientColor = {0.1, 0.1, 0.15}
 shader.dynamicLights = {}
 shader.maxLights = 16
 shader.time = 0
+shader.bulletLights = {}  -- separate tracking for bullet lights
+shader.nextLightId = 1
 
 function shader.load()
     scene_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
@@ -52,39 +56,99 @@ function shader.prepass()
 end
 
 -- Add dynamic light (muzzle flash, bullet glow, explosion)
-function shader.addLight(x, y, intensity, color, size, lifetime)
+function shader.addLight(x, y, intensity, color, size, lifetime, dir)
     if #shader.dynamicLights >= shader.maxLights then
         table.remove(shader.dynamicLights, 1) -- Remove oldest light
     end
     
+    -- Ensure all parameters are valid
+    local validDir = dir or {0.0, 1.0}
+    if type(validDir) ~= "table" or #validDir < 2 then
+        validDir = {0.0, 1.0}
+    end
+    if type(validDir[1]) ~= "number" then validDir[1] = 0.0 end
+    if type(validDir[2]) ~= "number" then validDir[2] = 1.0 end
+    
+    local validColor = color or {1.0, 1.0, 1.0}
+    if type(validColor) ~= "table" or #validColor < 3 then
+        validColor = {1.0, 1.0, 1.0}
+    end
+    if type(validColor[1]) ~= "number" then validColor[1] = 1.0 end
+    if type(validColor[2]) ~= "number" then validColor[2] = 1.0 end
+    if type(validColor[3]) ~= "number" then validColor[3] = 1.0 end
+    
     table.insert(shader.dynamicLights, {
-        x = x,
-        y = y,
+        x = x or 0,
+        y = y or 0,
         intensity = intensity or 1.0,
-        color = color or {1.0, 1.0, 1.0},
+        color = validColor,
         size = size or 50.0,
         lifetime = lifetime or 0.5,
         age = 0.0,
-        type = "point"
+        type = "point",
+        dir = validDir,
+        seed = math.random()
     })
 end
 
--- Add muzzle flash light with realistic parameters
+-- Add muzzle flash light
 function shader.addMuzzleFlash(x, y, dir)
-    -- Bright, short-lived, hot white-orange flash
-    shader.addLight(x, y, 3.2, {1.0, 0.9, 0.7}, 35, 0.08)
+    shader.addLight(x, y, 2.5, {1.0, 0.8, 0.4}, 40, 0.1, dir or {0.0, 1.0})
 end
 
--- Add bullet glow with realistic tracer effect
-function shader.addBulletGlow(x, y)
-    -- Subtle, warm tracer glow
-    shader.addLight(x, y, 0.6, {1.0, 0.8, 0.5}, 12, 0.04)
+-- Create persistent bullet light that follows the bullet
+function shader.createBulletLight(x, y)
+    local lightId = shader.nextLightId
+    shader.nextLightId = shader.nextLightId + 1
+    
+    local light = {
+        id = lightId,
+        x = x,
+        y = y,
+        intensity = 0.8,
+        color = {1.0, 0.9, 0.7},
+        size = 15,
+        lifetime = 999,  -- very long lifetime
+        age = 0.0,
+        type = "bullet",
+        dir = {0.0, 1.0},
+        seed = math.random()
+    }
+    
+    table.insert(shader.dynamicLights, light)
+    shader.bulletLights[lightId] = light
+    
+    return lightId
 end
 
--- Add explosion light with realistic blast characteristics
+-- Update bullet light position
+function shader.updateBulletLight(lightId, x, y)
+    local light = shader.bulletLights[lightId]
+    if light then
+        light.x = x
+        light.y = y
+        light.age = 0  -- keep it alive
+    end
+end
+
+-- Remove bullet light
+function shader.removeBulletLight(lightId)
+    local light = shader.bulletLights[lightId]
+    if light then
+        -- Mark for removal from dynamic lights
+        for i, dynLight in ipairs(shader.dynamicLights) do
+            if dynLight.id == lightId then
+                table.remove(shader.dynamicLights, i)
+                break
+            end
+        end
+        shader.bulletLights[lightId] = nil
+    end
+end
+
+-- Add explosion light
 function shader.addExplosion(x, y, size)
-    -- Intense, hot, orange-white explosion with irregular shape
-    shader.addLight(x, y, 5.5, {1.0, 0.7, 0.3}, (size or 80) * 1.2, 0.8)
+    shader.addLight(x, y, 4.0, {1.0, 0.6, 0.2}, size or 80, 1.0, {0.0, 1.0})
 end
 
 -- Update dynamic lights
@@ -114,33 +178,42 @@ end
 
 
 function shader.pass()
+    -- Lua 5.1/5.2 compatibility for unpack
+    local unpack = table.unpack or unpack
+    
+    -- Send basic uniforms with correct types
     gi_shader:send("maxDistance", shader.distance)
     gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("time", shader.time)
-    gi_shader:send("ambientColor", shader.ambientColor)
+    gi_shader:send("ambientColor", shader.ambientColor)  -- vec3 as table
     gi_shader:send("glowIntensity", shader.glowIntensity)
     gi_shader:send("colorVibrancy", shader.colorVibrancy)
     
-    -- Send dynamic lights efficiently
-    local numLights = math.min(#shader.dynamicLights, shader.maxLights)
-    gi_shader:send("numLights", numLights)
-    
-    -- Send lights individually to avoid array issues
-    for i = 0, shader.maxLights - 1 do
-        local light = shader.dynamicLights[i + 1]
-        if light then
-            local intensity = light.currentIntensity or light.intensity
-            gi_shader:send("lights[" .. i .. "].pos", {light.x / W, light.y / H})
-            gi_shader:send("lights[" .. i .. "].color", light.color)
-            gi_shader:send("lights[" .. i .. "].intensity", intensity)
-            gi_shader:send("lights[" .. i .. "].size", light.size / math.max(W, H))
-        else
-            gi_shader:send("lights[" .. i .. "].pos", {0.0, 0.0})
-            gi_shader:send("lights[" .. i .. "].color", {0.0, 0.0, 0.0})
-            gi_shader:send("lights[" .. i .. "].intensity", 0.0)
-            gi_shader:send("lights[" .. i .. "].size", 0.0)
-        end
+    -- Build light arrays with new structured data
+    local posTable, colorTable, intensityArr, sizeArr, dirTable, seedArr =
+        UniformBuilder.buildLightArrays(shader.dynamicLights, shader.maxLights)
+
+    -- Send light arrays properly for Love2D array uniforms
+    if gi_shader:hasUniform("lightPos") and #posTable > 0 then
+        gi_shader:send("lightPos", unpack(posTable))
     end
+    if gi_shader:hasUniform("lightColor") and #colorTable > 0 then
+        gi_shader:send("lightColor", unpack(colorTable))
+    end
+    if gi_shader:hasUniform("lightIntensity") and #intensityArr > 0 then
+        gi_shader:send("lightIntensity", unpack(intensityArr))
+    end
+    if gi_shader:hasUniform("lightSize") and #sizeArr > 0 then
+        gi_shader:send("lightSize", unpack(sizeArr))
+    end
+    if gi_shader:hasUniform("lightDir") and #dirTable > 0 then
+        gi_shader:send("lightDir", unpack(dirTable))
+    end
+    if gi_shader:hasUniform("lightSeed") and #seedArr > 0 then
+        gi_shader:send("lightSeed", unpack(seedArr))
+    end
+    
+    gi_shader:send("numLights", math.min(#shader.dynamicLights, shader.maxLights))
 
     
     render_pass(scene_canvas, seed_shader, jfa_canvas1)

@@ -93,7 +93,7 @@ function Gun:shoot(mouseX, mouseY)
     local playerPos = vec2.new(playerX, playerY)
     local muzzleTip = playerPos + dir * (self.ringRadius + self.barrelLength)
     
-    -- Create muzzle flash effect
+    -- Create muzzle flash effect at the barrel tip
     bullet.createMuzzleFlash(muzzleTip, dir)
     
     -- Create shell ejection for appropriate weapons
@@ -105,7 +105,6 @@ function Gun:shoot(mouseX, mouseY)
     if self.isFullAuto and self.fireRate > 10 then
         bullet.addRenderEvent("burst_fire", {fireRate = self.fireRate})
     end
-    
     
     -- Shoot based on projectile type
     if self.projectileType == "bullet" then
@@ -200,7 +199,7 @@ function GunTool.load(world)
         barrelLength = 18,
         barrelThickness = 3,
         projectileRadius = 3,
-        projectileLifetime = 4,
+        projectileLifetime = 10,  -- increased for better visual tracking
         bulletsPerShot = 1,
         shellType = "pistol"
     })
@@ -215,7 +214,7 @@ function GunTool.load(world)
         barrelLength = 15,
         barrelThickness = 3,
         projectileRadius = 2,
-        projectileLifetime = 3,
+        projectileLifetime = 8,  -- increased for SMG
         bulletsPerShot = 1,
         shellType = "smg"
     })
@@ -230,7 +229,7 @@ function GunTool.load(world)
         barrelLength = 25,
         barrelThickness = 6,
         projectileRadius = 2,
-        projectileLifetime = 2.5,
+        projectileLifetime = 7,  -- increased for shotgun
         bulletsPerShot = 6,
         shellType = "shotgun"
     })
@@ -245,7 +244,7 @@ function GunTool.load(world)
         barrelLength = 22,
         barrelThickness = 4,
         projectileRadius = 3,
-        projectileLifetime = 5,
+        projectileLifetime = 12,  -- increased for rifle
         bulletsPerShot = 1,
         shellType = "rifle",
         isFullAuto = true  -- FULL AUTO MODE!

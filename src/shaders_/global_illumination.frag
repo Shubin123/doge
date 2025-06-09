@@ -6,19 +6,14 @@ uniform vec3 ambientColor;
 uniform float glowIntensity;
 uniform float colorVibrancy;
 
-// Dynamic lighting system - struct array format
+// Dynamic lighting system - separate arrays for each component
 uniform int numLights;
-
-struct Light {
-    vec2 pos;
-    vec3 color;
-    float intensity;
-    float size;
-    vec2 dir;    // new: direction for flares
-    float seed;  // new: per-light noise seed
-};
-
-uniform Light lights[16];
+uniform vec2 lightPos[16];
+uniform vec3 lightColor[16];
+uniform float lightIntensity[16];
+uniform float lightSize[16];
+uniform vec2 lightDir[16];
+uniform float lightSeed[16];
 
 const float PI = 3.14159265359;
 
@@ -42,42 +37,17 @@ vec3 enhanceColor(vec3 color) {
     return saturated;
 }
 
-// Access light data from struct array
-vec2 getLightPos(int index) {
-    return lights[index].pos;
-}
-
-vec3 getLightColor(int index) {
-    return lights[index].color;
-}
-
-float getLightIntensity(int index) {
-    return lights[index].intensity;
-}
-
-float getLightSize(int index) {
-    return lights[index].size;
-}
-
-vec2 getLightDir(int index) {
-    return lights[index].dir;
-}
-
-float getLightSeed(int index) {
-    return lights[index].seed;
-}
-
 // Realistic dynamic lighting calculation
 vec3 calculateDynamicLighting(vec2 tc) {
     vec3 totalLight = vec3(0.0);
     
     for(int i = 0; i < numLights && i < 16; i++) {
-        vec2 lightPos = getLightPos(i);
-        vec3 lightColor = getLightColor(i);
-        float lightIntensity = getLightIntensity(i);
-        float lightSize = getLightSize(i);
-        vec2 lightDir = getLightDir(i);
-        float lightSeed = getLightSeed(i);
+        vec2 lightPos = lightPos[i];
+        vec3 lightColor = lightColor[i];
+        float lightIntensity = lightIntensity[i];
+        float lightSize = lightSize[i];
+        vec2 lightDir = lightDir[i];
+        float lightSeed = lightSeed[i];
         
         if(lightIntensity <= 0.0) continue;
         
@@ -198,10 +168,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
                     
                     // Dynamic light influence on glow
                     for(int i = 0; i < numLights && i < 16; i++) {
-                        vec2 lightPos = getLightPos(i);
-                        vec3 lightColor = getLightColor(i);
-                        float lightIntensity = getLightIntensity(i);
-                        float lightSize = getLightSize(i);
+                        vec2 lightPos = lightPos[i];
+                        vec3 lightColor = lightColor[i];
+                        float lightIntensity = lightIntensity[i];
+                        float lightSize = lightSize[i];
                         
                         if(lightIntensity <= 0.0) continue;
                         
@@ -242,10 +212,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
         
         // Distance-based sprite lighting
         for(int i = 0; i < numLights && i < 16; i++) {
-            vec2 lightPos = getLightPos(i);
-            vec3 lightColor = getLightColor(i);
-            float lightIntensity = getLightIntensity(i);
-            float lightSize = getLightSize(i);
+            vec2 lightPos = lightPos[i];
+            vec3 lightColor = lightColor[i];
+            float lightIntensity = lightIntensity[i];
+            float lightSize = lightSize[i];
             
             if(lightIntensity <= 0.0) continue;
             
@@ -261,10 +231,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     
     // Complex edge lighting effects
     for(int i = 0; i < numLights && i < 16; i++) {
-        vec2 lightPos = getLightPos(i);
-        vec3 lightColor = getLightColor(i);
-        float lightIntensity = getLightIntensity(i);
-        float lightSize = getLightSize(i);
+        vec2 lightPos = lightPos[i];
+        vec3 lightColor = lightColor[i];
+        float lightIntensity = lightIntensity[i];
+        float lightSize = lightSize[i];
         
         if(lightIntensity <= 0.0) continue;
         

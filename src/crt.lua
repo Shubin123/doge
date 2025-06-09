@@ -235,10 +235,16 @@ function crt:updateParams(newParams)
         end
     end
     
-    -- Send parameters to shader
+    -- Send parameters to shader with proper type handling
     for k, v in pairs(self.params) do
         if self.shader:hasUniform(k) then
-            self.shader:send(k, v)
+            if type(v) == "table" then
+                -- For vec2, vec3, vec4 uniforms - send as table
+                self.shader:send(k, v)
+            else
+                -- For float, int uniforms - send as number
+                self.shader:send(k, v)
+            end
         end
     end
 end

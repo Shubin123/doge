@@ -14,14 +14,14 @@ bullet.shells = {}  -- ejected shell casings
 -- Dynamic rendering system
 bullet.renderEvents = {}  -- event queue for rendering changes
 bullet.renderSettings = {
-    maxVisible = 50,  -- maximum bullets to render at once
-    lodDistance = 200,  -- distance threshold for LOD
-    cullDistance = 500,  -- distance to cull bullets
+    maxVisible = 200,  -- even more bullets visible
+    lodDistance = 500,  -- much further before LOD kicks in
+    cullDistance = 1500,  -- bullets travel much further
     adaptiveQuality = true,  -- enable adaptive quality
     currentQuality = 1.0,  -- current render quality (0.1 to 1.0)
     lastFrameTime = 0,  -- track frame time for adaptive quality
     targetFrameTime = 1/60,  -- target 60 FPS
-    densityThreshold = 20,  -- bullet count threshold for density adjustments
+    densityThreshold = 60,  -- higher threshold
     densityHistory = {},  -- track bullet count over time
     performanceMode = false  -- emergency performance mode
 }
@@ -77,6 +77,10 @@ function bullet.new(params)
         instance.visible = true
         instance.lodLevel = 0  -- 0=full detail, 1=medium, 2=low detail
         instance.lastCullCheck = bullet.t
+        
+        -- Create persistent light for this bullet
+        local shader = require("shader")
+        instance.lightId = shader.createBulletLight(pos.x, pos.y)
     else
         -- Create new instance
         local body = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
@@ -99,11 +103,18 @@ function bullet.new(params)
             -- Dynamic rendering properties
             visible = true,
             lodLevel = 0,  -- 0=full detail, 1=medium, 2=low detail
-            lastCullCheck = bullet.t
+            lastCullCheck = bullet.t,
+            
+            -- Persistent light ID for cohesive lighting
+            lightId = nil
         }
         
         -- allow collision callback to recover instance
         fixture:setUserData(instance)
+        
+        -- Create persistent light for this bullet
+        local shader = require("shader")
+        instance.lightId = shader.createBulletLight(pos.x, pos.y)
     end
 
     table.insert(bullet.instances, instance)
@@ -173,8 +184,14 @@ function bullet.update(dt)
             inst.lastCullCheck = bullet.t
         end
         
-        -- Add to trail for visual effect (scale with LOD)
-        local trailLength = math.max(2, 8 - inst.lodLevel * 3)  -- reduce trail length for distant bullets
+        -- Update persistent bullet light position
+        if inst.lightId then
+            local shader = require("shader")
+            shader.updateBulletLight(inst.lightId, x, y)
+        end
+        
+        -- Add to trail for visual effect (longer trails for intensity)
+        local trailLength = math.max(6, 15 - inst.lodLevel * 4)  -- much longer trails
         if inst.visible and inst.lodLevel < 2 then
             table.insert(inst.trail, 1, {x = x, y = y, time = bullet.t})
             if #inst.trail > trailLength then
@@ -274,9 +291,16 @@ function bullet.collision(fixture_a, fixture_b, contact)
 end
 
 function bullet.returnToPool(inst, index)
+    -- Remove persistent bullet light
+    if inst.lightId then
+        local shader = require("shader")
+        shader.removeBulletLight(inst.lightId)
+        inst.lightId = nil
+    end
+    
     inst.body:setLinearVelocity(0, 0)
     inst.body:setPosition(-1000, -1000)
-    if #bullet.pool < 50 then
+    if #bullet.pool < 100 then  -- increased pool size
         table.insert(bullet.pool, inst)
     else
         inst.body:destroy()
@@ -350,16 +374,22 @@ function bullet.createShellEjection(gunPos, gunDir, shellType)
     -- Determine shell color and size based on type
     local color, size
     if shellType == "shotgun" then
-        color = {0.8, 0.2, 0.2}  -- red
-        size = {width = 6, height = 12}
+        color = {0.9, 0.1, 0.1}  -- bright red rectangle
+        size = {width = 8, height = 14}
     elseif shellType == "pistol" then
-        color = {0.9, 0.7, 0.3}  -- brass
+        color = {0.95, 0.95, 0.9}  -- white/silver rectangle
         size = {width = 4, height = 8}
     elseif shellType == "rifle" then
-        color = {0.9, 0.7, 0.3}  -- brass
+        color = {0.95, 0.95, 0.9}  -- white/silver rectangle
         size = {width = 5, height = 15}
-    else  -- SMG or default
-        color = {0.9, 0.7, 0.3}  -- brass
+    elseif shellType == "smg" then
+        color = {0.95, 0.95, 0.9}  -- white/silver rectangle (auto weapon)
+        size = {width = 3, height = 8}  -- smaller for SMG
+    elseif shellType == "rocket" then
+        -- Rockets don't eject shells, return early
+        return
+    else  -- default fallback
+        color = {0.95, 0.95, 0.9}  -- white/silver rectangle
         size = {width = 4, height = 10}
     end
     
@@ -388,15 +418,27 @@ function bullet.drawShells()
         love.graphics.translate(shell.pos.x, shell.pos.y)
         love.graphics.rotate(shell.rotation)
         
-        -- Draw shell casing as small rectangle
-        love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
-        love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
+        local hw, hh = shell.size.width/2, shell.size.height/2
         
-        -- Add rim highlight
-        love.graphics.setColor(1, 1, 1, alpha * 0.5)
-        love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
+        -- Draw main shell body
+        love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
+        love.graphics.rectangle("fill", -hw, -hh, shell.size.width, shell.size.height)
+        
+        -- Add metallic highlights for realism
+        love.graphics.setColor(1, 1, 1, alpha * 0.7)
+        love.graphics.rectangle("line", -hw, -hh, shell.size.width, shell.size.height)
+        
+        -- Add rim (top of casing)
+        love.graphics.setColor(0.2, 0.2, 0.2, alpha * 0.8)
+        love.graphics.rectangle("fill", -hw, -hh, shell.size.width, shell.size.height * 0.2)
+        
+        -- Add primer (bottom center dot)
+        love.graphics.setColor(0.1, 0.1, 0.1, alpha)
+        love.graphics.circle("fill", 0, hh * 0.7, math.min(hw, hh) * 0.3)
+        
+        -- Add side reflection for 3D effect
+        love.graphics.setColor(1, 1, 1, alpha * 0.3)
+        love.graphics.rectangle("fill", -hw, -hh, shell.size.width * 0.2, shell.size.height)
         
         love.graphics.pop()
     end
@@ -455,74 +497,85 @@ function bullet.getScreenBounds()
 end
 
 function bullet.drawBulletFullDetail(inst, x, y)
-    -- Add dynamic lighting for bullet glow
-    local shader = require("shader")
-    if shader.addBulletGlow then
-        shader.addBulletGlow(x, y)
-    end
+    
+    -- Draw ultra-bright outer glow first
+    love.graphics.setColor(1.0, 0.8, 0.3, 0.4)
+    love.graphics.setLineWidth(12)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw medium glow
+    love.graphics.setColor(1.0, 0.9, 0.5, 0.7)
+    love.graphics.setLineWidth(8)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Draw bright tracer core
-    love.graphics.setColor(1.0, 1.0, 0.8, 0.9)
-    love.graphics.setLineWidth(3)
+    love.graphics.setColor(1.0, 1.0, 0.9, 1.0)
+    love.graphics.setLineWidth(4)
     love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
-    -- Draw glowing outer tracer
-    love.graphics.setColor(1.0, 0.7, 0.4, 0.6)
-    love.graphics.setLineWidth(6)
+    -- Draw super bright inner core
+    love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
+    love.graphics.setLineWidth(2)
     love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
-    -- Draw enhanced fading trail
+    -- Draw enhanced trailing effects
     if #inst.trail > 1 then
         for i = 1, #inst.trail - 1 do
             local p1 = inst.trail[i]
             local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / #inst.trail)) * 0.5
+            local trailAlpha = (1 - (i / #inst.trail)) * 0.8  -- increased alpha
+            love.graphics.setColor(1, 0.9, 0.5, trailAlpha)
+            love.graphics.setLineWidth(3 + (1 - i / #inst.trail) * 2)  -- variable width
+            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+        end
+    end
+    
+    -- Draw intense bullet impact point with multiple glows
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.circle("fill", x, y, 3)
+    love.graphics.setColor(1, 0.9, 0.7, 0.8)
+    love.graphics.circle("fill", x, y, 6)
+    love.graphics.setColor(1, 0.8, 0.4, 0.4)
+    love.graphics.circle("fill", x, y, 10)
+end
+
+function bullet.drawBulletMediumDetail(inst, x, y)
+    
+    -- Draw outer glow
+    love.graphics.setColor(1.0, 0.8, 0.4, 0.5)
+    love.graphics.setLineWidth(6)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw bright tracer
+    love.graphics.setColor(1.0, 1.0, 0.9, 0.9)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Enhanced trail
+    if #inst.trail > 1 then
+        for i = 1, math.min(6, #inst.trail - 1) do  -- more trail segments
+            local p1 = inst.trail[i]
+            local p2 = inst.trail[i + 1]
+            local trailAlpha = (1 - (i / 6)) * 0.6  -- brighter trail
             love.graphics.setColor(1, 0.9, 0.5, trailAlpha)
             love.graphics.setLineWidth(2)
             love.graphics.line(p1.x, p1.y, p2.x, p2.y)
         end
     end
     
-    -- Draw enhanced bullet impact point with glow
+    -- Brighter impact point
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.circle("fill", x, y, 2)
     love.graphics.setColor(1, 0.9, 0.7, 0.6)
     love.graphics.circle("fill", x, y, 4)
 end
 
-function bullet.drawBulletMediumDetail(inst, x, y)
-    -- Add reduced lighting for medium detail bullets
-    local shader = require("shader")
-    if shader.addBulletGlow and math.random() < 0.3 then -- Only 30% chance for performance
-        shader.addLight(x, y, 0.4, {1.0, 0.9, 0.7}, 8, 0.03)
-    end
-    
-    -- Simplified tracer
-    love.graphics.setColor(1.0, 1.0, 0.8, 0.7)
-    love.graphics.setLineWidth(2)
-    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-    
-    -- Reduced trail
-    if #inst.trail > 1 then
-        for i = 1, math.min(4, #inst.trail - 1) do
-            local p1 = inst.trail[i]
-            local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / 4)) * 0.4
-            love.graphics.setColor(1, 0.9, 0.5, trailAlpha)
-            love.graphics.setLineWidth(1)
-            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-        end
-    end
-    
-    -- Small impact point
-    love.graphics.setColor(1, 1, 1, 0.8)
-    love.graphics.circle("fill", x, y, 1)
-end
-
 function bullet.drawBulletLowDetail(inst, x, y)
-    -- Just a simple moving dot
-    love.graphics.setColor(1, 1, 0.8, 0.5)
-    love.graphics.circle("fill", x, y, 1)
+    -- Still visible even at low detail
+    love.graphics.setColor(1, 1, 0.9, 0.8)  -- brighter
+    love.graphics.circle("fill", x, y, 2)  -- larger
+    love.graphics.setColor(1, 0.9, 0.7, 0.4)  -- glow
+    love.graphics.circle("fill", x, y, 4)
 end
 
 function bullet.updateAdaptiveQuality(dt)
@@ -549,28 +602,28 @@ function bullet.updateAdaptiveQuality(dt)
     -- Detect bullet density spikes (burst fire scenarios)
     local densitySpike = bulletCount > avgDensity * 1.8 and bulletCount > settings.densityThreshold
     
-    -- Emergency performance mode detection
-    if currentTime > targetTime * 2.0 and bulletCount > 40 then
+    -- Emergency performance mode detection (more lenient for full auto)
+    if currentTime > targetTime * 3.0 and bulletCount > 100 then
         settings.performanceMode = true
-    elseif currentTime < targetTime * 1.2 and bulletCount < 15 then
+    elseif currentTime < targetTime * 1.2 and bulletCount < 30 then
         settings.performanceMode = false
     end
     
-    -- Adjust quality based on multiple factors
+    -- Adjust quality based on multiple factors (more lenient for full auto)
     if settings.performanceMode or densitySpike then
-        -- Emergency quality reduction
-        settings.currentQuality = math.max(0.2, settings.currentQuality - dt * 1.0)
-        settings.maxVisible = math.max(15, settings.maxVisible * 0.95)
-        settings.lodDistance = math.max(100, settings.lodDistance * 0.98)
-    elseif currentTime > targetTime * 1.5 or bulletCount > 30 then
-        -- Standard quality reduction
-        settings.currentQuality = math.max(0.3, settings.currentQuality - dt * 0.5)
-        settings.maxVisible = math.max(25, settings.maxVisible * 0.99)
-    elseif currentTime < targetTime * 0.8 and bulletCount < 20 and avgDensity < settings.densityThreshold then
+        -- Emergency quality reduction (but keep more bullets visible)
+        settings.currentQuality = math.max(0.4, settings.currentQuality - dt * 0.5)
+        settings.maxVisible = math.max(100, settings.maxVisible * 0.99)  -- keep more bullets visible
+        settings.lodDistance = math.max(150, settings.lodDistance * 0.99)
+    elseif currentTime > targetTime * 2.0 or bulletCount > 60 then
+        -- Standard quality reduction (less aggressive)
+        settings.currentQuality = math.max(0.6, settings.currentQuality - dt * 0.3)
+        settings.maxVisible = math.max(120, settings.maxVisible * 0.998)  -- keep even more bullets visible
+    elseif currentTime < targetTime * 0.8 and bulletCount < 40 and avgDensity < settings.densityThreshold then
         -- Performance is good, increase quality
         settings.currentQuality = math.min(1.0, settings.currentQuality + dt * 0.2)
-        settings.maxVisible = math.min(50, settings.maxVisible * 1.01)
-        settings.lodDistance = math.min(200, settings.lodDistance * 1.002)
+        settings.maxVisible = math.min(200, settings.maxVisible * 1.01)  -- allow more bullets
+        settings.lodDistance = math.min(300, settings.lodDistance * 1.002)
     end
 end
 
