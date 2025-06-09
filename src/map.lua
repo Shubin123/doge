@@ -113,6 +113,8 @@ function map.createArches(pivot_x, pivot_y)
     
     -- Add move function
     arch.move = function(self, new_pivot_x, new_pivot_y)
+        if not self.body then return end
+        if self.body:isDestroyed() then return end
         local delta_x = new_pivot_x - self.pivot_x
         local delta_y = new_pivot_y - self.pivot_y
         
@@ -158,10 +160,14 @@ function map.createTree(x, y)
     tree.fixture:setUserData({type = "tree", id = tree.id, x = x, y = y})
     
     tree.move = function(self, new_x, new_y)
+        if not self.body then return end
+
+        if self.body:isDestroyed() then return end
         self.body:setPosition(new_x + 78, new_y + 78)
         self.x = new_x
         self.y = new_y
         self.fixture:setUserData({type = "tree", id = self.id, x = new_x, y = new_y})
+        
     end
     
     tree.destroy = function(self)
