@@ -1,4 +1,0 @@
-
-
-use the snapshot module to save and reload the state of players,coins,fires,enemies. Since the process works for network replication in theory a modified version should to save on disk
-compress the data in the same way it gets manipulated as host/client broadcasted strings. data>json>zlib> compressed state -<>- uncompressed >zlib>json>data>new local loading system

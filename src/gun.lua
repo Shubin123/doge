@@ -145,9 +145,14 @@ end
 function Gun:drawBarrel()
     local playerX, playerY = player.getPosition()
     
+
+    
+
     -- Draw ring around player (semi-transparent)
     love.graphics.setColor(1, 1, 1, 0.3)
     love.graphics.circle("line", playerX, playerY, self.ringRadius)
+
+  
     
     -- Calculate barrel position on the ring (start from ring edge)
     local barrelStartX = playerX + self.lastAimDirection.x * self.ringRadius
@@ -328,24 +333,27 @@ function GunTool.getCurrentGun()
 end
 
 function GunTool.collision(fixture_a, fixture_b, contact)
-    local ud_a = fixture_a:getUserData()
-    local ud_b = fixture_b:getUserData()
 
-    -- It's good practice to check if user data exists
-    if not ud_a or not ud_b then return end
+    bullet.collision(fixture_a, fixture_b, contact)
+    rocket.collision(fixture_a, fixture_b, contact)
+    -- local ud_a = fixture_a:getUserData()
+    -- local ud_b = fixture_b:getUserData()
 
-    -- Check for rocket involvement first (using the specific 'topSpeed' check)
-    if (type(ud_a) == 'table' and ud_a.topSpeed) or (type(ud_b) == 'table' and ud_b.topSpeed) then
-        rocket.collision(fixture_a, fixture_b, contact)
-        return -- Exit after handling to prevent double-processing
-    end
+    -- -- It's good practice to check if user data exists
+    -- if not ud_a or not ud_b then return end
 
-    -- Then, check for bullet involvement (bullets have 'speed' but not 'topSpeed')
-    if (type(ud_a) == 'table' and ud_a.speed and not ud_a.topSpeed) or 
-       (type(ud_b) == 'table' and ud_b.speed and not ud_b.topSpeed) then
-        bullet.collision(fixture_a, fixture_b, contact)
-        return
-    end
+    -- -- Check for rocket involvement first (using the specific 'topSpeed' check)
+    -- if (type(ud_a) == 'table' and ud_a.topSpeed) or (type(ud_b) == 'table' and ud_b.topSpeed) then
+    --     rocket.collision(fixture_a, fixture_b, contact)
+    --     return -- Exit after handling to prevent double-processing
+    -- end
+
+    -- -- Then, check for bullet involvement (bullets have 'speed' but not 'topSpeed')
+    -- if (type(ud_a) == 'table' and ud_a.speed and not ud_a.topSpeed) or 
+    --    (type(ud_b) == 'table' and ud_b.speed and not ud_b.topSpeed) then
+    --     bullet.collision(fixture_a, fixture_b, contact)
+    --     return
+    -- end
 end
 
 return GunTool

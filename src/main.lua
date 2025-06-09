@@ -29,8 +29,10 @@ blur = require ("blur")
 serial = require("serial")
 editor = require("editor")
 multiplayer = require("multiplayer")
-bullet = require("bullet")
-rocket = require("rocket")
+-- bullet = require("bullet")
+-- rocket = require("rocket")
+moonshine = require("moonshine")
+
 command = require("command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 -- hotreloader / helpers
 local lurker = require("lurker")
@@ -91,9 +93,10 @@ function love.load()
     multiplayer.load()
     player.load(world)
     enemy.load()
+
     gun.load(world)
-    bullet.load(world)
-    rocket.load(world)
+    -- bullet.load(world)
+    -- rocket.load(world)
 
         command.load()
     -- Coins and enemies 
@@ -139,6 +142,31 @@ function love.load()
     smoke.setsmokeArea(320, 138, 165, 67)
 
 
+
+
+  blueNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
+  blueNeon.godsray.exposure = 1 --number between 0 and 1
+  blueNeon.godsray.decay = 0.8 -- number between 0 and 1
+  blueNeon.godsray.density = 0.05 -- number between 0 and 1
+  blueNeon.godsray.weight = 0.9 -- number between 0 and 1
+  blueNeon.godsray.light_x = 0.5 -- number
+  blueNeon.godsray.light_y = 0.5 -- number
+  blueNeon.godsray.samples = 30 -- number >= 1
+  blueNeon.glow.min_luma = 0
+  blueNeon.glow.strength = 5
+
+  yellowNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
+  yellowNeon.godsray.exposure = 0.2 --number between 0 and 1
+  yellowNeon.godsray.decay = 0.8 -- number between 0 and 1
+  yellowNeon.godsray.density = 0.05 -- number between 0 and 1
+  yellowNeon.godsray.weight = 0.9 -- number between 0 and 1
+  yellowNeon.godsray.light_x = 0.5 -- number
+  yellowNeon.godsray.light_y = 0.5 -- number
+  yellowNeon.godsray.samples = 30 -- number >= 1
+  yellowNeon.glow.min_luma = 0
+  yellowNeon.glow.strength = 5
+  yellowNeon.fastgaussianblur.taps = 9
+
     
 end
 
@@ -161,16 +189,15 @@ function love.draw()
     if var.graphics_high then
     shader.prepass()
     end
-    love.graphics.push()
-    
-    
-
+    love.graphics.push() --push all camera transforms (move everything when player moves)
     camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
+
+    
 
     -- Populate and sort dynamic draw list if neccessary    
     grass.public.draw()
@@ -184,21 +211,36 @@ function love.draw()
         renderer.populateDynamicDrawList()
     end
     
+
+    
     -- bullet.populate()
     -- rocket.populate()
 
     gun.drawWorld()
+
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
     
-    -- Draw gun system (ring, barrel, projectiles)
     
 
     
 
-    love.graphics.pop()
+
+    love.graphics.pop() -- pop back into base world space
     -- order is IMPORTANT HERE shader-> smoke -> water
+
+    
+    blueNeon(function()
+    love.graphics.setColor(0.17, 0.46, 1)
+        -- print( -camera.pos.x)
+        -- print( -player.body:getX())
+      love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
+    
+    love.graphics.setColor(1,1,1,1)
+    end)
+  
+
     if var.graphics_high then
     shader.pass()
     smoke.pass()
@@ -206,7 +248,6 @@ function love.draw()
     crtShader.endCapture()
     blur.pass()
     end
-
 
     mydraw.mydraw() -- ui last
     command.draw() -- Draw console on top
@@ -252,8 +293,11 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     
     gun.update(dt)
-    bullet.update(dt)
-    rocket.update(dt)
+    -- bullet.update(dt)
+    -- rocket.update(dt)
+
+  
+
 
 end
 
@@ -450,8 +494,6 @@ function beginContact(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
-    bullet.collision(fixture_a, fixture_b, contact)
-    rocket.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 
