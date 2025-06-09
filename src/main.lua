@@ -211,7 +211,7 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
-    -- editor.update(dt)
+    editor.update(dt)
 
     if var.State == "menu" then
         menu.update(dt)
