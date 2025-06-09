@@ -32,6 +32,7 @@ multiplayer = require("multiplayer")
 -- bullet = require("bullet")
 -- rocket = require("rocket")
 moonshine = require("moonshine")
+light = require("light")
 
 command = require("command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 -- hotreloader / helpers
@@ -137,35 +138,12 @@ function love.load()
     portal.load()
     crt.load()
     blur.load()
-
+    light.load()
+    
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 
-
-
-
-  blueNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
-  blueNeon.godsray.exposure = 1 --number between 0 and 1
-  blueNeon.godsray.decay = 0.8 -- number between 0 and 1
-  blueNeon.godsray.density = 0.05 -- number between 0 and 1
-  blueNeon.godsray.weight = 0.9 -- number between 0 and 1
-  blueNeon.godsray.light_x = 0.5 -- number
-  blueNeon.godsray.light_y = 0.5 -- number
-  blueNeon.godsray.samples = 30 -- number >= 1
-  blueNeon.glow.min_luma = 0
-  blueNeon.glow.strength = 5
-
-  yellowNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
-  yellowNeon.godsray.exposure = 0.2 --number between 0 and 1
-  yellowNeon.godsray.decay = 0.8 -- number between 0 and 1
-  yellowNeon.godsray.density = 0.05 -- number between 0 and 1
-  yellowNeon.godsray.weight = 0.9 -- number between 0 and 1
-  yellowNeon.godsray.light_x = 0.5 -- number
-  yellowNeon.godsray.light_y = 0.5 -- number
-  yellowNeon.godsray.samples = 30 -- number >= 1
-  yellowNeon.glow.min_luma = 0
-  yellowNeon.glow.strength = 5
-  yellowNeon.fastgaussianblur.taps = 9
+    
 
     
 end
@@ -235,8 +213,9 @@ function love.draw()
     love.graphics.setColor(0.17, 0.46, 1)
         -- print( -camera.pos.x)
         -- print( -player.body:getX())
+        -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
       love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
-    
+        
     love.graphics.setColor(1,1,1,1)
     end)
   
