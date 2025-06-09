@@ -93,7 +93,10 @@ function shader.load()
                   if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
                     sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
                   if (df <= minStepSize) {
-                    radiance.rgb += pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
+                    vec3 hitColor = pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
+                    // Clamp brightness to prevent spazzing from muzzle flashes/tracers
+                    hitColor = min(hitColor, vec3(2.0));
+                    radiance.rgb += hitColor;
                     break;
                   }
                 }

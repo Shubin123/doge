@@ -15,6 +15,7 @@ grass = require("grass")
 smoke = require("smoke")
 sprite = require('sprite')
 fire = require("fire")
+gun = require("gun")
 camera = require("camera")
 vec2 = require("vec2")
 vec4 = require("vec4")
@@ -88,6 +89,7 @@ function love.load()
     multiplayer.load()
     player.load(world)
     enemy.load()
+    gun.load(world)
 
         command.load()
     -- Coins and enemies 
@@ -185,8 +187,9 @@ function love.draw()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
-
-
+    
+    -- Draw gun system (ring, barrel, projectiles)
+    gun.drawWorld()
 
     
 
@@ -243,6 +246,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)
     end
+    
+    gun.update(dt)
 
 
 end
@@ -265,8 +270,12 @@ function love.mousepressed(x, y, button, istouch, presses)
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
+        return  -- Don't process game input when in menu
     end
 
+    -- Delegate to gun system for shooting (only when not in menu)
+    gun.mousepressed(x, y, button)
+    
     local center_x = love.graphics.getWidth() / 2 -- or player's screen position
     local center_y = love.graphics.getHeight() / 2
 
@@ -327,6 +336,13 @@ function love.keypressed(key)
 
     editor.keypressed(key)
     command.keypressed(key)
+    gun.keypressed(key)
+end
+
+function love.mousereleased(x, y, button, istouch, presses)
+    if var.State ~= "menu" then
+        gun.mousereleased(x, y, button)
+    end
 end
 
 function love.keyreleased(key)
@@ -428,6 +444,7 @@ function beginContact(fixture_a, fixture_b, contact)
     -- player.collision(fixture_a,fixture_b,contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
+    gun.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 
