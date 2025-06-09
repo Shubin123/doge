@@ -252,42 +252,42 @@ function bullet.collision(fixture_a, fixture_b, contact)
     local inst = bullet_f:getUserData()
     local otherBody = other_f:getBody()
     local otherGroup = other_f:getGroupIndex()
-
-    -- if hit an enemy, apply damage (here we destroy on hit)
-    if otherGroup == -777 then
-        -- destroys the enemy physics body and removes it from enemies_bods
-        if checkDestroy then
-            checkDestroy(enemies_bods, otherBody)
-        end
+    
+    -- Add impact lighting effect
+    local x, y = inst.body:getPosition()
+    local shader = require("shader")
+    if shader.addLight then
+        -- Small impact flash
+        shader.addLight(x, y, 1.2, {1.0, 0.8, 0.4}, 20, 0.15)
     end
+
+  -- DOING DAMAGE :
+    -- if otherGroup == -777 then
+            -- damage effect here and call
+    --     if checkDestroy then
+    --         checkDestroy(enemies_bods, otherBody)
+    --     end
+    -- end
 
     -- defer removal until after physics step
     table.insert(bullet.toReturn, inst)
 end
 
--- Return bullet to pool for reuse (instead of destroying)
 function bullet.returnToPool(inst, index)
-    -- Reset physics state but keep body/fixture for reuse
     inst.body:setLinearVelocity(0, 0)
-    inst.body:setPosition(-1000, -1000)  -- move offscreen
-    
-    -- Add to pool if not too many (limit pool size)
+    inst.body:setPosition(-1000, -1000)
     if #bullet.pool < 50 then
         table.insert(bullet.pool, inst)
     else
-        -- Destroy if pool is full
         inst.body:destroy()
     end
-    
     if index then
         table.remove(bullet.instances, index)
     end
 end
 
--- Process deferred bullet returns (called during update when world is not locked)
 function bullet.processDeferredReturns()
     for _, inst in ipairs(bullet.toReturn) do
-        -- Find and remove from instances
         for i = #bullet.instances, 1, -1 do
             if bullet.instances[i] == inst then
                 bullet.returnToPool(inst, i)
@@ -295,7 +295,7 @@ function bullet.processDeferredReturns()
             end
         end
     end
-    bullet.toReturn = {}  -- clear the list
+    bullet.toReturn = {}
 end
 
 -- Create muzzle flash effect
@@ -315,17 +315,23 @@ function bullet.drawMuzzleFlashes()
         local alpha = flash.life / flash.maxLife
         local size = flash.size * alpha
         
-        -- Draw bright core (reduced brightness to prevent shader spazzing)
-        love.graphics.setColor(0.8, 0.8, 0.7, alpha * 0.8)
+        -- Add dynamic lighting for muzzle flash
+        local shader = require("shader")
+        if shader.addMuzzleFlash then
+            shader.addMuzzleFlash(flash.pos.x, flash.pos.y, flash.dir)
+        end
+        
+        -- Draw bright core
+        love.graphics.setColor(1.0, 0.9, 0.7, alpha * 0.9)
         love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.6)
         
-        -- Draw outer glow (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.2, alpha * 0.4)
+        -- Draw outer glow
+        love.graphics.setColor(1.0, 0.7, 0.3, alpha * 0.5)
         love.graphics.circle("fill", flash.pos.x, flash.pos.y, size)
         
         -- Draw directional flash
         local flashEnd = flash.pos + flash.dir * (size * 2)
-        love.graphics.setColor(1, 0.9, 0.4, alpha * 0.7)
+        love.graphics.setColor(1, 0.9, 0.4, alpha * 0.8)
         love.graphics.setLineWidth(size * 0.8)
         love.graphics.line(flash.pos.x, flash.pos.y, flashEnd.x, flashEnd.y)
     end
@@ -449,46 +455,60 @@ function bullet.getScreenBounds()
 end
 
 function bullet.drawBulletFullDetail(inst, x, y)
+    -- Add dynamic lighting for bullet glow
+    local shader = require("shader")
+    if shader.addBulletGlow then
+        shader.addBulletGlow(x, y)
+    end
+    
     -- Draw bright tracer core
-    love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
+    love.graphics.setColor(1.0, 1.0, 0.8, 0.9)
     love.graphics.setLineWidth(3)
     love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Draw glowing outer tracer
-    love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
+    love.graphics.setColor(1.0, 0.7, 0.4, 0.6)
     love.graphics.setLineWidth(6)
     love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
-    -- Draw fading trail
+    -- Draw enhanced fading trail
     if #inst.trail > 1 then
         for i = 1, #inst.trail - 1 do
             local p1 = inst.trail[i]
             local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / #inst.trail)) * 0.4
-            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            local trailAlpha = (1 - (i / #inst.trail)) * 0.5
+            love.graphics.setColor(1, 0.9, 0.5, trailAlpha)
             love.graphics.setLineWidth(2)
             love.graphics.line(p1.x, p1.y, p2.x, p2.y)
         end
     end
     
-    -- Draw bullet impact point
+    -- Draw enhanced bullet impact point with glow
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.circle("fill", x, y, 2)
+    love.graphics.setColor(1, 0.9, 0.7, 0.6)
+    love.graphics.circle("fill", x, y, 4)
 end
 
 function bullet.drawBulletMediumDetail(inst, x, y)
-    -- Simplified tracer (no outer glow)
-    love.graphics.setColor(0.9, 0.9, 0.7, 0.6)
+    -- Add reduced lighting for medium detail bullets
+    local shader = require("shader")
+    if shader.addBulletGlow and math.random() < 0.3 then -- Only 30% chance for performance
+        shader.addLight(x, y, 0.4, {1.0, 0.9, 0.7}, 8, 0.03)
+    end
+    
+    -- Simplified tracer
+    love.graphics.setColor(1.0, 1.0, 0.8, 0.7)
     love.graphics.setLineWidth(2)
     love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Reduced trail
     if #inst.trail > 1 then
-        for i = 1, math.min(4, #inst.trail - 1) do  -- only draw first 4 trail segments
+        for i = 1, math.min(4, #inst.trail - 1) do
             local p1 = inst.trail[i]
             local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / 4)) * 0.3
-            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            local trailAlpha = (1 - (i / 4)) * 0.4
+            love.graphics.setColor(1, 0.9, 0.5, trailAlpha)
             love.graphics.setLineWidth(1)
             love.graphics.line(p1.x, p1.y, p2.x, p2.y)
         end

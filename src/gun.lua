@@ -90,14 +90,15 @@ function Gun:shoot(mouseX, mouseY)
     
     -- Get player position
     local playerX, playerY = player.getPosition()
-    local spawnPos = vec2.new(playerX, playerY) + dir * self.ringRadius
+    local playerPos = vec2.new(playerX, playerY)
+    local muzzleTip = playerPos + dir * (self.ringRadius + self.barrelLength)
     
     -- Create muzzle flash effect
-    bullet.createMuzzleFlash(spawnPos, dir)
+    bullet.createMuzzleFlash(muzzleTip, dir)
     
     -- Create shell ejection for appropriate weapons
     if self.shellType then
-        bullet.createShellEjection(spawnPos, dir, self.shellType)
+        bullet.createShellEjection(muzzleTip, dir, self.shellType)
     end
     
     -- Trigger render events based on gun type and fire rate
@@ -124,7 +125,7 @@ function Gun:shoot(mouseX, mouseY)
             )
             
             bullet.new({
-                pos = spawnPos,
+                pos = muzzleTip,
                 dir = spreadDir,
                 speed = self.speed,
                 damage = self.damage,
@@ -134,7 +135,7 @@ function Gun:shoot(mouseX, mouseY)
         end
     elseif self.projectileType == "rocket" then
         rocket.new({
-            pos = spawnPos,
+            pos = muzzleTip,
             dir = dir,
             topSpeed = self.topSpeed,
             accelTime = self.accelTime,

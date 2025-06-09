@@ -275,6 +275,12 @@ function rocket.collision(fixture_a, fixture_b, contact)
         shockwaveRadius = inst.radius * 6  -- larger shockwave
     })
     
+    -- Add dynamic explosion lighting
+    local shader = require("shader")
+    if shader.addExplosion then
+        shader.addExplosion(x, y, inst.radius * 4)
+    end
+    
     -- Trigger bullet render event for explosion (reduce bullet rendering during explosion)
     local bullet = require("bullet")
     bullet.addRenderEvent("explosion", {radius = inst.radius * 4})

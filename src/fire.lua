@@ -197,7 +197,14 @@ function fire.collision(fixture_a, fixture_b, contact)
     -- print(fixture_a:getGroupIndex() == -1 , fixture_b:getGroupIndex() == -1)
     -- print(math.random() < 0.01 and 1 or 0)
     if not_fire ~= nil then
-        -- print(not_fire:getGroupIndex())
+        -- Add fire impact lighting
+        local x, y = firef:getBody():getPosition()
+        local shader = require("shader")
+        if shader.addLight then
+            -- Fire impact creates orange glow
+            shader.addLight(x, y, 2.0, {1.0, 0.6, 0.2}, 35, 0.3)
+        end
+        
         if (checkDestroy(enemies_bods, not_fire:getBody())) then
             fire.count = fire.count + (math.random() < 0.1 and 1  or 0)
         end
@@ -205,10 +212,8 @@ function fire.collision(fixture_a, fixture_b, contact)
             fire.count = fire.count + (math.random() < 0.1 and 1 or 0)
         end
         if not fire.pierce then
-            table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
+            table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0)
         end
-        -- checkDestroy(fire_bodies, firef:getBody())
-        -- print()
     end
 
 end

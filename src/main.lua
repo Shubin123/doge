@@ -241,6 +241,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     portal.update(dt)
     blur.update(dt)
     command.update(dt)
+    shader.update(dt) -- Update dynamic lighting system
 
     
     if var.multiplayer == 1 or not var.multiplayer  then
