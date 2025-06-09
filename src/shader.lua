@@ -1,6 +1,6 @@
 shader = {}
 
-shader.distance = 30
+shader.distance = 10
 shader.sample = 40
 shader.radiance = 0
 
@@ -93,10 +93,11 @@ function shader.load()
                   if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
                     sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
                   if (df <= minStepSize) {
-                    vec3 hitColor = pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
+                    //vec3 hitColor = pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
                     // Clamp brightness to prevent spazzing from muzzle flashes/tracers
-                    hitColor = min(hitColor, vec3(2.0));
-                    radiance.rgb += hitColor;
+                    // hitColor = min(hitColor, vec3(2.0));
+                    // radiance.rgb += hitColor;
+                    radiance.rgb += pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
                     break;
                   }
                 }

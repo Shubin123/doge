@@ -183,13 +183,13 @@ function love.draw()
     
 
 
-
+    gun.drawWorld()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
     
     -- Draw gun system (ring, barrel, projectiles)
-    gun.drawWorld()
+    
 
     
 
