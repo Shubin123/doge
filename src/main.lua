@@ -29,6 +29,8 @@ blur = require ("blur")
 serial = require("serial")
 editor = require("editor")
 multiplayer = require("multiplayer")
+bullet = require("bullet")
+rocket = require("rocket")
 command = require("command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 -- hotreloader / helpers
 local lurker = require("lurker")
@@ -90,6 +92,8 @@ function love.load()
     player.load(world)
     enemy.load()
     gun.load(world)
+    bullet.load(world)
+    rocket.load(world)
 
         command.load()
     -- Coins and enemies 
@@ -180,8 +184,8 @@ function love.draw()
         renderer.populateDynamicDrawList()
     end
     
-    
-
+    -- bullet.populate()
+    -- rocket.populate()
 
     gun.drawWorld()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
@@ -248,7 +252,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     
     gun.update(dt)
-
+    bullet.update(dt)
+    rocket.update(dt)
 
 end
 
@@ -445,6 +450,8 @@ function beginContact(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
+    bullet.collision(fixture_a, fixture_b, contact)
+    rocket.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

@@ -302,8 +302,9 @@ function GunTool.drawWorld()
     end
     
     -- Draw all projectiles
-    bullet.draw()
-    rocket.draw()
+    -- bullet.draw()
+    bullet.populate()
+    rocket.populate()
 end
 
 function GunTool.switchGun(weaponIndex)

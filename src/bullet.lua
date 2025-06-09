@@ -149,48 +149,159 @@ function bullet.update(dt)
     end
 end
 
--- Draw bullets with advanced tracer effects
-function bullet.draw()
-    -- Draw muzzle flashes first
-    bullet.drawMuzzleFlashes()
+-- Populate dynamic draw list instead of drawing directly
+function bullet.populate()
+    -- Add muzzle flashes to draw list
+
+    for _, flash in ipairs(bullet.muzzleFlashes) do
+        local alpha = flash.life / flash.maxLife
+        local size = flash.size * alpha
+        
+        -- Bright core
+        table.insert(dynamic_draw_list, {
+            sort_y = flash.pos.y + 140,
+            draw_type = "muzzle_flash_core",
+            x = flash.pos.x,
+            y = flash.pos.y,
+            size = size * 0.6,
+            color = { 0.8, 0.8, 0.7, alpha * 0.8 },
+            blend_mode = { "add" },
+            source_object_type = "bullet_muzzle_flash"
+        })
+        
+        -- Outer glow
+        table.insert(dynamic_draw_list, {
+            sort_y = flash.pos.y + 140,
+            draw_type = "muzzle_flash_glow",
+            x = flash.pos.x,
+            y = flash.pos.y,
+            size = size,
+            color = { 0.8, 0.6, 0.2, alpha * 0.4 },
+            blend_mode = { "add" },
+            source_object_type = "bullet_muzzle_flash"
+        })
+        
+        -- Directional flash
+        local flashEnd = flash.pos + flash.dir * (size * 2)
+        table.insert(dynamic_draw_list, {
+            sort_y = flash.pos.y + 140,
+            draw_type = "muzzle_flash_direction",
+            x1 = flash.pos.x,
+            y1 = flash.pos.y,
+            x2 = flashEnd.x,
+            y2 = flashEnd.y,
+            line_width = size * 0.8,
+            color = { 1, 0.9, 0.4, alpha * 0.7 },
+            blend_mode = { "add" },
+            source_object_type = "bullet_muzzle_flash"
+        })
+    end
     
-    -- Draw shell casings
-    bullet.drawShells()
+    -- Add shell casings to draw list
+    for _, shell in ipairs(bullet.shells) do
+        local alpha = math.min(1, shell.life / shell.maxLife)
+        if shell.life < 1 then
+            alpha = shell.life  -- fade out in last second
+        end
+        
+        -- Shell casing body
+        table.insert(dynamic_draw_list, {
+            sort_y = shell.pos.y + 140,
+            draw_type = "shell_casing",
+            x = shell.pos.x,
+            y = shell.pos.y,
+            rotation = shell.rotation,
+            width = shell.size.width,
+            height = shell.size.height,
+            color = { shell.color[1], shell.color[2], shell.color[3], alpha },
+            blend_mode = { "alpha" },
+            source_object_type = "bullet_shell"
+        })
+        
+        -- Shell casing highlight
+        table.insert(dynamic_draw_list, {
+            sort_y = shell.pos.y + 140.1, -- slightly above main shell
+            draw_type = "shell_casing_highlight",
+            x = shell.pos.x,
+            y = shell.pos.y,
+            rotation = shell.rotation,
+            width = shell.size.width,
+            height = shell.size.height,
+            color = { 1, 1, 1, alpha * 0.5 },
+            blend_mode = { "alpha" },
+            source_object_type = "bullet_shell"
+        })
+    end
     
-    -- Draw bullet tracers
+    -- Add bullet tracers to draw list
     for _, inst in ipairs(bullet.instances) do
         local x, y = inst.body:getPosition()
         local age = bullet.t - inst.birthTime
         
-        -- Draw bright tracer core (reduced brightness to prevent shader issues)
-        love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
-        love.graphics.setLineWidth(3)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw glowing outer tracer (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
-        love.graphics.setLineWidth(6)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw fading trail
+        -- Bullet trail segments (draw from back to front for proper alpha blending)
         if #inst.trail > 1 then
-            for i = 1, #inst.trail - 1 do
+            for i = #inst.trail, 2, -1 do  -- reverse order for proper layering
                 local p1 = inst.trail[i]
-                local p2 = inst.trail[i + 1]
+                local p2 = inst.trail[i - 1]
                 local trailAlpha = (1 - (i / #inst.trail)) * 0.4
-                love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-                love.graphics.setLineWidth(2)
-                love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+                
+                table.insert(dynamic_draw_list, {
+                    sort_y = math.max(p1.y + 140, p2.y + 140), -- use higher Y for sorting
+                    draw_type = "bullet_trail",
+                    x1 = p1.x,
+                    y1 = p1.y,
+                    x2 = p2.x,
+                    y2 = p2.y,
+                    line_width = 2,
+                    color = { 1, 0.8, 0.4, trailAlpha },
+                    blend_mode = { "add" },
+                    source_object_type = "bullet_tracer"
+                })
             end
         end
         
-        -- Draw bullet impact point
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.circle("fill", x, y, 2)
+        -- Outer tracer glow
+        table.insert(dynamic_draw_list, {
+            sort_y = math.max(inst.prevPos.y+ 140, y + 140),
+            draw_type = "bullet_tracer_glow",
+            x1 = inst.prevPos.x,
+            y1 = inst.prevPos.y,
+            x2 = x,
+            y2 = y,
+            line_width = 6,
+            color = { 0.8, 0.6, 0.3, 0.5 },
+            blend_mode = { "add" },
+            source_object_type = "bullet_tracer"
+        })
+        
+        -- Bright tracer core
+        table.insert(dynamic_draw_list, {
+            sort_y = math.max(inst.prevPos.y, y) + 140.1, -- slightly above glow
+            draw_type = "bullet_tracer_core",
+            x1 = inst.prevPos.x,
+            y1 = inst.prevPos.y,
+            x2 = x,
+            y2 = y,
+            line_width = 3,
+            color = { 0.9, 0.9, 0.7, 0.8 },
+            blend_mode = { "add" },
+            source_object_type = "bullet_tracer"
+        })
+        
+        -- Bullet impact point
+        table.insert(dynamic_draw_list, {
+            sort_y = y + 140.2, -- above tracer
+            draw_type = "bullet_point",
+            x = x,
+            y = y,
+            radius = 2,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "bullet_tracer"
+        })
     end
-    
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setLineWidth(1)
+
+
 end
 
 -- Handle collisions: bullet vs enemy or obstacles
@@ -265,28 +376,6 @@ function bullet.createMuzzleFlash(pos, dir)
     })
 end
 
--- Draw muzzle flash effects
-function bullet.drawMuzzleFlashes()
-    for _, flash in ipairs(bullet.muzzleFlashes) do
-        local alpha = flash.life / flash.maxLife
-        local size = flash.size * alpha
-        
-        -- Draw bright core (reduced brightness to prevent shader spazzing)
-        love.graphics.setColor(0.8, 0.8, 0.7, alpha * 0.8)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.6)
-        
-        -- Draw outer glow (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.2, alpha * 0.4)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size)
-        
-        -- Draw directional flash
-        local flashEnd = flash.pos + flash.dir * (size * 2)
-        love.graphics.setColor(1, 0.9, 0.4, alpha * 0.7)
-        love.graphics.setLineWidth(size * 0.8)
-        love.graphics.line(flash.pos.x, flash.pos.y, flashEnd.x, flashEnd.y)
-    end
-end
-
 -- Create shell ejection effect
 function bullet.createShellEjection(gunPos, gunDir, shellType)
     -- Calculate ejection position (right side of gun barrel)
@@ -324,33 +413,6 @@ function bullet.createShellEjection(gunPos, gunDir, shellType)
         size = size,
         groundY = ejectionPos.y + 100  -- approximate ground level
     })
-end
-
--- Draw shell casings
-function bullet.drawShells()
-    for _, shell in ipairs(bullet.shells) do
-        local alpha = math.min(1, shell.life / shell.maxLife)
-        if shell.life < 1 then
-            alpha = shell.life  -- fade out in last second
-        end
-        
-        love.graphics.push()
-        love.graphics.translate(shell.pos.x, shell.pos.y)
-        love.graphics.rotate(shell.rotation)
-        
-        -- Draw shell casing as small rectangle
-        love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
-        love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
-        
-        -- Add rim highlight
-        love.graphics.setColor(1, 1, 1, alpha * 0.5)
-        love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
-        
-        love.graphics.pop()
-    end
-    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return bullet

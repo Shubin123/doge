@@ -126,117 +126,76 @@ function rocket.update(dt)
     end
 end
 
-function rocket.draw()
-    -- draw rockets with advanced visuals
+function rocket.populate()
+    -- Add rockets to the dynamic draw list
     for _, r in ipairs(rocket.rockets) do
         if not r.destroyed then
             local x, y = r.body:getPosition()
             local angle = math.atan2(r.dir.y, r.dir.x)
-            
-            -- Draw exhaust trail particles first
+            local sort_y = y + 140 -- Base sorting value
+
+            -- Exhaust trail particles
             for _, particle in ipairs(r.exhaustTrail) do
                 local alpha = particle.life / particle.maxLife
                 local size = particle.size * alpha
-                
-                -- Hot exhaust core
-                love.graphics.setColor(1, 1, 0.8, alpha * 0.8)
-                love.graphics.circle("fill", particle.pos.x, particle.pos.y, size * 0.5)
-                
-                -- Cooler exhaust glow
-                love.graphics.setColor(1, 0.6, 0.2, alpha * 0.4)
-                love.graphics.circle("fill", particle.pos.x, particle.pos.y, size)
-                
-                -- Smoke trail
-                love.graphics.setColor(0.5, 0.5, 0.5, alpha * 0.3)
-                love.graphics.circle("fill", particle.pos.x, particle.pos.y, size * 1.5)
+                table.insert(dynamic_draw_list, {
+                    draw_type = "rocket_exhaust",
+                    sort_y = particle.pos.y + 140,
+                    x = particle.pos.x,
+                    y = particle.pos.y,
+                    size = size,
+                    alpha = alpha,
+                    color = {1, 1, 0.8, alpha * 0.8}, -- Hot core
+                    blend_mode = {"alpha"}
+                })
             end
-            
-            -- Draw main rocket thrust
+
+            -- Main rocket thrust
             if r.thrustIntensity > 0 then
                 local thrustLength = r.radius * 2 * r.thrustIntensity
                 local thrustPos = vec2.new(x, y) - r.dir * r.radius
                 local thrustEnd = thrustPos - r.dir * thrustLength
-                
-                -- Main thrust flame
-                love.graphics.setColor(1, 1, 0.9, 0.8)
-                love.graphics.setLineWidth(r.radius * 0.8)
-                love.graphics.line(thrustPos.x, thrustPos.y, thrustEnd.x, thrustEnd.y)
-                
-                -- Outer thrust glow
-                love.graphics.setColor(1, 0.5, 0.1, 0.6)
-                love.graphics.setLineWidth(r.radius * 1.4)
-                love.graphics.line(thrustPos.x, thrustPos.y, thrustEnd.x, thrustEnd.y)
+                table.insert(dynamic_draw_list, {
+                    draw_type = "rocket_thrust",
+                    sort_y = sort_y,
+                    x1 = thrustPos.x, y1 = thrustPos.y,
+                    x2 = thrustEnd.x, y2 = thrustEnd.y,
+                    radius = r.radius,
+                    color = {1, 1, 0.9, 0.8},
+                    blend_mode = {"add"}
+                })
             end
-            
-            -- Draw rocket body
-            love.graphics.push()
-            love.graphics.translate(x, y)
-            love.graphics.rotate(angle)
-            
-            -- Main rocket body
-            love.graphics.setColor(0.7, 0.7, 0.7, 1)
-            love.graphics.rectangle("fill", -r.radius*0.6, -r.radius*0.3, r.radius*1.2, r.radius*0.6)
-            
-            -- Rocket nose cone
-            love.graphics.setColor(0.9, 0.9, 0.9, 1)
-            love.graphics.polygon("fill", 
-                r.radius*0.6, 0,
-                r.radius*0.3, -r.radius*0.2,
-                r.radius*0.3, r.radius*0.2
-            )
-            
-            -- Fins
-            love.graphics.setColor(0.5, 0.5, 0.5, 1)
-            love.graphics.polygon("fill",
-                -r.radius*0.6, -r.radius*0.3,
-                -r.radius*0.8, -r.radius*0.5,
-                -r.radius*0.5, -r.radius*0.5
-            )
-            love.graphics.polygon("fill",
-                -r.radius*0.6, r.radius*0.3,
-                -r.radius*0.8, r.radius*0.5,
-                -r.radius*0.5, r.radius*0.5
-            )
-            
-            love.graphics.pop()
+
+            -- Rocket body
+            table.insert(dynamic_draw_list, {
+                draw_type = "rocket_body",
+                sort_y = sort_y,
+                x = x, y = y,
+                angle = angle,
+                radius = r.radius,
+                color = {0.7, 0.7, 0.7, 1},
+                blend_mode = {"alpha"}
+            })
         end
     end
-    -- draw explosions with advanced effects
+
+    -- Add explosions to the dynamic draw list
     for _, e in ipairs(explosions) do
         local progress = e.t / 0.5
         local alpha = 1 - progress
         local currentRadius = e.radius * progress
         
-        -- Draw expanding shockwave
-        if e.shockwaveRadius then
-            local shockwaveRadius = e.shockwaveRadius * progress
-            love.graphics.setColor(1, 1, 0.8, alpha * 0.3)
-            love.graphics.setLineWidth(8)
-            love.graphics.circle("line", e.pos.x, e.pos.y, shockwaveRadius)
-        end
-        
-        -- Draw main explosion blast
-        love.graphics.setColor(1, 1, 0.9, alpha * 0.9)
-        love.graphics.circle("fill", e.pos.x, e.pos.y, currentRadius * 0.6)
-        
-        -- Draw outer explosion
-        love.graphics.setColor(1, 0.6, 0.1, alpha * 0.7)
-        love.graphics.circle("fill", e.pos.x, e.pos.y, currentRadius)
-        
-        -- Draw explosion glow
-        love.graphics.setColor(0.8, 0.3, 0.1, alpha * 0.4)
-        love.graphics.circle("fill", e.pos.x, e.pos.y, currentRadius * 1.5)
-        
-        -- Add some debris particles
-        for i = 1, 8 do
-            local angle = (i / 8) * math.pi * 2
-            local debrisX = e.pos.x + math.cos(angle) * currentRadius * 0.8
-            local debrisY = e.pos.y + math.sin(angle) * currentRadius * 0.8
-            love.graphics.setColor(0.6, 0.4, 0.2, alpha * 0.8)
-            love.graphics.circle("fill", debrisX, debrisY, 2)
-        end
+        table.insert(dynamic_draw_list, {
+            draw_type = "rocket_explosion",
+            sort_y = e.pos.y + 140,
+            x = e.pos.x, y = e.pos.y,
+            radius = currentRadius,
+            alpha = alpha,
+            shockwaveRadius = e.shockwaveRadius and (e.shockwaveRadius * progress) or nil,
+            color = {1, 1, 0.9, alpha * 0.9},
+            blend_mode = {"add"}
+        })
     end
-    love.graphics.setColor(1, 1, 1)
 end
 
 function rocket.collision(fixture_a, fixture_b, contact)

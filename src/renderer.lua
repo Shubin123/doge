@@ -372,27 +372,28 @@ function renderer.populateDynamicDrawListNETHOST()
     enemy.populate()
 end
 
--- Updated render function to handle shaders
 function renderer.renderSortedDrawList()
     -- Store current graphics state
     local current_color = { love.graphics.getColor() }
     local current_blend_mode = love.graphics.getBlendMode()
     local current_shader = love.graphics.getShader()
+    local current_line_width = love.graphics.getLineWidth()
 
     local last_color = { 1, 1, 1, 1 }
     local last_blend_mode = { "alpha" }
+    local last_line_width = 1
 
     for _, drawable in ipairs(dynamic_draw_list) do
         -- Set color if different from last
-        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or
-            drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
+        if drawable.color and (drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or
+            drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4]) then
             love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
             last_color = drawable.color
         end
 
         -- Set blend mode if different from last
-        if drawable.blend_mode[1] ~= last_blend_mode[1] or
-            (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2]) then
+        if drawable.blend_mode and (drawable.blend_mode[1] ~= last_blend_mode[1] or
+            (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2])) then
             if drawable.blend_mode[2] then
                 love.graphics.setBlendMode(drawable.blend_mode[1], drawable.blend_mode[2])
             else
@@ -401,8 +402,129 @@ function renderer.renderSortedDrawList()
             last_blend_mode = drawable.blend_mode
         end
 
+        -- Set line width if different from last
+        if drawable.line_width and drawable.line_width ~= last_line_width then
+            love.graphics.setLineWidth(drawable.line_width)
+            last_line_width = drawable.line_width
+        end
+
+        -- Handle different draw types
+        if drawable.draw_type then
+            -- Bullet-specific draw types
+            if drawable.draw_type == "muzzle_flash_core" then
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.size)
+                
+            elseif drawable.draw_type == "muzzle_flash_glow" then
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.size)
+                
+            elseif drawable.draw_type == "muzzle_flash_direction" then
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+                
+            elseif drawable.draw_type == "shell_casing" then
+                love.graphics.push()
+                love.graphics.translate(drawable.x, drawable.y)
+                love.graphics.rotate(drawable.rotation)
+                love.graphics.rectangle("fill", -drawable.width/2, -drawable.height/2, 
+                                      drawable.width, drawable.height)
+                love.graphics.pop()
+                
+            elseif drawable.draw_type == "shell_casing_highlight" then
+                love.graphics.push()
+                love.graphics.translate(drawable.x, drawable.y)
+                love.graphics.rotate(drawable.rotation)
+                love.graphics.rectangle("line", -drawable.width/2, -drawable.height/2, 
+                                      drawable.width, drawable.height)
+                love.graphics.pop()
+                
+            elseif drawable.draw_type == "bullet_trail" then
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+                
+            elseif drawable.draw_type == "bullet_tracer_glow" then
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+                
+            elseif drawable.draw_type == "bullet_tracer_core" then
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+                
+            elseif drawable.draw_type == "bullet_point" then
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius)
+            
+            -- Rocket-specific draw types
+            elseif drawable.draw_type == "rocket_exhaust" then
+                -- Hot exhaust core
+                love.graphics.setColor(1, 1, 0.8, drawable.alpha * 0.8)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.size * 0.5)
+                -- Cooler exhaust glow
+                love.graphics.setColor(1, 0.6, 0.2, drawable.alpha * 0.4)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.size)
+                -- Smoke trail
+                love.graphics.setColor(0.5, 0.5, 0.5, drawable.alpha * 0.3)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.size * 1.5)
+
+            elseif drawable.draw_type == "rocket_thrust" then
+                -- Main thrust flame
+                love.graphics.setColor(1, 1, 0.9, 0.8)
+                love.graphics.setLineWidth(drawable.radius * 0.8)
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+                -- Outer thrust glow
+                love.graphics.setColor(1, 0.5, 0.1, 0.6)
+                love.graphics.setLineWidth(drawable.radius * 1.4)
+                love.graphics.line(drawable.x1, drawable.y1, drawable.x2, drawable.y2)
+
+            elseif drawable.draw_type == "rocket_body" then
+                love.graphics.push()
+                love.graphics.translate(drawable.x, drawable.y)
+                love.graphics.rotate(drawable.angle)
+                -- Main rocket body
+                love.graphics.setColor(0.7, 0.7, 0.7, 1)
+                love.graphics.rectangle("fill", -drawable.radius*0.6, -drawable.radius*0.3, drawable.radius*1.2, drawable.radius*0.6)
+                -- Rocket nose cone
+                love.graphics.setColor(0.9, 0.9, 0.9, 1)
+                love.graphics.polygon("fill",
+                    drawable.radius*0.6, 0,
+                    drawable.radius*0.3, -drawable.radius*0.2,
+                    drawable.radius*0.3, drawable.radius*0.2
+                )
+                -- Fins
+                love.graphics.setColor(0.5, 0.5, 0.5, 1)
+                love.graphics.polygon("fill",
+                    -drawable.radius*0.6, -drawable.radius*0.3,
+                    -drawable.radius*0.8, -drawable.radius*0.5,
+                    -drawable.radius*0.5, -drawable.radius*0.5
+                )
+                love.graphics.polygon("fill",
+                    -drawable.radius*0.6, drawable.radius*0.3,
+                    -drawable.radius*0.8, drawable.radius*0.5,
+                    -drawable.radius*0.5, drawable.radius*0.5
+                )
+                love.graphics.pop()
+
+            elseif drawable.draw_type == "rocket_explosion" then
+                -- Draw expanding shockwave
+                if drawable.shockwaveRadius then
+                    love.graphics.setColor(1, 1, 0.8, drawable.alpha * 0.3)
+                    love.graphics.setLineWidth(8)
+                    love.graphics.circle("line", drawable.x, drawable.y, drawable.shockwaveRadius)
+                end
+                -- Draw main explosion blast
+                love.graphics.setColor(1, 1, 0.9, drawable.alpha * 0.9)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius * 0.6)
+                -- Draw outer explosion
+                love.graphics.setColor(1, 0.6, 0.1, drawable.alpha * 0.7)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius)
+                -- Draw explosion glow
+                love.graphics.setColor(0.8, 0.3, 0.1, drawable.alpha * 0.4)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius * 1.5)
+                -- Add some debris particles
+                for i = 1, 8 do
+                    local angle = (i / 8) * math.pi * 2
+                    local debrisX = drawable.x + math.cos(angle) * drawable.radius * 0.8
+                    local debrisY = drawable.y + math.sin(angle) * drawable.radius * 0.8
+                    love.graphics.setColor(0.6, 0.4, 0.2, drawable.alpha * 0.8)
+                    love.graphics.circle("fill", debrisX, debrisY, 2)
+                end
+            end
         -- Handle shader drawing
-        if drawable.shader then
+        elseif drawable.shader then
             -- Set shader and parameters
             love.graphics.setShader(drawable.shader)
             if drawable.shader_params and drawable.source_object_type == "portal_shader" then
@@ -421,7 +543,7 @@ function renderer.renderSortedDrawList()
             -- Reset shader
             love.graphics.setShader()
 
-            -- Handle regular image drawing
+        -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then
                 love.graphics.draw(
@@ -454,6 +576,7 @@ function renderer.renderSortedDrawList()
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
     love.graphics.setBlendMode(current_blend_mode)
     love.graphics.setShader(current_shader)
+    love.graphics.setLineWidth(current_line_width)
 end
 
 function rebuildArray(arr, innerElements)
