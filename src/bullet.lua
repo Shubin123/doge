@@ -11,6 +11,21 @@ bullet.tracerShader = nil
 bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
 
+-- Dynamic rendering system
+bullet.renderEvents = {}  -- event queue for rendering changes
+bullet.renderSettings = {
+    maxVisible = 50,  -- maximum bullets to render at once
+    lodDistance = 200,  -- distance threshold for LOD
+    cullDistance = 500,  -- distance to cull bullets
+    adaptiveQuality = true,  -- enable adaptive quality
+    currentQuality = 1.0,  -- current render quality (0.1 to 1.0)
+    lastFrameTime = 0,  -- track frame time for adaptive quality
+    targetFrameTime = 1/60,  -- target 60 FPS
+    densityThreshold = 20,  -- bullet count threshold for density adjustments
+    densityHistory = {},  -- track bullet count over time
+    performanceMode = false  -- emergency performance mode
+}
+
 -- Initialize the bullet module with the physics world
 function bullet.load(world)
     bullet.world = world
@@ -20,6 +35,7 @@ function bullet.load(world)
     bullet.toReturn = {}
     bullet.muzzleFlashes = {}
     bullet.shells = {}
+    bullet.renderEvents = {}
     
     -- Load tracer shader
     local shader_code = love.filesystem.read("shaders_/bullet_tracer.frag")
@@ -56,6 +72,11 @@ function bullet.new(params)
         instance.prevPos = vec2.new(pos.x, pos.y)
         instance.startPos = vec2.new(pos.x, pos.y)
         instance.trail = {}
+        
+        -- Dynamic rendering properties
+        instance.visible = true
+        instance.lodLevel = 0  -- 0=full detail, 1=medium, 2=low detail
+        instance.lastCullCheck = bullet.t
     else
         -- Create new instance
         local body = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
@@ -74,6 +95,11 @@ function bullet.new(params)
             prevPos   = vec2.new(pos.x, pos.y),
             startPos  = vec2.new(pos.x, pos.y),  -- for tracer rendering
             trail     = {},  -- trail positions for visual effect
+            
+            -- Dynamic rendering properties
+            visible = true,
+            lodLevel = 0,  -- 0=full detail, 1=medium, 2=low detail
+            lastCullCheck = bullet.t
         }
         
         -- allow collision callback to recover instance
@@ -88,8 +114,17 @@ end
 function bullet.update(dt)
     bullet.t = bullet.t + dt
     
+    -- Track frame time for adaptive quality
+    bullet.renderSettings.lastFrameTime = dt
+    
     -- Process deferred returns first (world is not locked during update)
     bullet.processDeferredReturns()
+    
+    -- Process rendering events
+    bullet.processRenderEvents()
+    
+    -- Update adaptive quality based on performance
+    bullet.updateAdaptiveQuality(dt)
     
     -- Update muzzle flashes
     for i = #bullet.muzzleFlashes, 1, -1 do
@@ -132,10 +167,19 @@ function bullet.update(dt)
         local x, y = inst.body:getPosition()
         inst.prevPos = vec2.new(x, y)
         
-        -- Add to trail for visual effect (limit trail length)
-        table.insert(inst.trail, 1, {x = x, y = y, time = bullet.t})
-        if #inst.trail > 8 then  -- keep last 8 positions
-            table.remove(inst.trail)
+        -- Dynamic culling and LOD check (every few frames to save performance)
+        if bullet.t - inst.lastCullCheck > 0.1 then  -- check every 0.1 seconds
+            bullet.updateBulletLOD(inst, x, y)
+            inst.lastCullCheck = bullet.t
+        end
+        
+        -- Add to trail for visual effect (scale with LOD)
+        local trailLength = math.max(2, 8 - inst.lodLevel * 3)  -- reduce trail length for distant bullets
+        if inst.visible and inst.lodLevel < 2 then
+            table.insert(inst.trail, 1, {x = x, y = y, time = bullet.t})
+            if #inst.trail > trailLength then
+                table.remove(inst.trail)
+            end
         end
 
         -- set constant velocity
@@ -157,36 +201,36 @@ function bullet.draw()
     -- Draw shell casings
     bullet.drawShells()
     
-    -- Draw bullet tracers
-    for _, inst in ipairs(bullet.instances) do
+    -- Draw bullet tracers with dynamic LOD
+    local renderedCount = 0
+    local maxRender = math.floor(bullet.renderSettings.maxVisible * bullet.renderSettings.currentQuality)
+    
+    -- Sort bullets by priority for rendering (closer bullets first, newer bullets prioritized)
+    local sortedBullets = bullet.getSortedBulletsForRendering()
+    
+    for _, inst in ipairs(sortedBullets) do
+        -- Skip invisible or culled bullets
+        if not inst.visible or renderedCount >= maxRender then
+            goto continue
+        end
+        
         local x, y = inst.body:getPosition()
         local age = bullet.t - inst.birthTime
         
-        -- Draw bright tracer core (reduced brightness to prevent shader issues)
-        love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
-        love.graphics.setLineWidth(3)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw glowing outer tracer (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
-        love.graphics.setLineWidth(6)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw fading trail
-        if #inst.trail > 1 then
-            for i = 1, #inst.trail - 1 do
-                local p1 = inst.trail[i]
-                local p2 = inst.trail[i + 1]
-                local trailAlpha = (1 - (i / #inst.trail)) * 0.4
-                love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-                love.graphics.setLineWidth(2)
-                love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-            end
+        -- LOD-based rendering
+        if inst.lodLevel == 0 then
+            -- Full detail rendering
+            bullet.drawBulletFullDetail(inst, x, y)
+        elseif inst.lodLevel == 1 then
+            -- Medium detail rendering
+            bullet.drawBulletMediumDetail(inst, x, y)
+        else
+            -- Low detail rendering (just a simple dot)
+            bullet.drawBulletLowDetail(inst, x, y)
         end
         
-        -- Draw bullet impact point
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.circle("fill", x, y, 2)
+        renderedCount = renderedCount + 1
+        ::continue::
     end
     
     love.graphics.setColor(1, 1, 1, 1)
@@ -351,6 +395,243 @@ function bullet.drawShells()
         love.graphics.pop()
     end
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Dynamic rendering system functions
+function bullet.updateBulletLOD(inst, x, y)
+    local player = require("player")
+    local camera = require("camera")
+    
+    -- Get player position for distance calculation
+    local playerX, playerY = player.getPosition()
+    local distance = math.sqrt((x - playerX)^2 + (y - playerY)^2)
+    
+    -- Check if bullet is on screen
+    local screenBounds = bullet.getScreenBounds()
+    local onScreen = (x >= screenBounds.left and x <= screenBounds.right and 
+                     y >= screenBounds.top and y <= screenBounds.bottom)
+    
+    -- Cull distant bullets
+    if distance > bullet.renderSettings.cullDistance or not onScreen then
+        inst.visible = false
+        return
+    else
+        inst.visible = true
+    end
+    
+    -- Set LOD level based on distance
+    if distance < bullet.renderSettings.lodDistance * 0.5 then
+        inst.lodLevel = 0  -- Full detail
+    elseif distance < bullet.renderSettings.lodDistance then
+        inst.lodLevel = 1  -- Medium detail
+    else
+        inst.lodLevel = 2  -- Low detail
+    end
+end
+
+function bullet.getScreenBounds()
+    local camera = require("camera")
+    local zoom = camera.getZoom()
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local player = require("player")
+    local playerX, playerY = player.getPosition()
+    
+    local halfWidth = (screenWidth / zoom) * 0.5
+    local halfHeight = (screenHeight / zoom) * 0.5
+    
+    return {
+        left = playerX - halfWidth - 100,  -- extra margin for smooth culling
+        right = playerX + halfWidth + 100,
+        top = playerY - halfHeight - 100,
+        bottom = playerY + halfHeight + 100
+    }
+end
+
+function bullet.drawBulletFullDetail(inst, x, y)
+    -- Draw bright tracer core
+    love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw glowing outer tracer
+    love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
+    love.graphics.setLineWidth(6)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw fading trail
+    if #inst.trail > 1 then
+        for i = 1, #inst.trail - 1 do
+            local p1 = inst.trail[i]
+            local p2 = inst.trail[i + 1]
+            local trailAlpha = (1 - (i / #inst.trail)) * 0.4
+            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+        end
+    end
+    
+    -- Draw bullet impact point
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.circle("fill", x, y, 2)
+end
+
+function bullet.drawBulletMediumDetail(inst, x, y)
+    -- Simplified tracer (no outer glow)
+    love.graphics.setColor(0.9, 0.9, 0.7, 0.6)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Reduced trail
+    if #inst.trail > 1 then
+        for i = 1, math.min(4, #inst.trail - 1) do  -- only draw first 4 trail segments
+            local p1 = inst.trail[i]
+            local p2 = inst.trail[i + 1]
+            local trailAlpha = (1 - (i / 4)) * 0.3
+            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+        end
+    end
+    
+    -- Small impact point
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.circle("fill", x, y, 1)
+end
+
+function bullet.drawBulletLowDetail(inst, x, y)
+    -- Just a simple moving dot
+    love.graphics.setColor(1, 1, 0.8, 0.5)
+    love.graphics.circle("fill", x, y, 1)
+end
+
+function bullet.updateAdaptiveQuality(dt)
+    if not bullet.renderSettings.adaptiveQuality then return end
+    
+    local targetTime = bullet.renderSettings.targetFrameTime
+    local currentTime = bullet.renderSettings.lastFrameTime
+    local bulletCount = #bullet.instances
+    local settings = bullet.renderSettings
+    
+    -- Track bullet density over time
+    table.insert(settings.densityHistory, bulletCount)
+    if #settings.densityHistory > 10 then
+        table.remove(settings.densityHistory, 1)
+    end
+    
+    -- Calculate average bullet density
+    local avgDensity = 0
+    for _, count in ipairs(settings.densityHistory) do
+        avgDensity = avgDensity + count
+    end
+    avgDensity = avgDensity / #settings.densityHistory
+    
+    -- Detect bullet density spikes (burst fire scenarios)
+    local densitySpike = bulletCount > avgDensity * 1.8 and bulletCount > settings.densityThreshold
+    
+    -- Emergency performance mode detection
+    if currentTime > targetTime * 2.0 and bulletCount > 40 then
+        settings.performanceMode = true
+    elseif currentTime < targetTime * 1.2 and bulletCount < 15 then
+        settings.performanceMode = false
+    end
+    
+    -- Adjust quality based on multiple factors
+    if settings.performanceMode or densitySpike then
+        -- Emergency quality reduction
+        settings.currentQuality = math.max(0.2, settings.currentQuality - dt * 1.0)
+        settings.maxVisible = math.max(15, settings.maxVisible * 0.95)
+        settings.lodDistance = math.max(100, settings.lodDistance * 0.98)
+    elseif currentTime > targetTime * 1.5 or bulletCount > 30 then
+        -- Standard quality reduction
+        settings.currentQuality = math.max(0.3, settings.currentQuality - dt * 0.5)
+        settings.maxVisible = math.max(25, settings.maxVisible * 0.99)
+    elseif currentTime < targetTime * 0.8 and bulletCount < 20 and avgDensity < settings.densityThreshold then
+        -- Performance is good, increase quality
+        settings.currentQuality = math.min(1.0, settings.currentQuality + dt * 0.2)
+        settings.maxVisible = math.min(50, settings.maxVisible * 1.01)
+        settings.lodDistance = math.min(200, settings.lodDistance * 1.002)
+    end
+end
+
+function bullet.processRenderEvents()
+    for i = #bullet.renderEvents, 1, -1 do
+        local event = bullet.renderEvents[i]
+        local eventAge = bullet.t - event.time
+        
+        if event.type == "burst_fire" then
+            -- Temporarily reduce quality during burst fire
+            local intensity = math.max(0, 1 - eventAge / 2.0)  -- fade over 2 seconds
+            if intensity > 0 then
+                bullet.renderSettings.currentQuality = math.max(0.4, bullet.renderSettings.currentQuality * (0.7 + intensity * 0.2))
+                bullet.renderSettings.maxVisible = math.max(20, bullet.renderSettings.maxVisible * (0.8 + intensity * 0.15))
+            end
+        elseif event.type == "explosion" then
+            -- Temporarily reduce bullet rendering during explosions
+            local intensity = math.max(0, 1 - eventAge / 1.5)  -- fade over 1.5 seconds
+            if intensity > 0 then
+                bullet.renderSettings.maxVisible = math.max(15, bullet.renderSettings.maxVisible * (0.6 + intensity * 0.3))
+                bullet.renderSettings.currentQuality = math.max(0.3, bullet.renderSettings.currentQuality * (0.8 + intensity * 0.15))
+            end
+        end
+        
+        -- Remove events that have expired
+        if eventAge > 3.0 then  -- events last max 3 seconds
+            table.remove(bullet.renderEvents, i)
+        end
+    end
+end
+
+function bullet.addRenderEvent(eventType, data)
+    table.insert(bullet.renderEvents, {
+        type = eventType,
+        data = data or {},
+        time = bullet.t
+    })
+end
+
+function bullet.getSortedBulletsForRendering()
+    local player = require("player")
+    local playerX, playerY = player.getPosition()
+    
+    -- Create a list of visible bullets with priority scores
+    local bulletPriorities = {}
+    
+    for _, inst in ipairs(bullet.instances) do
+        if inst.visible then
+            local x, y = inst.body:getPosition()
+            local distance = math.sqrt((x - playerX)^2 + (y - playerY)^2)
+            local age = bullet.t - inst.birthTime
+            
+            -- Calculate priority score (lower score = higher priority)
+            local priority = distance * 0.1  -- closer bullets get higher priority
+            priority = priority + age * 5    -- newer bullets get slight priority
+            priority = priority - inst.lodLevel * 50  -- high detail bullets get priority
+            
+            -- Special priority boosts
+            if inst.lodLevel == 0 then
+                priority = priority - 100  -- full detail bullets always prioritized
+            end
+            
+            table.insert(bulletPriorities, {
+                bullet = inst,
+                priority = priority
+            })
+        end
+    end
+    
+    -- Sort by priority (ascending - lower numbers first)
+    table.sort(bulletPriorities, function(a, b)
+        return a.priority < b.priority
+    end)
+    
+    -- Extract sorted bullets
+    local sortedBullets = {}
+    for _, entry in ipairs(bulletPriorities) do
+        table.insert(sortedBullets, entry.bullet)
+    end
+    
+    return sortedBullets
 end
 
 return bullet

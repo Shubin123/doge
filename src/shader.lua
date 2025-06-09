@@ -76,32 +76,41 @@ function shader.load()
           return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
         }
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            float oneOverRays = 1.0 / float(sampleCount);
-            float tauOverRays = 2.0 * PI * oneOverRays;
-            vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec2 ratio = normalize(oneOverSize);
-            float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
-            vec3 radiance = vec3(baseRadiance); //shift down (-) for night or up (+) for day
-            float noise = rand(tc);
-            for(int i = 0; i < sampleCount; i ++) { // can not stride more here
-                float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
-                vec2 rayDirection = vec2(cos(angle), sin(angle));
-                vec2 sampleTC = tc;
-                for (int step = 0; step < maxDistance; step += 1) {
-                  float df = Texel(tex, sampleTC).r;
-                  sampleTC += rayDirection * df * ratio;
-                  if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
-                    sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
-                  if (df <= minStepSize) {
-                    vec3 hitColor = pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
-                    // Clamp brightness to prevent spazzing from muzzle flashes/tracers
-                    hitColor = min(hitColor, vec3(2.0));
-                    radiance.rgb += hitColor;
-                    break;
-                  }
+            const float invGamma = 1.0 / 2.2;
+            const float gamma = 2.2;
+            
+            float rayWeight = 1.0 / float(sampleCount);
+            float angleStep = 2.0 * PI * rayWeight;
+            vec2 pixelSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
+            vec2 aspectRatio = normalize(pixelSize);
+            float minStep = min(pixelSize.x, pixelSize.y) * 0.5;
+            
+            vec3 totalRadiance = vec3(baseRadiance);
+            float jitter = rand(tc);
+            
+            for(int ray = 0; ray < sampleCount; ray++) {
+                float angle = (0.5 + float(ray) + jitter) * angleStep;
+                vec2 direction = vec2(cos(angle), sin(angle));
+                vec2 position = tc;
+                
+                for(int step = 0; step < maxDistance; step++) {
+                    float distance = Texel(tex, position).r;
+                    position += direction * distance * aspectRatio;
+                    
+                    if(any(lessThan(position, vec2(0.0))) || any(greaterThan(position, vec2(1.0))))
+                        break;
+                    
+                    if(distance <= minStep) {
+                        vec3 surfaceColor = pow(Texel(surfaceTexture, position).rgb, vec3(gamma));
+                        surfaceColor = min(surfaceColor, vec3(1.2));
+                        totalRadiance += surfaceColor;
+                        break;
+                    }
                 }
             }
-            return vec4(pow(radiance * oneOverRays, vec3(1.0 / 2.2)), 1.0);  // Average, then TO SRGB
+            
+            vec3 finalColor = pow(totalRadiance * rayWeight, vec3(invGamma));
+            return vec4(finalColor, 1.0);
         }
     ]])
 end
@@ -127,41 +136,114 @@ function shader.prepass()
 
 end
 
-function shader.pass()
-        
+-- It's good practice to define a helper function for a standard render pass.
+-- This reduces repetition and prevents common errors like forgetting to clear a canvas.
+local function render_pass(input_texture, shader, output_canvas)
+    -- A table of canvases can be passed to render to multiple targets.
+    love.graphics.setCanvas({ canvas = output_canvas, clear = true })
+    love.graphics.setShader(shader)
+    love.graphics.draw(input_texture)
+    love.graphics.setCanvas() -- Reset canvas to the screen
+end
 
-    -- Seed pass
-    render(scene_canvas, seed_shader, jfa_canvas1)
-    
-    gi_shader:send("surfaceTexture", scene_canvas)
+-- We'll assume your shader object is structured something like this:
+-- shader = {
+--     distance = 500,
+--     sample = 32,
+--     radiance = {1.0, 0.8, 0.6},
+--     composite_original_scene = true, -- A flag to control final composition
+--     -- ... your shaders and canvases
+-- }
+
+-- It's good practice to define a helper function for a standard render pass.
+-- This reduces repetition and prevents common errors like forgetting to clear a canvas.
+local function render_pass(input_texture, shader, output_canvas)
+    -- A table of canvases can be passed to render to multiple targets.
+    love.graphics.setCanvas({ canvas = output_canvas, clear = true })
+    love.graphics.setShader(shader)
+    love.graphics.draw(input_texture)
+    love.graphics.setCanvas() -- Reset canvas to the screen
+end
+
+-- We'll assume your shader object is structured something like this:
+-- shader = {
+--     distance = 500,
+--     sample = 32,
+--     radiance = {1.0, 0.8, 0.6},
+--     composite_original_scene = true, -- A flag to control final composition
+--     -- ... your shaders and canvases
+-- }
+
+function shader.pass()
+    --//------------------------------------------------------------------//
+    --// STEP 0: SETUP AND SEND UNIFORMS                                  //
+    --//------------------------------------------------------------------//
+    -- Send uniforms that are constant for the entire GI effect.
     gi_shader:send("maxDistance", shader.distance)
     gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("baseRadiance", shader.radiance)
-    -- JFA passes
-    local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
+
+    --//------------------------------------------------------------------//
+    --// STEP 1: SEED PASS                                                //
+    --// Identifies initial seed points (e.g., light sources) from the   //
+    --// main scene and draws them to the first JFA canvas.               //
+    --//------------------------------------------------------------------//
+    render_pass(scene_canvas, seed_shader, jfa_canvas1)
+
+    --//------------------------------------------------------------------//
+    --// STEP 2: JUMP FLOOD ALGORITHM (JFA)                               //
+    --// Progressively floods the canvas to find the nearest seed point  //
+    --// for each pixel. We ping-pong between two canvases.               //
+    --//------------------------------------------------------------------//
+    local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2))
 
     for i = 1, passes do
-        jfa_shader:send("stepSize", math.pow(2, passes - i))
+        local step_size = 2 ^ (passes - i)
+        jfa_shader:send("stepSize", step_size)
 
-        love.graphics.setCanvas(jfa_canvas2)
-        love.graphics.setShader(jfa_shader)
-        love.graphics.draw(jfa_canvas1)
+        -- Perform one pass of the JFA, reading from jfa_canvas1 and writing to jfa_canvas2
+        render_pass(jfa_canvas1, jfa_shader, jfa_canvas2)
 
-        -- Swap canvases
+        -- Swap canvases for the next iteration (ping-pong)
         jfa_canvas1, jfa_canvas2 = jfa_canvas2, jfa_canvas1
     end
+    -- After the loop, jfa_canvas1 contains the final JFA result.
 
+    --//------------------------------------------------------------------//
+    --// STEP 3: DISTANCE FIELD PASS                                      //
+    --// Converts the JFA result (containing coordinates of nearest     //
+    --// seeds) into a grayscale distance field.                          //
+    --//------------------------------------------------------------------//
+    render_pass(jfa_canvas1, df_shader, df_canvas)
+
+    --//------------------------------------------------------------------//
+    --// STEP 4: GLOBAL ILLUMINATION PASS                                 //
+    --// Uses the distance field to calculate and draw the illumination.  //
+    --// This is the final effect, drawn directly to the screen.          //
+    --//------------------------------------------------------------------//
+    love.graphics.setShader(gi_shader)
+    -- The GI shader needs both the distance field (which we draw) and the
+    -- original scene texture to know where surfaces are.
+    gi_shader:send("surfaceTexture", scene_canvas)
+    love.graphics.draw(df_canvas)
+
+    --//------------------------------------------------------------------//
+    --// STEP 5: FINAL COMPOSITION & CLEANUP                              //
+    --//------------------------------------------------------------------//
     
-    -- Distance field pass
-    render(jfa_canvas1, df_shader, df_canvas)
+    -- Optionally, draw the original scene on top of the GI effect.
+    -- This is useful if your GI is just for lighting and not for drawing
+    -- the primary objects themselves.
+    if shader.composite_original_scene then
+        love.graphics.setBlendMode("alpha", "premultiplied")
+        love.graphics.setShader() -- Use default shader to draw the original scene
+        love.graphics.draw(scene_canvas)
+        love.graphics.setBlendMode("alpha") -- Reset blend mode
+    end
 
-    -- Global illumination pass
-    render(df_canvas, gi_shader)
-    
-    --if water / smoke doesnt get drawn then these last two calls are necessary
-    -- love.graphics.setShader() 
-    -- love.graphics.draw(scene_canvas)
-
+    -- CRITICAL: Always reset the shader at the end so subsequent drawing
+    -- operations in your game don't accidentally use the GI shader.
+    love.graphics.setShader()
 end
 
 return shader

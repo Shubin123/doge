@@ -100,6 +100,11 @@ function Gun:shoot(mouseX, mouseY)
         bullet.createShellEjection(spawnPos, dir, self.shellType)
     end
     
+    -- Trigger render events based on gun type and fire rate
+    if self.isFullAuto and self.fireRate > 10 then
+        bullet.addRenderEvent("burst_fire", {fireRate = self.fireRate})
+    end
+    
     
     -- Shoot based on projectile type
     if self.projectileType == "bullet" then

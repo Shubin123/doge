@@ -274,6 +274,10 @@ function rocket.collision(fixture_a, fixture_b, contact)
         damage = inst.damage,
         shockwaveRadius = inst.radius * 6  -- larger shockwave
     })
+    
+    -- Trigger bullet render event for explosion (reduce bullet rendering during explosion)
+    local bullet = require("bullet")
+    bullet.addRenderEvent("explosion", {radius = inst.radius * 4})
 
     -- area damage: iterate enemies_bods if exists
     if enemies_bods then
