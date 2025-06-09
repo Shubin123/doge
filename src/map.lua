@@ -390,7 +390,7 @@ function map.restore(map_data)
     if map_data.arches then
         for _, arch_data in ipairs(map_data.arches) do
             local new_arch = map.createArches(arch_data.pivot_x, arch_data.pivot_y)
-            map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- reload 
+            
             -- Restore any additional arch properties if needed
             if arch_data.visual_offset_x then
                 new_arch.visual_offset_x = arch_data.visual_offset_x
@@ -399,6 +399,7 @@ function map.restore(map_data)
                 new_arch.visual_offset_y = arch_data.visual_offset_y
             end
         end
+        map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- reload 
     end
     
     -- Clear existing trees
@@ -411,8 +412,8 @@ function map.restore(map_data)
     if map_data.trees then
         for _, tree_data in ipairs(map_data.trees) do
             map.createTree(tree_data.x, tree_data.y)
-            map_b = map.addMapToDynamicDrawList(map.tree, 0,0,1,200)
         end
+        map_b = map.addMapToDynamicDrawList(map.tree, 0,0,0.8,240)
     end
     
     return true

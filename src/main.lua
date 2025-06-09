@@ -227,7 +227,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     -- t = 0
     -- end
+    
     player.update(dt)
+    
     camera.update(dt, player)
     water.update(dt)
     smoke.update(dt)
@@ -316,7 +318,7 @@ function love.keypressed(key)
 
     if key == "escape" then
         var.State = (var.State == "menu") and "running" or "menu" 
-        
+        -- print(var.State)
         menu.blur = not menu.blur
         blur.blur_enabled = not blur.blur_enabled
         
@@ -325,6 +327,15 @@ function love.keypressed(key)
 
     editor.keypressed(key)
     command.keypressed(key)
+end
+
+function love.keyreleased(key)
+ command.keyreleased(key)
+end
+
+function love.wheelmoved(x, y)
+    command.wheelmoved(x, y)
+    -- your other mouse wheel handling
 end
 
 function round(x, n)

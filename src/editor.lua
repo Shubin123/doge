@@ -47,14 +47,14 @@ function editor.mousepressed(x, y, button)
         elseif editor.mode == "create_arch" then
             -- Create new arch at mouse position
             -- print(x,y)
-            map.createArches(x, y)
+            map.createArches((x - camera.pos.x)/camera.zoom, (y - camera.pos.y)/camera.zoom)
             map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
             
             
         elseif editor.mode == "create_tree" then
             -- Create new tree at mouse position
-            map.createTree(x, y)
-            map_b = map.addMapToDynamicDrawList(map.tree, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+            map.createTree((x - camera.pos.x - 50)/camera.zoom, (y - camera.pos.y - 50)/camera.zoom)
+            map_b = map.addMapToDynamicDrawList(map.tree, 0,0,0.8, 240) -- since the editor can modify this live this needs to be called again when redrawn at different position
 
         end
     elseif button == 2 then -- Right mouse button

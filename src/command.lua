@@ -15,7 +15,7 @@ local scrollOffset = 0
 local font
 local lineHeight = 16
 local padding = 10
-local backgroundColor = { 0, 0, 0, 0.8 }
+local backgroundColor = { 0, 0, 0, 0.3 }
 local textColor = { 1, 1, 1, 1 }
 local promptColor = { 0, 1, 0, 1 }
 local errorColor = { 1, 0.3, 0.3, 1 }
@@ -24,6 +24,11 @@ local outputColor = { 0.8, 0.8, 0.8, 1 }
 -- Console dimensions
 local consoleHeight = 300
 local consoleWidth = 0 -- Will be set to screen width
+
+-- Key repeat state
+local keyRepeatState = {}
+local keyRepeatDelay = 0.5  -- Initial delay before repeat starts
+local keyRepeatRate = 0.05  -- Time between repeats
 
 -- Initialize the command module
 function command.load()
@@ -35,16 +40,77 @@ function command.load()
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
     command.addOutput("Type 'help' for available commands", outputColor)
     command.addOutput("Press '/' to toggle console", outputColor)
+    command.addOutput("Ctrl+C/Cmd+C to copy, Ctrl+V/Cmd+V to paste", outputColor)
     command.addOutput("", outputColor)
+end
+
+-- Wrap text to fit within console width
+local function wrapText(text, maxWidth)
+    local wrappedLines = {}
+    local words = {}
+    
+    -- Split text into words, preserving spaces
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    
+    if #words == 0 then
+        return { text }
+    end
+    
+    local currentLine = ""
+    local spaceWidth = font:getWidth(" ")
+    
+    for i, word in ipairs(words) do
+        local wordWidth = font:getWidth(word)
+        local currentLineWidth = font:getWidth(currentLine)
+        
+        -- Check if adding this word would exceed the max width
+        if currentLine ~= "" and currentLineWidth + spaceWidth + wordWidth > maxWidth then
+            -- Start a new line
+            table.insert(wrappedLines, currentLine)
+            currentLine = word
+        else
+            -- Add word to current line
+            if currentLine ~= "" then
+                currentLine = currentLine .. " " .. word
+            else
+                currentLine = word
+            end
+        end
+    end
+    
+    -- Add the last line if it's not empty
+    if currentLine ~= "" then
+        table.insert(wrappedLines, currentLine)
+    end
+    
+    -- If no lines were created, return the original text
+    if #wrappedLines == 0 then
+        return { text }
+    end
+    
+    return wrappedLines
 end
 
 -- Add text to output buffer
 function command.addOutput(text, color)
     color = color or outputColor
-    table.insert(output, { text = tostring(text), color = color })
+    local textStr = tostring(text)
+    
+    -- Calculate available width for text (accounting for padding and scroll bar)
+    local availableWidth = consoleWidth - (padding * 2) - 20 -- 20px for potential scroll bar
+    
+    -- Wrap the text if it's too long
+    local wrappedLines = wrapText(textStr, availableWidth)
+    
+    -- Add each wrapped line as a separate output entry
+    for _, line in ipairs(wrappedLines) do
+        table.insert(output, { text = line, color = color })
+    end
 
     -- Limit output buffer size
-    if #output > maxOutputLines * 2 then
+    if #output > maxOutputLines * 3 then -- Increased limit due to wrapped lines
         for i = 1, maxOutputLines do
             table.remove(output, 1)
         end
@@ -83,33 +149,27 @@ function command.execute(cmd)
         return
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
-
         return
     elseif string.find(cmd, "tp") then
         -- for this function expect 3 tokens "tp", "x: float", "y: float"
         -- we extract second and third index for x,y if they dont exist tp to 0
-
         local tokens = mymath.tokens(cmd)
         print(tokens[1], tokens[2])
         local tp_x = tonumber(tokens[1]) or 0
         local tp_y = tonumber(tokens[2]) or 0
         player.body:setPosition(tp_x, tp_y)
-
         return
-    elseif string.find(cmd, "save") then
+    elseif cmd == "save" then
         -- for this function expect 3 tokens "tp", "x: float", "y: float"
         -- we extract second and third index for x,y if they dont exist tp to 0
         serial.quickSave()
-
         return
-    elseif string.find(cmd, "load") then
+    elseif  cmd == "load" then
         -- for this function expect 3 tokens "tp", "x: float", "y: float"
         -- we extract second and third index for x,y if they dont exist tp to 0
         serial.quickLoad()
-
         return
     end
-
 
     -- Try to execute as Lua code
     local success, result = pcall(function()
@@ -185,6 +245,13 @@ function command.showHelp()
     command.addOutput("  var                     - Access global table", outputColor)
     command.addOutput("  tp (x) (y) - teleport player ", outputColor)
     command.addOutput("", outputColor)
+    command.addOutput("Keyboard shortcuts:", promptColor)
+    command.addOutput("  Ctrl+C/Cmd+C - Copy last output line", outputColor)
+    command.addOutput("  Ctrl+V/Cmd+V - Paste from clipboard", outputColor)
+    command.addOutput("  Ctrl+A/Cmd+A - Select all text", outputColor)
+    command.addOutput("  PageUp/PageDown - Scroll output", outputColor)
+    command.addOutput("  Mouse wheel - Scroll output", outputColor)
+    command.addOutput("", outputColor)
 end
 
 -- Toggle console visibility
@@ -195,6 +262,52 @@ function command.toggle()
         cursorPos = 0
         historyIndex = #history + 1
     end
+    -- Clear key repeat state when toggling
+    keyRepeatState = {}
+end
+
+-- Handle key repeat for continuous key presses
+local function handleKeyRepeat(key, dt)
+    if not keyRepeatState[key] then
+        return false
+    end
+    
+    keyRepeatState[key].timer = keyRepeatState[key].timer + dt
+    
+    if not keyRepeatState[key].repeating then
+        if keyRepeatState[key].timer >= keyRepeatDelay then
+            keyRepeatState[key].repeating = true
+            keyRepeatState[key].timer = 0
+            return true
+        end
+    else
+        if keyRepeatState[key].timer >= keyRepeatRate then
+            keyRepeatState[key].timer = 0
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Perform delete operation
+local function performDelete()
+    if cursorPos < #inputText then
+        inputText = inputText:sub(1, cursorPos) .. inputText:sub(cursorPos + 2)
+    end
+end
+
+-- Perform backspace operation
+local function performBackspace()
+    if cursorPos > 0 then
+        inputText = inputText:sub(1, cursorPos - 1) .. inputText:sub(cursorPos + 1)
+        cursorPos = cursorPos - 1
+    end
+end
+
+-- Check if modifier keys are pressed
+local function isModifierPressed()
+    return love.keyboard.isDown("lctrl", "rctrl", "lgui", "rgui")
 end
 
 -- Update function
@@ -206,6 +319,15 @@ function command.update(dt)
     if cursorTimer >= 0.5 then
         cursorVisible = not cursorVisible
         cursorTimer = 0
+    end
+
+    -- Handle key repeats
+    if handleKeyRepeat("delete", dt) then
+        performDelete()
+    end
+    
+    if handleKeyRepeat("backspace", dt) then
+        performBackspace()
     end
 
     -- Update console width if window was resized
@@ -232,7 +354,39 @@ function command.keypressed(key)
     end
 
     if not isActive then return end
+    
+    -- Handle modifier key combinations first
+    if isModifierPressed() then
+        if key == "c" then
+            -- Copy last line output to clipboard
+            if #output > 0 then
+                local lastOutput = output[#output].text
+                
+                love.system.setClipboardText(string.sub(lastOutput,2,#lastOutput))
+                command.addOutput("Copied to clipboard: " .. string.sub(lastOutput,1,10), outputColor)
+            else
+                command.addOutput("No output to copy", errorColor)
+            end
+            return
+        elseif key == "v" then
+            -- Paste from clipboard
+            local clipboardText = love.system.getClipboardText()
+            if clipboardText and clipboardText ~= "" then
+                -- Remove newlines and clean up the text
+                clipboardText = clipboardText:gsub("[\r\n]+", " ")
+                -- Insert text at cursor position
+                inputText = inputText:sub(1, cursorPos) .. clipboardText .. inputText:sub(cursorPos + 1)
+                cursorPos = cursorPos + #clipboardText
+            end
+            return
+        elseif key == "a" then
+            -- Select all text (move cursor to end)
+            cursorPos = #inputText
+            return
+        end
+    end
 
+    -- Regular key handling
     if key == "escape" then
         command.toggle()
     elseif key == "return" then
@@ -240,14 +394,13 @@ function command.keypressed(key)
         inputText = ""
         cursorPos = 0
     elseif key == "backspace" then
-        if cursorPos > 0 then
-            inputText = inputText:sub(1, cursorPos - 1) .. inputText:sub(cursorPos + 1)
-            cursorPos = cursorPos - 1
-        end
+        -- Start key repeat state
+        keyRepeatState.backspace = { timer = 0, repeating = false }
+        performBackspace()
     elseif key == "delete" then
-        if cursorPos < #inputText then
-            inputText = inputText:sub(1, cursorPos) .. inputText:sub(cursorPos + 2)
-        end
+        -- Start key repeat state
+        keyRepeatState.delete = { timer = 0, repeating = false }
+        performDelete()
     elseif key == "left" then
         cursorPos = math.max(0, cursorPos - 1)
     elseif key == "right" then
@@ -269,9 +422,32 @@ function command.keypressed(key)
             cursorPos = #inputText
         end
     elseif key == "pageup" then
-        scrollOffset = math.max(0, scrollOffset - 5)
+        scrollOffset = math.max(0, scrollOffset - 10)
     elseif key == "pagedown" then
-        scrollOffset = math.min(#output - maxOutputLines + 3, scrollOffset + 5)
+        scrollOffset = math.min(math.max(0, #output - maxOutputLines + 3), scrollOffset + 10)
+    end
+end
+
+-- Handle mouse wheel scrolling
+function command.wheelmoved(x, y)
+    if not isActive then return end
+    
+    -- Scroll up/down with mouse wheel
+    local scrollAmount = 3
+    if y > 0 then
+        -- Scroll up
+        scrollOffset = math.max(0, scrollOffset - scrollAmount)
+    elseif y < 0 then
+        -- Scroll down
+        scrollOffset = math.min(math.max(0, #output - maxOutputLines + 3), scrollOffset + scrollAmount)
+    end
+end
+function command.keyreleased(key)
+    if not isActive then return end
+    
+    -- Stop key repeat when key is released
+    if keyRepeatState[key] then
+        keyRepeatState[key] = nil
     end
 end
 
@@ -279,62 +455,75 @@ end
 function command.draw()
     if not isActive then return end
 
-    local width = consoleWidth
-    local height = consoleHeight
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local consoleHeight = 200  -- Height of the bottom console
+    local consoleY = screenHeight - consoleHeight
 
     -- Save current graphics state
     local r, g, b, a = love.graphics.getColor()
     local currentFont = love.graphics.getFont()
 
-    -- Set console font
+    -- Set font
     love.graphics.setFont(font)
 
-    -- Draw background
-    love.graphics.setColor(backgroundColor)
-    love.graphics.rectangle("fill", 0, 0, width, height)
+    -- Background
+    love.graphics.setColor(backgroundColor or {0.1, 0.1, 0.1, 0.95}) -- Slightly transparent dark gray
+    love.graphics.rectangle("fill", 0, consoleY, screenWidth, consoleHeight, 8, 8)
 
-    -- Draw border
-    love.graphics.setColor(promptColor)
-    love.graphics.rectangle("line", 0, 0, width, height)
+    -- Border (subtle)
+    love.graphics.setColor(0.3, 0.3, 0.3, 0.7)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", 0, consoleY, screenWidth, consoleHeight, 8, 8)
 
     -- Draw output text
-    local y = padding
-    local visibleLines = math.floor((height - 60) / lineHeight)
+    local y = consoleY + padding
+    local visibleLines = math.floor((consoleHeight - 60) / lineHeight)
     local startLine = math.max(1, #output - visibleLines - scrollOffset + 1)
     local endLine = math.min(#output, startLine + visibleLines - 1)
 
     for i = startLine, endLine do
         if output[i] then
-            love.graphics.setColor(output[i].color)
+            love.graphics.setColor(output[i].color or textColor)
             love.graphics.print(output[i].text, padding, y)
             y = y + lineHeight
         end
     end
 
     -- Draw input line
-    local inputY = height - 40
+    local inputY = consoleY + consoleHeight - 40
     love.graphics.setColor(promptColor)
     love.graphics.print("< ", padding, inputY)
 
-    -- Draw input text
+    -- Input text
     love.graphics.setColor(textColor)
     local promptWidth = font:getWidth("< ")
     love.graphics.print(inputText, padding + promptWidth, inputY)
 
-    -- Draw cursor
+    -- Cursor
     if cursorVisible then
         local textBeforeCursor = inputText:sub(1, cursorPos)
         local cursorX = padding + promptWidth + font:getWidth(textBeforeCursor)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(textColor)
         love.graphics.line(cursorX, inputY, cursorX, inputY + lineHeight)
     end
 
-    -- Draw scroll indicator
+    -- Scroll bar
     if #output > maxOutputLines then
-        love.graphics.setColor(0.5, 0.5, 0.5, 1)
-        local scrollPercent = scrollOffset / math.max(1, #output - maxOutputLines + 3)
-        local scrollBarHeight = math.max(10, (visibleLines / #output) * (height - 80))
-        local scrollBarY = 10 + scrollPercent * (height - 80 - scrollBarHeight)
-        love.graphics.rectangle("fill", width - 10, scrollBarY, 5, scrollBarHeight)
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.1)
+        local maxScroll = math.max(0, #output - maxOutputLines + 3)
+        local scrollPercent = maxScroll > 0 and (scrollOffset / maxScroll) or 0
+        local scrollBarHeight = math.max(20, (maxOutputLines / math.max(maxOutputLines, #output)) * (consoleHeight - 60))
+        local scrollBarY = consoleY + 10 + scrollPercent * (consoleHeight - 60 - scrollBarHeight)
+
+        love.graphics.rectangle("fill", screenWidth - 8, scrollBarY, 4, scrollBarHeight, 2, 2)
+
+        -- Optional scroll position text (fade look)
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.1)
+        local scrollText = string.format("%d/%d", math.max(0, #output - maxOutputLines - scrollOffset + 3), #output)
+        local textWidth = font:getWidth(scrollText)
+        love.graphics.print(scrollText, screenWidth - textWidth - 16, consoleY + consoleHeight - 25)
     end
 
     -- Restore graphics state
