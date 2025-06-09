@@ -19,6 +19,18 @@ function myMath.len(T)
   return count
 end
 
+function myMath.tokens(cmd)
+  -- seperate tokens
+  local token_array = {}
+  local count = 0
+        for token in string.gmatch(cmd, "[^%s]+") do
+            -- print(token)
+            
+            token_array[count] = token
+            count = count + 1
+        end
+        return token_array
+end
 
     return myMath
 

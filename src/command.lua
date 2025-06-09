@@ -15,11 +15,11 @@ local scrollOffset = 0
 local font
 local lineHeight = 16
 local padding = 10
-local backgroundColor = {0, 0, 0, 0.8}
-local textColor = {1, 1, 1, 1}
-local promptColor = {0, 1, 0, 1}
-local errorColor = {1, 0.3, 0.3, 1}
-local outputColor = {0.8, 0.8, 0.8, 1}
+local backgroundColor = { 0, 0, 0, 0.8 }
+local textColor = { 1, 1, 1, 1 }
+local promptColor = { 0, 1, 0, 1 }
+local errorColor = { 1, 0.3, 0.3, 1 }
+local outputColor = { 0.8, 0.8, 0.8, 1 }
 
 -- Console dimensions
 local consoleHeight = 300
@@ -30,7 +30,7 @@ function command.load()
     font = love.graphics.getFont() or love.graphics.newFont(12)
     lineHeight = font:getHeight() + 2
     consoleWidth = love.graphics.getWidth()
-    
+
     -- Add initial help message
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
     command.addOutput("Type 'help' for available commands", outputColor)
@@ -41,15 +41,15 @@ end
 -- Add text to output buffer
 function command.addOutput(text, color)
     color = color or outputColor
-    table.insert(output, {text = tostring(text), color = color})
-    
+    table.insert(output, { text = tostring(text), color = color })
+
     -- Limit output buffer size
     if #output > maxOutputLines * 2 then
         for i = 1, maxOutputLines do
             table.remove(output, 1)
         end
     end
-    
+
     -- Auto-scroll to bottom
     scrollOffset = math.max(0, #output - maxOutputLines + 3)
 end
@@ -57,17 +57,17 @@ end
 -- Execute a Lua command
 function command.execute(cmd)
     if cmd == "" then return end
-    
+
     -- Add command to history
     table.insert(history, cmd)
     if #history > 50 then
         table.remove(history, 1)
     end
     historyIndex = #history + 1
-    
+
     -- Show command in output
     command.addOutput("< " .. cmd, promptColor)
-    
+
     -- Handle special commands
     if cmd == "help" then
         command.showHelp()
@@ -82,18 +82,41 @@ function command.execute(cmd)
         love.event.quit()
         return
     elseif cmd == "reload" then
-
         love.event.push("quit", "restart")
 
         return
+    elseif string.find(cmd, "tp") then
+        -- for this function expect 3 tokens "tp", "x: float", "y: float"
+        -- we extract second and third index for x,y if they dont exist tp to 0
+
+        local tokens = mymath.tokens(cmd)
+        print(tokens[1], tokens[2])
+        local tp_x = tonumber(tokens[1]) or 0
+        local tp_y = tonumber(tokens[2]) or 0
+        player.body:setPosition(tp_x, tp_y)
+
+        return
+    elseif string.find(cmd, "save") then
+        -- for this function expect 3 tokens "tp", "x: float", "y: float"
+        -- we extract second and third index for x,y if they dont exist tp to 0
+        serial.quickSave()
+
+        return
+    elseif string.find(cmd, "load") then
+        -- for this function expect 3 tokens "tp", "x: float", "y: float"
+        -- we extract second and third index for x,y if they dont exist tp to 0
+        serial.quickLoad()
+
+        return
     end
-    
+
+
     -- Try to execute as Lua code
     local success, result = pcall(function()
         -- First try as expression (for print-like behavior)
         local func, err = load("return " .. cmd)
         if func then
-            local results = {func()}
+            local results = { func() }
             if #results > 0 then
                 for i, v in ipairs(results) do
                     if type(v) == "table" then
@@ -113,7 +136,7 @@ function command.execute(cmd)
             end
         end
     end)
-    
+
     if not success then
         command.addOutput("Error: " .. tostring(result), errorColor)
     end
@@ -123,15 +146,15 @@ end
 function command.tableToString(t, indent, visited)
     indent = indent or 0
     visited = visited or {}
-    
+
     if visited[t] then
         return "<circular reference>"
     end
     visited[t] = true
-    
+
     local str = "{\n"
     local indentStr = string.rep("  ", indent + 1)
-    
+
     for k, v in pairs(t) do
         str = str .. indentStr .. "[" .. tostring(k) .. "] = "
         if type(v) == "table" and indent < 3 then
@@ -141,7 +164,7 @@ function command.tableToString(t, indent, visited)
         end
         str = str .. ",\n"
     end
-    
+
     str = str .. string.rep("  ", indent) .. "}"
     visited[t] = nil
     return str
@@ -160,6 +183,7 @@ function command.showHelp()
     command.addOutput("  player.x = 100         - Set variables", outputColor)
     command.addOutput("  love.graphics.getWidth() - Call functions", outputColor)
     command.addOutput("  var                     - Access global table", outputColor)
+    command.addOutput("  tp (x) (y) - teleport player ", outputColor)
     command.addOutput("", outputColor)
 end
 
@@ -176,14 +200,14 @@ end
 -- Update function
 function command.update(dt)
     if not isActive then return end
-    
+
     -- Update cursor blink
     cursorTimer = cursorTimer + dt
     if cursorTimer >= 0.5 then
         cursorVisible = not cursorVisible
         cursorTimer = 0
     end
-    
+
     -- Update console width if window was resized
     consoleWidth = love.graphics.getWidth()
 end
@@ -206,9 +230,9 @@ function command.keypressed(key)
         command.toggle()
         return
     end
-    
+
     if not isActive then return end
-    
+
     if key == "escape" then
         command.toggle()
     elseif key == "return" then
@@ -254,31 +278,31 @@ end
 -- Draw the console
 function command.draw()
     if not isActive then return end
-    
+
     local width = consoleWidth
     local height = consoleHeight
-    
+
     -- Save current graphics state
     local r, g, b, a = love.graphics.getColor()
     local currentFont = love.graphics.getFont()
-    
+
     -- Set console font
     love.graphics.setFont(font)
-    
+
     -- Draw background
     love.graphics.setColor(backgroundColor)
     love.graphics.rectangle("fill", 0, 0, width, height)
-    
+
     -- Draw border
     love.graphics.setColor(promptColor)
     love.graphics.rectangle("line", 0, 0, width, height)
-    
+
     -- Draw output text
     local y = padding
     local visibleLines = math.floor((height - 60) / lineHeight)
     local startLine = math.max(1, #output - visibleLines - scrollOffset + 1)
     local endLine = math.min(#output, startLine + visibleLines - 1)
-    
+
     for i = startLine, endLine do
         if output[i] then
             love.graphics.setColor(output[i].color)
@@ -286,24 +310,24 @@ function command.draw()
             y = y + lineHeight
         end
     end
-    
+
     -- Draw input line
     local inputY = height - 40
     love.graphics.setColor(promptColor)
     love.graphics.print("< ", padding, inputY)
-    
+
     -- Draw input text
     love.graphics.setColor(textColor)
     local promptWidth = font:getWidth("< ")
     love.graphics.print(inputText, padding + promptWidth, inputY)
-    
+
     -- Draw cursor
     if cursorVisible then
         local textBeforeCursor = inputText:sub(1, cursorPos)
         local cursorX = padding + promptWidth + font:getWidth(textBeforeCursor)
         love.graphics.line(cursorX, inputY, cursorX, inputY + lineHeight)
     end
-    
+
     -- Draw scroll indicator
     if #output > maxOutputLines then
         love.graphics.setColor(0.5, 0.5, 0.5, 1)
@@ -312,7 +336,7 @@ function command.draw()
         local scrollBarY = 10 + scrollPercent * (height - 80 - scrollBarHeight)
         love.graphics.rectangle("fill", width - 10, scrollBarY, 5, scrollBarHeight)
     end
-    
+
     -- Restore graphics state
     love.graphics.setColor(r, g, b, a)
     love.graphics.setFont(currentFont)
@@ -328,7 +352,7 @@ function command.setGlobal(name, value)
     _G[name] = value
 end
 
--- Add reference to common game objects (call this from your main game) 
+-- Add reference to common game objects (call this from your main game)
 -- not needed potentially
 function command.setGameReferences(refs)
     for name, value in pairs(refs) do

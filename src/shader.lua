@@ -2,6 +2,7 @@ shader = {}
 
 shader.distance = 30
 shader.sample = 40
+shader.radiance = 0
 
 function shader.load()
     -- Create canvases with specific formats
@@ -69,6 +70,7 @@ function shader.load()
         //const float MAX_DISTANCE = 40; // Should break out of the loop way before this
          uniform float maxDistance;
         uniform int sampleCount;
+        uniform float baseRadiance;
         //const float MAX_DISTANCE = 80; // Should break out of the loop way before this
         float rand(vec2 co) {
           return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
@@ -79,7 +81,7 @@ function shader.load()
             vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
             vec2 ratio = normalize(oneOverSize);
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
-            vec3 radiance = vec3(1); //shift down (-) for night or up (+) for day
+            vec3 radiance = vec3(baseRadiance); //shift down (-) for night or up (+) for day
             float noise = rand(tc);
             for(int i = 0; i < sampleCount; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
@@ -131,6 +133,7 @@ function shader.pass()
     gi_shader:send("surfaceTexture", scene_canvas)
     gi_shader:send("maxDistance", shader.distance)
     gi_shader:send("sampleCount", shader.sample)
+    gi_shader:send("baseRadiance", shader.radiance)
     -- JFA passes
     local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
 
