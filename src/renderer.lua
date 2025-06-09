@@ -8,6 +8,8 @@ renderer.networked_state = {
     enemies = {},      -- { enemy_id = { x, y, active, ... } }
     coins = {},        -- { coin_id = { x, y, active, ... } }
     fire_effects = {}, -- { effect_id = { x, y, active, ... } }
+    bullets = {},
+    rockets = {}
     -- Add other networked objects as needed
 }
 
@@ -45,6 +47,14 @@ end
 -- Set networked fire effects data (called by multiplayer system)
 function renderer.setNetworkedFireEffects(fire_data)
     renderer.networked_state.fire_effects = fire_data or {}
+end
+
+function renderer.setNetworkedBullets(bullet_data)
+    renderer.networked_state.bullets = bullet_data or {}
+end
+
+function renderer.setNetworkedRockets(rocket_data)
+    renderer.networked_state.rockets = rocket_data or {}
 end
 
 -- Update local player state (for host/single player)
@@ -225,10 +235,41 @@ function renderer.populateDynamicDrawListNetworked()
         end
     end
 
+    -- Draw networked bullets
+    for bullet_id, bullet_data in pairs(renderer.networked_state.bullets) do
+        if bullet_data.active then
+            table.insert(dynamic_draw_list, {
+                sort_y = bullet_data.y + 140,
+                draw_type = "bullet_point",
+                x = bullet_data.x,
+                y = bullet_data.y,
+                radius = 2,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" },
+                source_object_type = "networked_bullet"
+            })
+        end
+    end
 
+    -- Draw networked rockets
+    for rocket_id, rocket_data in pairs(renderer.networked_state.rockets) do
+        if rocket_data.active then
+            table.insert(dynamic_draw_list, {
+                draw_type = "rocket_body",
+                sort_y = rocket_data.y + 140,
+                x = rocket_data.x, y = rocket_data.y,
+                angle = 0, -- Should be calculated based on velocity
+                radius = 5,
+                color = {0.7, 0.7, 0.7, 1},
+                blend_mode = {"alpha"},
+                source_object_type = "networked_rocket"
+            })
+        end
+    end
 
     fire.populate()
-
+    bullet.populate()
+    rocket.populate()
     -- enemy.populate()
 end
 

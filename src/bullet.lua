@@ -10,9 +10,10 @@ bullet.toReturn = {}  -- deferred list for returning to pool
 bullet.tracerShader = nil
 bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
-
--- Initialize the bullet module with the physics world
-function bullet.load(world)
+bullet.online_bullets = {}
+ 
+ -- Initialize the bullet module with the physics world
+ function bullet.load(world)
     bullet.world = world
     bullet.t = 0
     bullet.instances = {}
@@ -306,6 +307,7 @@ end
 
 -- Handle collisions: bullet vs enemy or obstacles
 function bullet.collision(fixture_a, fixture_b, contact)
+    if (var.multiplayer ~= 1) and var.multiplayer then return end
     local bullet_f, other_f
     if fixture_a:getGroupIndex() == bullet.groupIndex then
         bullet_f = fixture_a
@@ -413,6 +415,33 @@ function bullet.createShellEjection(gunPos, gunDir, shellType)
         size = size,
         groundY = ejectionPos.y + 100  -- approximate ground level
     })
+end
+
+function bullet.getNetworkData()
+    local network_data = {}
+    for i = 1, #bullet.instances do
+        if bullet.instances[i] then
+            local x, y = bullet.instances[i].body:getPosition()
+            table.insert(network_data, {
+                x = x,
+                y = y,
+                active = true,
+                id = i
+            })
+        end
+    end
+    return network_data
+end
+
+function bullet.setOnline(index, pos)
+    if bullet.online_bullets[index] then
+        bullet.online_bullets[index]:setPosition(pos.x, pos.y)
+    else
+        bullet.online_bullets[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
+        local shape = love.physics.newCircleShape(5)
+        local fixture = love.physics.newFixture(bullet.online_bullets[index], shape)
+        fixture:setGroupIndex(bullet.groupIndex)
+    end
 end
 
 return bullet

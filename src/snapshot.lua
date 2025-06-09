@@ -6,7 +6,11 @@ local accumulated_game_state = {
     enemies = {},
     coins = {},
     fire_effects = {},
-    accumulated_fires = {} -- Track fire effects from all clients
+    bullets = {},
+    rockets = {},
+    accumulated_fires = {}, -- Track fire effects from all clients
+    accumulated_bullets = {},
+    accumulated_rockets = {}
 }
 
 function snapshot.create()
@@ -21,7 +25,9 @@ function snapshot.create()
             players = {},
             enemies = {},
             coins = {},
-            fire_effects = {}
+            fire_effects = {},
+            bullets = {},
+            rockets = {}
         }
         
         -- Add host's player data
@@ -81,6 +87,38 @@ function snapshot.create()
             end
         end
 
+        -- Add host's bullets and rockets
+        local host_bullets = bullet.getNetworkData()
+        if host_bullets then
+            for k, v in pairs(host_bullets) do
+                game_state.bullets["host_" .. tostring(k)] = v
+            end
+        end
+
+        local host_rockets = rocket.getNetworkData()
+        if host_rockets then
+            for k, v in pairs(host_rockets) do
+                game_state.rockets["host_" .. tostring(k)] = v
+            end
+        end
+
+        -- Add accumulated client bullets and rockets
+        for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
+            if client_bullets then
+                for k, v in pairs(client_bullets) do
+                    game_state.bullets[client_id .. "_" .. tostring(k)] = v
+                end
+            end
+        end
+
+        for client_id, client_rockets in pairs(accumulated_game_state.accumulated_rockets) do
+            if client_rockets then
+                for k, v in pairs(client_rockets) do
+                    game_state.rockets[client_id .. "_" .. tostring(k)] = v
+                end
+            end
+        end
+
         -- print(game_state.players)
         
     else
@@ -89,7 +127,9 @@ function snapshot.create()
             type = "player_update",
             client_id = "client_" .. var.multiplayer,
             player_data = renderer.local_player_state,
-            fire_effects = fire.getNetworkData() -- Clients send their fire effects
+            fire_effects = fire.getNetworkData(), -- Clients send their fire effects
+            bullets = bullet.getNetworkData(),
+            rockets = rocket.getNetworkData()
         }
         
 
@@ -109,6 +149,12 @@ function snapshot.apply(game_state)
             if game_state.fire_effects then
                 accumulated_game_state.accumulated_fires[game_state.client_id] = game_state.fire_effects
             end
+            if game_state.bullets then
+                accumulated_game_state.accumulated_bullets[game_state.client_id] = game_state.bullets
+            end
+            if game_state.rockets then
+                accumulated_game_state.accumulated_rockets[game_state.client_id] = game_state.rockets
+            end
             
             -- Apply all accumulated fire effects to host's renderer
             local all_client_fires = {}
@@ -120,6 +166,26 @@ function snapshot.apply(game_state)
                 end
             end
             renderer.setNetworkedFireEffects(all_client_fires)
+
+            local all_client_bullets = {}
+            for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
+                if client_bullets then
+                    for k, v in pairs(client_bullets) do
+                        all_client_bullets[client_id .. "_" .. tostring(k)] = v
+                    end
+                end
+            end
+            renderer.setNetworkedBullets(all_client_bullets)
+
+            local all_client_rockets = {}
+            for client_id, client_rockets in pairs(accumulated_game_state.accumulated_rockets) do
+                if client_rockets then
+                    for k, v in pairs(client_rockets) do
+                        all_client_rockets[client_id .. "_" .. tostring(k)] = v
+                    end
+                end
+            end
+            renderer.setNetworkedRockets(all_client_rockets)
             
             -- Create combined player data with only CLIENT players (not host)
             local client_players = {}
@@ -166,6 +232,28 @@ function snapshot.apply(game_state)
             end
             
             renderer.setNetworkedFireEffects(other_fires)
+        end
+
+        if game_state.bullets then
+            local other_bullets = {}
+            local own_client_prefix = "client_" .. var.multiplayer .. "_"
+            for bullet_id, bullet_data in pairs(game_state.bullets) do
+                if not string.match(bullet_id, "^" .. own_client_prefix) then
+                    other_bullets[bullet_id] = bullet_data
+                end
+            end
+            renderer.setNetworkedBullets(other_bullets)
+        end
+
+        if game_state.rockets then
+            local other_rockets = {}
+            local own_client_prefix = "client_" .. var.multiplayer .. "_"
+            for rocket_id, rocket_data in pairs(game_state.rockets) do
+                if not string.match(rocket_id, "^" .. own_client_prefix) then
+                    other_rockets[rocket_id] = rocket_data
+                end
+            end
+            renderer.setNetworkedRockets(other_rockets)
         end
         
         if game_state.enemies then

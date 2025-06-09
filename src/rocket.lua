@@ -2,6 +2,7 @@ local vec2 = require("vec2")
 
 local rocket = {}
 rocket.rockets = {}
+rocket.online_rockets = {}
 local world = nil
 
 -- simple explosion effect tracking
@@ -199,6 +200,7 @@ function rocket.populate()
 end
 
 function rocket.collision(fixture_a, fixture_b, contact)
+    if (var.multiplayer ~= 1) and var.multiplayer then return end
     -- detect rocket fixture
     local fa_ud = fixture_a:getUserData()
     local fb_ud = fixture_b:getUserData()
@@ -286,6 +288,33 @@ function rocket.processDeferredDestructions()
         end
     end
     toDestroy = {}  -- clear the list
+end
+
+function rocket.getNetworkData()
+    local network_data = {}
+    for i = 1, #rocket.rockets do
+        if rocket.rockets[i] and not rocket.rockets[i].destroyed then
+            local x, y = rocket.rockets[i].body:getPosition()
+            table.insert(network_data, {
+                x = x,
+                y = y,
+                active = true,
+                id = i
+            })
+        end
+    end
+    return network_data
+end
+
+function rocket.setOnline(index, pos)
+    if rocket.online_rockets[index] then
+        rocket.online_rockets[index]:setPosition(pos.x, pos.y)
+    else
+        rocket.online_rockets[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
+        local shape = love.physics.newCircleShape(5)
+        local fixture = love.physics.newFixture(rocket.online_rockets[index], shape)
+        fixture:setGroupIndex(-3)
+    end
 end
 
 return rocket
