@@ -165,14 +165,15 @@ function editor.update(dt)
     -- Move selected object if dragging
     -- if editor.isPressed and editor.selectedObject and editor.mode == "select" then
     if editor.selectedObject then
-        local newX = editor.mouseX - editor.dragOffset.x
-        local newY = editor.mouseY - editor.dragOffset.y
+        -- local newX = editor.mouseX - editor.dragOffset.x
+        -- local newY = editor.mouseY - editor.dragOffset.y
 
         if editor.selectedObject.move then
             -- print(editor.selectedObject[1])
             -- for k, v in pairs(editor.selectedObject) do
             --     print(k, v)
             -- end
+            
             editor.selectedObject:move((editor.mouseX - camera.pos.x) / camera.zoom,
                 (editor.mouseY - camera.pos.y) / camera.zoom)
 
