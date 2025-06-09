@@ -28,7 +28,7 @@ blur = require ("blur")
 serial = require("serial")
 editor = require("editor")
 multiplayer = require("multiplayer")
-
+command = require("command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 -- hotreloader / helpers
 local lurker = require("lurker")
 json = require("json")
@@ -89,7 +89,7 @@ function love.load()
     player.load(world)
     enemy.load()
 
-
+        command.load()
     -- Coins and enemies 
     
     -- physics
@@ -150,6 +150,8 @@ function love.draw()
     --     return
     end
     
+
+    
     if var.graphics_high then
     shader.prepass()
     end
@@ -200,6 +202,7 @@ function love.draw()
 
 
     mydraw.mydraw() -- ui last
+    command.draw() -- Draw console on top
     -- editor.debugDraw()
 end
 
@@ -232,6 +235,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     grass.public.update(dt)
     portal.update(dt)
     blur.update(dt)
+    command.update(dt)
+
     
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)
@@ -278,6 +283,10 @@ function love.mousepressed(x, y, button, istouch, presses)
     lurker.scan()
 end
 
+function love.textinput(text)
+    command.textinput(text)
+end
+
 lurker.preswap = function(file)
     -- var.num_coins=0
     -- love.load()
@@ -297,13 +306,13 @@ function love.keypressed(key)
 
         zoomToggle = not zoomToggle
     end
-    if key == "p" then
-        -- fire.pierce = not fire.pierce
-        -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
-        -- var.num_enemies  = var.num_enemies  + 1
+    -- if key == "p" then
+    --     -- fire.pierce = not fire.pierce
+    --     -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
+    --     -- var.num_enemies  = var.num_enemies  + 1
         
-        debug.debug()
-    end
+    --     debug.debug()
+    -- end
 
     if key == "escape" then
         var.State = (var.State == "menu") and "running" or "menu" 
@@ -315,6 +324,7 @@ function love.keypressed(key)
     end
 
     editor.keypressed(key)
+    command.keypressed(key)
 end
 
 function round(x, n)
