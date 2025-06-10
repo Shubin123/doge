@@ -323,6 +323,9 @@ function love.mousepressed(x, y, button, istouch, presses)
         return  -- Don't process game input when in menu
     end
 
+    if command.mousepressed(x, y, button) then
+        return -- command block was clicked
+    end
     -- Delegate to gun system for shooting (only when not in menu)
     gun.mousepressed(x, y, button)
     

@@ -101,4 +101,16 @@ function camera.update(dt, player)
 end
 
 
+function camera.screenToWorld(x, y)
+    local worldX = (x - camera.x) / camera.zoom
+    local worldY = (y - camera.y) / camera.zoom
+    return worldX, worldY
+end
+
+function camera.worldToScreen(x, y)
+    local screenX = (x * camera.zoom) + camera.x
+    local screenY = (y * camera.zoom) + camera.y
+    return screenX, screenY
+end
+
 return camera

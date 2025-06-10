@@ -41,6 +41,7 @@ function serial.create()
 
     -- NEW: Capture map data
     game_state.map_data = serial.captureMapData()
+    game_state.command_blocks = command.getCommandBlocks()
 
     -- Capture additional game state data
     game_state.game_data = {
@@ -186,6 +187,9 @@ function serial.apply(game_state)
         if not success then
             return false, "Failed to restore map data"
         end
+    end
+    if game_state.command_blocks then
+        command.setCommandBlocks(game_state.command_blocks)
     end
 
     -- Restore fire effects (commented out in original)

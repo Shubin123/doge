@@ -20,8 +20,9 @@ local textColor = { 1, 1, 1, 1 }
 local promptColor = { 0, 1, 0, 1 }
 local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
-
--- Console dimensions
+local command_blocks = {}
+local command_block_img = love.graphics.newImage('gfx/Color_Blocks.png')
+ -- Console dimensions
 local consoleHeight = 300
 local consoleWidth = 0 -- Will be set to screen width
 
@@ -150,14 +151,8 @@ function command.execute(cmd)
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
         return
-    elseif string.find(cmd, "tp") then
-        -- for this function expect 3 tokens "tp", "x: float", "y: float"
-        -- we extract second and third index for x,y if they dont exist tp to 0
-        local tokens = mymath.tokens(cmd)
-        print(tokens[1], tokens[2])
-        local tp_x = tonumber(tokens[1]) or 0
-        local tp_y = tonumber(tokens[2]) or 0
-        player.body:setPosition(tp_x, tp_y)
+    elseif cmd == "tp" then
+        player.body:setPosition(0, 0)
         return
     elseif cmd == "save" then
         -- for this function expect 3 tokens "tp", "x: float", "y: float"
@@ -199,7 +194,26 @@ function command.execute(cmd)
 
     if not success then
         command.addOutput("Error: " .. tostring(result), errorColor)
+    else
+        -- On success, create a command block
+        local px, py = player.body:getPosition()
+        local new_block = {
+            cmd = cmd,
+            x = px + math.random(-50, 50),
+            y = py + math.random(-50, 50),
+            w = command_block_img:getWidth(),
+            h = command_block_img:getHeight()
+        }
+        createCommandBlockPhysics(new_block)
+        table.insert(command_blocks, new_block)
     end
+end
+
+function createCommandBlockPhysics(block)
+    block.body = love.physics.newBody(world, block.x, block.y, "static")
+    block.shape = love.physics.newRectangleShape(block.w, block.h)
+    block.fixture = love.physics.newFixture(block.body, block.shape, 1)
+    block.fixture:setSensor(true)
 end
 
 -- Convert table to string representation
@@ -457,7 +471,7 @@ function command.draw()
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
-    local consoleHeight = 200  -- Height of the bottom console
+    -- local consoleHeight = 200  -- Height of the bottom console
     local consoleY = screenHeight - consoleHeight
 
     -- Save current graphics state
@@ -548,5 +562,72 @@ function command.setGameReferences(refs)
         _G[name] = value
     end
 end
+
+function command.getCommandBlocks()
+    return command_blocks
+end
+
+function command.setCommandBlocks(blocks)
+    command_blocks = blocks or {}
+    for _, block in ipairs(command_blocks) do
+        createCommandBlockPhysics(block)
+    end
+end
+
+function command.populate()
+    local player_x, player_y = player.body:getPosition()
+    for i, block in ipairs(command_blocks) do
+        table.insert(dynamic_draw_list, {
+            sort_y = block.y + block.h + 100,
+            image_or_particles = command_block_img,
+            x = block.x,
+            y = block.y,
+            rotation = 0,
+            scale_x = 1,
+            scale_y = 1,
+            offset_x = block.w / 2,
+            offset_y = block.h / 2,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "command_block",
+            command = block.cmd
+        })
+
+        local dist = math.sqrt((player_x - block.x)^2 + (player_y - block.y)^2)
+        if dist < 100 then
+            love.graphics.print(block.cmd, block.x, block.y - 20)
+        end
+    end
+end
+
+function command.mousepressed(x, y, button)
+    if button == 1 then -- Left-click
+        local world_x, world_y = camera.screenToWorld(x, y)
+        local clicked_block = nil
+        
+        world:queryBoundingBox(world_x, world_y, world_x, world_y, function(fixture)
+            for i, block in ipairs(command_blocks) do
+                if block.fixture == fixture then
+                    clicked_block = block
+                    return false -- stop querying
+                end
+            end
+        end)
+
+        if clicked_block then
+            command.execute(clicked_block.cmd)
+            -- clicked_block.body:destroy()
+            -- for i, block in ipairs(command_blocks) do
+            --     if block == clicked_block then
+            --         table.remove(command_blocks, i)
+            --         break
+            --     end
+            -- end
+            return true
+        end
+    end
+    return false
+end
+
 
 return command

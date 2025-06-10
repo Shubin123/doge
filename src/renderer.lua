@@ -300,9 +300,10 @@ function renderer.populateDynamicDrawListNetworked()
     -- end
 
     fire.populate()
-    bullet.populate()
-    rocket.populate()
-    light.populate()
+    -- bullet.populate()
+    -- rocket.populate()
+    -- light.populate()
+    command.populate()
 end
 
 function renderer.populateDynamicDrawList()
@@ -326,7 +327,8 @@ function renderer.populateDynamicDrawList()
 
     fire.populate()
     enemy.populate()
-    light.populate()
+    -- light.populate()
+    command.populate()
 end
 
 function renderer.populateDynamicDrawListNETHOST()
@@ -370,8 +372,8 @@ function renderer.renderSortedDrawList()
         -- Render based on type
         if drawable.draw_type then
             renderDrawType(drawable)
-        elseif drawable.light_shader then
-            renderLightEffect(drawable)
+        -- elseif drawable.light_shader then
+        --     renderLightEffect(drawable)
         elseif drawable.shader then
             renderShader(drawable)
         elseif drawable.image_or_particles then
@@ -552,4 +554,3 @@ function rebuildArray(arr, innerElements)
 end
 
 return renderer
-
