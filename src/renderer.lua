@@ -9,7 +9,8 @@ renderer.networked_state = {
     coins = {},        -- { coin_id = { x, y, active, ... } }
     fire_effects = {}, -- { effect_id = { x, y, active, ... } }
     bullets = {},
-    rockets = {}
+    rockets = {},
+    command_blocks = {}
 }
 
 -- Local player state (for smooth interpolation/prediction)
@@ -47,6 +48,10 @@ end
 
 function renderer.setNetworkedRockets(rocket_data)
     renderer.networked_state.rockets = rocket_data or {}
+end
+
+function renderer.setNetworkedCommandBlocks(command_block_data)
+    renderer.networked_state.command_blocks = command_block_data or {}
 end
 
 -- Update local player state (for host/single player)
@@ -276,6 +281,27 @@ local function addNetworkedEntities()
                 color = { 0.7, 0.7, 0.7, 1 },
                 blend_mode = { "alpha" },
                 source_object_type = "networked_rocket"
+            })
+        end
+    end
+
+    -- Networked command blocks
+    for _, command_block_data in pairs(renderer.networked_state.command_blocks) do
+        if command_block_data.active then
+            table.insert(dynamic_draw_list, {
+                sort_y = command_block_data.y + command_block_data.h + 100,
+                image_or_particles = command_block_img,
+                x = command_block_data.x,
+                y = command_block_data.y,
+                rotation = 0,
+                scale_x = 1,
+                scale_y = 1,
+                offset_x = command_block_data.w / 2,
+                offset_y = command_block_data.h / 2,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" },
+                source_object_type = "networked_command_block",
+                command = command_block_data.cmd
             })
         end
     end

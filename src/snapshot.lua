@@ -8,9 +8,14 @@ local accumulated_game_state = {
     fire_effects = {},
     bullets = {},
     rockets = {},
+    command_blocks = {},
+    arches = {},
+    trees = {},
+    map_data = {},
     accumulated_fires = {}, -- Track fire effects from all clients
     accumulated_bullets = {},
-    accumulated_rockets = {}
+    accumulated_rockets = {},
+    accumulated_command_blocks = {}
 }
 
 function snapshot.create()
@@ -27,7 +32,11 @@ function snapshot.create()
             coins = {},
             fire_effects = {},
             bullets = {},
-            rockets = {}
+            rockets = {},
+            command_blocks = {},
+            arches = {},
+            trees = {},
+            map_data = {}
         }
         
         -- Add host's player data
@@ -120,6 +129,8 @@ function snapshot.create()
         end
 
         -- print(game_state.players)
+        game_state.map_data = map.createSaveData()
+        game_state.command_blocks = command.getCommandBlocks()
         
     else
         -- CLIENT: Create minimal update with player data and fire effects
@@ -129,7 +140,8 @@ function snapshot.create()
             player_data = renderer.local_player_state,
             fire_effects = fire.getNetworkData(), -- Clients send their fire effects
             bullets = bullet.getNetworkData(),
-            rockets = rocket.getNetworkData()
+            rockets = rocket.getNetworkData(),
+            command_blocks = command.getCommandBlocks()
         }
         
 
@@ -154,6 +166,9 @@ function snapshot.apply(game_state)
             end
             if game_state.rockets then
                 accumulated_game_state.accumulated_rockets[game_state.client_id] = game_state.rockets
+            end
+            if game_state.command_blocks then
+                accumulated_game_state.accumulated_command_blocks[game_state.client_id] = game_state.command_blocks
             end
             
             -- Apply all accumulated fire effects to host's renderer
@@ -262,6 +277,14 @@ function snapshot.apply(game_state)
         
         if game_state.coins then
             renderer.setNetworkedCoins(game_state.coins)
+        end
+
+        if game_state.map_data then
+            map.restore(game_state.map_data)
+        end
+
+        if game_state.command_blocks then
+            command.setCommandBlocks(game_state.command_blocks)
         end
     end
 end

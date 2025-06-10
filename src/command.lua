@@ -202,7 +202,8 @@ function command.execute(cmd)
             x = px + math.random(-50, 50),
             y = py + math.random(-50, 50),
             w = command_block_img:getWidth(),
-            h = command_block_img:getHeight()
+            h = command_block_img:getHeight(),
+            active = true
         }
         createCommandBlockPhysics(new_block)
         table.insert(command_blocks, new_block)
@@ -564,7 +565,18 @@ function command.setGameReferences(refs)
 end
 
 function command.getCommandBlocks()
-    return command_blocks
+    local serializable_blocks = {}
+    for _, block in ipairs(command_blocks) do
+        table.insert(serializable_blocks, {
+            cmd = block.cmd,
+            x = block.x,
+            y = block.y,
+            w = block.w,
+            h = block.h,
+            active = block.active
+        })
+    end
+    return serializable_blocks
 end
 
 function command.setCommandBlocks(blocks)
