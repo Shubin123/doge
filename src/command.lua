@@ -595,7 +595,15 @@ function command.populate()
 
         local dist = math.sqrt((player_x - block.x)^2 + (player_y - block.y)^2)
         if dist < 100 then
-            love.graphics.print(block.cmd, block.x, block.y - 20)
+            table.insert(dynamic_draw_list, {
+                sort_y = block.y + block.h + 101, -- a bit higher than the block
+                draw_type = "text",
+                text = block.cmd,
+                x = block.x - block.w / 2,
+                y = block.y - 20,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" }
+            })
         end
     end
 end

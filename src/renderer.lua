@@ -426,6 +426,8 @@ function renderDrawType(drawable)
         renderRocketBody(d)
     elseif d.draw_type == "rocket_explosion" then
         renderRocketExplosion(d)
+    elseif d.draw_type == "text" then
+        love.graphics.print(d.text, d.x, d.y)
     end
 end
 
