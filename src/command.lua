@@ -196,9 +196,9 @@ function command.execute(cmd)
     if not success then
         command.addOutput("Error: " .. tostring(result), errorColor)
     else
-        -- On success, create a command block
+        -- On success, create a command block message
         local px, py = player.body:getPosition()
-        local block_id = "client_" .. tostring(var.multiplayer) .. "_" .. tostring(next_block_id)
+        local block_id = "client_" .. tostring(var.multiplayer or 0) .. "_" .. tostring(next_block_id) .. "_" .. tostring(love.timer.getTime())
         next_block_id = next_block_id + 1
 
         local new_block = {
@@ -208,18 +208,40 @@ function command.execute(cmd)
             y = py + math.random(-50, 50),
             w = command_block_img:getWidth(),
             h = command_block_img:getHeight(),
-            active = true
+            active = true,
+            creator = var.multiplayer or 0 -- who created this block
         }
+        
+        -- Add to local list immediately (like sending a message)
         createCommandBlockPhysics(new_block)
         table.insert(command_blocks, new_block)
+        
+        -- If in multiplayer, broadcast this command block to everyone
+        if var.multiplayer then
+            command.broadcastCommandBlock(new_block)
+        end
     end
 end
 
 function createCommandBlockPhysics(block)
-    block.body = love.physics.newBody(world, block.x, block.y, "static")
-    block.shape = love.physics.newRectangleShape(block.w, block.h)
-    block.fixture = love.physics.newFixture(block.body, block.shape, 1)
-    block.fixture:setSensor(true)
+    -- Only create physics bodies on server (like fire effects)
+    if var.multiplayer == 1 or not var.multiplayer then
+        if not world then
+            error("Physics world not initialized!")
+        end
+        if not block.x or not block.y then
+            error("Block position not set: x=" .. tostring(block.x) .. ", y=" .. tostring(block.y))
+        end
+        if not block.w or not block.h then
+            error("Block dimensions not set: w=" .. tostring(block.w) .. ", h=" .. tostring(block.h))
+        end
+        
+        block.body = love.physics.newBody(world, block.x, block.y, "static")
+        block.shape = love.physics.newRectangleShape(block.w, block.h)
+        block.fixture = love.physics.newFixture(block.body, block.shape, 1)
+        block.fixture:setSensor(true)
+    end
+    -- Clients don't create physics bodies, just store the block data for networking
 end
 
 -- Convert table to string representation
@@ -609,6 +631,7 @@ function command.addBlock(block_data)
         end
     end
 
+    -- Create physics only on server/single player
     createCommandBlockPhysics(block_data)
     table.insert(command_blocks, block_data)
 end
@@ -616,7 +639,11 @@ end
 function command.populate()
     local player_x, player_y = player.body:getPosition()
     for i, block in ipairs(command_blocks) do
-        if not block.body then createCommandBlockPhysics(block) end -- Ensure physics body exists
+        -- Only create physics bodies on server/single player
+        if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
+            createCommandBlockPhysics(block)
+        end
+        
         table.insert(dynamic_draw_list, {
             sort_y = block.y + block.h + 100,
             image_or_particles = command_block_img,
@@ -653,29 +680,99 @@ function command.mousepressed(x, y, button)
         local world_x, world_y = camera.screenToWorld(x, y)
         local clicked_block = nil
         
-        world:queryBoundingBox(world_x, world_y, world_x, world_y, function(fixture)
-            for i, block in ipairs(command_blocks) do
-                if block.fixture == fixture then
-                    clicked_block = block
-                    return false -- stop querying
+        -- Check local command blocks first (for server and single player)
+        if var.multiplayer == 1 or not var.multiplayer then
+            world:queryBoundingBox(world_x, world_y, world_x, world_y, function(fixture)
+                for i, block in ipairs(command_blocks) do
+                    if block.fixture == fixture then
+                        clicked_block = block
+                        return false -- stop querying
+                    end
+                end
+            end)
+        end
+        
+        -- If no local block found, check networked command blocks (for clients)
+        if not clicked_block and renderer and renderer.networked_state then
+            for _, block in pairs(renderer.networked_state.command_blocks) do
+                if block.active then
+                    local dx = world_x - block.x
+                    local dy = world_y - block.y
+                    local half_w = block.w / 2
+                    local half_h = block.h / 2
+                    
+                    if dx >= -half_w and dx <= half_w and dy >= -half_h and dy <= half_h then
+                        clicked_block = block
+                        break
+                    end
                 end
             end
-        end)
+        end
 
         if clicked_block then
             command.execute(clicked_block.cmd)
-            -- clicked_block.body:destroy()
-            -- for i, block in ipairs(command_blocks) do
-            --     if block == clicked_block then
-            --         table.remove(command_blocks, i)
-            --         break
-            --     end
-            -- end
             return true
         end
     end
     return false
 end
 
+
+-- Broadcast a command block to all players (like sending a message)
+function command.broadcastCommandBlock(block)
+    if not var.multiplayer then return end
+    
+    -- Create serializable version (no physics bodies)
+    local serializable_block = {
+        id = block.id,
+        cmd = block.cmd,
+        x = block.x,
+        y = block.y,
+        w = block.w,
+        h = block.h,
+        active = block.active,
+        creator = block.creator
+    }
+    
+    local message = {
+        type = "command_block",
+        block = serializable_block
+    }
+    
+    if var.multiplayer == 1 then
+        -- Server: broadcast to all clients
+        if mp then
+            local json_string = json.encode(message)
+            local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+            mp:broadcast(compressed_data)
+        end
+    else
+        -- Client: send to server
+        if mp then
+            local json_string = json.encode(message)
+            local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+            mp:sendToServer(compressed_data)
+        end
+    end
+end
+
+-- Receive a command block from network (like receiving a message)
+function command.receiveCommandBlock(block)
+    -- Check if we already have this block
+    for _, existing_block in ipairs(command_blocks) do
+        if existing_block.id == block.id then
+            return -- Already have this block
+        end
+    end
+    
+    -- Add the received block
+    createCommandBlockPhysics(block)
+    table.insert(command_blocks, block)
+    
+    -- If we're the server, relay to all other clients
+    if var.multiplayer == 1 and block.creator ~= 1 then
+        command.broadcastCommandBlock(block)
+    end
+end
 
 return command

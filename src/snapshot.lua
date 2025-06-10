@@ -131,9 +131,7 @@ function snapshot.create()
         -- print(game_state.players)
         game_state.map_data = map.createSaveData()
         
-        -- Collect host's command blocks and accumulated client blocks
-        local all_command_blocks = command.getCommandBlocks() or {}
-        
+        -- Collect host's command blocks (which now includes accumulated client blocks)
         game_state.command_blocks = command.getCommandBlocks()
         
     else
@@ -173,6 +171,21 @@ function snapshot.apply(game_state)
             end
             if game_state.command_blocks then
                 accumulated_game_state.accumulated_command_blocks[game_state.client_id] = game_state.command_blocks
+                -- Apply client command blocks to host's command system
+                for _, block_data in ipairs(game_state.command_blocks) do
+                    command.addBlock(block_data)
+                end
+                
+                -- Update networked command blocks for rendering
+                local all_client_command_blocks = {}
+                for client_id, client_blocks in pairs(accumulated_game_state.accumulated_command_blocks) do
+                    if client_blocks then
+                        for _, block_data in ipairs(client_blocks) do
+                            table.insert(all_client_command_blocks, block_data)
+                        end
+                    end
+                end
+                renderer.setNetworkedCommandBlocks(all_client_command_blocks)
             end
             
             -- Apply all accumulated fire effects to host's renderer
@@ -289,6 +302,7 @@ function snapshot.apply(game_state)
 
         if game_state.command_blocks then
             command.setCommandBlocks(game_state.command_blocks)
+            renderer.setNetworkedCommandBlocks(game_state.command_blocks)
         end
     end
 end
