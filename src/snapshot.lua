@@ -130,6 +130,10 @@ function snapshot.create()
 
         -- print(game_state.players)
         game_state.map_data = map.createSaveData()
+        
+        -- Collect host's command blocks and accumulated client blocks
+        local all_command_blocks = command.getCommandBlocks() or {}
+        
         game_state.command_blocks = command.getCommandBlocks()
         
     else

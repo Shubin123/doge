@@ -21,6 +21,7 @@ local promptColor = { 0, 1, 0, 1 }
 local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
+local next_block_id = 1
 local command_block_img = love.graphics.newImage('gfx/Color_Blocks.png')
  -- Console dimensions
 local consoleHeight = 300
@@ -197,7 +198,11 @@ function command.execute(cmd)
     else
         -- On success, create a command block
         local px, py = player.body:getPosition()
+        local block_id = "client_" .. tostring(var.multiplayer) .. "_" .. tostring(next_block_id)
+        next_block_id = next_block_id + 1
+
         local new_block = {
+            id = block_id,
             cmd = cmd,
             x = px + math.random(-50, 50),
             y = py + math.random(-50, 50),
@@ -568,6 +573,7 @@ function command.getCommandBlocks()
     local serializable_blocks = {}
     for _, block in ipairs(command_blocks) do
         table.insert(serializable_blocks, {
+            id = block.id,
             cmd = block.cmd,
             x = block.x,
             y = block.y,
@@ -580,15 +586,37 @@ function command.getCommandBlocks()
 end
 
 function command.setCommandBlocks(blocks)
-    command_blocks = blocks or {}
+    -- Clear existing blocks first
     for _, block in ipairs(command_blocks) do
-        createCommandBlockPhysics(block)
+        if block.body and not block.body:isDestroyed() then
+            block.body:destroy()
+        end
     end
+    command_blocks = {}
+    
+    for _, block_data in ipairs(blocks or {}) do
+        command.addBlock(block_data)
+    end
+end
+
+function command.addBlock(block_data)
+    if not block_data.id then return end -- Can't add block without ID
+
+    -- Check for duplicates
+    for _, existing_block in ipairs(command_blocks) do
+        if existing_block.id == block_data.id then
+            return -- Block already exists
+        end
+    end
+
+    createCommandBlockPhysics(block_data)
+    table.insert(command_blocks, block_data)
 end
 
 function command.populate()
     local player_x, player_y = player.body:getPosition()
     for i, block in ipairs(command_blocks) do
+        if not block.body then createCommandBlockPhysics(block) end -- Ensure physics body exists
         table.insert(dynamic_draw_list, {
             sort_y = block.y + block.h + 100,
             image_or_particles = command_block_img,
