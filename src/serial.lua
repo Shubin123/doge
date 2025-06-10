@@ -41,17 +41,8 @@ function serial.create()
 
     -- NEW: Capture map data
     game_state.map_data = serial.captureMapData()
-    game_state.command_blocks = {}
-    local original_command_blocks = command.getCommandBlocks()
-    for i, block in ipairs(original_command_blocks) do
-        table.insert(game_state.command_blocks, {
-            cmd = block.cmd,
-            x = block.x,
-            y = block.y,
-            w = block.w,
-            h = block.h,
-        })
-    end
+    -- Capture command blocks (using the same serializable format as networking)
+    game_state.command_blocks = command.getCommandBlocks()
 
     -- Capture additional game state data
     game_state.game_data = {
