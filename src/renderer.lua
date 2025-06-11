@@ -363,56 +363,198 @@ function renderer.populateDynamicDrawListNETHOST()
     enemy.populate()
 end
 
+-- function renderer.renderSortedDrawList()
+--     -- Store current graphics state
+--     local current_state = {
+--         color = { love.graphics.getColor() },
+--         blend_mode = love.graphics.getBlendMode(),
+--         shader = love.graphics.getShader(),
+--         line_width = love.graphics.getLineWidth()
+--     }
+
+--     local last_state = {
+--         color = { 1, 1, 1, 1 },
+--         blend_mode = { "alpha" },
+--         line_width = 1
+--     }
+
+--     for _, drawable in ipairs(dynamic_draw_list) do
+--         -- Optimize state changes
+--         if drawable.color and not areColorsEqual(drawable.color, last_state.color) then
+--             love.graphics.setColor(unpack(drawable.color))
+--             last_state.color = drawable.color
+--         end
+
+--         if drawable.blend_mode and not areBlendModesEqual(drawable.blend_mode, last_state.blend_mode) then
+--             love.graphics.setBlendMode(unpack(drawable.blend_mode))
+--             last_state.blend_mode = drawable.blend_mode
+--         end
+
+--         if drawable.line_width and drawable.line_width ~= last_state.line_width then
+--             love.graphics.setLineWidth(drawable.line_width)
+--             last_state.line_width = drawable.line_width
+--         end
+
+--         -- Render based on type
+--         if drawable.draw_type then
+--             renderDrawType(drawable)
+--         -- elseif drawable.light_shader then
+--         --     renderLightEffect(drawable)
+--         elseif drawable.shader then
+--             renderShader(drawable)
+--         elseif drawable.image_or_particles then
+--             renderImage(drawable)
+--         end
+--     end
+
+--     -- Restore state
+--     love.graphics.setColor(unpack(current_state.color))
+--     love.graphics.setBlendMode(current_state.blend_mode)
+--     love.graphics.setShader(current_state.shader)
+--     love.graphics.setLineWidth(current_state.line_width)
+-- end
+
 function renderer.renderSortedDrawList()
     -- Store current graphics state
-    local current_state = {
-        color = { love.graphics.getColor() },
-        blend_mode = love.graphics.getBlendMode(),
-        shader = love.graphics.getShader(),
-        line_width = love.graphics.getLineWidth()
-    }
+    local current_color = { love.graphics.getColor() }
+    local current_blend_mode = love.graphics.getBlendMode()
+    local current_shader = love.graphics.getShader()
 
-    local last_state = {
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "alpha" },
-        line_width = 1
-    }
+    local last_color = { 1, 1, 1, 1 }
+    local last_blend_mode = { "alpha" }
 
     for _, drawable in ipairs(dynamic_draw_list) do
-        -- Optimize state changes
-        if drawable.color and not areColorsEqual(drawable.color, last_state.color) then
-            love.graphics.setColor(unpack(drawable.color))
-            last_state.color = drawable.color
+        -- Set color if different from last
+        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or
+            drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
+            love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
+            last_color = drawable.color
         end
 
-        if drawable.blend_mode and not areBlendModesEqual(drawable.blend_mode, last_state.blend_mode) then
-            love.graphics.setBlendMode(unpack(drawable.blend_mode))
-            last_state.blend_mode = drawable.blend_mode
+        -- Set blend mode if different from last
+        if drawable.blend_mode[1] ~= last_blend_mode[1] or
+            (drawable.blend_mode[2] and drawable.blend_mode[2] ~= last_blend_mode[2]) then
+            if drawable.blend_mode[2] then
+                love.graphics.setBlendMode(drawable.blend_mode[1], drawable.blend_mode[2])
+            else
+                love.graphics.setBlendMode(drawable.blend_mode[1])
+            end
+            last_blend_mode = drawable.blend_mode
         end
 
-        if drawable.line_width and drawable.line_width ~= last_state.line_width then
-            love.graphics.setLineWidth(drawable.line_width)
-            last_state.line_width = drawable.line_width
-        end
+        -- Handle shader drawing
+        if drawable.shader then
+            -- Set shader and parameters
+            love.graphics.setShader(drawable.shader)
+            if drawable.shader_params and drawable.source_object_type == "portal_shader" then
+                drawable.shader:send("time", drawable.shader_params.time)
+                drawable.shader:send("spin_time", drawable.shader_params.spin_time)
+                drawable.shader:send("colour_1", drawable.shader_params.colour_1)
+                drawable.shader:send("colour_2", drawable.shader_params.colour_2)
+                drawable.shader:send("colour_3", drawable.shader_params.colour_3)
+                drawable.shader:send("contrast", drawable.shader_params.contrast)
+                drawable.shader:send("spin_amount", drawable.shader_params.spin_amount)
+            end
 
-        -- Render based on type
-        if drawable.draw_type then
-            renderDrawType(drawable)
-        -- elseif drawable.light_shader then
-        --     renderLightEffect(drawable)
-        elseif drawable.shader then
-            renderShader(drawable)
+            -- Draw shader rectangle
+            love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
+
+            -- Reset shader
+            love.graphics.setShader()
+
+        -- Handle bullet effects drawing
+        elseif drawable.source_object_type == "muzzle_flash" then
+                   
+        local current_color = { love.graphics.getColor() } 
+        local current_blend_mode = love.graphics.getBlendMode()
+        local current_shader = love.graphics.getShader()
+            bullet.drawSingleMuzzleFlash(drawable.flash_data)
+            
+        love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+        love.graphics.setBlendMode(current_blend_mode)
+        love.graphics.setShader(current_shader)
+
+        elseif drawable.source_object_type == "gunpowder_particle" then
+        
+        local current_color = { love.graphics.getColor() }
+        local current_blend_mode = love.graphics.getBlendMode()
+        local current_shader = love.graphics.getShader()
+
+            bullet.drawSingleParticle(drawable.particle_data)
+
+        love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+        love.graphics.setBlendMode(current_blend_mode)
+        love.graphics.setShader(current_shader)
+
+
+        elseif drawable.source_object_type == "shell_casing" then
+            
+      local current_color = { love.graphics.getColor() }
+        local current_blend_mode = love.graphics.getBlendMode()
+        local current_shader = love.graphics.getShader()
+
+
+            bullet.drawSingleShell(drawable.shell_data)
+            -- love.graphics.setShader(current_shader)
+
+                    love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+        love.graphics.setBlendMode(current_blend_mode)
+        love.graphics.setShader(current_shader)
+        elseif drawable.source_object_type == "bullet_tracer" then
+            bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
+            
+
+            
+            -- Handle regular image drawing
         elseif drawable.image_or_particles then
-            renderImage(drawable)
+            if drawable.quad then
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.quad,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            else
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            end
         end
+
+
+
+        --  if drawable.draw_type then
+        --     renderDrawType(drawable)
+        -- -- elseif drawable.light_shader then
+        -- --     renderLightEffect(drawable)
+        -- elseif drawable.shader then
+        --     renderShader(drawable)
+        -- elseif drawable.image_or_particles then
+        --     renderImage(drawable)
+        -- end
     end
 
-    -- Restore state
-    love.graphics.setColor(unpack(current_state.color))
-    love.graphics.setBlendMode(current_state.blend_mode)
-    love.graphics.setShader(current_state.shader)
-    love.graphics.setLineWidth(current_state.line_width)
+
+    
+
+    -- Restore original graphics state
+    love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+    love.graphics.setBlendMode(current_blend_mode)
+    love.graphics.setShader(current_shader)
 end
+
 
 -- Helper functions for rendering
 function areColorsEqual(c1, c2)
