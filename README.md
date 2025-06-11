@@ -143,7 +143,7 @@ function love.draw()
     camera.apply()
     
     -- Render scene with global illumination
-    shader.prepass()
+    -- shader.prepass()
     -- Draw your game objects here
     shader.pass(40, 32) -- maxDistance=40, samples=32
     
@@ -174,6 +174,10 @@ end
 - Requires modern GPU with floating-point texture support  
 - Performance scales with screen resolution and sample count
 - Water reflections are approximated, not true ray-traced reflections
+
+## Changelog / Fixes
+
+- **Fixed module return in `src/ui/cmdn.lua`**: The module now properly returns its table, resolving crashes where `cmdn.load()` and other function calls would fail due to the module returning `true` instead of the expected table.
 
 ## License
 

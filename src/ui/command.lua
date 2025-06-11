@@ -1,5 +1,7 @@
 -- command.lua - In-game command line for LÖVE 2D
 local command = {}
+local logger = require("lib.utils.logger")
+local serial = require("lib.utils.serial")
 
 -- Module state
 local isActive = false
@@ -159,15 +161,95 @@ function command.execute(cmd)
         local tp_y = tonumber(tokens[2]) or 0
         player.body:setPosition(tp_x, tp_y)
         return
-    elseif cmd == "save" then
-        -- for this function expect 3 tokens "tp", "x: float", "y: float"
-        -- we extract second and third index for x,y if they dont exist tp to 0
-        serial.quickSave()
+    elseif string.find(cmd, "^save") then
+        -- Handle save command with optional slot number
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        local slot = tonumber(tokens[2]) or 1
+        
+        if serial and serial.ready then
+            local success, msg = serial.quickSave(slot)
+            if success then
+                local logMsg = logger.info("Save successful: " .. msg)
+                command.addOutput(logMsg, {0, 1, 0, 1}) -- Green
+            else
+                local logMsg = logger.error("Save failed: " .. msg)
+                command.addOutput(logMsg, errorColor)
+            end
+        else
+            local logMsg = logger.error("Serial module not available")
+            command.addOutput(logMsg, errorColor)
+        end
         return
-    elseif  cmd == "load" then
-        -- for this function expect 3 tokens "tp", "x: float", "y: float"
-        -- we extract second and third index for x,y if they dont exist tp to 0
-        serial.quickLoad()
+    elseif string.find(cmd, "^load") then
+        -- Handle load command with optional slot number
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        local slot = tonumber(tokens[2]) or 1
+        
+        if serial and serial.ready then
+            local success, msg = serial.quickLoad(slot)
+            if success then
+                local logMsg = logger.info("Load successful: " .. msg)
+                command.addOutput(logMsg, {0, 1, 0, 1}) -- Green
+            else
+                local logMsg = logger.error("Load failed: " .. msg)
+                command.addOutput(logMsg, errorColor)
+            end
+        else
+            local logMsg = logger.error("Serial module not available")
+            command.addOutput(logMsg, errorColor)
+        end
+        return
+    elseif cmd == "saves" then
+        -- List all save files with metadata
+        if serial and serial.ready then
+            local saveFiles = serial.getSaveFiles()
+            
+            if #saveFiles == 0 then
+                local logMsg = logger.info("No save files found")
+                command.addOutput(logMsg, outputColor)
+            else
+                local logMsg = logger.info("Found " .. #saveFiles .. " save files:")
+                command.addOutput(logMsg, promptColor)
+                command.addOutput("", outputColor)
+                
+                for i, save in ipairs(saveFiles) do
+                    if save.info then
+                        local info = save.info
+                        -- Format save file information
+                        local saveType = info.save_type or "Unknown"
+                        local level = info.level or "?"
+                        local score = info.score or 0
+                        local timeStr = serial.formatDuration and serial.formatDuration(info.time_played) or "Unknown"
+                        local timestamp = info.timestamp_formatted or "Unknown"
+                        
+                        command.addOutput(string.format("%d. %s (%s)", i, save.filename, saveType), promptColor)
+                        command.addOutput(string.format("   Level: %s | Score: %d | Time: %s", level, score, timeStr), outputColor)
+                        command.addOutput(string.format("   Player: %s | Health: %d", info.player_position or "Unknown", info.player_health or 0), outputColor)
+                        command.addOutput(string.format("   Enemies: %d | Coins: %d | Saved: %s", info.enemy_count or 0, info.coin_count or 0, timestamp), outputColor)
+                        
+                        if info.slot then
+                            command.addOutput(string.format("   Slot: %d", info.slot), outputColor)
+                        end
+                        
+                        command.addOutput("", outputColor) -- Empty line for spacing
+                    else
+                        -- Fallback for files without readable info
+                        command.addOutput(string.format("%d. %s (Error: %s)", i, save.filename, save.error or "Unknown"), errorColor)
+                    end
+                end
+            end
+        else
+            local logMsg = logger.error("Serial module not available")
+            command.addOutput(logMsg, errorColor)
+        end
         return
     end
 
@@ -243,7 +325,10 @@ function command.showHelp()
     command.addOutput("  player.x = 100         - Set variables", outputColor)
     command.addOutput("  love.graphics.getWidth() - Call functions", outputColor)
     command.addOutput("  var                     - Access global table", outputColor)
-    command.addOutput("  tp (x) (y) - teleport player ", outputColor)
+    command.addOutput("  tp (x) (y)        - Teleport player", outputColor)
+    command.addOutput("  save [slot]       - Save game (slot 1-3, default 1)", outputColor)
+    command.addOutput("  load [slot]       - Load game (slot 1-3, default 1)", outputColor)
+    command.addOutput("  saves             - List all save files with details", outputColor)
     command.addOutput("", outputColor)
     command.addOutput("Keyboard shortcuts:", promptColor)
     command.addOutput("  Ctrl+C/Cmd+C - Copy last output line", outputColor)

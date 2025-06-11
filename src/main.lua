@@ -1,6 +1,11 @@
-
-
 -- math.randomseed(os.time())
+
+-- Initialize logger and serial early
+logger = require("lib.utils.logger")
+serial = require("lib.utils.serial")
+
+-- Initialize serial with default configuration
+serial.init()
 
 menu = require("ui.menu")
 mymath = require("lib.math.myMath")
@@ -26,11 +31,10 @@ crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
 snapshot = require("config.snapshot")
 blur = require ("systems.blur")
-serial = require("lib.utils.serial")
 editor = require("ui.editor")
 multiplayer = require("network.multiplayer")
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
-cmdn = require("ui.cmndX") -- improved console - always active
+cmdn = require("ui.cmdn")
 -- hotreloader / helpers
 local lurker = require("lib.utils.lurker")
 json = require("lib.utils.json")
@@ -49,6 +53,10 @@ W = love.graphics.getWidth()
 H = love.graphics.getHeight()
 game_area_x = (W - var.game_width) / 2
 game_area_y = var.header_height
+
+-- Initialize configuration
+local gameConfig = require("config.config")
+gameConfig.init()
 
 
 -- lighting variables
@@ -224,6 +232,25 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     elseif State == "running" then
         var.State = "game"
     end
+    
+    -- Check for auto-save (only in single player and not in menu)
+    if not var.multiplayer and var.State ~= "menu" and serial and serial.checkAutoSave then
+        if serial.checkAutoSave(dt) then
+            local success, msg = serial.autoSave()
+            if success then
+                logger.info("Auto-save successful: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{green}[Auto-Save]{/green} " .. msg, {0.2, 0.8, 0.2, 1})
+                end
+            else
+                logger.error("Auto-save failed: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{red}[Auto-Save Failed]{/red} " .. msg, {1, 0.3, 0.3, 1})
+                end
+            end
+        end
+    end
+    
     world:update(dt)
     -- t  = t + dt
     -- if t > 0.1 then
@@ -315,6 +342,39 @@ end
 local zoomToggle = false;
 
 function love.keypressed(key)
+    -- Global F5/F9 shortcuts for quick save/load (only when not in menu and single player)
+    if not var.multiplayer and var.State ~= "menu" and serial and serial.ready then
+        if key == "f5" then
+            local success, msg = serial.quickSave(1)
+            if success then
+                logger.info("Quick save successful: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{green}[F5 Quick Save]{/green} " .. msg, {0.2, 0.8, 0.2, 1})
+                end
+            else
+                logger.error("Quick save failed: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{red}[F5 Quick Save Failed]{/red} " .. msg, {1, 0.3, 0.3, 1})
+                end
+            end
+            return
+        elseif key == "f9" then
+            local success, msg = serial.quickLoad(1)
+            if success then
+                logger.info("Quick load successful: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{green}[F9 Quick Load]{/green} " .. msg, {0.2, 0.8, 0.2, 1})
+                end
+            else
+                logger.error("Quick load failed: " .. msg)
+                if cmdn then
+                    cmdn.addOutput("{red}[F9 Quick Load Failed]{/red} " .. msg, {1, 0.3, 0.3, 1})
+                end
+            end
+            return
+        end
+    end
+
     if key == "z" then
         if not zoomToggle then
             camera.setZoom(2)

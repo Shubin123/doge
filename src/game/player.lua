@@ -1,5 +1,7 @@
 local player = {}
 player.health = 100
+player.kills = 0
+player.deaths = 0
 player.online = {}
 player.online.bodies = {}
 player.online.health = {}

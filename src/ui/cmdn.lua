@@ -1,6 +1,9 @@
 -- cmdn.lua - In-game cmdn line for LÖVE 2D
 local cmdn = {}
 
+-- Load logger utility
+local logger = require("lib.utils.logger")
+
 -- Module state
 local isActive = false
 local inputText = ""
@@ -395,24 +398,26 @@ function cmdn.execute(cmd)
         love.event.quit()
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
-    elseif string.find(cmd, "tp") then
-        local tokens = {}
-        for token in cmd:gmatch("%S+") do
-            table.insert(tokens, token)
-        end
-        local tp_x = tonumber(tokens[2]) or 0
-        local tp_y = tonumber(tokens[3]) or 0
-        if player and player.body then
-            player.body:setPosition(tp_x, tp_y)
-        end
-    elseif cmd == "save" then
-        if serial and serial.quickSave then
-            serial.quickSave()
-        end
-    elseif cmd == "load" then
-        if serial and serial.quickLoad then
-            serial.quickLoad()
-        end
+    elseif string.find(cmd, "^tp") then
+        cmdn.handleTeleportCommand(cmd)
+    elseif string.find(cmd, "^save") then
+        cmdn.handleSaveCommand(cmd)
+    elseif string.find(cmd, "^load") then
+        cmdn.handleLoadCommand(cmd)
+    elseif cmd == "saves" or cmd == "list saves" then
+        cmdn.listSaves()
+    elseif string.find(cmd, "^delete save") then
+        cmdn.handleDeleteSave(cmd)
+    elseif cmd == "stats" then
+        cmdn.showStats()
+    elseif string.find(cmd, "^spawn") then
+        cmdn.handleSpawnCommand(cmd)
+    elseif string.find(cmd, "^god") then
+        cmdn.toggleGodMode()
+    elseif cmd == "pos" then
+        cmdn.showPosition()
+    elseif string.find(cmd, "^health") then
+        cmdn.handleHealthCommand(cmd)
     else
         local success, result = pcall(function()
             local func, err = load("return " .. cmd)
@@ -470,14 +475,30 @@ end
 
 -- Show help information
 function cmdn.showHelp()
-    cmdn.addOutput("{green}Available cmdns:{/green}", promptColor)
+    cmdn.addOutput("{green}Available commands:{/green}", promptColor)
     cmdn.addOutput("  {yellow}help{/yellow}          - Show this help", outputColor)
     cmdn.addOutput("  {yellow}clear{/yellow}         - Clear console output", outputColor)
     cmdn.addOutput("  {yellow}exit{/yellow}          - Quit game", outputColor)
     cmdn.addOutput("  {yellow}reload{/yellow}        - Restart game", outputColor)
-    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
-    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
-    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
+    cmdn.addOutput("", outputColor)
+    cmdn.addOutput("{green}Game commands:{/green}", promptColor)
+    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player to position", outputColor)
+    cmdn.addOutput("  {yellow}stats{/yellow}         - Show game statistics", outputColor)
+    cmdn.addOutput("  {yellow}pos{/yellow}           - Show player position", outputColor)
+    cmdn.addOutput("  {yellow}health [n]{/yellow}    - Show/set player health", outputColor)
+    cmdn.addOutput("  {yellow}god{/yellow}           - Toggle god mode", outputColor)
+    cmdn.addOutput("  {yellow}spawn <t> [x] [y]{/yellow} - Spawn enemy/coin", outputColor)
+    cmdn.addOutput("", outputColor)
+    cmdn.addOutput("{green}Save/Load commands:{/green}", promptColor)
+    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save to slot 1", outputColor)
+    cmdn.addOutput("  {yellow}save [1-3]{/yellow}    - Quick save to specific slot", outputColor)
+    cmdn.addOutput("  {yellow}save <name>{/yellow}   - Save with custom name", outputColor)
+    cmdn.addOutput("  {yellow}save auto{/yellow}     - Create autosave", outputColor)
+    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load from slot 1", outputColor)
+    cmdn.addOutput("  {yellow}load [1-3]{/yellow}    - Quick load from specific slot", outputColor)
+    cmdn.addOutput("  {yellow}load <name>{/yellow}   - Load custom save", outputColor)
+    cmdn.addOutput("  {yellow}saves{/yellow}         - List all save files", outputColor)
+    cmdn.addOutput("  {yellow}delete save <n>{/yellow} - Delete a save file", outputColor)
     cmdn.addOutput("", outputColor)
     cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
     cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)
@@ -653,6 +674,34 @@ function cmdn.keypressed(key)
         local visibleLines = math.floor(contentHeight / lineHeight)
         local maxScroll = math.max(0, #output - visibleLines)
         scrollOffset = math.min(maxScroll, scrollOffset + math.floor(visibleLines / 2))
+    elseif key == "f5" then
+        -- Quick save with F5
+        if serial and serial.ready then
+            local success, msg = serial.quickSave(1)
+            local logMsg = logger.info("F5 Quick Save: " .. (msg or ""))
+            if success then
+                cmdn.addOutput("{green}F5 Quick Save:{/green} " .. msg, outputColor)
+            else
+                cmdn.addOutput("{red}F5 Quick Save Failed:{/red} " .. msg, errorColor)
+            end
+        else
+            local logMsg = logger.warn("F5 Quick Save: Serial module not ready")
+            cmdn.addOutput("{red}F5 Quick Save:{/red} Serial module not ready", errorColor)
+        end
+    elseif key == "f9" then
+        -- Quick load with F9
+        if serial and serial.ready then
+            local success, msg = serial.quickLoad(1)
+            local logMsg = logger.info("F9 Quick Load: " .. (msg or ""))
+            if success then
+                cmdn.addOutput("{green}F9 Quick Load:{/green} " .. msg, outputColor)
+            else
+                cmdn.addOutput("{red}F9 Quick Load Failed:{/red} " .. msg, errorColor)
+            end
+        else
+            local logMsg = logger.warn("F9 Quick Load: Serial module not ready")
+            cmdn.addOutput("{red}F9 Quick Load:{/red} Serial module not ready", errorColor)
+        end
     end
 end
 
@@ -824,6 +873,171 @@ function cmdn.draw()
     love.graphics.setFont(currentFont)
 end
 
+-- Handle save commands with options
+function cmdn.handleSaveCommand(cmd)
+    if not serial or not serial.ready then
+        local logMsg = logger.error("Save command failed: Serial module not ready")
+        cmdn.addOutput("{red}Error:{/red} Serial module not ready", errorColor)
+        return
+    end
+    
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    local success, msg
+    
+    if #tokens == 1 then
+        -- Simple "save" - quick save to slot 1
+        success, msg = serial.quickSave(1)
+    elseif tokens[2] == "auto" then
+        -- Auto save
+        success, msg = serial.autoSave()
+    elseif tonumber(tokens[2]) then
+        -- Quick save to specific slot
+        local slot = tonumber(tokens[2])
+        success, msg = serial.quickSave(slot)
+    else
+        -- Save with custom name
+        local filename = table.concat(tokens, "_", 2)
+        success, msg = serial.saveToFile(filename)
+    end
+    
+    if success then
+        local logMsg = logger.info("Save success: " .. msg)
+        cmdn.addOutput("{green}Success:{/green} " .. msg, outputColor)
+    else
+        local logMsg = logger.error("Save failed: " .. msg)
+        cmdn.addOutput("{red}Error:{/red} " .. msg, errorColor)
+    end
+end
+
+-- Handle load commands with options
+function cmdn.handleLoadCommand(cmd)
+    if not serial or not serial.ready then
+        local logMsg = logger.error("Load command failed: Serial module not ready")
+        cmdn.addOutput("{red}Error:{/red} Serial module not ready", errorColor)
+        return
+    end
+    
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    local success, msg
+    
+    if #tokens == 1 then
+        -- Simple "load" - quick load from slot 1
+        success, msg = serial.quickLoad(1)
+    elseif tonumber(tokens[2]) then
+        -- Quick load from specific slot
+        local slot = tonumber(tokens[2])
+        success, msg = serial.quickLoad(slot)
+    else
+        -- Load with custom name
+        local filename = table.concat(tokens, "_", 2)
+        success, msg = serial.loadFromFile(filename)
+    end
+    
+    if success then
+        local logMsg = logger.info("Load success: " .. msg)
+        cmdn.addOutput("{green}Success:{/green} " .. msg, outputColor)
+    else
+        local logMsg = logger.error("Load failed: " .. msg)
+        cmdn.addOutput("{red}Error:{/red} " .. msg, errorColor)
+    end
+end
+
+-- List available saves
+function cmdn.listSaves()
+    if not serial or not serial.ready then
+        local logMsg = logger.error("List saves failed: Serial module not ready")
+        cmdn.addOutput("{red}Error:{/red} Serial module not ready", errorColor)
+        return
+    end
+    
+    local saves = serial.getSaveFiles()
+    
+    if #saves == 0 then
+        cmdn.addOutput("{yellow}No save files found{/yellow}", outputColor)
+        return
+    end
+    
+    cmdn.addOutput("{green}Available save files:{/green}", promptColor)
+    cmdn.addOutput("", outputColor)
+    
+    -- Group saves by type
+    local quick_saves = {}
+    local auto_saves = {}
+    local manual_saves = {}
+    
+    for _, save in ipairs(saves) do
+        if save.filename:match("^quicksave_") then
+            table.insert(quick_saves, save)
+        elseif save.filename:match("^autosave_") then
+            table.insert(auto_saves, save)
+        else
+            table.insert(manual_saves, save)
+        end
+    end
+    
+    -- Display quick saves
+    if #quick_saves > 0 then
+        cmdn.addOutput("{yellow}Quick Saves:{/yellow}", promptColor)
+        for _, save in ipairs(quick_saves) do
+            cmdn.displaySaveInfo(save)
+        end
+        cmdn.addOutput("", outputColor)
+    end
+    
+    -- Display auto saves
+    if #auto_saves > 0 then
+        cmdn.addOutput("{yellow}Auto Saves:{/yellow}", promptColor)
+        for _, save in ipairs(auto_saves) do
+            cmdn.displaySaveInfo(save)
+        end
+        cmdn.addOutput("", outputColor)
+    end
+    
+    -- Display manual saves
+    if #manual_saves > 0 then
+        cmdn.addOutput("{yellow}Manual Saves:{/yellow}", promptColor)
+        for _, save in ipairs(manual_saves) do
+            cmdn.displaySaveInfo(save)
+        end
+        cmdn.addOutput("", outputColor)
+    end
+    
+    cmdn.addOutput("Use {cyan}load <filename>{/cyan} to load a save", outputColor)
+end
+
+-- Display save file information
+function cmdn.displaySaveInfo(save)
+    if save.info then
+        local info = save.info
+        local time_str = serial.formatDuration and serial.formatDuration(info.time_played) or tostring(info.time_played)
+        
+        cmdn.addOutput(string.format("  {cyan}%s{/cyan}", save.filename), outputColor)
+        cmdn.addOutput(string.format("    Date: %s | Level: %s | Score: %d", 
+            info.timestamp_formatted or "Unknown", 
+            tostring(info.level), 
+            info.score or 0), outputColor)
+        cmdn.addOutput(string.format("    Time: %s | Health: %d | Pos: %s", 
+            time_str,
+            info.player_health or 0,
+            info.player_position or "Unknown"), outputColor)
+        cmdn.addOutput(string.format("    Enemies: %d | Coins: %d | Size: %.1f KB", 
+            info.enemy_count or 0,
+            info.coin_count or 0,
+            save.size / 1024), outputColor)
+    else
+        cmdn.addOutput(string.format("  {cyan}%s{/cyan} - {red}Error reading save info{/red}", save.filename), outputColor)
+    end
+end
+
+
 -- Check if console is active
 function cmdn.isActive()
     return isActive
@@ -841,4 +1055,189 @@ function cmdn.setGameReferences(refs)
     end
 end
 
+-- Handle teleport command
+function cmdn.handleTeleportCommand(cmd)
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    local tp_x = tonumber(tokens[2])
+    local tp_y = tonumber(tokens[3])
+    
+    if not tp_x or not tp_y then
+        cmdn.addOutput("{red}Usage:{/red} tp <x> <y>", errorColor)
+        return
+    end
+    
+    if player and player.body then
+        player.body:setPosition(tp_x, tp_y)
+        cmdn.addOutput(string.format("{green}Teleported to{/green} (%.0f, %.0f)", tp_x, tp_y), outputColor)
+    else
+        cmdn.addOutput("{red}Error:{/red} Player not found", errorColor)
+    end
+end
+
+-- Handle delete save command
+function cmdn.handleDeleteSave(cmd)
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    if #tokens < 3 then
+        cmdn.addOutput("{red}Usage:{/red} delete save <filename>", errorColor)
+        return
+    end
+    
+    local filename = table.concat(tokens, "_", 3)
+    if serial and serial.ready and serial.deleteSave then
+        local success = serial.deleteSave(filename)
+        if success then
+            local logMsg = logger.info("Deleted save: " .. filename)
+            cmdn.addOutput("{green}Deleted save:{/green} " .. filename, outputColor)
+        else
+            local logMsg = logger.error("Failed to delete save: " .. filename)
+            cmdn.addOutput("{red}Failed to delete:{/red} " .. filename, errorColor)
+        end
+    else
+        local logMsg = logger.error("Delete save failed: Serial module not ready")
+        cmdn.addOutput("{red}Error:{/red} Serial module not ready", errorColor)
+    end
+end
+
+-- Show game statistics
+function cmdn.showStats()
+    cmdn.addOutput("{green}=== Game Statistics ==={/green}", promptColor)
+    
+    if player then
+        cmdn.addOutput(string.format("  Player Health: {yellow}%d{/yellow}", player.health or 0), outputColor)
+        cmdn.addOutput(string.format("  Kills: {yellow}%d{/yellow} | Deaths: {yellow}%d{/yellow}", 
+            player.kills or 0, player.deaths or 0), outputColor)
+        
+        if player.body and not player.body:isDestroyed() then
+            local px, py = player.body:getPosition()
+            local vx, vy = player.body:getLinearVelocity()
+            cmdn.addOutput(string.format("  Position: {cyan}(%.0f, %.0f){/cyan}", px, py), outputColor)
+            cmdn.addOutput(string.format("  Velocity: {cyan}(%.0f, %.0f){/cyan}", vx, vy), outputColor)
+        end
+    end
+    
+    if var then
+        cmdn.addOutput(string.format("  Level: {yellow}%d{/yellow} | Score: {yellow}%d{/yellow}", 
+            var.level or 1, var.score or 0), outputColor)
+        cmdn.addOutput(string.format("  Game State: {yellow}%s{/yellow}", var.State or "unknown"), outputColor)
+    end
+    
+    cmdn.addOutput(string.format("  Enemies: {red}%d{/red} | Coins: {yellow}%d{/yellow}", 
+        enemies_bods and #enemies_bods or 0, 
+        coin_bods and #coin_bods or 0), outputColor)
+    
+    cmdn.addOutput(string.format("  FPS: {green}%.0f{/green}", love.timer.getFPS()), outputColor)
+    cmdn.addOutput("", outputColor)
+end
+
+-- Handle spawn commands
+function cmdn.handleSpawnCommand(cmd)
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    if #tokens < 2 then
+        cmdn.addOutput("{red}Usage:{/red} spawn <enemy|coin> [x] [y]", errorColor)
+        return
+    end
+    
+    local spawn_type = tokens[2]
+    local spawn_x = tonumber(tokens[3]) or (player and player.body and player.body:getX() or var.game_width / 2)
+    local spawn_y = tonumber(tokens[4]) or (player and player.body and player.body:getY() or var.game_height / 2)
+    
+    if spawn_type == "enemy" then
+        if enemy and enemy.addEnemy then
+            enemy.addEnemy(spawn_x, spawn_y)
+            cmdn.addOutput(string.format("{green}Spawned enemy at{/green} (%.0f, %.0f)", spawn_x, spawn_y), outputColor)
+        else
+            -- Fallback manual spawn
+            local enemy_body = love.physics.newBody(world, spawn_x, spawn_y, "dynamic")
+            local enemy_shape = love.physics.newCircleShape(10)
+            local enemy_fixture = love.physics.newFixture(enemy_body, enemy_shape)
+            enemy_fixture:setGroupIndex(-777)
+            table.insert(enemies_bods, enemy_body)
+            cmdn.addOutput(string.format("{green}Spawned enemy at{/green} (%.0f, %.0f)", spawn_x, spawn_y), outputColor)
+        end
+        
+        if var then var.num_enemies = #enemies_bods end
+        
+    elseif spawn_type == "coin" then
+        local coin_body = love.physics.newBody(world, spawn_x, spawn_y, "dynamic")
+        local coin_shape = love.physics.newCircleShape(5)
+        local coin_fixture = love.physics.newFixture(coin_body, coin_shape)
+        coin_fixture:setGroupIndex(69)
+        table.insert(coin_bods, coin_body)
+        
+        if var then var.num_coins = #coin_bods end
+        
+        cmdn.addOutput(string.format("{green}Spawned coin at{/green} (%.0f, %.0f)", spawn_x, spawn_y), outputColor)
+    else
+        cmdn.addOutput("{red}Unknown spawn type:{/red} " .. spawn_type, errorColor)
+        cmdn.addOutput("{yellow}Valid types:{/yellow} enemy, coin", outputColor)
+    end
+end
+
+-- Toggle god mode
+local god_mode = false
+function cmdn.toggleGodMode()
+    god_mode = not god_mode
+    
+    if god_mode then
+        if player then
+            player._original_health = player.health
+            player.health = 999999
+        end
+        cmdn.addOutput("{green}God mode enabled{/green}", outputColor)
+    else
+        if player and player._original_health then
+            player.health = player._original_health
+            player._original_health = nil
+        end
+        cmdn.addOutput("{red}God mode disabled{/red}", outputColor)
+    end
+end
+
+-- Show player position
+function cmdn.showPosition()
+    if player and player.body and not player.body:isDestroyed() then
+        local px, py = player.body:getPosition()
+        local vx, vy = player.body:getLinearVelocity()
+        cmdn.addOutput(string.format("Position: {cyan}(%.0f, %.0f){/cyan}", px, py), outputColor)
+        cmdn.addOutput(string.format("Velocity: {cyan}(%.0f, %.0f){/cyan}", vx, vy), outputColor)
+        cmdn.addOutput(string.format("Speed: {cyan}%.0f{/cyan} px/s", math.sqrt(vx*vx + vy*vy)), outputColor)
+    else
+        cmdn.addOutput("{red}Error:{/red} Player not found", errorColor)
+    end
+end
+
+-- Handle health command
+function cmdn.handleHealthCommand(cmd)
+    local tokens = {}
+    for token in cmd:gmatch("%S+") do
+        table.insert(tokens, token)
+    end
+    
+    if #tokens < 2 then
+        cmdn.addOutput(string.format("Current health: {yellow}%d{/yellow}", player and player.health or 0), outputColor)
+        return
+    end
+    
+    local new_health = tonumber(tokens[2])
+    if new_health and player then
+        player.health = math.max(0, new_health)
+        cmdn.addOutput(string.format("Health set to: {yellow}%d{/yellow}", player.health), outputColor)
+    else
+        cmdn.addOutput("{red}Usage:{/red} health <amount>", errorColor)
+    end
+end
+
+-- ensure this is the final line
 return cmdn

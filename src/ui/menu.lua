@@ -4,8 +4,20 @@ local menu = {}
 menu.blur = false
 menu.currentMenu = "main" -- "main", "settings", or "saves"
 
+-- Import required modules
+local serial = require("lib.utils.serial")
+local logger = require("lib.utils.logger")
+
 local font
 local ps
+
+-- Save management state
+local saveFiles = {}
+local selectedSaveIndex = 1
+local saveListNeedsRefresh = true
+local popupMessage = nil
+local popupTimer = 0
+local popupDuration = 3.0
 
 -- Main menu buttons
 local startButton = { y = 250, text = "[ Start Game ]" }
@@ -24,7 +36,13 @@ local backSettingsButton = { y = 350, text = "[ Back ]" }
 local saveGameButton = { y = 220, text = "[ Save Game ]" }
 local loadGameButton = { y = 260, text = "[ Load Game ]" }
 local deleteSaveButton = { y = 300, text = "[ Delete Save ]" }
-local backSavesButton = { y = 340, text = "[ Back ]" }
+local refreshSavesButton = { y = 330, text = "[ Refresh List ]" }
+local backSavesButton = { y = 360, text = "[ Back ]" }
+
+-- Save list display settings
+local saveListStartY = 400
+local saveListItemHeight = 20
+local maxVisibleSaves = 8
 
 -- Graphics settings data
 local graphicsSettings = {
@@ -82,6 +100,20 @@ function menu.update(dt)
     if graphicsSettings.particles then
         ps:update(dt)
     end
+    
+    -- Update popup timer
+    if popupMessage and popupTimer > 0 then
+        popupTimer = popupTimer - dt
+        if popupTimer <= 0 then
+            popupMessage = nil
+        end
+    end
+    
+    -- Refresh save list when entering saves menu
+    if menu.currentMenu == "saves" and saveListNeedsRefresh then
+        menu.listSaves()
+        saveListNeedsRefresh = false
+    end
 end
 
 function menu.draw()
@@ -121,7 +153,16 @@ function menu.draw()
         love.graphics.printf(saveGameButton.text, 0, saveGameButton.y, var.screen_width, "center")
         love.graphics.printf(loadGameButton.text, 0, loadGameButton.y, var.screen_width, "center")
         love.graphics.printf(deleteSaveButton.text, 0, deleteSaveButton.y, var.screen_width, "center")
+        love.graphics.printf(refreshSavesButton.text, 0, refreshSavesButton.y, var.screen_width, "center")
         love.graphics.printf(backSavesButton.text, 0, backSavesButton.y, var.screen_width, "center")
+        
+        -- Draw save file list
+        menu.drawSaveList()
+    end
+    
+    -- Draw popup message if active
+    if popupMessage and popupTimer > 0 then
+        menu.drawPopup()
     end
 end
 
@@ -137,7 +178,11 @@ function menu.mousepressed(x, y, button, screenInfo)
     if menu.currentMenu == "main" then
         if inBounds(startButton) then return "running" end
         if inBounds(settingsButton) then menu.currentMenu = "settings" return nil end
-        if inBounds(savesButton) then menu.currentMenu = "saves" return nil end
+        if inBounds(savesButton) then 
+            menu.currentMenu = "saves"
+            saveListNeedsRefresh = true
+            return nil 
+        end
         if inBounds(exitButton) then return "exit" end
 
     elseif menu.currentMenu == "settings" then
@@ -177,7 +222,14 @@ function menu.mousepressed(x, y, button, screenInfo)
         if inBounds(saveGameButton) then menu.saveGame() end
         if inBounds(loadGameButton) then menu.loadGame() end
         if inBounds(deleteSaveButton) then menu.deleteSave() end
+        if inBounds(refreshSavesButton) then 
+            menu.listSaves()
+            menu.showPopup("Save list refreshed", "info")
+        end
         if inBounds(backSavesButton) then menu.currentMenu = "main" end
+        
+        -- Handle save file selection
+        menu.handleSaveListClick(x, y, screenInfo)
     end
 
     return nil
@@ -212,21 +264,257 @@ function menu.applyVsync()
     })
 end
 
+-- List available save files with metadata
+function menu.listSaves()
+    if not serial or not serial.ready then
+        logger.error("Serial module not available or not ready")
+        saveFiles = {}
+        return
+    end
+    
+    saveFiles = serial.getSaveFiles()
+    logger.info("Loaded " .. #saveFiles .. " save files")
+    
+    -- Ensure selected index is valid
+    if selectedSaveIndex > #saveFiles then
+        selectedSaveIndex = math.max(1, #saveFiles)
+    end
+end
+
+-- Enhanced save game function with slot/filename selection
 function menu.saveGame()
-    print("Save game triggered.")
-    serial.quickSave()
+    if not serial or not serial.ready then
+        menu.showPopup("Save system not available", "error")
+        return
+    end
     
+    local success, msg
+    
+    -- If we have a selected save file, use its filename, otherwise create new quicksave
+    if #saveFiles > 0 and selectedSaveIndex <= #saveFiles then
+        local selectedSave = saveFiles[selectedSaveIndex]
+        if selectedSave.info and selectedSave.info.slot then
+            -- Use slot-based saving for quicksaves
+            success, msg = serial.quickSave(selectedSave.info.slot)
+        else
+            -- Use filename-based saving for manual saves
+            local filename = selectedSave.filename:gsub("%.sav$", "")
+            success, msg = serial.saveToFile(filename)
+        end
+    else
+        -- Default to quicksave slot 1
+        success, msg = serial.quickSave(1)
+    end
+    
+    -- Log and display result
+    if success then
+        logger.info("Save successful: " .. msg)
+        menu.showPopup("Game saved successfully", "info")
+        saveListNeedsRefresh = true
+    else
+        logger.error("Save failed: " .. msg)
+        menu.showPopup("Save failed: " .. msg, "error")
+    end
 end
 
+-- Enhanced load game function with slot/filename selection
 function menu.loadGame()
-    print("Load game triggered.")
-    serial.quickLoad()
-
+    if not serial or not serial.ready then
+        menu.showPopup("Save system not available", "error")
+        return
+    end
+    
+    if #saveFiles == 0 then
+        menu.showPopup("No save files available", "error")
+        return
+    end
+    
+    if selectedSaveIndex > #saveFiles then
+        menu.showPopup("Invalid save file selection", "error")
+        return
+    end
+    
+    local selectedSave = saveFiles[selectedSaveIndex]
+    local success, msg
+    
+    if selectedSave.info and selectedSave.info.slot then
+        -- Use slot-based loading for quicksaves
+        success, msg = serial.quickLoad(selectedSave.info.slot)
+    else
+        -- Use filename-based loading for manual saves
+        local filename = selectedSave.filename:gsub("%.sav$", "")
+        success, msg = serial.loadFromFile(filename)
+    end
+    
+    -- Log and display result
+    if success then
+        logger.info("Load successful: " .. msg)
+        menu.showPopup("Game loaded successfully", "info")
+        -- Switch back to game after successful load
+        return "running"
+    else
+        logger.error("Load failed: " .. msg)
+        menu.showPopup("Load failed: " .. msg, "error")
+    end
 end
 
+-- Enhanced delete save function with actual file deletion
 function menu.deleteSave()
-    print("Delete save triggered.")
+    if not serial or not serial.ready then
+        menu.showPopup("Save system not available", "error")
+        return
+    end
     
+    if #saveFiles == 0 then
+        menu.showPopup("No save files to delete", "error")
+        return
+    end
+    
+    if selectedSaveIndex > #saveFiles then
+        menu.showPopup("Invalid save file selection", "error")
+        return
+    end
+    
+    local selectedSave = saveFiles[selectedSaveIndex]
+    local filename = selectedSave.filename:gsub("%.sav$", "")
+    
+    local success, msg = serial.deleteSave(filename)
+    
+    -- Log and display result
+    if success then
+        logger.info("Delete successful: " .. msg)
+        menu.showPopup("Save file deleted", "info")
+        
+        -- Refresh the save list and adjust selection
+        menu.listSaves()
+        if selectedSaveIndex > #saveFiles and #saveFiles > 0 then
+            selectedSaveIndex = #saveFiles
+        elseif #saveFiles == 0 then
+            selectedSaveIndex = 1
+        end
+    else
+        logger.error("Delete failed: " .. msg)
+        menu.showPopup("Delete failed: " .. msg, "error")
+    end
+end
+
+-- Draw the save file list
+function menu.drawSaveList()
+    if #saveFiles == 0 then
+        love.graphics.printf("No save files found", 0, saveListStartY, var.screen_width, "center")
+        return
+    end
+    
+    local startIndex = math.max(1, selectedSaveIndex - math.floor(maxVisibleSaves / 2))
+    local endIndex = math.min(#saveFiles, startIndex + maxVisibleSaves - 1)
+    
+    for i = startIndex, endIndex do
+        local save = saveFiles[i]
+        local y = saveListStartY + (i - startIndex) * saveListItemHeight
+        
+        -- Highlight selected save
+        if i == selectedSaveIndex then
+            love.graphics.setColor(0.3, 0.3, 0.8, 0.5)
+            love.graphics.rectangle("fill", 50, y - 2, var.screen_width - 100, saveListItemHeight)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+        
+        -- Format save file info
+        local displayText = save.filename
+        if save.info then
+            local timeStr = save.info.timestamp_formatted or "Unknown"
+            local levelStr = save.info.level or "?"
+            local typeStr = save.info.save_type or "Manual"
+            displayText = string.format("%s - %s (Level %s) - %s", 
+                save.filename:gsub("%.sav$", ""), typeStr, levelStr, timeStr)
+        elseif save.error then
+            displayText = save.filename .. " (Error: " .. save.error .. ")"
+            love.graphics.setColor(1, 0.5, 0.5, 1)
+        end
+        
+        love.graphics.printf(displayText, 60, y, var.screen_width - 120, "left")
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+    
+    -- Draw scroll indicators
+    if startIndex > 1 then
+        love.graphics.printf("↑ More saves above", 0, saveListStartY - 20, var.screen_width, "center")
+    end
+    if endIndex < #saveFiles then
+        love.graphics.printf("↓ More saves below", 0, saveListStartY + maxVisibleSaves * saveListItemHeight, var.screen_width, "center")
+    end
+    
+    -- Draw selection info
+    if selectedSaveIndex <= #saveFiles then
+        love.graphics.printf(string.format("Selected: %d/%d", selectedSaveIndex, #saveFiles), 
+            0, saveListStartY + maxVisibleSaves * saveListItemHeight + 20, var.screen_width, "center")
+    end
+end
+
+-- Handle clicks on the save list
+function menu.handleSaveListClick(x, y, screenInfo)
+    if #saveFiles == 0 then return end
+    
+    local startIndex = math.max(1, selectedSaveIndex - math.floor(maxVisibleSaves / 2))
+    local endIndex = math.min(#saveFiles, startIndex + maxVisibleSaves - 1)
+    
+    for i = startIndex, endIndex do
+        local itemY = saveListStartY + (i - startIndex) * saveListItemHeight
+        if y >= itemY - 2 and y <= itemY + saveListItemHeight + 2 and
+           x >= 50 and x <= var.screen_width - 50 then
+            selectedSaveIndex = i
+            break
+        end
+    end
+end
+
+-- Show popup message with color coding
+function menu.showPopup(message, level)
+    popupMessage = {
+        text = message,
+        level = level or "info"
+    }
+    popupTimer = popupDuration
+    
+    -- Also log the message
+    if level == "error" then
+        logger.error(message)
+    elseif level == "warn" then
+        logger.warn(message)
+    else
+        logger.info(message)
+    end
+end
+
+-- Draw popup message
+function menu.drawPopup()
+    if not popupMessage then return end
+    
+    local alpha = math.min(1, popupTimer / 0.5) -- Fade out in last 0.5 seconds
+    local bgColor = {0, 0, 0, 0.8 * alpha}
+    local textColor = {1, 1, 1, alpha}
+    
+    -- Color code based on level
+    if popupMessage.level == "error" then
+        textColor = {1, 0.3, 0.3, alpha}
+    elseif popupMessage.level == "warn" then
+        textColor = {1, 0.8, 0, alpha}
+    elseif popupMessage.level == "info" then
+        textColor = {0.3, 1, 0.3, alpha}
+    end
+    
+    -- Draw background
+    love.graphics.setColor(bgColor)
+    local textWidth = font:getWidth(popupMessage.text)
+    local textHeight = font:getHeight()
+    local popupX = (var.screen_width - textWidth) / 2 - 20
+    local popupY = 50
+    love.graphics.rectangle("fill", popupX, popupY, textWidth + 40, textHeight + 20)
+    
+    -- Draw text
+    love.graphics.setColor(textColor)
+    love.graphics.printf(popupMessage.text, 0, popupY + 10, var.screen_width, "center")
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return menu

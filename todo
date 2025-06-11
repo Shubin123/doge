@@ -1,4 +1,13 @@
-
+sounds bro we need addicting sounds, and specifically lets make sure we:
+Layer sound components 
+Randomize these layers in real-time for variety.
+Ensure variations are subtle and coherent, not jarring.
+Check for sonic dissonance between UI, ambience, and music.
+Adjust pitch/frequencies so audio elements harmonize.
+Match ambient sounds to on-screen visuals/implied environment.
+Ensure 3D sounds originate correctly from objects.
+Avoid unnatural or extreme panning of 3D sounds.
+! slightly change/randomize the pitch of a sound maybe the coin pickup sound, this eliminated n
 
 use the snapshot module to save and reload the state of players,coins,fires,enemies. Since the process works for network replication in theory a modified version should to save on disk
 compress the data in the same way it gets manipulated as host/client broadcasted strings. data>json>zlib> compressed state -<>- uncompressed >zlib>json>data>new local loading system
