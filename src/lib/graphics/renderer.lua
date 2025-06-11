@@ -3,7 +3,7 @@ local renderer = {}
 dynamic_draw_list = {}
 
 -- Required modules for rendering
-local bullet = require("bullet")
+local bullet = require("game.bullet")
 
 -- Networked game state (managed by server, synced to clients)
 renderer.networked_state = {

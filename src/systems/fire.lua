@@ -8,10 +8,10 @@ fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
 fire_instances = {} -- no collision on these for now
 fire_draw_data = {} -- cached draw data updated only in fire.update()
--- local sprite = require('sprite')
+-- local sprite = require('lib.graphics.sprite')
 
 fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
--- myMath = require("myMath")
+-- myMath = require("lib.math.myMath")
 function fire.load()
     Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
     fire.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 500)

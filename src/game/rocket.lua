@@ -1,4 +1,4 @@
-local vec2 = require("vec2")
+local vec2 = require("lib.math.vec2")
 
 local rocket = {}
 rocket.rockets = {}

@@ -4,7 +4,7 @@ local camera = {}
 -- Camera state
 camera.x = 0
 camera.y = 0
-camera.pos = require("vec2").new(0,0)
+camera.pos = require("lib.math.vec2").new(0,0)
 
 camera.target_x = 0
 camera.target_y = 0
