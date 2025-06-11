@@ -185,15 +185,82 @@ function bullet.update(dt)
     end
 end
 
+-- Populate dynamic draw list with bullet effects for Y-sorting
+function bullet.populate()
+    if not dynamic_draw_list then
+        return -- Safety check
+    end
+    
+    -- Add muzzle flashes to draw list with proper offset to avoid interfering with map elements
+    for _, flash in ipairs(bullet.muzzleFlashes) do
+        table.insert(dynamic_draw_list, {
+            sort_y = flash.pos.y + 10, -- Small offset to ensure proper layering
+            source_object_type = "muzzle_flash",
+            flash_data = flash,
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"} -- Changed from "add" to "alpha" to prevent map interference
+        })
+    end
+    
+    -- Add gunpowder particles to draw list
+    for _, particle in ipairs(bullet.particles) do
+        table.insert(dynamic_draw_list, {
+            sort_y = particle.pos.y + 5, -- Small offset for particles
+            source_object_type = "gunpowder_particle", 
+            particle_data = particle,
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"} -- Changed from "add" to "alpha" for consistency
+        })
+    end
+    
+    -- Add shell casings to draw list (ground level objects)
+    for _, shell in ipairs(bullet.shells) do
+        table.insert(dynamic_draw_list, {
+            sort_y = shell.pos.y + 50, -- Shells fall on ground, should be behind most objects
+            source_object_type = "shell_casing",
+            shell_data = shell,
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"}
+        })
+    end
+    
+    -- Add bullet tracers to draw list with proper depth handling
+    for _, inst in ipairs(bullet.instances) do
+        local x, y = inst.body:getPosition()
+        
+        -- Calculate distance from player for fading effect
+        local playerX, playerY = player.getPosition()
+        local distance = math.sqrt((x - playerX)^2 + (y - playerY)^2)
+        
+        -- Use much larger Y offset for distant bullets so they render behind objects
+        local sort_offset = 1
+        if distance > 200 then
+            -- Distant bullets should render behind most objects
+            sort_offset = 80 -- This puts them behind walls/trees that typically have +45-75 offsets
+        elseif distance > 100 then
+            -- Medium distance bullets get moderate depth
+            sort_offset = 40
+        end
+        
+        table.insert(dynamic_draw_list, {
+            sort_y = y + sort_offset,
+            source_object_type = "bullet_tracer",
+            bullet_data = inst,
+            x = x,
+            y = y,
+            distance = distance, -- Pass distance for fading calculations
+            color = {1, 1, 1, 1},
+            blend_mode = {"alpha"}
+        })
+    end
+end
+
 -- Draw bullets with advanced tracer effects
 function bullet.draw()
-    -- Draw muzzle flashes first
+    -- This function is now deprecated in favor of populate()
+    -- Keeping for backward compatibility
     bullet.drawMuzzleFlashes()
-    
-    -- Draw shell casings
-    bullet.drawShells()
-    
-    -- Draw gunpowder particles
+    bullet.drawShells() 
     bullet.drawParticles()
     
     -- Draw bullet tracers
@@ -523,25 +590,152 @@ end
 -- Draw gunpowder particles
 function bullet.drawParticles()
     for _, particle in ipairs(bullet.particles) do
-        local alpha = particle.life / particle.maxLife
-        
-        love.graphics.push()
-        love.graphics.translate(particle.pos.x, particle.pos.y)
-        love.graphics.rotate(particle.rotation)
-        
-        -- Draw particle as a small glowing rectangle/string
-        love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.9)
-        
-        -- Draw core particle
-        love.graphics.rectangle("fill", -particle.size/2, -particle.size/4, particle.size, particle.size/2)
-        
-        -- Draw glow effect
-        love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.4)
-        love.graphics.rectangle("fill", -particle.size, -particle.size/2, particle.size * 2, particle.size)
-        
-        love.graphics.pop()
+        bullet.drawSingleParticle(particle)
     end
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Individual drawing functions for Y-sorted rendering
+function bullet.drawSingleMuzzleFlash(flash)
+    -- Set additive blending only for this effect
+    love.graphics.setBlendMode("add")
+    
+    local alpha = flash.life / flash.maxLife
+    local size = flash.size * alpha
+    
+    -- Draw cone-shaped flash using triangular geometry
+    local coneLength = flash.coneLength * alpha
+    local coneAngle = flash.coneAngle
+    
+    -- Calculate cone vertices
+    local perpDir = vec2.new(-flash.dir.y, flash.dir.x)
+    local coneEnd = flash.pos + flash.dir * coneLength
+    
+    -- Draw cone with gradient effect (reduced intensity to prevent map interference)
+    for i = 1, 5 do
+        local gradientFactor = i / 5
+        local currentAlpha = alpha * (1 - gradientFactor * 0.7) * flash.intensity * 0.8 -- Reduced from 1.5 to 0.8
+        local currentSize = coneLength * (1 - gradientFactor * 0.3)
+        
+        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], currentAlpha)
+        
+        local layerEnd = flash.pos + flash.dir * currentSize
+        local layerLeft = layerEnd + perpDir * math.tan(coneAngle) * currentSize * gradientFactor
+        local layerRight = layerEnd - perpDir * math.tan(coneAngle) * currentSize * gradientFactor
+        
+        love.graphics.polygon("fill", 
+            flash.pos.x, flash.pos.y,
+            layerLeft.x, layerLeft.y,
+            layerRight.x, layerRight.y
+        )
+    end
+    
+    -- Draw bright core at muzzle (reduced intensity)
+    love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * flash.intensity * 0.6)
+    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.8)
+    
+    -- Draw outer glow (reduced intensity)
+    love.graphics.setColor(flash.color[1] * 0.6, flash.color[2] * 0.4, flash.color[3] * 0.2, alpha * 0.3)
+    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.5)
+    
+    -- Reset blend mode
+    love.graphics.setBlendMode("alpha")
+end
+
+function bullet.drawSingleParticle(particle)
+    -- Use alpha blending for particles to prevent map interference
+    love.graphics.setBlendMode("alpha")
+    
+    local alpha = particle.life / particle.maxLife
+    
+    love.graphics.push()
+    love.graphics.translate(particle.pos.x, particle.pos.y)
+    love.graphics.rotate(particle.rotation)
+    
+    -- Draw particle as a small glowing rectangle/string (reduced opacity)
+    love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.7)
+    love.graphics.rectangle("fill", -particle.size/2, -particle.size/4, particle.size, particle.size/2)
+    
+    -- Draw glow effect (much more subtle)
+    love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.2)
+    love.graphics.rectangle("fill", -particle.size, -particle.size/2, particle.size * 2, particle.size)
+    
+    love.graphics.pop()
+end
+
+function bullet.drawSingleShell(shell)
+    local alpha = math.min(1, shell.life / shell.maxLife)
+    if shell.life < 1 then
+        alpha = shell.life
+    end
+    
+    love.graphics.push()
+    love.graphics.translate(shell.pos.x, shell.pos.y)
+    love.graphics.rotate(shell.rotation)
+    
+    -- Draw shell casing as small rectangle
+    love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
+    love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
+                          shell.size.width, shell.size.height)
+    
+    -- Add rim highlight
+    love.graphics.setColor(1, 1, 1, alpha * 0.5)
+    love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
+                          shell.size.width, shell.size.height)
+    
+    love.graphics.pop()
+end
+
+function bullet.drawSingleTracer(inst, x, y, distance)
+    -- Use alpha blending to prevent map interference
+    love.graphics.setBlendMode("alpha")
+    
+    local age = bullet.t - inst.birthTime
+    distance = distance or 0
+    
+    -- Calculate distance-based fade factor
+    local fade_factor = 1.0
+    if distance > 150 then
+        -- Start fading after 150 pixels
+        fade_factor = math.max(0.1, 1.0 - ((distance - 150) / 200)) -- Fade over 200 pixels
+    end
+    
+    -- Apply distance fade to all alpha values
+    local core_alpha = 0.6 * fade_factor
+    local glow_alpha = 0.3 * fade_factor
+    local trail_alpha_base = 0.2 * fade_factor
+    
+    -- Skip drawing if too faded
+    if fade_factor < 0.15 then
+        return
+    end
+    
+    -- Draw bright tracer core (with distance fade)
+    love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw glowing outer tracer (with distance fade)
+    love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
+    love.graphics.setLineWidth(6)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    
+    -- Draw fading trail (with distance fade)
+    if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
+        for i = 1, #inst.trail - 1 do
+            local p1 = inst.trail[i]
+            local p2 = inst.trail[i + 1]
+            local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
+            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+        end
+    end
+    
+    -- Draw bullet impact point (with distance fade)
+    love.graphics.setColor(1, 1, 1, fade_factor)
+    love.graphics.circle("fill", x, y, 2)
+    love.graphics.setLineWidth(1)
 end
 
 return bullet

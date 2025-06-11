@@ -374,14 +374,14 @@ function GunTool.load(world)
     GunTool.guns[5] = Gun.new({  -- Rocket Launcher (5)
         fireRate = 0.7,
         projectileType = "rocket",
-        speed = 200,
+        speed = 300,  -- Increased initial speed
         spread = 0,
         damage = 8,
         ringRadius = 32,
         barrelLength = 35,
         barrelThickness = 10,
-        topSpeed = 500,
-        accelTime = 1.2,
+        topSpeed = 800,  -- Increased top speed
+        accelTime = 0.6,  -- Faster acceleration (reduced time to reach top speed)
         projectileRadius = 10,
         bulletsPerShot = 1,
         -- No shellType - rockets don't eject shells
@@ -447,8 +447,7 @@ function GunTool.drawWorld()
         GunTool.currentGun:drawBarrel()
     end
     
-    -- Draw all projectiles
-    bullet.draw()
+    -- Draw rockets (bullets are now handled in sorted rendering)
     rocket.draw()
 end
 

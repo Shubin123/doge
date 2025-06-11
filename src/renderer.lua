@@ -2,6 +2,9 @@ local renderer = {}
 -- Dynamic draw list for Y-sorting
 dynamic_draw_list = {}
 
+-- Required modules for rendering
+local bullet = require("bullet")
+
 -- Networked game state (managed by server, synced to clients)
 renderer.networked_state = {
     players = {},      -- { player_id = { x, y, animation_frame, scale, rotation, ... } }
@@ -230,6 +233,9 @@ function renderer.populateDynamicDrawListNetworked()
     fire.populate()
 
     -- enemy.populate()
+    
+    -- Bullet effects drawables (added last to ensure proper layering)
+    bullet.populate()
 end
 
 -- Original function for local/single player (keeps physics body access)
@@ -320,7 +326,11 @@ function renderer.populateDynamicDrawList()
 
     -- Fire effects drawables
     fire.populate()
+    
     enemy.populate()
+    
+    -- Bullet effects drawables (added last to ensure proper layering)
+    bullet.populate()
 end
 
 function renderer.populateDynamicDrawListNETHOST()
@@ -421,6 +431,16 @@ function renderer.renderSortedDrawList()
             -- Reset shader
             love.graphics.setShader()
 
+        -- Handle bullet effects drawing
+        elseif drawable.source_object_type == "muzzle_flash" then
+            bullet.drawSingleMuzzleFlash(drawable.flash_data)
+        elseif drawable.source_object_type == "gunpowder_particle" then
+            bullet.drawSingleParticle(drawable.particle_data)
+        elseif drawable.source_object_type == "shell_casing" then
+            bullet.drawSingleShell(drawable.shell_data)
+        elseif drawable.source_object_type == "bullet_tracer" then
+            bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
+            
             -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then
