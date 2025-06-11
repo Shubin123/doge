@@ -253,17 +253,17 @@ local function addNetworkedEntities()
     end
 
     -- Networked bullets
-    for _, bullet_data in pairs(renderer.networked_state.bullets) do
+    for bullet_id, bullet_data in pairs(renderer.networked_state.bullets) do
         if bullet_data.active then
             table.insert(dynamic_draw_list, {
-                sort_y = bullet_data.y + 140,
-                draw_type = "bullet_point",
+                sort_y = bullet_data.y + 150,
+                source_object_type = "networked_bullet_tracer",
+                bullet_data = bullet_data,
+                bullet_id = bullet_id,
                 x = bullet_data.x,
                 y = bullet_data.y,
-                radius = 2,
-                color = { 1, 1, 1, 1 },
-                blend_mode = { "alpha" },
-                source_object_type = "networked_bullet"
+                color = {1, 1, 1, 1},
+                blend_mode = {"alpha"}
             })
         end
     end
@@ -303,6 +303,24 @@ local function addNetworkedEntities()
                 source_object_type = "networked_command_block",
                 command = command_block_data.cmd
             })
+            
+            -- Add text for networked command blocks (if player is close enough)
+            if player and player.body then
+                local player_x, player_y = player.body:getPosition()
+                local dist = math.sqrt((player_x - command_block_data.x) ^ 2 + (player_y - command_block_data.y) ^ 2)
+                if dist < 100 then
+                    table.insert(dynamic_draw_list, {
+                        sort_y = command_block_data.y + command_block_data.h + 101,
+                        draw_type = "text",
+                        text = command_block_data.cmd,
+                        x = command_block_data.x - command_block_data.w / 2,
+                        y = command_block_data.y - 20,
+                        font = command and command.getCommandBlockFont and command.getCommandBlockFont(),
+                        color = { 1, 1, 1, 1 },
+                        blend_mode = { "alpha" }
+                    })
+                end
+            end
         end
     end
 end
@@ -326,7 +344,7 @@ function renderer.populateDynamicDrawListNetworked()
     -- end
 
     fire.populate()
-    -- bullet.populate()
+    bullet.populate()
     -- rocket.populate()
     -- light.populate()
     command.populate()
@@ -503,8 +521,9 @@ function renderer.renderSortedDrawList()
         elseif drawable.source_object_type == "bullet_tracer" then
             bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
             
+        elseif drawable.source_object_type == "networked_bullet_tracer" then
+            bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
 
-            
             -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then
@@ -531,6 +550,17 @@ function renderer.renderSortedDrawList()
                     drawable.offset_y or 0
                 )
             end
+
+         elseif drawable.draw_type == "text" then
+        local current_font = love.graphics.getFont()
+        if drawable.font then
+            love.graphics.setFont(drawable.font)
+        end
+        love.graphics.print(drawable.text, drawable.x, drawable.y)
+        if drawable.font then
+            love.graphics.setFont(love.graphics.getFont())
+        end
+    
         end
 
 
@@ -595,7 +625,14 @@ function renderDrawType(drawable)
     elseif d.draw_type == "rocket_explosion" then
         renderRocketExplosion(d)
     elseif d.draw_type == "text" then
+        local current_font = love.graphics.getFont()
+        if d.font then
+            love.graphics.setFont(d.font)
+        end
         love.graphics.print(d.text, d.x, d.y)
+        if d.font then
+            love.graphics.setFont(current_font)
+        end
     end
 end
 

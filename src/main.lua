@@ -97,8 +97,8 @@ function love.load()
     enemy.load()
 
     gun.load(world)
-    -- bullet.load(world)
-    -- rocket.load(world)
+    bullet.load(world)
+    rocket.load(world)
 
         command.load()
     cmdn.load()
@@ -223,8 +223,8 @@ function love.draw()
     
 
     
-    -- bullet.populate()
-    -- rocket.populate()
+    bullet.populate()
+    rocket.populate()
 
     gun.drawWorld()
 
@@ -298,8 +298,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     
     gun.update(dt)
-    -- bullet.update(dt)
-    -- rocket.update(dt)
+    bullet.update(dt)
+    rocket.update(dt)
 
   
 
@@ -517,6 +517,7 @@ function beginContact(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
+    bullet.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

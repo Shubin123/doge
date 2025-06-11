@@ -23,6 +23,7 @@ local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
 local next_block_id = 1
 local command_block_img = love.graphics.newImage('gfx/Color_Blocks.png')
+local command_block_font = nil
 -- Console dimensions
 local consoleHeight = 300
 local consoleWidth = 0 -- Will be set to screen width
@@ -37,6 +38,11 @@ function command.load()
     font = love.graphics.getFont() or love.graphics.newFont(12)
     lineHeight = font:getHeight() + 2
     consoleWidth = love.graphics.getWidth()
+    
+    -- Load command block font
+    command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+
 
     -- Add initial help message
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
@@ -780,6 +786,11 @@ function command.receiveCommandBlock(block)
     if var.multiplayer == 1 and block.creator ~= 1 then
         command.broadcastCommandBlock(block)
     end
+end
+
+-- Get command block font for external use
+function command.getCommandBlockFont()
+    return command_block_font
 end
 
 return command

@@ -13,6 +13,7 @@ bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
 bullet.particles = {}  -- gunpowder confetti particles
 bullet.muzzleFlashCanvas = nil  -- canvas for rendering muzzle flashes
+bullet.online_bullets = {}  -- online bullet bodies for multiplayer
 
 -- Initialize the bullet module with the physics world
 function bullet.load(world)
@@ -24,6 +25,7 @@ function bullet.load(world)
     bullet.muzzleFlashes = {}
     bullet.shells = {}
     bullet.particles = {}
+    bullet.online_bullets = {}
     
     -- Load tracer shader
     local shader_code = love.filesystem.read("shaders_/bullet_tracer.frag")
@@ -736,6 +738,50 @@ function bullet.drawSingleTracer(inst, x, y, distance)
     love.graphics.setColor(1, 1, 1, fade_factor)
     love.graphics.circle("fill", x, y, 2)
     love.graphics.setLineWidth(1)
+end
+
+
+
+function bullet.getNetworkData()
+    local network_data = {}
+    for i = 1, #bullet.instances do
+        if bullet.instances[i] then
+            local x, y = bullet.instances[i].body:getPosition()
+            table.insert(network_data, {
+                x = x,
+                y = y,
+                active = true,
+                id = i
+            })
+        end
+    end
+    return network_data
+end
+
+function bullet.setOnline(index, pos)
+    if bullet.online_bullets[index] then
+        bullet.online_bullets[index]:setPosition(pos.x, pos.y)
+    else
+        bullet.online_bullets[index] = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
+        local shape = love.physics.newCircleShape(5)
+        local fixture = love.physics.newFixture(bullet.online_bullets[index], shape)
+        fixture:setGroupIndex(bullet.groupIndex)
+    end
+end
+
+-- Draw a single networked bullet (for multiplayer)
+function bullet.drawSingleNetworkedBullet(bullet_data, x, y)
+    -- Draw bright bullet core
+    love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
+    love.graphics.circle("fill", x, y, 3)
+    
+    -- Draw glowing outer bullet
+    love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
+    love.graphics.circle("fill", x, y, 5)
+    
+    -- Draw bullet impact point
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.circle("fill", x, y, 2)
 end
 
 return bullet
