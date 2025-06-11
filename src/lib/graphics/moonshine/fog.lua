@@ -7,7 +7,7 @@ Translated for löve by Brandon Blanker Lim-it @flamendless
 
 --[[
 SAMPLE USAGE:
-local moonshine = require("moonshine")
+local moonshine = require("lib.graphics.moonshine")
 local effect
 
 local image, bg

@@ -28,13 +28,13 @@ function bullet.load(world)
     bullet.online_bullets = {}
     
     -- Load tracer shader
-    local shader_code = love.filesystem.read("shaders_/bullet_tracer.frag")
+    local shader_code = love.filesystem.read("shaders/bullet_tracer.frag")
     if shader_code then
         bullet.tracerShader = love.graphics.newShader(shader_code)
     end
     
     -- Load muzzle flash shader
-    local muzzle_shader_code = love.filesystem.read("shaders_/muzzle_flash.frag")
+    local muzzle_shader_code = love.filesystem.read("shaders/muzzle_flash.frag")
     if muzzle_shader_code then
         bullet.muzzleFlashShader = love.graphics.newShader(muzzle_shader_code)
     end

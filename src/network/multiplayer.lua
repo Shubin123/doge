@@ -314,7 +314,7 @@ end
 --     local json_str = tostring(message)
 --     if type(message) == "table" then
 --         -- Simple JSON encoding (you might want to use a proper JSON library)
---         local success, json_lib = pcall(function() return require("json") end)
+--         local success, json_lib = pcall(function() return require("lib.utils.json") end)
 --         if success and json_lib then
 --             json_str = json_lib.encode(message)
 --         else
