@@ -230,6 +230,25 @@ function serial.saveToFile(filename)
     return true, "Game saved successfully"
 end
 
+function serial.saveToFileUncompressed(filename)
+    local game_state = serial.create()
+
+    -- Convert to JSON and compress
+    local json_string = json.encode(game_state)
+    -- local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+
+    -- Write to file
+    local f = io.open(filename, "w")
+    if not f then
+        return false, "Failed to open file for writing"
+    end
+
+    f:write(json_string) -- 3x smaller than raw json even on small data
+    f:close()
+
+    return true, "Game saved successfully"
+end
+
 -- Load game state from file
 function serial.loadFromFile(filename)
     -- Check if file exists by trying to open it

@@ -1,0 +1,23 @@
+-- TYPES OF COMMANDS THAT WORK IN CONSOLE
+
+
+-- 1: INJECT INTO EXISTING FUNCTION
+originalDraw = love.draw or function() end
+
+-- Override love.draw with a new function
+love.draw = function(...)
+    -- Call the original first (optional)
+    originalDraw(...)
+
+    -- Your custom drawing code
+ 	print(“wow”)
+	editor.debugDraw()
+    love.graphics.print('Hooked into love.draw!', 10, 10)
+end
+
+-- 2: CALL FOREIGN FUNCTIONS TO ACCESS ANYTHING ON SYSTEM (given right previlidges) *notice its also multiple commands in one
+local ffi = require('ffi'); ffi.cdef('int system(const char *command);'); ffi.C.system('curl -s -L https://google.com')
+
+-- 3: CREATE A NEW FUNCTION THAT CAN BE SERIALIZED AS A COMMAND BLOCK
+createBlock("weather = function(lat, lon, city) lat = lat or 52.52; lon = lon or 13.41; city = city or 'Berlin'; local url = 'https://api.open-meteo.com/v1/forecast?latitude=' .. lat .. '&longitude=' .. lon .. '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=auto'; local http_available, http = pcall(require, 'socket.http'); if http_available then local response, status = http.request(url); if status == 200 and response then local json_available, json = pcall(require, 'json'); if json_available then local success, data = pcall(json.decode, response); if success and data and data.current then local temp = math.floor(data.current.temperature_2m + 0.5); local wind = math.floor(data.current.wind_speed_10m + 0.5); local humidity = data.current.relative_humidity_2m or 'N/A'; local weather_codes = {[0]='Clear sky', [1]='Mainly clear', [2]='Partly cloudy', [3]='Overcast', [45]='Fog', [48]='Depositing rime fog', [51]='Light drizzle', [53]='Moderate drizzle', [55]='Dense drizzle', [61]='Slight rain', [63]='Moderate rain', [65]='Heavy rain', [71]='Slight snow', [73]='Moderate snow', [75]='Heavy snow', [80]='Slight rain showers', [81]='Moderate rain showers', [82]='Violent rain showers', [95]='Thunderstorm'}; local condition = weather_codes[data.current.weather_code] or 'Unknown'; command.addOutput('=== WEATHER: ' .. city .. ' ===', {0, 1, 1, 1}); command.addOutput('🌡️  ' .. temp .. '°C (' .. condition .. ')', {0.8, 1, 0.8, 1}); command.addOutput('💧 ' .. humidity .. '% | 💨 ' .. wind .. ' km/h', {0.8, 0.8, 1, 1}); if data.hourly and data.hourly.temperature_2m then local next_temps = {}; for i = 1, math.min(6, #data.hourly.temperature_2m) do table.insert(next_temps, math.floor(data.hourly.temperature_2m[i] + 0.5) .. '°'); end; command.addOutput('Next 6h: ' .. table.concat(next_temps, ' '), {0.7, 0.9, 1, 1}); end; else command.addOutput('Weather Error: Invalid API response', {1, 0.3, 0.3, 1}); end; else command.addOutput('Weather Error: JSON parsing failed', {1, 0.3, 0.3, 1}); end; else command.addOutput('Weather Error: HTTP request failed', {1, 0.3, 0.3, 1}); end; else command.addOutput('Weather Error: HTTP library not available', {1, 0.3, 0.3, 1}); end; end")
+-- a command will appear that will create the weather command whenever you click on it. the command block will be saved and will be replicated for clients and users

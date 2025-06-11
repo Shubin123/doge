@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lua One-Liner Parser (Smart)</title>
+  <style>
+    body { font-family: monospace; background: #1e1e1e; color: #eee; padding: 20px; }
+    textarea, pre { width: 100%; background: #2e2e2e; color: #fff; border: none; padding: 10px; margin: 10px 0; }
+    button { background: #007acc; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+    button:hover { background: #005fa3; }
+  </style>
+</head>
+<body>
+  <h1>Lua DUMB One-Liner Parser</h1>
+  <textarea id="luaInput" rows="20" placeholder="Paste your Lua code here..."></textarea>
+  <button onclick="parseLua()">Convert</button>
+  <h2>One-Liner Output</h2>
+  <pre id="output"></pre>
+
+  <script>
+    function parseLua() {
+      const input = document.getElementById('luaInput').value;
+      const lines = input.split('\n');
+
+      let output = [];
+      let buffer = [];
+      let blockDepth = 0;
+
+      const blockStarters = ['function', 'if', 'for', 'while', 'repeat', 'do'];
+      const blockEnders = ['end', 'until'];
+
+      function lineStartsBlock(line) {
+        return blockStarters.some(start => line.match(new RegExp(`^\\s*${start}\\b`)));
+      }
+
+      function lineEndsBlock(line) {
+        return blockEnders.some(end => line.match(new RegExp(`^\\s*${end}\\b`)));
+      }
+
+      for (let rawLine of lines) {
+        let line = rawLine.trim();
+
+        // Skip comments or empty lines
+        if (line.startsWith('--') || line === '') continue;
+
+        // Track block depth
+        if (lineStartsBlock(line)) blockDepth++;
+        if (lineEndsBlock(line)) blockDepth--;
+
+        buffer.push(line);
+
+        // If we're at top-level or finished a full block
+        if (blockDepth === 0 && buffer.length > 0) {
+          output.push(buffer.join('; '));
+          buffer = [];
+        }
+      }
+
+      // Catch any dangling lines
+      if (buffer.length > 0) {
+        output.push(buffer.join('; '));
+      }
+
+      document.getElementById('output').textContent = output.join('; ');
+    }
+  </script>
+</body>
+</html>
