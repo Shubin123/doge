@@ -371,7 +371,10 @@ function cmdn.addOutput(text, color)
             table.remove(output, 1)
         end
     end
-    local visibleLines = math.floor((consoleHeight - 2 * padding) / lineHeight)
+    
+    -- Auto-scroll to bottom when new content is added
+    local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10
+    local visibleLines = math.floor(contentHeight / lineHeight)
     scrollOffset = math.max(0, #output - visibleLines)
 end
 
@@ -544,13 +547,12 @@ function cmdn.update(dt)
     end
     if handleKeyRepeat("delete", dt) then performDelete() end
     if handleKeyRepeat("backspace", dt) then performBackspace() end
-    consoleWidth = love.graphics.getWidth()
-    local visibleLines = math.floor((consoleHeight - 2 * padding) / lineHeight)
-    if #output > visibleLines then
-        scrollOffset = math.min(math.max(0, #output - visibleLines), scrollOffset)
-    else
-        scrollOffset = 0
-    end
+    
+    -- Update scroll limits based on current content
+    local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10
+    local visibleLines = math.floor(contentHeight / lineHeight)
+    local maxScroll = math.max(0, #output - visibleLines)
+    scrollOffset = math.min(maxScroll, math.max(0, scrollOffset))
 end
 
 -- Handle text input
@@ -643,9 +645,14 @@ function cmdn.keypressed(key)
             updateAutocomplete()
         end
     elseif key == "pageup" then
-        scrollOffset = math.max(0, scrollOffset - 5)
+        local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10
+        local visibleLines = math.floor(contentHeight / lineHeight)
+        scrollOffset = math.max(0, scrollOffset - math.floor(visibleLines / 2))
     elseif key == "pagedown" then
-        scrollOffset = math.min(math.max(0, #output - maxOutputLines), scrollOffset + 5)
+        local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10
+        local visibleLines = math.floor(contentHeight / lineHeight)
+        local maxScroll = math.max(0, #output - visibleLines)
+        scrollOffset = math.min(maxScroll, scrollOffset + math.floor(visibleLines / 2))
     end
 end
 
@@ -653,10 +660,14 @@ end
 function cmdn.wheelmoved(x, y)
     if not isActive then return end
     local scrollAmount = 3
+    local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10
+    local visibleLines = math.floor(contentHeight / lineHeight)
+    local maxScroll = math.max(0, #output - visibleLines)
+    
     if y > 0 then
         scrollOffset = math.max(0, scrollOffset - scrollAmount)
     elseif y < 0 then
-        scrollOffset = math.min(math.max(0, #output - maxOutputLines), scrollOffset + scrollAmount)
+        scrollOffset = math.min(maxScroll, scrollOffset + scrollAmount)
     end
 end
 
@@ -712,12 +723,14 @@ function cmdn.draw()
     local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10 -- Reserve space for input
     local visibleLines = math.floor(contentHeight / lineHeight)
     local startLine = math.max(1, #output - visibleLines - scrollOffset + 1)
+    local endLine = math.min(#output, startLine + visibleLines - 1)
     
     -- Draw output text
     local y = contentY
-    for i = startLine, #output do
+    local lineCount = 0
+    for i = startLine, endLine do
         local line = output[i]
-        if line and y < windowY + consoleHeight - lineHeight - padding - 10 then
+        if line and lineCount < visibleLines then
             if line.segments then
                 -- Draw color segments manually
                 local x = windowX + padding
@@ -732,6 +745,7 @@ function cmdn.draw()
                 love.graphics.print(line.text, windowX + padding, y)
                 y = y + lineHeight
             end
+            lineCount = lineCount + 1
         end
     end
     
@@ -798,8 +812,10 @@ function cmdn.draw()
     
     -- Draw scroll bar if needed
     if #output > visibleLines then
-        local scrollBarHeight = (visibleLines / #output) * contentHeight
-        local scrollBarY = contentY + (scrollOffset / (#output - visibleLines)) * (contentHeight - scrollBarHeight)
+        local maxScroll = math.max(1, #output - visibleLines)  -- Prevent division by zero
+        local scrollBarHeight = math.max(10, (visibleLines / #output) * contentHeight)
+        local scrollableArea = contentHeight - scrollBarHeight
+        local scrollBarY = contentY + (scrollOffset / maxScroll) * scrollableArea
         love.graphics.setColor(0.3, 0.7, 1.0, 0.6)
         love.graphics.rectangle("fill", windowX + consoleWidth - 8, scrollBarY, 4, scrollBarHeight, 2)
     end
