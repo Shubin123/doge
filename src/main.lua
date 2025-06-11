@@ -35,6 +35,7 @@ moonshine = require("moonshine")
 light = require("light")
 
 command = require("command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
+cmdn = require("cmndX") -- improved console - always active
 -- hotreloader / helpers
 local lurker = require("lurker")
 json = require("json")
@@ -100,6 +101,7 @@ function love.load()
     -- rocket.load(world)
 
         command.load()
+    cmdn.load()
     -- Coins and enemies 
     
     -- physics
@@ -252,6 +254,7 @@ function love.draw()
 
     mydraw.mydraw() -- ui last
     command.draw() -- Draw console on top
+    cmdn.draw() -- Draw improved console on top
     -- editor.debugDraw()
 end
 
@@ -287,6 +290,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     portal.update(dt)
     blur.update(dt)
     command.update(dt)
+    cmdn.update(dt)
 
     
     if var.multiplayer == 1 or not var.multiplayer  then
@@ -310,6 +314,9 @@ function love.resize(w, h)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
+    -- Handle console mouse events first
+    cmdn.mousepressed(x, y, button)
+    
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
         if nextStateAction == "running" then
@@ -349,6 +356,7 @@ end
 
 function love.textinput(text)
     command.textinput(text)
+    cmdn.textinput(text)
 end
 
 lurker.preswap = function(file)
@@ -389,21 +397,32 @@ function love.keypressed(key)
 
     editor.keypressed(key)
     command.keypressed(key)
+    cmdn.keypressed(key)
     gun.keypressed(key)
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
+    -- Handle console mouse events first
+    cmdn.mousereleased(x, y, button)
+    
     if var.State ~= "menu" then
         gun.mousereleased(x, y, button)
     end
 end
 
+function love.mousemoved(x, y, dx, dy, istouch)
+    -- Handle console dragging
+    cmdn.mousemoved(x, y, dx, dy)
+end
+
 function love.keyreleased(key)
  command.keyreleased(key)
+ cmdn.keyreleased(key)
 end
 
 function love.wheelmoved(x, y)
     command.wheelmoved(x, y)
+    cmdn.wheelmoved(x, y)
     -- your other mouse wheel handling
 end
 

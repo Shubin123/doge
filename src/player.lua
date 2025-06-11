@@ -225,9 +225,22 @@ function player.update(dt)
         -- Set idle animation when not moving
         player.currentAnimation = "idle"
     end
-
-
     
+end
+
+-- Simple momentum-based knockback system
+function player.applyKnockback(direction, force)
+    if not player.body then return end
+    
+    -- Get current velocity
+    local vx, vy = player.body:getLinearVelocity()
+    
+    -- Apply direct momentum transfer (Newton's laws!)
+    local knockbackVx = direction.x * force
+    local knockbackVy = direction.y * force
+    
+    -- Add knockback to current velocity for immediate visible effect
+    player.body:setLinearVelocity(vx + knockbackVx, vy + knockbackVy)
 end
 
 function player.draw()
