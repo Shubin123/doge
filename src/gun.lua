@@ -118,8 +118,11 @@ function Gun:shoot(mouseX, mouseY)
     local playerX, playerY = player.getPosition()
     local spawnPos = vec2.new(playerX, playerY) + dir * self.ringRadius
     
+    -- Calculate barrel tip position (where particles should spawn from)
+    local barrelTipPos = spawnPos + dir * self.barrelLength
+    
     -- Create muzzle flash effect with gun-specific parameters
-    bullet.createMuzzleFlash(spawnPos, dir, {
+    bullet.createMuzzleFlash(barrelTipPos, dir, {
         duration = self.muzzleFlash.duration,
         coneAngle = self.muzzleFlash.coneAngle,
         coneLength = self.muzzleFlash.coneLength,
@@ -127,10 +130,10 @@ function Gun:shoot(mouseX, mouseY)
         color = self.muzzleFlash.color
     })
     
-    -- Create particle effects (gunpowder confetti)
-    bullet.createParticleEffect(spawnPos, dir, self.particles)
+    -- Create particle effects (gunpowder confetti) from barrel tip
+    bullet.createParticleEffect(barrelTipPos, dir, self.particles)
     
-    -- Apply knockback to player
+    -- Apply knockback to player (opposite direction of shot)
     player.applyKnockback(-dir, self.knockback.force)
     
     -- Apply screen shake if camera module supports it
@@ -241,7 +244,7 @@ function GunTool.load(world)
         bulletsPerShot = 1,
         shellType = "pistol",
         muzzleFlash = {
-            duration = 0.06,
+            duration = 0.2,
             coneAngle = math.rad(20),
             coneLength = 120,
             brightness = 0.8,
@@ -256,7 +259,7 @@ function GunTool.load(world)
             spreadAngle = math.rad(15)
         },
         knockback = {
-            force = 40,
+            force = 35,  -- Visible pistol recoil
             shakeIntensity = 1.5,
             shakeDuration = 0.08
         }
@@ -291,7 +294,7 @@ function GunTool.load(world)
             spreadAngle = math.rad(12)
         },
         knockback = {
-            force = 25,
+            force = 20,  -- Light but visible SMG recoil
             shakeIntensity = 1.0,
             shakeDuration = 0.06
         }
@@ -326,7 +329,7 @@ function GunTool.load(world)
             spreadAngle = math.rad(40)
         },
         knockback = {
-            force = 120, -- Strong knockback
+            force = 85,  -- Strong shotgun kick
             shakeIntensity = 4.0,
             shakeDuration = 0.15
         }
@@ -362,7 +365,7 @@ function GunTool.load(world)
             spreadAngle = math.rad(10)
         },
         knockback = {
-            force = 60,
+            force = 42,  -- Moderate rifle recoil
             shakeIntensity = 2.0,
             shakeDuration = 0.08
         }
@@ -398,7 +401,7 @@ function GunTool.load(world)
             spreadAngle = math.rad(30)
         },
         knockback = {
-            force = 150, -- Strongest knockback
+            force = 120, -- Strong rocket launcher kick
             shakeIntensity = 5.0,
             shakeDuration = 0.2
         }

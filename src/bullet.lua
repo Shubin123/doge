@@ -356,28 +356,56 @@ end
 function bullet.drawMuzzleFlashes()
     if #bullet.muzzleFlashes == 0 then return end
     
+    -- Set additive blend mode for brighter effect
+    love.graphics.setBlendMode("add")
+    
     for _, flash in ipairs(bullet.muzzleFlashes) do
         local alpha = flash.life / flash.maxLife
         local size = flash.size * alpha
         
-        -- Always draw the basic flash effect
-        -- Draw bright core
-        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * 0.8)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.6)
+        -- Draw cone-shaped flash using triangular geometry
+        local coneLength = flash.coneLength * alpha
+        local coneAngle = flash.coneAngle
+        
+        -- Calculate cone vertices
+        local perpDir = vec2.new(-flash.dir.y, flash.dir.x)  -- perpendicular to direction
+        local coneEnd = flash.pos + flash.dir * coneLength
+        local leftVertex = coneEnd + perpDir * math.tan(coneAngle) * coneLength
+        local rightVertex = coneEnd - perpDir * math.tan(coneAngle) * coneLength
+        
+        -- Draw cone with gradient effect (multiple passes for smooth gradient)
+        for i = 1, 5 do
+            local gradientFactor = i / 5
+            local currentAlpha = alpha * (1 - gradientFactor * 0.7) * flash.intensity * 1.5  -- Increased intensity
+            local currentSize = coneLength * (1 - gradientFactor * 0.3)
+            
+            love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], currentAlpha)
+            
+            -- Calculate vertices for this gradient layer
+            local layerEnd = flash.pos + flash.dir * currentSize
+            local layerLeft = layerEnd + perpDir * math.tan(coneAngle) * currentSize * gradientFactor
+            local layerRight = layerEnd - perpDir * math.tan(coneAngle) * currentSize * gradientFactor
+            
+            -- Draw triangle
+            love.graphics.polygon("fill", 
+                flash.pos.x, flash.pos.y,
+                layerLeft.x, layerLeft.y,
+                layerRight.x, layerRight.y
+            )
+        end
+        
+        -- Draw bright core at muzzle
+        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * flash.intensity)
+        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.8)
         
         -- Draw outer glow
-        love.graphics.setColor(flash.color[1] * 0.8, flash.color[2] * 0.6, flash.color[3] * 0.2, alpha * 0.4)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size)
-        
-        -- Draw directional flash
-        local flashEnd = flash.pos + flash.dir * (size * 2)
-        love.graphics.setColor(flash.color[1], flash.color[2] * 0.9, flash.color[3] * 0.4, alpha * 0.7)
-        love.graphics.setLineWidth(size * 0.8)
-        love.graphics.line(flash.pos.x, flash.pos.y, flashEnd.x, flashEnd.y)
+        love.graphics.setColor(flash.color[1] * 0.6, flash.color[2] * 0.4, flash.color[3] * 0.2, alpha * 0.5)
+        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.5)
     end
     
+    -- Reset blend mode
+    love.graphics.setBlendMode("alpha")
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setLineWidth(1)
 end
 
 -- Apply muzzle flash shader as a post-processing effect
