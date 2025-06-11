@@ -169,7 +169,7 @@ function love.draw()
     shader.prepass()
     end
 
-    -- if moonshine then 
+    if moonshine.isOn then 
          
       blueNeon(function()
     love.graphics.setColor(0.17, 0.46, 1)
@@ -192,7 +192,7 @@ function love.draw()
         
     love.graphics.setColor(1,1,1,1)
     end)
-    -- end 
+    end 
     
    
     love.graphics.push() --push all camera transforms (move everything when player moves)
