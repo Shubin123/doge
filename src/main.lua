@@ -98,7 +98,10 @@ function love.load()
     multiplayer.load()
     player.load(world)
     enemy.load()
+
     gun.load(world)
+    -- bullet.load(world)
+    -- rocket.load(world)
 
         command.load()
     cmdn.load()
@@ -140,10 +143,12 @@ function love.load()
     portal.load()
     crt.load()
     blur.load()
-
+    light.load()
+    
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 
+    
 
     
 end
@@ -163,13 +168,40 @@ function love.draw()
     end
     
 
+   
     
     if var.graphics_high then
     shader.prepass()
     end
-    love.graphics.push()
+
+    -- if moonshine then 
+         
+      blueNeon(function()
+    love.graphics.setColor(0.17, 0.46, 1)
+        -- print( -camera.pos.x)
+        -- print( -player.body:getX())
+        -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
+    --   love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
+      love.graphics.circle("fill",(camera.pos.x + player.body:getX()*camera.zoom - 2), (camera.pos.y + player.body:getY()*camera.zoom  + 6), 20*camera.zoom)
+        
+    love.graphics.setColor(1,1,1,1)
+    end)
+
+    yellowNeon(function()
+    love.graphics.setColor(1, 0.46, 0.3)
+    local mx = player.body:getX() + 20*math.sin(fire.t)
+    local my = player.body:getY() + 20*math.cos(fire.t)
     
+
+      love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 10*camera.zoom)
+        
+    love.graphics.setColor(1,1,1,1)
+    end)
+    -- end 
     
+   
+    love.graphics.push() --push all camera transforms (move everything when player moves)
+   
 
     camera.apply()
 
@@ -177,6 +209,8 @@ function love.draw()
     map.map:draw(game_area_x, game_area_y, 1)
     love.graphics.setColor(1, 1, 1, 1)
 
+
+    
 
     -- Populate and sort dynamic draw list if neccessary    
     grass.public.draw()
@@ -190,21 +224,29 @@ function love.draw()
         renderer.populateDynamicDrawList()
     end
     
-    
 
+    
+    -- bullet.populate()
+    -- rocket.populate()
 
     gun.drawWorld()
+
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
     
-    -- Draw gun system (ring, barrel, projectiles)
     
 
     
 
-    love.graphics.pop()
+
+    love.graphics.pop() -- pop back into base world space
     -- order is IMPORTANT HERE shader-> smoke -> water
+
+    
+    
+  
+
     if var.graphics_high then
     shader.pass()
     smoke.pass()
@@ -212,7 +254,6 @@ function love.draw()
     crtShader.endCapture()
     blur.pass()
     end
-
 
     mydraw.mydraw() -- ui last
     command.draw() -- Draw console on top
@@ -279,6 +320,10 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     
     gun.update(dt)
+    -- bullet.update(dt)
+    -- rocket.update(dt)
+
+  
 
 
 end
@@ -307,6 +352,9 @@ function love.mousepressed(x, y, button, istouch, presses)
         return  -- Don't process game input when in menu
     end
 
+    if command.mousepressed(x, y, button) then
+        return -- command block was clicked
+    end
     -- Delegate to gun system for shooting (only when not in menu)
     gun.mousepressed(x, y, button)
     

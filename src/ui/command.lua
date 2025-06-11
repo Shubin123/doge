@@ -22,15 +22,17 @@ local textColor = { 1, 1, 1, 1 }
 local promptColor = { 0, 1, 0, 1 }
 local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
-
+local command_blocks = {}
+local next_block_id = 1
+local command_block_img = love.graphics.newImage('gfx/Color_Blocks.png')
 -- Console dimensions
 local consoleHeight = 300
 local consoleWidth = 0 -- Will be set to screen width
 
 -- Key repeat state
 local keyRepeatState = {}
-local keyRepeatDelay = 0.5  -- Initial delay before repeat starts
-local keyRepeatRate = 0.05  -- Time between repeats
+local keyRepeatDelay = 0.5 -- Initial delay before repeat starts
+local keyRepeatRate = 0.05 -- Time between repeats
 
 -- Initialize the command module
 function command.load()
@@ -50,23 +52,23 @@ end
 local function wrapText(text, maxWidth)
     local wrappedLines = {}
     local words = {}
-    
+
     -- Split text into words, preserving spaces
     for word in text:gmatch("%S+") do
         table.insert(words, word)
     end
-    
+
     if #words == 0 then
         return { text }
     end
-    
+
     local currentLine = ""
     local spaceWidth = font:getWidth(" ")
-    
+
     for i, word in ipairs(words) do
         local wordWidth = font:getWidth(word)
         local currentLineWidth = font:getWidth(currentLine)
-        
+
         -- Check if adding this word would exceed the max width
         if currentLine ~= "" and currentLineWidth + spaceWidth + wordWidth > maxWidth then
             -- Start a new line
@@ -81,17 +83,17 @@ local function wrapText(text, maxWidth)
             end
         end
     end
-    
+
     -- Add the last line if it's not empty
     if currentLine ~= "" then
         table.insert(wrappedLines, currentLine)
     end
-    
+
     -- If no lines were created, return the original text
     if #wrappedLines == 0 then
         return { text }
     end
-    
+
     return wrappedLines
 end
 
@@ -99,13 +101,13 @@ end
 function command.addOutput(text, color)
     color = color or outputColor
     local textStr = tostring(text)
-    
+
     -- Calculate available width for text (accounting for padding and scroll bar)
     local availableWidth = consoleWidth - (padding * 2) - 20 -- 20px for potential scroll bar
-    
+
     -- Wrap the text if it's too long
     local wrappedLines = wrapText(textStr, availableWidth)
-    
+
     -- Add each wrapped line as a separate output entry
     for _, line in ipairs(wrappedLines) do
         table.insert(output, { text = line, color = color })
@@ -281,7 +283,60 @@ function command.execute(cmd)
 
     if not success then
         command.addOutput("Error: " .. tostring(result), errorColor)
+    else
+        -- On success, create a command block message
+        if player.god then
+        createBlock(cmd)
+        end
     end
+end
+
+function createBlock(cmd)
+    local px, py = player.body:getPosition()
+    local block_id = "client_" ..
+    tostring(var.multiplayer or 0) .. "_" .. tostring(next_block_id) .. "_" .. tostring(love.timer.getTime())
+    next_block_id = next_block_id + 1
+
+    local new_block = {
+        id = block_id,
+        cmd = cmd,
+        x = px + math.random(-50, 50),
+        y = py + math.random(-50, 50),
+        w = command_block_img:getWidth(),
+        h = command_block_img:getHeight(),
+        active = true,
+        creator = var.multiplayer or 0     -- who created this block
+    }
+
+    -- Add to local list immediately (like sending a message)
+    createCommandBlockPhysics(new_block)
+    table.insert(command_blocks, new_block)
+
+    -- If in multiplayer, broadcast this command block to everyone
+    if var.multiplayer then
+        command.broadcastCommandBlock(new_block)
+    end
+end
+
+function createCommandBlockPhysics(block)
+    -- Only create physics bodies on server (like fire effects)
+    if var.multiplayer == 1 or not var.multiplayer then
+        if not world then
+            error("Physics world not initialized!")
+        end
+        if not block.x or not block.y then
+            error("Block position not set: x=" .. tostring(block.x) .. ", y=" .. tostring(block.y))
+        end
+        if not block.w or not block.h then
+            error("Block dimensions not set: w=" .. tostring(block.w) .. ", h=" .. tostring(block.h))
+        end
+
+        block.body = love.physics.newBody(world, block.x, block.y, "static")
+        block.shape = love.physics.newRectangleShape(block.w, block.h)
+        block.fixture = love.physics.newFixture(block.body, block.shape, 1)
+        block.fixture:setSensor(true)
+    end
+    -- Clients don't create physics bodies, just store the block data for networking
 end
 
 -- Convert table to string representation
@@ -356,9 +411,9 @@ local function handleKeyRepeat(key, dt)
     if not keyRepeatState[key] then
         return false
     end
-    
+
     keyRepeatState[key].timer = keyRepeatState[key].timer + dt
-    
+
     if not keyRepeatState[key].repeating then
         if keyRepeatState[key].timer >= keyRepeatDelay then
             keyRepeatState[key].repeating = true
@@ -371,7 +426,7 @@ local function handleKeyRepeat(key, dt)
             return true
         end
     end
-    
+
     return false
 end
 
@@ -410,7 +465,7 @@ function command.update(dt)
     if handleKeyRepeat("delete", dt) then
         performDelete()
     end
-    
+
     if handleKeyRepeat("backspace", dt) then
         performBackspace()
     end
@@ -439,16 +494,16 @@ function command.keypressed(key)
     end
 
     if not isActive then return end
-    
+
     -- Handle modifier key combinations first
     if isModifierPressed() then
         if key == "c" then
             -- Copy last line output to clipboard
             if #output > 0 then
                 local lastOutput = output[#output].text
-                
-                love.system.setClipboardText(string.sub(lastOutput,2,#lastOutput))
-                command.addOutput("Copied to clipboard: " .. string.sub(lastOutput,1,10), outputColor)
+
+                love.system.setClipboardText(string.sub(lastOutput, 2, #lastOutput))
+                command.addOutput("Copied to clipboard: " .. string.sub(lastOutput, 1, 10), outputColor)
             else
                 command.addOutput("No output to copy", errorColor)
             end
@@ -516,7 +571,7 @@ end
 -- Handle mouse wheel scrolling
 function command.wheelmoved(x, y)
     if not isActive then return end
-    
+
     -- Scroll up/down with mouse wheel
     local scrollAmount = 3
     if y > 0 then
@@ -527,9 +582,10 @@ function command.wheelmoved(x, y)
         scrollOffset = math.min(math.max(0, #output - maxOutputLines + 3), scrollOffset + scrollAmount)
     end
 end
+
 function command.keyreleased(key)
     if not isActive then return end
-    
+
     -- Stop key repeat when key is released
     if keyRepeatState[key] then
         keyRepeatState[key] = nil
@@ -542,7 +598,7 @@ function command.draw()
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
-    local consoleHeight = 200  -- Height of the bottom console
+    -- local consoleHeight = 200  -- Height of the bottom console
     local consoleY = screenHeight - consoleHeight
 
     -- Save current graphics state
@@ -553,7 +609,7 @@ function command.draw()
     love.graphics.setFont(font)
 
     -- Background
-    love.graphics.setColor(backgroundColor or {0.1, 0.1, 0.1, 0.95}) -- Slightly transparent dark gray
+    love.graphics.setColor(backgroundColor or { 0.1, 0.1, 0.1, 0.95 }) -- Slightly transparent dark gray
     love.graphics.rectangle("fill", 0, consoleY, screenWidth, consoleHeight, 8, 8)
 
     -- Border (subtle)
@@ -634,4 +690,188 @@ function command.setGameReferences(refs)
     end
 end
 
+function command.getCommandBlocks()
+    local serializable_blocks = {}
+    for _, block in ipairs(command_blocks) do
+        table.insert(serializable_blocks, {
+            id = block.id,
+            cmd = block.cmd,
+            x = block.x,
+            y = block.y,
+            w = block.w,
+            h = block.h,
+            active = block.active
+        })
+    end
+    return serializable_blocks
+end
+
+function command.setCommandBlocks(blocks)
+    -- Clear existing blocks first
+    for _, block in ipairs(command_blocks) do
+        if block.body and not block.body:isDestroyed() then
+            block.body:destroy()
+        end
+    end
+    command_blocks = {}
+
+    for _, block_data in ipairs(blocks or {}) do
+        command.addBlock(block_data)
+    end
+end
+
+function command.addBlock(block_data)
+    if not block_data.id then return end -- Can't add block without ID
+
+    -- Check for duplicates
+    for _, existing_block in ipairs(command_blocks) do
+        if existing_block.id == block_data.id then
+            return -- Block already exists
+        end
+    end
+
+    -- Create physics only on server/single player
+    createCommandBlockPhysics(block_data)
+    table.insert(command_blocks, block_data)
+end
+
+function command.populate()
+    local player_x, player_y = player.body:getPosition()
+    for i, block in ipairs(command_blocks) do
+        -- Only create physics bodies on server/single player
+        if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
+            createCommandBlockPhysics(block)
+        end
+
+        table.insert(dynamic_draw_list, {
+            sort_y = block.y + block.h + 100,
+            image_or_particles = command_block_img,
+            x = block.x,
+            y = block.y,
+            rotation = 0,
+            scale_x = 1,
+            scale_y = 1,
+            offset_x = block.w / 2,
+            offset_y = block.h / 2,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "command_block",
+            command = block.cmd
+        })
+
+        local dist = math.sqrt((player_x - block.x) ^ 2 + (player_y - block.y) ^ 2)
+        if dist < 100 then
+            table.insert(dynamic_draw_list, {
+                sort_y = block.y + block.h + 101, -- a bit higher than the block
+                draw_type = "text",
+                text = block.cmd,
+                x = block.x - block.w / 2,
+                y = block.y - 20,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" }
+            })
+        end
+    end
+end
+
+function command.mousepressed(x, y, button)
+    if button == 1 then -- Left-click
+        local world_x, world_y = camera.screenToWorld(x, y)
+        local clicked_block = nil
+
+        -- Check local command blocks first (for server and single player)
+        if var.multiplayer == 1 or not var.multiplayer then
+            world:queryBoundingBox(world_x, world_y, world_x, world_y, function(fixture)
+                for i, block in ipairs(command_blocks) do
+                    if block.fixture == fixture then
+                        clicked_block = block
+                        return false -- stop querying
+                    end
+                end
+            end)
+        end
+
+        -- If no local block found, check networked command blocks (for clients)
+        if not clicked_block and renderer and renderer.networked_state then
+            for _, block in pairs(renderer.networked_state.command_blocks) do
+                if block.active then
+                    local dx = world_x - block.x
+                    local dy = world_y - block.y
+                    local half_w = block.w / 2
+                    local half_h = block.h / 2
+
+                    if dx >= -half_w and dx <= half_w and dy >= -half_h and dy <= half_h then
+                        clicked_block = block
+                        break
+                    end
+                end
+            end
+        end
+
+        if clicked_block then
+            command.execute(clicked_block.cmd)
+            return true
+        end
+    end
+    return false
+end
+
+-- Broadcast a command block to all players (like sending a message)
+function command.broadcastCommandBlock(block)
+    if not var.multiplayer then return end
+
+    -- Create serializable version (no physics bodies)
+    local serializable_block = {
+        id = block.id,
+        cmd = block.cmd,
+        x = block.x,
+        y = block.y,
+        w = block.w,
+        h = block.h,
+        active = block.active,
+        creator = block.creator
+    }
+
+    local message = {
+        type = "command_block",
+        block = serializable_block
+    }
+
+    if var.multiplayer == 1 then
+        -- Server: broadcast to all clients
+        if mp then
+            local json_string = json.encode(message)
+            local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+            mp:broadcast(compressed_data)
+        end
+    else
+        -- Client: send to server
+        if mp then
+            local json_string = json.encode(message)
+            local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+            mp:sendToServer(compressed_data)
+        end
+    end
+end
+
+-- Receive a command block from network (like receiving a message)
+function command.receiveCommandBlock(block)
+    -- Check if we already have this block
+    for _, existing_block in ipairs(command_blocks) do
+        if existing_block.id == block.id then
+            return -- Already have this block
+        end
+    end
+
+    -- Add the received block
+    createCommandBlockPhysics(block)
+    table.insert(command_blocks, block)
+
+    -- If we're the server, relay to all other clients
+    if var.multiplayer == 1 and block.creator ~= 1 then
+        command.broadcastCommandBlock(block)
+    end
+end
+
 return command
+

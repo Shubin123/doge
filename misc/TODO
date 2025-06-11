@@ -1,5 +1,5 @@
-change draw size dynamically with love.resize()
+on this branch
 
-skew ui
+serialize and snapshot commands and make them more visible by command.lua
 
-ios shader support
+also make a visual indicator with command blocks and editor being able to place said blocks

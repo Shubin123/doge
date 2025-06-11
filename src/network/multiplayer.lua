@@ -198,7 +198,16 @@ end
 function multiplayer:_handleMessage(data, peer, role)
     -- Decompress the data, then decode JSON
     local decompressed_data = love.data.decompress("string", "zlib", data)
-    local game_state = json.decode(decompressed_data)
+    local message = json.decode(decompressed_data)
+    
+    -- Check if this is a command block message
+    if message.type == "command_block" then
+        command.receiveCommandBlock(message.block)
+        return
+    end
+    
+    -- Otherwise treat as game state (legacy handling)
+    local game_state = message
     
     if role == "client" then
         -- print("")
@@ -208,11 +217,11 @@ function multiplayer:_handleMessage(data, peer, role)
         snapshot.apply(game_state)
     end
     
-    if role == "host" then                      
+    if role == "host" then
         -- print(game_state.client_id)
         
         local player_id =  tonumber(string.sub(game_state.client_id,#game_state.client_id))
-        if  not player.online.bodies[player_id] then 
+        if  not player.online.bodies[player_id] then
             
             player.online.bodies[player_id] = love.physics.newBody(world, game_state.player_data.x, game_state.player_data.y)
             player.online.fixture = love.physics.newFixture(player.online.bodies[player_id], player.shape)
