@@ -32,6 +32,32 @@ function Gun.new(params)
     gun.shellType = params.shellType or nil  -- "pistol", "shotgun", "rifle", "smg", or nil for no shells
     gun.isFullAuto = params.isFullAuto or false  -- full auto firing mode
     
+    -- Muzzle flash parameters
+    gun.muzzleFlash = {
+        duration = params.muzzleFlash and params.muzzleFlash.duration or 0.08,
+        coneAngle = params.muzzleFlash and params.muzzleFlash.coneAngle or math.rad(35),
+        coneLength = params.muzzleFlash and params.muzzleFlash.coneLength or 150,
+        brightness = params.muzzleFlash and params.muzzleFlash.brightness or 1.0,
+        color = params.muzzleFlash and params.muzzleFlash.color or {1, 0.9, 0.7}
+    }
+    
+    -- Particle effect parameters (gunpowder confetti)
+    gun.particles = {
+        count = params.particles and params.particles.count or 8,
+        colors = params.particles and params.particles.colors or {{1, 0.8, 0.3}, {1, 0.5, 0.2}, {0.8, 0.3, 0.1}},
+        lifespan = params.particles and params.particles.lifespan or 0.3,
+        speed = params.particles and params.particles.speed or {min = 120, max = 250},
+        size = params.particles and params.particles.size or {min = 1, max = 3},
+        spreadAngle = params.particles and params.particles.spreadAngle or math.rad(25)
+    }
+    
+    -- Knockback parameters
+    gun.knockback = {
+        force = params.knockback and params.knockback.force or 50,
+        shakeIntensity = params.knockback and params.knockback.shakeIntensity or 2,
+        shakeDuration = params.knockback and params.knockback.shakeDuration or 0.1
+    }
+    
     return gun
 end
 
@@ -92,8 +118,25 @@ function Gun:shoot(mouseX, mouseY)
     local playerX, playerY = player.getPosition()
     local spawnPos = vec2.new(playerX, playerY) + dir * self.ringRadius
     
-    -- Create muzzle flash effect
-    bullet.createMuzzleFlash(spawnPos, dir)
+    -- Create muzzle flash effect with gun-specific parameters
+    bullet.createMuzzleFlash(spawnPos, dir, {
+        duration = self.muzzleFlash.duration,
+        coneAngle = self.muzzleFlash.coneAngle,
+        coneLength = self.muzzleFlash.coneLength,
+        intensity = self.muzzleFlash.brightness,
+        color = self.muzzleFlash.color
+    })
+    
+    -- Create particle effects (gunpowder confetti)
+    bullet.createParticleEffect(spawnPos, dir, self.particles)
+    
+    -- Apply knockback to player
+    player.applyKnockback(-dir, self.knockback.force)
+    
+    -- Apply screen shake if camera module supports it
+    if camera.shake then
+        camera.shake(self.knockback.shakeIntensity, self.knockback.shakeDuration)
+    end
     
     -- Create shell ejection for appropriate weapons
     if self.shellType then
@@ -196,7 +239,27 @@ function GunTool.load(world)
         projectileRadius = 3,
         projectileLifetime = 4,
         bulletsPerShot = 1,
-        shellType = "pistol"
+        shellType = "pistol",
+        muzzleFlash = {
+            duration = 0.06,
+            coneAngle = math.rad(20),
+            coneLength = 120,
+            brightness = 0.8,
+            color = {1, 0.9, 0.7}
+        },
+        particles = {
+            count = 5,
+            colors = {{1, 0.8, 0.3}, {1, 0.6, 0.2}},
+            lifespan = 0.25,
+            speed = {min = 100, max = 180},
+            size = {min = 1, max = 2},
+            spreadAngle = math.rad(15)
+        },
+        knockback = {
+            force = 40,
+            shakeIntensity = 1.5,
+            shakeDuration = 0.08
+        }
     })
     
     GunTool.guns[2] = Gun.new({  -- SMG (2)
@@ -211,7 +274,27 @@ function GunTool.load(world)
         projectileRadius = 2,
         projectileLifetime = 3,
         bulletsPerShot = 1,
-        shellType = "smg"
+        shellType = "smg",
+        muzzleFlash = {
+            duration = 0.05,
+            coneAngle = math.rad(18),
+            coneLength = 100,
+            brightness = 0.7,
+            color = {1, 0.85, 0.6}
+        },
+        particles = {
+            count = 4,
+            colors = {{1, 0.7, 0.3}, {0.9, 0.5, 0.2}},
+            lifespan = 0.2,
+            speed = {min = 80, max = 150},
+            size = {min = 0.8, max = 1.5},
+            spreadAngle = math.rad(12)
+        },
+        knockback = {
+            force = 25,
+            shakeIntensity = 1.0,
+            shakeDuration = 0.06
+        }
     })
     
     GunTool.guns[3] = Gun.new({  -- Shotgun (3)
@@ -226,7 +309,27 @@ function GunTool.load(world)
         projectileRadius = 2,
         projectileLifetime = 2.5,
         bulletsPerShot = 6,
-        shellType = "shotgun"
+        shellType = "shotgun",
+        muzzleFlash = {
+            duration = 0.12,
+            coneAngle = math.rad(45), -- Wide cone for shotgun
+            coneLength = 180,
+            brightness = 1.2,
+            color = {1, 0.9, 0.5}
+        },
+        particles = {
+            count = 15, -- More particles for shotgun
+            colors = {{1, 0.8, 0.2}, {1, 0.6, 0.1}, {0.9, 0.4, 0.1}},
+            lifespan = 0.4,
+            speed = {min = 150, max = 300},
+            size = {min = 1.5, max = 4},
+            spreadAngle = math.rad(40)
+        },
+        knockback = {
+            force = 120, -- Strong knockback
+            shakeIntensity = 4.0,
+            shakeDuration = 0.15
+        }
     })
     
     GunTool.guns[4] = Gun.new({  -- Assault Rifle (4) - FULL AUTO
@@ -242,7 +345,27 @@ function GunTool.load(world)
         projectileLifetime = 5,
         bulletsPerShot = 1,
         shellType = "rifle",
-        isFullAuto = true  -- FULL AUTO MODE!
+        isFullAuto = true,  -- FULL AUTO MODE!
+        muzzleFlash = {
+            duration = 0.04,
+            coneAngle = math.rad(15), -- Narrow cone for rifle
+            coneLength = 160,
+            brightness = 0.9,
+            color = {1, 0.95, 0.8}
+        },
+        particles = {
+            count = 6,
+            colors = {{1, 0.9, 0.4}, {1, 0.7, 0.3}, {0.9, 0.5, 0.2}},
+            lifespan = 0.3,
+            speed = {min = 120, max = 220},
+            size = {min = 1, max = 2.5},
+            spreadAngle = math.rad(10)
+        },
+        knockback = {
+            force = 60,
+            shakeIntensity = 2.0,
+            shakeDuration = 0.08
+        }
     })
     
     GunTool.guns[5] = Gun.new({  -- Rocket Launcher (5)
@@ -257,8 +380,28 @@ function GunTool.load(world)
         topSpeed = 500,
         accelTime = 1.2,
         projectileRadius = 10,
-        bulletsPerShot = 1
+        bulletsPerShot = 1,
         -- No shellType - rockets don't eject shells
+        muzzleFlash = {
+            duration = 0.15,
+            coneAngle = math.rad(25),
+            coneLength = 220,
+            brightness = 1.5, -- Very bright
+            color = {1, 0.8, 0.3}
+        },
+        particles = {
+            count = 20, -- Lots of particles for rocket
+            colors = {{1, 0.9, 0.2}, {1, 0.6, 0.1}, {0.8, 0.3, 0.1}, {1, 0.4, 0.0}},
+            lifespan = 0.6,
+            speed = {min = 200, max = 400},
+            size = {min = 2, max = 6},
+            spreadAngle = math.rad(30)
+        },
+        knockback = {
+            force = 150, -- Strongest knockback
+            shakeIntensity = 5.0,
+            shakeDuration = 0.2
+        }
     })
     
     -- Set default gun (pistol)

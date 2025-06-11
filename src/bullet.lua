@@ -8,8 +8,11 @@ bullet.pool = {}  -- object pool for reuse
 bullet.groupIndex = -2  -- collision group for bullets
 bullet.toReturn = {}  -- deferred list for returning to pool
 bullet.tracerShader = nil
+bullet.muzzleFlashShader = nil
 bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
+bullet.particles = {}  -- gunpowder confetti particles
+bullet.muzzleFlashCanvas = nil  -- canvas for rendering muzzle flashes
 
 -- Initialize the bullet module with the physics world
 function bullet.load(world)
@@ -20,12 +23,23 @@ function bullet.load(world)
     bullet.toReturn = {}
     bullet.muzzleFlashes = {}
     bullet.shells = {}
+    bullet.particles = {}
     
     -- Load tracer shader
     local shader_code = love.filesystem.read("shaders_/bullet_tracer.frag")
     if shader_code then
         bullet.tracerShader = love.graphics.newShader(shader_code)
     end
+    
+    -- Load muzzle flash shader
+    local muzzle_shader_code = love.filesystem.read("shaders_/muzzle_flash.frag")
+    if muzzle_shader_code then
+        bullet.muzzleFlashShader = love.graphics.newShader(muzzle_shader_code)
+    end
+    
+    -- Create canvas for muzzle flash rendering
+    local width, height = love.graphics.getDimensions()
+    bullet.muzzleFlashCanvas = love.graphics.newCanvas(width, height)
 end
 
 -- Factory: create a new bullet (with pooling)
@@ -125,6 +139,28 @@ function bullet.update(dt)
         end
     end
     
+    -- Update gunpowder particles
+    for i = #bullet.particles, 1, -1 do
+        local particle = bullet.particles[i]
+        particle.life = particle.life - dt
+        
+        -- Update position
+        particle.pos.x = particle.pos.x + particle.vel.x * dt
+        particle.pos.y = particle.pos.y + particle.vel.y * dt
+        
+        -- Apply drag/friction
+        particle.vel.x = particle.vel.x * 0.98
+        particle.vel.y = particle.vel.y * 0.98
+        
+        -- Slight gravity for realism
+        particle.vel.y = particle.vel.y + 50 * dt
+        
+        -- Remove when life expires
+        if particle.life <= 0 then
+            table.remove(bullet.particles, i)
+        end
+    end
+    
     for i = #bullet.instances, 1, -1 do
         local inst = bullet.instances[i]
 
@@ -156,6 +192,9 @@ function bullet.draw()
     
     -- Draw shell casings
     bullet.drawShells()
+    
+    -- Draw gunpowder particles
+    bullet.drawParticles()
     
     -- Draw bullet tracers
     for _, inst in ipairs(bullet.instances) do
@@ -254,37 +293,137 @@ function bullet.processDeferredReturns()
     bullet.toReturn = {}  -- clear the list
 end
 
+-- Create particle effect (gunpowder confetti)
+function bullet.createParticleEffect(pos, dir, params)
+    params = params or {}
+    local count = params.count or 8
+    local colors = params.colors or {{1, 0.8, 0.3}, {1, 0.5, 0.2}}
+    local lifespan = params.lifespan or 0.3
+    local speed = params.speed or {min = 120, max = 250}
+    local size = params.size or {min = 1, max = 3}
+    local spreadAngle = params.spreadAngle or math.rad(25)
+    
+    for i = 1, count do
+        -- Calculate random direction within the spread cone
+        local baseAngle = math.atan2(dir.y, dir.x)
+        local randomSpread = (math.random() - 0.5) * spreadAngle * 2
+        local particleAngle = baseAngle + randomSpread
+        
+        -- Calculate velocity
+        local particleSpeed = speed.min + math.random() * (speed.max - speed.min)
+        local vel = vec2.new(
+            math.cos(particleAngle) * particleSpeed,
+            math.sin(particleAngle) * particleSpeed
+        )
+        
+        -- Random color from the provided palette
+        local color = colors[math.random(#colors)]
+        
+        -- Random size
+        local particleSize = size.min + math.random() * (size.max - size.min)
+        
+        table.insert(bullet.particles, {
+            pos = vec2.new(pos.x, pos.y),
+            vel = vel,
+            life = lifespan + math.random() * lifespan * 0.3, -- slight variation
+            maxLife = lifespan,
+            color = {color[1], color[2], color[3]},
+            size = particleSize,
+            rotation = math.random() * math.pi * 2,
+            rotSpeed = (math.random() - 0.5) * 10
+        })
+    end
+end
+
 -- Create muzzle flash effect
-function bullet.createMuzzleFlash(pos, dir)
+function bullet.createMuzzleFlash(pos, dir, params)
+    params = params or {}
     table.insert(bullet.muzzleFlashes, {
         pos = vec2.new(pos.x, pos.y),
-        dir = vec2.new(dir.x, dir.y),
-        life = 0.1,  -- flash duration
-        maxLife = 0.1,
-        size = math.random(8, 15)
+        dir = vec2.norm(vec2.new(dir.x, dir.y)),
+        life = params.duration or 0.08,  -- flash duration
+        maxLife = params.duration or 0.08,
+        size = params.size or math.random(12, 20),
+        coneAngle = params.coneAngle or math.rad(35),  -- 35 degree half-angle
+        coneLength = params.coneLength or 150,  -- cone extends 150 pixels
+        color = params.color or {1, 0.9, 0.7},  -- warm white/yellow
+        intensity = params.intensity or 1.0,
+        useShader = params.useShader ~= false  -- default to true
     })
 end
 
 -- Draw muzzle flash effects
 function bullet.drawMuzzleFlashes()
+    if #bullet.muzzleFlashes == 0 then return end
+    
     for _, flash in ipairs(bullet.muzzleFlashes) do
         local alpha = flash.life / flash.maxLife
         local size = flash.size * alpha
         
-        -- Draw bright core (reduced brightness to prevent shader spazzing)
-        love.graphics.setColor(0.8, 0.8, 0.7, alpha * 0.8)
+        -- Always draw the basic flash effect
+        -- Draw bright core
+        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * 0.8)
         love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.6)
         
-        -- Draw outer glow (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.2, alpha * 0.4)
+        -- Draw outer glow
+        love.graphics.setColor(flash.color[1] * 0.8, flash.color[2] * 0.6, flash.color[3] * 0.2, alpha * 0.4)
         love.graphics.circle("fill", flash.pos.x, flash.pos.y, size)
         
         -- Draw directional flash
         local flashEnd = flash.pos + flash.dir * (size * 2)
-        love.graphics.setColor(1, 0.9, 0.4, alpha * 0.7)
+        love.graphics.setColor(flash.color[1], flash.color[2] * 0.9, flash.color[3] * 0.4, alpha * 0.7)
         love.graphics.setLineWidth(size * 0.8)
         love.graphics.line(flash.pos.x, flash.pos.y, flashEnd.x, flashEnd.y)
     end
+    
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setLineWidth(1)
+end
+
+-- Apply muzzle flash shader as a post-processing effect
+function bullet.applyMuzzleFlashShader(canvas)
+    if #bullet.muzzleFlashes == 0 or not bullet.muzzleFlashShader then
+        return canvas
+    end
+    
+    -- Create a temporary canvas for the effect
+    love.graphics.push()
+    love.graphics.origin()
+    
+    local width, height = canvas:getDimensions()
+    love.graphics.setCanvas(bullet.muzzleFlashCanvas)
+    love.graphics.clear()
+    
+    -- Apply shader for each flash
+    for _, flash in ipairs(bullet.muzzleFlashes) do
+        if flash.useShader then
+            local alpha = flash.life / flash.maxLife
+            
+            love.graphics.setShader(bullet.muzzleFlashShader)
+            
+            -- Send uniforms to shader
+            bullet.muzzleFlashShader:send("flash_pos", {flash.pos.x, flash.pos.y})
+            bullet.muzzleFlashShader:send("flash_dir", {flash.dir.x, flash.dir.y})
+            bullet.muzzleFlashShader:send("flash_intensity", flash.intensity * alpha)
+            bullet.muzzleFlashShader:send("cone_angle", flash.coneAngle)
+            bullet.muzzleFlashShader:send("cone_length", flash.coneLength)
+            bullet.muzzleFlashShader:send("flash_color", flash.color)
+            bullet.muzzleFlashShader:send("time", bullet.t)
+            
+            -- Draw the canvas with shader applied
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(canvas, 0, 0)
+            
+            -- Update canvas for next flash
+            canvas = bullet.muzzleFlashCanvas
+        end
+    end
+    
+    love.graphics.setShader()
+    love.graphics.setCanvas()
+    love.graphics.pop()
+    
+    return canvas
 end
 
 -- Create shell ejection effect
@@ -347,6 +486,30 @@ function bullet.drawShells()
         love.graphics.setColor(1, 1, 1, alpha * 0.5)
         love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
                               shell.size.width, shell.size.height)
+        
+        love.graphics.pop()
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Draw gunpowder particles
+function bullet.drawParticles()
+    for _, particle in ipairs(bullet.particles) do
+        local alpha = particle.life / particle.maxLife
+        
+        love.graphics.push()
+        love.graphics.translate(particle.pos.x, particle.pos.y)
+        love.graphics.rotate(particle.rotation)
+        
+        -- Draw particle as a small glowing rectangle/string
+        love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.9)
+        
+        -- Draw core particle
+        love.graphics.rectangle("fill", -particle.size/2, -particle.size/4, particle.size, particle.size/2)
+        
+        -- Draw glow effect
+        love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha * 0.4)
+        love.graphics.rectangle("fill", -particle.size, -particle.size/2, particle.size * 2, particle.size)
         
         love.graphics.pop()
     end

@@ -13,11 +13,21 @@ camera.target_zoom = 1.0
 camera.lerp_speed = 2 -- Adjust this value (1 = slow, 10 = fast)
 camera.zoom_lerp_speed = 10 -- Separate speed for zoom
 
+-- Screen shake variables
+camera.shake_intensity = 0
+camera.shake_duration = 0
+camera.shake_timer = 0
+camera.shake_offset_x = 0
+camera.shake_offset_y = 0
+
 function camera.apply()
     -- Apply zoom and translation together
     love.graphics.scale(camera.zoom,camera.zoom)
-    -- Floor the camera position to prevent jitter
-    love.graphics.translate(math.floor(camera.x / camera.zoom), math.floor(camera.y / camera.zoom))
+    -- Floor the camera position to prevent jitter and add shake offset
+    love.graphics.translate(
+        math.floor((camera.x + camera.shake_offset_x) / camera.zoom), 
+        math.floor((camera.y + camera.shake_offset_y) / camera.zoom)
+    )
 end
 
 function camera.setSpeed(speed)
@@ -36,8 +46,32 @@ function camera.getZoom()
     return camera.zoom
 end
 
+-- Trigger screen shake effect
+function camera.shake(intensity, duration)
+    camera.shake_intensity = intensity or 2
+    camera.shake_duration = duration or 0.1
+    camera.shake_timer = camera.shake_duration
+end
+
 -- Fixed implementation with aggressive zoom compensation
 function camera.update(dt, player)
+    
+    -- Update screen shake
+    if camera.shake_timer > 0 then
+        camera.shake_timer = camera.shake_timer - dt
+        
+        -- Calculate shake intensity based on remaining time
+        local shake_factor = camera.shake_timer / camera.shake_duration
+        local current_intensity = camera.shake_intensity * shake_factor
+        
+        -- Generate random shake offset
+        camera.shake_offset_x = (math.random() - 0.5) * 2 * current_intensity
+        camera.shake_offset_y = (math.random() - 0.5) * 2 * current_intensity
+    else
+        -- No shake, reset offsets
+        camera.shake_offset_x = 0
+        camera.shake_offset_y = 0
+    end
     
     -- Store previous zoom for compensation
     local prev_zoom = camera.zoom

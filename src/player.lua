@@ -225,9 +225,21 @@ function player.update(dt)
         -- Set idle animation when not moving
         player.currentAnimation = "idle"
     end
+end
 
-
+-- Apply knockback force to the player
+function player.applyKnockback(direction, force)
+    if not player.body then return end
     
+    -- Get current velocity
+    local vx, vy = player.body:getLinearVelocity()
+    
+    -- Calculate knockback velocity
+    local knockbackVx = direction.x * force
+    local knockbackVy = direction.y * force
+    
+    -- Add knockback to current velocity
+    player.body:setLinearVelocity(vx + knockbackVx, vy + knockbackVy)
 end
 
 function player.draw()
