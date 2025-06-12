@@ -1,5 +1,8 @@
-on this branch
+rotate camera transforms applied on it should effect everything that moves 
 
-serialize and snapshot commands and make them more visible by command.lua
 
-also make a visual indicator with command blocks and editor being able to place said blocks
+add lightning effect that spreads from player and other collidables
+
+
+add liquid physics engine - perframe viscosity and density assume navierstokes non-compressive and homogenous (start with invis colliders use shaders to render distortion around the objects and they need to connect.)
+the middle of the pool of water should not need to collide to be more efficient
