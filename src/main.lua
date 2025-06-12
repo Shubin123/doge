@@ -261,7 +261,7 @@ function love.draw()
     mydraw.mydraw() -- ui last
     command.draw() -- Draw console on top
     cmdn.draw() -- Draw improved console on top
-    -- editor.debugDraw()
+    editor.debugDraw()
 end
 
 local t = 0
@@ -340,6 +340,13 @@ function love.mousepressed(x, y, button, istouch, presses)
     if command.mousepressed(x, y, button) then
         return -- command block was clicked
     end
+    
+    -- Don't process shooting when editor is active
+    if editor and editor.isEnabled() then
+        editor.mousepressed(x, y, button)
+        return
+    end
+    
     -- Delegate to gun system for shooting (only when not in menu)
     gun.mousepressed(x, y, button)
     
@@ -364,8 +371,6 @@ function love.mousepressed(x, y, button, istouch, presses)
         -- Remove the fireball from the ring
         fire.removeFireball()
     end
-
-    editor.mousepressed(x, y, button)
 
     lurker.scan()
 end
@@ -415,14 +420,19 @@ function love.keypressed(key)
     editor.keypressed(key)
     command.keypressed(key)
     cmdn.keypressed(key)
-    gun.keypressed(key)
+    if not (editor and editor.isEnabled()) then
+        gun.keypressed(key)
+    end
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
     -- Handle console mouse events first
     cmdn.mousereleased(x, y, button)
     
-    if var.State ~= "menu" then
+    -- Handle editor mouse release
+    if editor and editor.isEnabled() then
+        editor.mousereleased(x, y, button)
+    elseif var.State ~= "menu" then
         gun.mousereleased(x, y, button)
     end
 end
@@ -430,6 +440,11 @@ end
 function love.mousemoved(x, y, dx, dy, istouch)
     -- Handle console dragging
     cmdn.mousemoved(x, y, dx, dy)
+    
+    -- Handle editor mouse movement
+    if editor and editor.isEnabled() then
+        editor.mousemoved(x, y, dx, dy)
+    end
 end
 
 function love.keyreleased(key)

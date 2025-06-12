@@ -424,8 +424,8 @@ function GunTool.update(dt)
     if GunTool.currentGun then
         GunTool.currentGun:update(dt)
         
-        -- Handle full auto firing
-        if GunTool.mousePressed and GunTool.currentGun.isFullAuto then
+        -- Handle full auto firing (but not when editor is active)
+        if GunTool.mousePressed and GunTool.currentGun.isFullAuto and not (editor and editor.isEnabled()) then
             local mouseX, mouseY = love.mouse.getPosition()
             GunTool.currentGun:shoot(mouseX, mouseY)
         end
@@ -437,6 +437,11 @@ function GunTool.update(dt)
 end
 
 function GunTool.mousepressed(x, y, button)
+    -- Don't shoot when editor is active
+    if editor and editor.isEnabled() then
+        return
+    end
+    
     if button == 1 and GunTool.currentGun then -- left mouse button
         GunTool.mousePressed = true
         GunTool.currentGun:shoot(x, y)
@@ -465,11 +470,15 @@ function GunTool.switchGun(weaponIndex)
     if GunTool.guns[weaponIndex] then
         GunTool.currentGun = GunTool.guns[weaponIndex]
         GunTool.currentWeaponIndex = weaponIndex
-        print("Switched to weapon " .. weaponIndex)
     end
 end
 
 function GunTool.keypressed(key)
+    -- Don't switch weapons when editor is active
+    if editor and editor.isEnabled() then
+        return
+    end
+    
     -- Handle weapon switching with number keys 1-5
     local weaponNum = tonumber(key)
     if weaponNum and weaponNum >= 1 and weaponNum <= 5 then

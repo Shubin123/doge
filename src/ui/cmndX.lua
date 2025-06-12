@@ -35,7 +35,7 @@ local showingAutocomplete = false
 -- Command index for autocomplete (all available commands)
 local commandIndex = {
     -- Console commands
-    "help", "clear", "exit", "reload", "tp", "save", "load",
+    "help", "clear", "exit", "reload", "tp", "save", "load", "editor",
     
     -- Lua built-ins
     "print", "type", "pairs", "ipairs", "math", "string", "table", "io", "os", "debug",
@@ -48,6 +48,9 @@ local commandIndex = {
     "menu", "mymath", "effects", "mydraw", "shader", "water", "grass", "smoke", "sprite",
     "portal", "crt", "renderer", "snapshot", "blur", "serial", "editor", "multiplayer",
     "vec2", "vec4", "json",
+    
+    -- Editor commands  
+    "editor.enable", "editor.disable", "editor.status",
     
     -- Game objects
     "coin_bods", "enemies_bods", "enemy_projectile_bodies", "fire_bodies", "fire_instances",
@@ -159,6 +162,9 @@ end
 -- Find autocomplete options using simple search
 local function findAutocompleteOptions(input)
     local options = {}
+    local exactMatches = {}
+    local partialMatches = {}
+    
     if not input or input == "" then 
         return options 
     end
@@ -168,13 +174,39 @@ local function findAutocompleteOptions(input)
     if dotPos then
         local objName = input:sub(1, dotPos - 1)
         local propPrefix = input:sub(dotPos + 1)
-        local properties = getObjectProperties(objName)
         
-        for _, prop in ipairs(properties) do
-            if prop:sub(1, #propPrefix):lower() == propPrefix:lower() then
-                table.insert(options, objName .. "." .. prop)
+        -- First, check predefined commands for exact matches
+        local inputLower = input:lower()
+        for i = 1, #commandIndex do
+            local cmd = commandIndex[i]
+            if cmd and type(cmd) == "string" then
+                if cmd:lower() == inputLower then
+                    table.insert(exactMatches, cmd)
+                elseif cmd:sub(1, #inputLower):lower() == inputLower then
+                    table.insert(partialMatches, cmd)
+                end
             end
         end
+        
+        -- Then add properties from the object
+        local properties = getObjectProperties(objName)
+        for _, prop in ipairs(properties) do
+            local fullCommand = objName .. "." .. prop
+            if fullCommand:lower() == inputLower then
+                table.insert(exactMatches, fullCommand)
+            elseif prop:sub(1, #propPrefix):lower() == propPrefix:lower() then
+                table.insert(partialMatches, fullCommand)
+            end
+        end
+        
+        -- Combine results: exact matches first, then partial matches
+        for _, match in ipairs(exactMatches) do
+            table.insert(options, match)
+        end
+        for _, match in ipairs(partialMatches) do
+            table.insert(options, match)
+        end
+        
         return options
     end
     
@@ -184,22 +216,42 @@ local function findAutocompleteOptions(input)
     end
     
     local inputLower = input:lower()
+    
+    -- First pass: exact matches from commandIndex
     for i = 1, #commandIndex do
         local cmd = commandIndex[i]
         if cmd and type(cmd) == "string" then
-            if cmd:sub(1, #inputLower):lower() == inputLower then
-                table.insert(options, cmd)
+            if cmd:lower() == inputLower then
+                table.insert(exactMatches, cmd)
             end
         end
     end
     
-    -- Add global variables that match
+    -- Second pass: partial matches from commandIndex
+    for i = 1, #commandIndex do
+        local cmd = commandIndex[i]
+        if cmd and type(cmd) == "string" then
+            if cmd:sub(1, #inputLower):lower() == inputLower and cmd:lower() ~= inputLower then
+                table.insert(partialMatches, cmd)
+            end
+        end
+    end
+    
+    -- Third pass: global variables (always partial since they're dynamic)
     for name, value in pairs(_G) do
         if type(name) == "string" and name:sub(1, #inputLower):lower() == inputLower then
             if type(value) == "table" or type(value) == "function" or type(value) == "userdata" then
-                table.insert(options, name)
+                table.insert(partialMatches, name)
             end
         end
+    end
+    
+    -- Combine results: exact matches first, then partial matches
+    for _, match in ipairs(exactMatches) do
+        table.insert(options, match)
+    end
+    for _, match in ipairs(partialMatches) do
+        table.insert(options, match)
     end
     
     return options
@@ -413,6 +465,32 @@ function cmdn.execute(cmd)
         if serial and serial.quickLoad then
             serial.quickLoad()
         end
+    elseif cmd == "editor" then
+        cmdn.showEditorPrompt()
+    elseif cmd == "editor.enable" then
+        if editor then
+            editor.setEnabled(true)
+            cmdn.addOutput("{green}✓ Map editor {yellow}ENABLED{/yellow}. Click objects to select and move them.{/green}", outputColor)
+            cmdn.addOutput("Use {cyan}1{/cyan}, {cyan}2{/cyan}, {cyan}3{/cyan} to switch modes. {cyan}RMB{/cyan} to delete objects.", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
+        end
+    elseif cmd == "editor.disable" then
+        if editor then
+            editor.setEnabled(false)
+            cmdn.addOutput("{yellow}✓ Map editor {red}DISABLED{/red}. Objects are now protected from editing.{/yellow}", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
+        end
+    elseif cmd == "editor.status" then
+        if editor then
+            local status = editor.isEnabled() and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
+            local mode = editor.isEnabled() and editor.getMode() or "N/A"
+            cmdn.addOutput("{cyan}Map Editor Status: " .. status .. "{/cyan}", outputColor)
+            cmdn.addOutput("{cyan}Current Mode: {yellow}" .. mode .. "{/yellow}{/cyan}", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
+        end
     else
         local success, result = pcall(function()
             local func, err = load("return " .. cmd)
@@ -478,6 +556,7 @@ function cmdn.showHelp()
     cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
     cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
     cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
+    cmdn.addOutput("  {yellow}editor{/yellow}        - Map editor interface", outputColor)
     cmdn.addOutput("", outputColor)
     cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
     cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)
@@ -493,6 +572,38 @@ function cmdn.showHelp()
     cmdn.addOutput("  {blue}Ctrl+V/Cmd+V{/blue} - Paste from clipboard", outputColor)
     cmdn.addOutput("  {blue}PageUp/PageDown{/blue} - Scroll output", outputColor)
     cmdn.addOutput("  {blue}Mouse wheel{/blue} - Scroll output", outputColor)
+    cmdn.addOutput("", outputColor)
+end
+
+-- Show editor prompt with terminal-style interface
+function cmdn.showEditorPrompt()
+    cmdn.addOutput("", outputColor)
+    cmdn.addOutput("{cyan}┌─────────────────────────────────────────┐{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}           {yellow}MAP EDITOR INTERFACE{/yellow}           {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}├─────────────────────────────────────────┤{/cyan}", outputColor)
+    
+    local editorStatus = editor and editor.isEnabled() and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
+    cmdn.addOutput("{cyan}│{/cyan} Status: " .. editorStatus .. "                        {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}                                         {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan} {white}Commands:{/white}                             {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {yellow}editor.enable(){/yellow}  - Enable editor       {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {yellow}editor.disable(){/yellow} - Disable editor      {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {yellow}editor.status(){/yellow}  - Show current status {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}                                         {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan} {white}When enabled:{/white}                        {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {blue}1{/blue} - Select/move mode                {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {blue}2{/blue} - Create arch mode               {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {blue}3{/blue} - Create tree mode               {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {blue}RMB{/blue} - Delete selected object        {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}│{/cyan}   {blue}ESC{/blue} - Clear selection               {cyan}│{/cyan}", outputColor)
+    cmdn.addOutput("{cyan}└─────────────────────────────────────────┘{/cyan}", outputColor)
+    cmdn.addOutput("", outputColor)
+    
+    if editor and editor.isEnabled() then
+        cmdn.addOutput("{green}Editor is currently {yellow}ACTIVE{/yellow}. Click objects to select and move them.{/green}", outputColor)
+    else
+        cmdn.addOutput("{yellow}Editor is currently {red}INACTIVE{/red}. Use {cyan}editor.enable(){/cyan} to start editing.{/yellow}", outputColor)
+    end
     cmdn.addOutput("", outputColor)
 end
 
@@ -592,13 +703,27 @@ function cmdn.keypressed(key)
     end
     if key == "return" then
         if showingAutocomplete then
-            -- First enter: accept autocomplete
-            inputText = autocompleteText
-            cursorPos = #inputText
-            showingAutocomplete = false
-            autocompleteText = ""
+            -- Check if the current input is an exact match for any command
+            local isExactMatch = false
+            for _, option in ipairs(autocompleteOptions) do
+                if option:lower() == inputText:lower() then
+                    isExactMatch = true
+                    break
+                end
+            end
+            
+            if isExactMatch then
+                -- Execute directly if it's an exact match
+                cmdn.execute(inputText)
+            else
+                -- Accept autocomplete suggestion
+                inputText = autocompleteText
+                cursorPos = #inputText
+                showingAutocomplete = false
+                autocompleteText = ""
+            end
         else
-            -- Second enter or no autocomplete: execute command
+            -- No autocomplete: execute command
             cmdn.execute(inputText)
         end
     elseif key == "tab" then

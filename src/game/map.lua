@@ -612,6 +612,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     local visual_x = arch.pivot_x + visual.offset_x
                     local visual_y = arch.pivot_y + visual.offset_y
 
+
                     table.insert(drawItems, {
                         sort_y = base_sort_y + visual_y,
                         image_or_particles = map.tiles3.tilesetImage,
@@ -641,6 +642,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     if shadow and shadow.getDynamicDrawItem then
                         table.insert(drawItems, shadow:getDynamicDrawItem(tree))
                     end
+
 
                     table.insert(drawItems, {
                         sort_y = base_sort_y + tree.y,

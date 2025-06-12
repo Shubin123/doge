@@ -224,29 +224,13 @@ function fire.collision(fixture_a, fixture_b, contact)
                     local damage_amount = math.random(15, 25)  -- Fire does more damage than bullets
                     enemy.damageEnemy(i, damage_amount)
                     
-                    -- Add knockback force from fire impact (stronger than bullets)
-                    local enemy_body = enemies_bods[i]
+                    -- Apply knockback force from fire impact (stronger than bullets)
                     if firef then
                         local fire_body = firef:getBody()
                         if fire_body then
                             local fx, fy = fire_body:getPosition()
-                            local ex, ey = physSafe.safeGetPosition(enemy_body)
-                            
-                            if ex and ey then
-                                -- Calculate knockback direction from fire to enemy
-                                local dx = ex - fx
-                                local dy = ey - fy
-                                local distance = math.sqrt(dx*dx + dy*dy)
-                                
-                                if distance > 0 then
-                                    local fire_force = 70  -- Reduced but still stronger than bullets
-                                    local knockback_x = (dx / distance) * fire_force
-                                    local knockback_y = (dy / distance) * fire_force
-                                    
-                                    -- Apply the knockback force to the enemy using safe method
-                                    physSafe.safeApplyImpulse(enemy_body, knockback_x, knockback_y)
-                                end
-                            end
+                            local fire_force = 70  -- Reduced but still stronger than bullets
+                            enemy.applyKnockback(i, fx, fy, fire_force)
                         end
                     end
                 end

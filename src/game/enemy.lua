@@ -1,4 +1,5 @@
 local enemy = {}
+local physSafe = require 'src.util.physics_safe'
 enemy.scale = 0.6
 enemy.t = 0
 enemy.projectiles = {}
@@ -557,6 +558,29 @@ function enemy.addEnemy(x, y)
     enemy.enemy_damaged[enemy_index] = false
     
     return enemy_index, enemy_body
+end
+
+-- Apply knockback force to an enemy
+function enemy.applyKnockback(enemy_index, source_x, source_y, force_multiplier)
+    if not enemies_bods[enemy_index] then return end
+    
+    local enemy_body = enemies_bods[enemy_index]
+    local ex, ey = physSafe.safeGetPosition(enemy_body)
+    
+    if ex and ey then
+        -- Calculate knockback direction from source to enemy
+        local dx = ex - source_x
+        local dy = ey - source_y
+        local distance = math.sqrt(dx*dx + dy*dy)
+        
+        if distance > 0 then
+            local knockback_x = (dx / distance) * force_multiplier
+            local knockback_y = (dy / distance) * force_multiplier
+            
+            -- Apply the knockback force to the enemy using safe method
+            physSafe.safeApplyImpulse(enemy_body, knockback_x, knockback_y)
+        end
+    end
 end
 
 -- Helper function to remove enemy data (call when enemy dies)

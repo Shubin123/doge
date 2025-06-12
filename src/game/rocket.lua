@@ -30,7 +30,7 @@ function rocket.new(params)
     local shape = love.physics.newCircleShape(radius)
     local fixture = love.physics.newFixture(body, shape)
     fixture:setGroupIndex(-3)  -- unique group for rockets
-    
+
     -- instance table
     local inst = {
         body = body,
@@ -55,11 +55,11 @@ end
 
 -- Process deferred rocket destructions (called during update when world is not locked)
 function rocket.processDeferredDestructions()
-    for _, inst in ipairs(toDestroy) do
+    for _, rkt_inst in ipairs(toDestroy) do
         -- Find and remove from rockets list
         for i = #rocket.rockets, 1, -1 do
-            if rocket.rockets[i] == inst then
-                rocket.destroyRocket(inst, i)
+            if rocket.rockets[i] == rkt_inst then
+                rocket.destroyRocket(rkt_inst, i)
                 break
             end
         end
@@ -115,14 +115,14 @@ function rocket.update(dt)
         end
         
         -- update exhaust particles
-        for j = #r.exhaustTrail, 1, -1 do
-            local particle = r.exhaustTrail[j]
+        for k = #r.exhaustTrail, 1, -1 do
+            local particle = r.exhaustTrail[k]
             particle.life = particle.life - dt
             particle.pos = particle.pos + particle.vel * dt
             particle.vel = particle.vel * 0.95  -- friction
             
             if particle.life <= 0 then
-                table.remove(r.exhaustTrail, j)
+                table.remove(r.exhaustTrail, k)
             end
         end
         -- lifetime check
@@ -214,7 +214,7 @@ function rocket.populate()
     end
 end
 
-function rocket.collision(fixture_a, fixture_b, contact)
+function rocket.collision(fixture_a, fixture_b, _)
     if (var.multiplayer ~= 1) and var.multiplayer then return end
     -- detect rocket fixture
     local fa_ud = fixture_a:getUserData()
@@ -262,64 +262,65 @@ function rocket.collision(fixture_a, fixture_b, contact)
                 local damageRadius = inst.radius * 5  -- Increased splash radius
                 
                 if distance <= damageRadius then
-                -- Enhanced damage falloff calculation
-                local damageFactor = 1 - (distance / damageRadius)
-                damageFactor = damageFactor * damageFactor  -- Quadratic falloff for more realistic explosion
-                
-                -- Scaled damage based on distance
-                local baseDamage = 45  -- Increased base damage for rockets
-                local actualDamage = math.floor(baseDamage * damageFactor)
-                
-                -- Minimum damage for splash hits
-                if actualDamage < 5 and distance <= damageRadius * 0.8 then
-                    actualDamage = 5  -- Minimum splash damage
-                end
-                
-                -- Enhanced blood effect with direction from explosion
-                if blood and blood.onEnemyDamage and actualDamage > 0 then
-                    local direction = {
-                        x = (ex - x) / (distance + 0.1),  -- Avoid division by zero
-                        y = (ey - y) / (distance + 0.1)
-                    }
-                    blood.onEnemyDamage(ex, ey, actualDamage, direction)
-                end
-                
-                -- Apply damage using new health system
-                if enemy and enemy.damageEnemy and actualDamage > 0 then
-                    enemy.damageEnemy(i, actualDamage)
+                    -- Enhanced damage falloff calculation
+                    local damageFactor = 1 - (distance / damageRadius)
+                    damageFactor = damageFactor * damageFactor  -- Quadratic falloff for more realistic explosion
                     
-                    -- Add explosive knockback force (strongest of all weapons)
-                    local knockback_direction = {
-                        x = (ex - x) / (distance + 0.1),  -- Avoid division by zero
-                        y = (ey - y) / (distance + 0.1)
-                    }
+                    -- Scaled damage based on distance
+                    local baseDamage = 45  -- Increased base damage for rockets
+                    local actualDamage = math.floor(baseDamage * damageFactor)
                     
-                    -- Scale knockback force by damage and proximity
-                    local base_explosion_force = 150  -- Reduced base force for proper mass enemies
-                    local distance_factor = math.max(0.2, 1 - (distance / damageRadius))  -- Minimum 20% force
-                    local final_force = base_explosion_force * distance_factor
-                    
-                    -- Apply extra force for direct hits
-                    if distance <= inst.radius then
-                        final_force = final_force * 1.5  -- 50% bonus for direct hits
+                    -- Minimum damage for splash hits
+                    if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                        actualDamage = 5  -- Minimum splash damage
                     end
                     
-                    local knockback_x = knockback_direction.x * final_force
-                    local knockback_y = knockback_direction.y * final_force
+                    -- Enhanced blood effect with direction from explosion
+                    if blood and blood.onEnemyDamage and actualDamage > 0 then
+                        local direction = {
+                            x = (ex - x) / (distance + 0.1),  -- Avoid division by zero
+                            y = (ey - y) / (distance + 0.1)
+                        }
+                        blood.onEnemyDamage(ex, ey, actualDamage, direction)
+                    end
                     
-                    -- Apply the explosive knockback force to the enemy
-                    physSafe.safeApplyImpulse(eb, knockback_x, knockback_y)
-                    
-                    -- Track splash hit for visual effects
-                    table.insert(splash_enemies, {
-                        index = i,
-                        x = ex,
-                        y = ey,
-                        distance = distance,
-                        damage = actualDamage,
-                        is_direct_hit = distance <= inst.radius,
-                        knockback_force = final_force
-                    })
+                    -- Apply damage using new health system
+                    if enemy and enemy.damageEnemy and actualDamage > 0 then
+                        enemy.damageEnemy(i, actualDamage)
+                        
+                        -- Add explosive knockback force (strongest of all weapons)
+                        local knockback_direction = {
+                            x = (ex - x) / (distance + 0.1),  -- Avoid division by zero
+                            y = (ey - y) / (distance + 0.1)
+                        }
+                        
+                        -- Scale knockback force by damage and proximity
+                        local base_explosion_force = 150  -- Reduced base force for proper mass enemies
+                        local distance_factor = math.max(0.2, 1 - (distance / damageRadius))  -- Minimum 20% force
+                        local final_force = base_explosion_force * distance_factor
+                        
+                        -- Apply extra force for direct hits
+                        if distance <= inst.radius then
+                            final_force = final_force * 1.5  -- 50% bonus for direct hits
+                        end
+                        
+                        local knockback_x = knockback_direction.x * final_force
+                        local knockback_y = knockback_direction.y * final_force
+                        
+                        -- Apply the explosive knockback force to the enemy
+                        physSafe.safeApplyImpulse(eb, knockback_x, knockback_y)
+                        
+                        -- Track splash hit for visual effects
+                        table.insert(splash_enemies, {
+                            index = i,
+                            x = ex,
+                            y = ey,
+                            distance = distance,
+                            damage = actualDamage,
+                            is_direct_hit = distance <= inst.radius,
+                            knockback_force = final_force
+                        })
+                    end
                 end
             end
         end
@@ -344,19 +345,19 @@ function rocket.collision(fixture_a, fixture_b, contact)
                 })
             end
         end
+    end
 
     -- defer rocket destruction until after physics step
     table.insert(toDestroy, inst)
-end -- end rocket.collision
 end
 
 -- Destroy a rocket safely (called during update when world is not locked)
-function rocket.destroyRocket(inst, index)
-    if inst.body and inst.fixture then
-        inst.fixture:destroy()
-        inst.body:destroy()
+function rocket.destroyRocket(rocket_inst, index)
+    if rocket_inst.body and rocket_inst.fixture then
+        rocket_inst.fixture:destroy()
+        rocket_inst.body:destroy()
     end
-    inst.destroyed = true
+    rocket_inst.destroyed = true
     if index then
         table.remove(rocket.rockets, index)
     end
@@ -367,10 +368,10 @@ function rocket.getNetworkData()
     local network_data = {}
     for i = 1, #rocket.rockets do
         if rocket.rockets[i] and not rocket.rockets[i].destroyed then
-            local x, y = rocket.rockets[i].body:getPosition()
+            local rocket_x, rocket_y = rocket.rockets[i].body:getPosition()
             table.insert(network_data, {
-                x = x,
-                y = y,
+                x = rocket_x,
+                y = rocket_y,
                 active = true,
                 id = i
             })
@@ -383,13 +384,13 @@ function rocket.setOnline(index, pos)
     if rocket.online_rockets[index] then
         rocket.online_rockets[index]:setPosition(pos.x, pos.y)
     else
-        rocket.online_rockets[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
-        local shape = love.physics.newCircleShape(5)
-        local fixture = love.physics.newFixture(rocket.online_rockets[index], shape)
-        fixture:setGroupIndex(-3)
+        if world then
+            rocket.online_rockets[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
+            local shape = love.physics.newCircleShape(5)
+            local fixture = love.physics.newFixture(rocket.online_rockets[index], shape)
+            fixture:setGroupIndex(-3)
+        end
     end
-end
-
 end
 
 return rocket

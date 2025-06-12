@@ -96,7 +96,7 @@ vec4 effect( vec4 colour, Image texture, vec2 texture_coords, vec2 screen_coords
         colour_2 = {0.2, 0.8, 0.3, 1.0},  -- Green-ish
         colour_3 = {0.3, 0.2, 1.0, 1.0},  -- Blue-ish
         contrast = 2.0,
-        spin_amount = 0.5
+        spin_amount = 5
     }
     
     -- Create a simple texture to render with the shader
