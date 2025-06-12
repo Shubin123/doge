@@ -21,7 +21,7 @@ renderer.local_player_state = {
 flipQuads = true
 
 -- Interpolation smoothing factor (adjust for desired smoothness)
-local interpolation_speed = 12
+local interpolation_speed = 1000
 
 -- Update player interpolation
 function renderer.updateInterpolation(dt)
