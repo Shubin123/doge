@@ -317,11 +317,23 @@ function bullet.collision(fixture_a, fixture_b, contact)
     local otherBody = other_f:getBody()
     local otherGroup = other_f:getGroupIndex()
 
-    -- if hit an enemy, apply damage (here we destroy on hit)
+    -- if hit an enemy, apply damage
     if otherGroup == -777 then
-        -- destroys the enemy physics body and removes it from enemies_bods
-        if checkDestroy then
-            checkDestroy(enemies_bods, otherBody)
+        -- Add blood effect at hit location
+        local x, y = otherBody:getPosition()
+        if blood and blood.onEnemyDamage then
+            blood.onEnemyDamage(x, y, inst.damage or 1, inst.dir)
+        end
+        
+        -- Find enemy index and apply damage using the new health system
+        for i = 1, #enemies_bods do
+            if enemies_bods[i] == otherBody then
+                if enemy and enemy.damageEnemy then
+                    local damage_amount = math.random(8, 15)  -- Random damage 8-15
+                    enemy.damageEnemy(i, damage_amount)
+                end
+                break
+            end
         end
     end
 

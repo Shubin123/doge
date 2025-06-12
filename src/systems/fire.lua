@@ -3,10 +3,11 @@ fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 10
+fire.count = 6  -- Start with 6 fireballs
+fire.max_fireballs = 20  -- Maximum fireballs allowed
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
-fire_instances = {} -- no collision on these for now
+fire_instances = {} -- Active fireballs in the ring - no collision on these for now
 fire_draw_data = {} -- cached draw data updated only in fire.update()
 -- local sprite = require('lib.graphics.sprite')
 
@@ -32,8 +33,14 @@ function fire.load()
     fire.particleSystem:setOffset(sprite:getTileSize())
     fire.particleSystem:setInsertMode('bottom')
 
+    -- Initialize the fireball ring with starting count
+    fire_instances = {}
     for i = 1, fire.count do
-        table.insert(fire_instances, vec2.new(0, 0))
+        table.insert(fire_instances, {
+            pos = vec2.new(0, 0),
+            ring_index = i,  -- Position in the ring
+            active = true
+        })
     end
     
     -- Initialize draw data cache
@@ -47,27 +54,37 @@ function fire.update(dt)
     -- Clear previous draw data
     fire_draw_data = {}
     
-    -- Update fire instance positions
-    for i, fire_instance in pairs(fire_instances) do
-        fire_instance.x = player.body:getX() + (math.sin(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 200
-        fire_instance.y = player.body:getY() + (math.cos(fire.t * 1 + i) * (math.sin(fire.t * 2) + 2)) * 30 + 45
-        
-        -- Cache draw data for fire instances
-        table.insert(fire_draw_data, {
-            sort_y = fire_instance.y + 100,
-            image_or_particles = fire.particleSystem,
-            quad = nil,
-            x = fire_instance.x,
-            y = fire_instance.y,
-            rotation = 0,
-            scale_x = fire.scale,
-            scale_y = fire.scale,
-            offset_x = 250,
-            offset_y = 50,
-            color = { 1, 1, 1, 1 },
-            blend_mode = { "lighten", "premultiplied" },
-            source_object_type = "fire_effect"
-        })
+    -- Update fire instance positions in ring formation
+    local active_count = #fire_instances
+    for i, fire_instance in ipairs(fire_instances) do
+        if fire_instance.active then
+            -- Calculate ring position based on index and total active fireballs
+            local angle = (i - 1) * (2 * math.pi / active_count) + fire.t * 0.5  -- Slow rotation
+            local radius = 40 + math.sin(fire.t * 2) * 10  -- Pulsing radius
+            
+            -- Get player position - no offsets, ring should be centered on player
+            local player_x, player_y = player.getPosition()
+            
+            fire_instance.pos.x = player_x + math.cos(angle) * radius
+            fire_instance.pos.y = player_y + math.sin(angle) * radius
+            
+            -- Cache draw data for fire instances
+            table.insert(fire_draw_data, {
+                sort_y = fire_instance.pos.y + 100,
+                image_or_particles = fire.particleSystem,
+                quad = nil,
+                x = fire_instance.pos.x,
+                y = fire_instance.pos.y,
+                rotation = 0,
+                scale_x = fire.scale,
+                scale_y = fire.scale,
+                offset_x = 0,
+                offset_y = 0,
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "lighten", "premultiplied" },
+                source_object_type = "fire_effect"
+            })
+        end
     end
     
     -- Update fireables positions and physics
@@ -81,7 +98,7 @@ function fire.update(dt)
                 -- Clients still initialize fireballs for visual purposes but no physics
                 -- if (var.multiplayer == 1) then
                     -- print(vec2.norm(fireable[1]))
-                    local _bod = love.physics.newBody(world, fireable[1].x - 200, fireable[1].y - 45, "dynamic")
+                    local _bod = love.physics.newBody(world, fireable[1].x, fireable[1].y, "dynamic")
                     table.insert(fire_bodies, i, _bod)
                     local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
                     _fixture:setGroupIndex(-1)
@@ -98,9 +115,9 @@ function fire.update(dt)
                 
                 -- Only update physics body position on host
                 if (var.multiplayer == 1) and fire_bodies[i] then
-                    fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+                    fire_bodies[i]:setPosition(fireable[1].x, fireable[1].y)
                 elseif not var.multiplayer then
-                    fire_bodies[i]:setPosition(fireable[1].x - 200, fireable[1].y - 45)
+                    fire_bodies[i]:setPosition(fireable[1].x, fireable[1].y)
                 end
             end
             
@@ -114,8 +131,8 @@ function fire.update(dt)
                 rotation = 0,
                 scale_x = fire.scale,
                 scale_y = fire.scale,
-                offset_x = 250,
-                offset_y = 50,
+                offset_x = 0,
+                offset_y = 0,
                 color = { 1, 1, 1, 1 },
                 blend_mode = { "lighten", "premultiplied" },
                 source_object_type = "fire_effect"
@@ -198,11 +215,27 @@ function fire.collision(fixture_a, fixture_b, contact)
     -- print(math.random() < 0.01 and 1 or 0)
     if not_fire ~= nil then
         -- print(not_fire:getGroupIndex())
-        if (checkDestroy(enemies_bods, not_fire:getBody())) then
-            fire.count = fire.count + (math.random() < 0.1 and 1  or 0)
+        -- Check if hit an enemy  
+        for i = 1, #enemies_bods do
+            if enemies_bods[i] == not_fire:getBody() then
+                -- Apply fire damage to enemy using new health system
+                if enemy and enemy.damageEnemy then
+                    local damage_amount = math.random(15, 25)  -- Fire does more damage than bullets
+                    enemy.damageEnemy(i, damage_amount)
+                end
+                
+                -- 10% chance to add fireball when hitting enemy
+                if math.random() < 0.1 then
+                    fire.addFireball()
+                end
+                break
+            end
         end
         if (checkDestroy(coin_bods, not_fire:getBody())) then
-            fire.count = fire.count + (math.random() < 0.1 and 1 or 0)
+            -- 10% chance to add fireball when hitting coin with fireball
+            if math.random() < 0.1 then
+                fire.addFireball()
+            end
         end
         if not fire.pierce then
             table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
@@ -211,6 +244,34 @@ function fire.collision(fixture_a, fixture_b, contact)
         -- print()
     end
 
+end
+
+-- Add a fireball to the ring (when collecting coins)
+function fire.addFireball()
+    if #fire_instances < fire.max_fireballs then
+        table.insert(fire_instances, {
+            pos = vec2.new(0, 0),
+            ring_index = #fire_instances + 1,
+            active = true
+        })
+        fire.count = #fire_instances
+    end
+end
+
+-- Remove a fireball from the ring (when shooting)
+function fire.removeFireball()
+    if #fire_instances > 0 then
+        -- Remove the last fireball in the ring
+        table.remove(fire_instances)
+        fire.count = #fire_instances
+        return true
+    end
+    return false
+end
+
+-- Get available fireball count
+function fire.getAvailableCount()
+    return #fire_instances
 end
 
 function fire.getNetworkData()
@@ -245,8 +306,8 @@ function fire.getNetworkData()
     -- Include fire bodies physics data (for collision sync)
     for i = 1, #fire_instances do
         table.insert(network_data, {
-            x = fire_instances[i].x,
-            y = fire_instances[i].y,
+            x = fire_instances[i].pos.x,
+            y = fire_instances[i].pos.y,
             active = false -- starts in this state by the time its non active again it should just be deleted (collided)
         })
     end

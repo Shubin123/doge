@@ -153,9 +153,9 @@ function Gun:shoot(mouseX, mouseY)
         for i = 1, self.bulletsPerShot do
             local spreadAngle = 0
             if self.bulletsPerShot > 1 then
-                -- Calculate spread for multiple bullets
+                -- For shotguns, use random spread within the cone for realistic behavior
                 local maxSpread = self.spread
-                spreadAngle = (i - 1) / (self.bulletsPerShot - 1) * maxSpread - maxSpread/2
+                spreadAngle = (math.random() - 0.5) * maxSpread
             end
             
             -- Apply spread to direction
@@ -164,10 +164,13 @@ function Gun:shoot(mouseX, mouseY)
                 dir.x * math.sin(spreadAngle) + dir.y * math.cos(spreadAngle)
             )
             
+            -- Add slight speed variation for realism (±10%)
+            local speedVariation = self.speed * (0.9 + math.random() * 0.2)
+            
             bullet.new({
                 pos = spawnPos,
                 dir = spreadDir,
-                speed = self.speed,
+                speed = speedVariation,
                 damage = self.damage,
                 radius = self.projectileRadius,
                 lifetime = self.projectileLifetime
@@ -308,15 +311,15 @@ function GunTool.load(world)
     GunTool.guns[3] = Gun.new({  -- Shotgun (3)
         fireRate = 1.2,
         projectileType = "bullet",
-        speed = 400,
+        speed = 650, -- Increased from 400 to 650 for faster, more realistic shotgun pellets
         spread = math.rad(35), -- 35 degree spread
-        damage = 0.8,
+        damage = 0.6, -- Reduced individual pellet damage since we have more pellets
         ringRadius = 25,
         barrelLength = 25,
         barrelThickness = 6,
-        projectileRadius = 2,
-        projectileLifetime = 2.5,
-        bulletsPerShot = 6,
+        projectileRadius = 1.5, -- Slightly smaller pellets
+        projectileLifetime = 2.0, -- Shorter lifetime - shotgun pellets lose velocity faster
+        bulletsPerShot = 8, -- Increased from 6 to 8 pellets for more realistic spread
         shellType = "shotgun",
         muzzleFlash = {
             duration = 0.12,

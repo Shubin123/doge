@@ -60,7 +60,7 @@ local function getSettingsButtonBounds(buttonInfo, optionText, screenInfo)
 end
 
 function menu.load(screenInfo)
-    font = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
+    font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     particle = love.graphics.newImage("gfx/doge.png")
     love.graphics.setFont(font)
 

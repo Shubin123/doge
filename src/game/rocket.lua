@@ -236,26 +236,73 @@ function rocket.collision(fixture_a, fixture_b, contact)
         shockwaveRadius = inst.radius * 6  -- larger shockwave
     })
 
-    -- area damage: iterate enemies_bods if exists
+    -- Enhanced area damage with better scaling and effects
     if enemies_bods then
-        for _, eb in ipairs(enemies_bods) do
+        local splash_enemies = {}  -- Track enemies hit for splash effects
+        
+        for i, eb in ipairs(enemies_bods) do
             local ex, ey = eb:getPosition()
-            local d = ((ex - x)^2 + (ey - y)^2)^0.5
-            local damageRadius = inst.radius * 4  -- larger damage radius
+            local distance = ((ex - x)^2 + (ey - y)^2)^0.5
+            local damageRadius = inst.radius * 5  -- Increased splash radius
             
-            if d <= damageRadius then
-                -- Calculate damage falloff based on distance
-                local damageFactor = 1 - (d / damageRadius)
-                local actualDamage = inst.damage * damageFactor
+            if distance <= damageRadius then
+                -- Enhanced damage falloff calculation
+                local damageFactor = 1 - (distance / damageRadius)
+                damageFactor = damageFactor * damageFactor  -- Quadratic falloff for more realistic explosion
                 
-                if eb.applyDamage then
-                    eb:applyDamage(actualDamage)
-                elseif checkDestroy then
-                    -- If no applyDamage method, just destroy if close enough
-                    if d <= inst.radius * 2 then
-                        checkDestroy(enemies_bods, eb)
-                    end
+                -- Scaled damage based on distance
+                local baseDamage = 45  -- Increased base damage for rockets
+                local actualDamage = math.floor(baseDamage * damageFactor)
+                
+                -- Minimum damage for splash hits
+                if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                    actualDamage = 5  -- Minimum splash damage
                 end
+                
+                -- Enhanced blood effect with direction from explosion
+                if blood and blood.onEnemyDamage and actualDamage > 0 then
+                    local direction = {
+                        x = (ex - x) / (distance + 0.1),  -- Avoid division by zero
+                        y = (ey - y) / (distance + 0.1)
+                    }
+                    blood.onEnemyDamage(ex, ey, actualDamage, direction)
+                end
+                
+                -- Apply damage using new health system
+                if enemy and enemy.damageEnemy and actualDamage > 0 then
+                    enemy.damageEnemy(i, actualDamage)
+                    
+                    -- Track splash hit for visual effects
+                    table.insert(splash_enemies, {
+                        index = i,
+                        x = ex,
+                        y = ey,
+                        distance = distance,
+                        damage = actualDamage,
+                        is_direct_hit = distance <= inst.radius
+                    })
+                end
+            end
+        end
+        
+        -- Add visual splash indicators for multiple enemy hits
+        if #splash_enemies > 1 then
+            -- Create a "SPLASH!" indicator at explosion center for multi-kills
+            if enemy and enemy.damage_indicators then
+                table.insert(enemy.damage_indicators, {
+                    x = x,
+                    y = y - 30,
+                    damage = "SPLASH!",
+                    time = 0,
+                    duration = 1.5,
+                    velocity_y = -60,
+                    velocity_x = 0,
+                    alpha = 1,
+                    scale = 1.5,
+                    bounce_factor = 0.95,
+                    nearby_count = 0,
+                    is_splash_indicator = true
+                })
             end
         end
     end

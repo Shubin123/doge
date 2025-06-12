@@ -33,6 +33,7 @@ bullet = require("game.bullet")
 rocket = require("game.rocket")
 moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
+blood = require("systems.blood")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
@@ -67,8 +68,8 @@ function love.load()
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
 
     -- Load fonts
-    statsFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
-    gameFont = love.graphics.newFont("gfx/menu/PixelGameFont.ttf", 16)
+    statsFont = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    gameFont = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
 
     -- Initialize the menu
     menu.load(var.ScreenInfo)
@@ -141,6 +142,7 @@ function love.load()
     crt.load()
     blur.load()
     light.load()
+    blood.load()
     
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -203,7 +205,12 @@ function love.draw()
     camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
-    map.map:draw(game_area_x, game_area_y, 1)
+    -- Draw map with blood effects
+    if blood and blood.drawBackground then
+        blood.drawBackground(map.map, game_area_x, game_area_y)
+    else
+        map.map:draw(game_area_x, game_area_y, 1)
+    end
     love.graphics.setColor(1, 1, 1, 1)
 
 
@@ -224,15 +231,14 @@ function love.draw()
 
     
     bullet.populate()
-    rocket.populate()
+    rocket.populate()  
+    blood.populate()
 
     gun.drawWorld()
 
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
-    
-    
 
     
 
@@ -291,6 +297,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     blur.update(dt)
     command.update(dt)
     cmdn.update(dt)
+    blood.update(dt)
 
     
     if var.multiplayer == 1 or not var.multiplayer  then
@@ -341,12 +348,21 @@ function love.mousepressed(x, y, button, istouch, presses)
 
     local direction = vec2.new(x - center_x, y - center_y)
     local normalized_direction = vec2.norm(direction)
-    -- print(fire.count)
-    -- if fire.count == 0 then
-    if #fire.fireables < fire.count then
+    
+    -- Check if we have fireballs available in the ring
+    if fire.getAvailableCount() > 0 then
+        -- Get the position of the last fireball in the ring
+        local fireball_pos = fire_instances[#fire_instances].pos
         
-        table.insert(fire.fireables, { table.remove(fire_instances, #fire_instances), normalized_direction, false }) -- since we pop directly any position of the spin (instances) table can be inserted
+        -- Create a projectile fireball
+        table.insert(fire.fireables, { 
+            vec2.new(fireball_pos.x, fireball_pos.y), 
+            normalized_direction, 
+            false 
+        })
         
+        -- Remove the fireball from the ring
+        fire.removeFireball()
     end
 
     editor.mousepressed(x, y, button)
@@ -378,6 +394,7 @@ function love.keypressed(key)
 
         zoomToggle = not zoomToggle
     end
+    
     -- if key == "p" then
     --     -- fire.pierce = not fire.pierce
     --     -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
@@ -513,7 +530,7 @@ end
 
 function beginContact(fixture_a, fixture_b, contact)
     
-    -- player.collision(fixture_a,fixture_b,contact)
+    player.collision(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
