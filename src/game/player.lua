@@ -276,9 +276,14 @@ function player.collision(fixture_a,fixture_b,contact)
         if fire and fire.addFireball then
             fire.addFireball()
         end
+        -- Create pickup indicator
+        local px, py = player.body:getPosition()
+        indicators.createPickup(px, py - 20, "+1 COIN", "coin")
         
     elseif  checkDestroy(enemies_bods, not_player) then
-        player.health = player.health - 1
+        if not player.god then
+            player.health = player.health - 1
+        end
         -- var.num_enemies = var.num_enemies - 1
      
      end

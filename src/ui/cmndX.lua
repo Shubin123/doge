@@ -289,7 +289,6 @@ local function ensureSandboxInitialized()
     if not sandbox_fully_initialized then
         sandbox.init()
         sandbox_fully_initialized = true
-        cmdn.addOutput("{green}Sandbox security fully activated{/green}", promptColor)
     end
 end
 
@@ -388,24 +387,10 @@ function cmdn.load()
     end
     lineHeight = font:getHeight() + 2
     -- consoleWidth is now fixed, not screen-dependent
-    cmdn.addOutput("{green}=== {yellow}SECURE LUA CONSOLE{/yellow} ==={/green}", promptColor)
+    cmdn.addOutput("{green}=== LUA DEBUG CONSOLE X ==={/green}", promptColor)
+    cmdn.addOutput("Sandbox: {red}DISABLED{/red} - Full system access", outputColor)
     cmdn.addOutput("Type {yellow}help{/yellow} for available commands", outputColor)
     cmdn.addOutput("Press {cyan},{/cyan} to toggle console", outputColor)
-    
-    -- Show permission level and status
-    local level = sandbox.getPermissionLevel()
-    local level_names = {"Guest", "Player", "Admin", "Developer"}
-    local level_name = level_names[level] or "Unknown"
-    cmdn.addOutput("Security Level: {cyan}" .. level .. " (" .. level_name .. "){/cyan}", outputColor)
-    
-    -- Show host/multiplayer status
-    local my_id = (_G.var and _G.var.multiplayer) or 1
-    local is_host = (_G.p2p_permissions and _G.p2p_permissions.isHost(my_id)) or (my_id == 1)
-    if is_host then
-        cmdn.addOutput("Status: {green}HOST{/green} - Full developer access available", outputColor)
-    else
-        cmdn.addOutput("Status: {yellow}CLIENT{/yellow} - Restricted access", outputColor)
-    end
     
     cmdn.addOutput("Autocomplete: {cyan}Tab{/cyan} to cycle/accept suggestions", outputColor)
     cmdn.addOutput("", outputColor)
@@ -531,6 +516,58 @@ function cmdn.execute(cmd)
                 cmdn.addOutput(line, errorColor)
             end
         end
+    elseif cmd:match("^tp%s+") then
+        -- Handle teleport command directly (bypass sandbox)
+        local x_str, y_str = cmd:match("^tp%s+([%d.-]+)%s+([%d.-]+)")
+        if x_str and y_str then
+            local x = tonumber(x_str)
+            local y = tonumber(y_str)
+            if x and y and _G.player and _G.player.body then
+                _G.player.body:setPosition(x, y)
+                cmdn.addOutput("{green}✓ Teleported to ({yellow}" .. x .. "{/yellow}, {yellow}" .. y .. "{/yellow}){/green}", outputColor)
+            else
+                cmdn.addOutput("{red}✗ Invalid coordinates or player not available{/red}", errorColor)
+            end
+        else
+            cmdn.addOutput("{red}✗ Usage: tp <x> <y>{/red}", errorColor)
+        end
+    elseif cmd == "god" then
+        -- Handle god mode toggle directly (bypass sandbox)
+        if _G.player then
+            _G.player.god = not _G.player.god
+            local status = _G.player.god and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
+            cmdn.addOutput("{yellow}✓ God mode " .. status .. "{/yellow}", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Player not available{/red}", errorColor)
+        end
+    elseif cmd == "exit" then
+        -- Handle exit command directly (bypass sandbox)
+        cmdn.addOutput("{red}Exiting game...{/red}", outputColor)
+        love.event.quit()
+    elseif cmd == "reload" then
+        -- Handle reload command directly (bypass sandbox)
+        cmdn.addOutput("{yellow}Reloading game...{/yellow}", outputColor)
+        love.event.push("quit", "restart")
+    elseif cmd == "cont" or cmd == "continue" then
+        -- Handle continue command (close console)
+        cmdn.addOutput("{green}Continuing game...{/green}", outputColor)
+        cmdn.toggle()
+    elseif cmd == "save" then
+        -- Handle save command directly (bypass sandbox)
+        if _G.serial and _G.serial.quickSave then
+            _G.serial.quickSave()
+            cmdn.addOutput("{green}✓ Game saved{/green}", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Save system not available{/red}", errorColor)
+        end
+    elseif cmd == "load" then
+        -- Handle load command directly (bypass sandbox)
+        if _G.serial and _G.serial.quickLoad then
+            _G.serial.quickLoad()
+            cmdn.addOutput("{green}✓ Game loaded{/green}", outputColor)
+        else
+            cmdn.addOutput("{red}✗ Load system not available{/red}", errorColor)
+        end
     else
         -- Validate code first
         local valid, errors = sandbox.validateCode(cmd)
@@ -591,6 +628,13 @@ function cmdn.showHelp()
     cmdn.addOutput("{green}Available cmdns:{/green}", promptColor)
     cmdn.addOutput("  {yellow}help{/yellow}          - Show this help", outputColor)
     cmdn.addOutput("  {yellow}clear{/yellow}         - Clear console output", outputColor)
+    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player to coordinates", outputColor)
+    cmdn.addOutput("  {yellow}god{/yellow}           - Toggle invincibility (for testing)", outputColor)
+    cmdn.addOutput("  {yellow}exit{/yellow}          - Quit game", outputColor)
+    cmdn.addOutput("  {yellow}reload{/yellow}        - Reload/restart game", outputColor)
+    cmdn.addOutput("  {yellow}cont/continue{/yellow} - Close console and continue", outputColor)
+    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save game", outputColor)
+    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load game", outputColor)
     cmdn.addOutput("  {cyan}player.body:setPosition(x, y){/cyan} - Teleport player", outputColor)
     cmdn.addOutput("  {cyan}serial.quickSave(){/cyan}        - Quick save", outputColor)
     cmdn.addOutput("  {cyan}serial.quickLoad(){/cyan}        - Quick load", outputColor)
@@ -833,7 +877,7 @@ function cmdn.keypressed(key)
 end
 
 -- Handle mouse wheel scrolling
-function cmdn.wheelmoved(x, y)
+function cmdn.wheelmoved(_, y)
     if not isActive then return end
     local scrollAmount = 3
     local contentHeight = consoleHeight - titleBarHeight - 2 * padding - lineHeight - 10

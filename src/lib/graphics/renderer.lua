@@ -1,4 +1,5 @@
 local renderer = {}
+local indicators = require("systems.indicators")
 -- Dynamic draw list for Y-sorting
 dynamic_draw_list = {}
 
@@ -729,6 +730,10 @@ function renderer.renderSortedDrawList()
         -- Handle health bar rectangles
         elseif drawable.rectangle and (drawable.source_object_type == "health_bar_bg" or drawable.source_object_type == "health_bar_fill") then
             love.graphics.rectangle("fill", drawable.rectangle.x, drawable.rectangle.y, drawable.rectangle.width, drawable.rectangle.height)
+            
+        -- Handle new indicator system
+        elseif drawable.type == "indicator" then
+            indicators.draw(drawable.data)
     
         end
 

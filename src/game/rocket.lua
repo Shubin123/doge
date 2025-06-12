@@ -325,25 +325,9 @@ function rocket.collision(fixture_a, fixture_b, _)
             end
         end
         
-        -- Add visual splash indicators for multiple enemy hits
+        -- Add visual splash indicators for multiple enemy hits using new modular system
         if #splash_enemies > 1 then
-            -- Create a "SPLASH!" indicator at explosion center for multi-kills
-            if enemy and enemy.damage_indicators then
-                table.insert(enemy.damage_indicators, {
-                    x = x,
-                    y = y - 30,
-                    damage = "SPLASH!",
-                    time = 0,
-                    duration = 1.5,
-                    velocity_y = -60,
-                    velocity_x = 0,
-                    alpha = 1,
-                    scale = 1.5,
-                    bounce_factor = 0.95,
-                    nearby_count = 0,
-                    is_splash_indicator = true
-                })
-            end
+            indicators.createSplash(x, y)
         end
     end
 

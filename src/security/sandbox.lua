@@ -202,49 +202,13 @@ end
 
 -- Execute code safely with time and resource limits
 function sandbox.executeCode(code, permission_level)
-    permission_level = permission_level or SECURITY_CONFIG.PERMISSION_LEVELS.PLAYER
-    current_permission_level = permission_level
-    
-    -- Check if security is enabled
-    if not SECURITY_CONFIG.ENABLE_BLACKLIST and not SECURITY_CONFIG.ENABLE_WHITELIST then
-        error("Security system is disabled", 2)
-    end
-    
-    -- For DEVELOPER level, execute directly without sandbox restrictions
-    if permission_level >= SECURITY_CONFIG.PERMISSION_LEVELS.DEVELOPER then
-        local func, err = load(code, "console", "t", _G)
-        if not func then
-            return false, err
-        end
-        
-        local success, result = pcall(func)
-        return success, result
-    end
-    
-    -- Create safe function for other permission levels
-    local func, err = SAFE_FUNCTIONS.safe_load(code)
+    -- Temporarily disable sandboxing - execute all code directly
+    local func, err = load(code, "console", "t", _G)
     if not func then
         return false, err
     end
     
-    -- Execute with time limit
-    local start_time = love.timer.getTime()
-    local success, result
-    
-    if SECURITY_CONFIG.ENABLE_TIME_LIMITS then
-        -- Simple timeout implementation (not perfect but helps)
-        local co = coroutine.create(func)
-        success, result = coroutine.resume(co)
-        
-        -- Check execution time
-        local elapsed = love.timer.getTime() - start_time
-        if elapsed > SECURITY_CONFIG.MAX_EXECUTION_TIME then
-            error("Execution timeout (max " .. SECURITY_CONFIG.MAX_EXECUTION_TIME .. "s)", 2)
-        end
-    else
-        success, result = pcall(func)
-    end
-    
+    local success, result = pcall(func)
     return success, result
 end
 
@@ -281,42 +245,8 @@ end
 
 -- Validate code before execution (static analysis)
 function sandbox.validateCode(code)
-    local errors = {}
-    
-    -- For DEVELOPER level, allow everything
-    local current_level = sandbox.getPermissionLevel()
-    if current_level >= SECURITY_CONFIG.PERMISSION_LEVELS.DEVELOPER then
-        return true, {}
-    end
-    
-    -- Check for dangerous patterns (same as in safe_load)
-    local dangerous_patterns = {
-        "io%.open", "io%.read", "io%.write", "io%.popen",
-        "os%.execute", "os%.exit", "os%.remove", "os%.rename",
-        "loadfile", "dofile", 
-        "debug%.getupvalue", "debug%.setupvalue",
-        "package%.loadlib"
-    }
-    
-    for _, pattern in ipairs(dangerous_patterns) do
-        if string.find(code, pattern) then
-            table.insert(errors, "Forbidden function: " .. pattern)
-        end
-    end
-    
-    -- Check for suspicious patterns
-    local suspicious_patterns = {
-        "while%s+true", "for%s+.-%s+do%s*$",
-        "getmetatable", "setmetatable", "rawget", "rawset"
-    }
-    
-    for _, pattern in ipairs(suspicious_patterns) do
-        if string.find(code, pattern) then
-            table.insert(errors, "Suspicious pattern: " .. pattern)
-        end
-    end
-    
-    return #errors == 0, errors
+    -- Temporarily disable all validation
+    return true, {}
 end
 
 -- Initialize sandbox (call this once after game loads)

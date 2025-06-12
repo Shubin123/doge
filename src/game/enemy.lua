@@ -13,8 +13,10 @@ enemy_projectile_bodies = {}
 -- Health system
 enemy.health = {}  -- health per enemy index
 enemy.max_health = 100
-enemy.damage_indicators = {}  -- floating damage numbers
+-- damage indicators now handled by indicators module
 enemy.enemy_damaged = {}  -- track which enemies have been damaged (for health bars)
+enemy.noticed_player = {}  -- track which enemies have noticed the player
+enemy.first_notice_time = {}  -- track when enemies first noticed player
 
 -- Reuse the same fire sprite from the fire module
 local function getFireSprite()
@@ -34,43 +36,16 @@ function enemy.damageEnemy(enemy_index, damage)
     enemy.health[enemy_index] = enemy.health[enemy_index] - damage
     enemy.enemy_damaged[enemy_index] = true
     
-    -- Create floating damage indicator
+    -- Create floating damage indicator using new modular system
     if enemies_bods[enemy_index] then
         local ex, ey = enemies_bods[enemy_index]:getPosition()
         
-        -- Count existing indicators near this enemy for better spacing
-        local nearby_count = 0
-        for _, ind in ipairs(enemy.damage_indicators) do
-            local dist = math.sqrt((ind.x - ex)^2 + (ind.y - ey)^2)
-            if dist < 50 then  -- Within 50 pixels
-                nearby_count = nearby_count + 1
-            end
-        end
+        -- Determine if this is a critical hit based on damage thresholds
+        local is_mega_critical = damage >= 35
+        local is_critical = damage >= 18
         
-        -- Calculate spread pattern based on number of nearby indicators
-        local angle = (nearby_count * 45) % 360  -- Spread in 45-degree increments
-        local spread_radius = math.min(15 + nearby_count * 3, 35)  -- Increase spread with more indicators
-        local spread_x = math.cos(math.rad(angle)) * spread_radius
-        local spread_y = math.sin(math.rad(angle)) * spread_radius * 0.5  -- Less vertical spread
-        
-        -- Dynamic duration - faster fade with more indicators
-        local base_duration = 1.0
-        local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))  -- Faster with more indicators
-        local final_duration = base_duration * duration_multiplier
-        
-        table.insert(enemy.damage_indicators, {
-            x = ex + spread_x,
-            y = ey - 10 + spread_y,
-            damage = damage,
-            time = 0,
-            duration = final_duration,
-            velocity_y = -80 - (nearby_count * 5),  -- Faster with more indicators
-            velocity_x = math.random(-10, 10) + spread_x * 0.3,  -- Drift in spread direction
-            alpha = 1,
-            scale = 1.2,
-            bounce_factor = 0.95,
-            nearby_count = nearby_count  -- Store for reference
-        })
+        indicators.createDamage(ex, ey, damage, is_critical, is_mega_critical)
+        print("Created damage indicator:", damage, "at", ex, ey)
     end
     
     -- Check if enemy dies
@@ -84,29 +59,39 @@ function enemy.killEnemy(enemy_index)
         enemies_bods[enemy_index]:destroy()
         table.remove(enemies_bods, enemy_index)
         
-        -- Clean up health tracking
+        -- Clean up all enemy tracking data
         enemy.health[enemy_index] = nil
         enemy.enemy_damaged[enemy_index] = nil
         enemy.last_fire_times[enemy_index] = nil
+        enemy.noticed_player[enemy_index] = nil
+        enemy.first_notice_time[enemy_index] = nil
         
         -- Shift indices for remaining enemies
         local new_health = {}
         local new_damaged = {}
         local new_fire_times = {}
+        local new_noticed = {}
+        local new_notice_times = {}
         for i = 1, #enemies_bods do
             if i < enemy_index then
                 new_health[i] = enemy.health[i]
                 new_damaged[i] = enemy.enemy_damaged[i]
                 new_fire_times[i] = enemy.last_fire_times[i]
+                new_noticed[i] = enemy.noticed_player[i]
+                new_notice_times[i] = enemy.first_notice_time[i]
             else
                 new_health[i] = enemy.health[i + 1]
                 new_damaged[i] = enemy.enemy_damaged[i + 1]
                 new_fire_times[i] = enemy.last_fire_times[i + 1]
+                new_noticed[i] = enemy.noticed_player[i + 1]
+                new_notice_times[i] = enemy.first_notice_time[i + 1]
             end
         end
         enemy.health = new_health
         enemy.enemy_damaged = new_damaged
         enemy.last_fire_times = new_fire_times
+        enemy.noticed_player = new_noticed
+        enemy.first_notice_time = new_notice_times
     end
 end
 
@@ -159,56 +144,7 @@ function enemy.update(dt)
     -- Update existing projectiles
     enemy.updateProjectiles(dt)
     
-    -- Update damage indicators
-    for i = #enemy.damage_indicators, 1, -1 do
-        local indicator = enemy.damage_indicators[i]
-        indicator.time = indicator.time + dt
-        
-        -- Update position with easing
-        local progress = indicator.time / indicator.duration
-        local ease_out = 1 - math.pow(1 - progress, 3)  -- Ease-out cubic
-        
-        indicator.y = indicator.y + indicator.velocity_y * dt * indicator.bounce_factor
-        indicator.x = indicator.x + indicator.velocity_x * dt
-        
-        -- Apply deceleration over time
-        indicator.velocity_y = indicator.velocity_y * 0.98
-        indicator.velocity_x = indicator.velocity_x * 0.95
-        
-        -- Dynamic fade based on nearby count for better readability
-        local fade_start = indicator.nearby_count > 3 and 0.5 or 0.7  -- Fade earlier with many indicators
-        if progress > fade_start then
-            local fade_progress = (progress - fade_start) / (1.0 - fade_start)
-            indicator.alpha = 1 - math.pow(fade_progress, 1.5)  -- Smoother fade
-        else
-            indicator.alpha = 1
-        end
-        
-        -- Scale down over time for crisp effect
-        indicator.scale = 1.2 - (ease_out * 0.4)  -- Scale from 1.2 to 0.8
-        
-        -- Add slight separation force to prevent complete overlap
-        for j, other in ipairs(enemy.damage_indicators) do
-            if i ~= j and other.time < other.duration then
-                local dx = indicator.x - other.x
-                local dy = indicator.y - other.y
-                local dist = math.sqrt(dx*dx + dy*dy)
-                
-                if dist < 20 and dist > 0 then  -- Too close
-                    local separation_force = (20 - dist) / 20 * 15  -- Separation strength
-                    local norm_x = dx / dist
-                    local norm_y = dy / dist
-                    
-                    indicator.velocity_x = indicator.velocity_x + norm_x * separation_force * dt
-                    indicator.velocity_y = indicator.velocity_y + norm_y * separation_force * dt
-                end
-            end
-        end
-        
-        if indicator.time >= indicator.duration then
-            table.remove(enemy.damage_indicators, i)
-        end
-    end
+    -- Damage indicators are now handled by the indicators module
 end
 
 -- helpers
@@ -225,9 +161,17 @@ function enemy.updateEnemyAI(enemy_index, dt)
     local dx = player_x - enemy_x
     local dy = player_y - enemy_y
     local distance = math.sqrt(dx * dx + dy * dy)
+    local current_time = enemy.t
+    
+    -- Check if enemy notices player for first time
+    if distance <= enemy.detection_range and not enemy.noticed_player[enemy_index] then
+        enemy.noticed_player[enemy_index] = true
+        enemy.first_notice_time[enemy_index] = current_time
+        -- Create "noticed" indicator
+        indicators.createNoticed(enemy_x, enemy_y - 30, "!")
+    end
     
     -- Check if player is in range and enough time has passed since last shot
-    local current_time = enemy.t
     local last_fire = enemy.last_fire_times[enemy_index] or 0
     
     if distance <= enemy.detection_range and 
@@ -329,115 +273,7 @@ function enemy.populate()
         })
     end
     
-    -- Add damage indicators to dynamic draw list
-    for i = 1, #enemy.damage_indicators do
-        local indicator = enemy.damage_indicators[i]
-        
-        -- Enhanced damage color gradient system
-        local damage = indicator.damage
-        local base_color
-        local is_critical = false
-        local is_mega_critical = false
-        local is_splash = indicator.is_splash_indicator
-        
-        if is_splash then
-            -- Special splash indicator - bright cyan/blue
-            base_color = {0.2, 0.8, 1}
-            is_critical = true
-        elseif type(damage) == "string" then
-            -- Handle text damage indicators (like "SPLASH!")
-            base_color = {0.2, 0.8, 1}
-            is_critical = true
-        elseif damage >= 35 then
-            -- Mega critical - bright purple/magenta
-            base_color = {1, 0.2, 1}
-            is_mega_critical = true
-            is_critical = true
-        elseif damage >= 25 then
-            -- High critical - bright orange
-            base_color = {1, 0.5, 0.1}
-            is_critical = true
-        elseif damage >= 18 then
-            -- Medium critical - bright yellow
-            base_color = {1, 0.9, 0.2}
-            is_critical = true
-        elseif damage >= 12 then
-            -- High damage - red-orange
-            base_color = {1, 0.3, 0.1}
-        elseif damage >= 8 then
-            -- Medium damage - bright red
-            base_color = {1, 0.15, 0.15}
-        else
-            -- Low damage - darker red
-            base_color = {0.8, 0.2, 0.2}
-        end
-        
-        -- Adjust color saturation based on nearby count for better visibility
-        local saturation_boost = math.min(1.3, 1.0 + (indicator.nearby_count * 0.05))
-        local final_color = {
-            math.min(1, base_color[1] * saturation_boost),
-            math.min(1, base_color[2] * saturation_boost),
-            math.min(1, base_color[3] * saturation_boost)
-        }
-        
-        -- Add slight y-offset based on nearby count to create layering effect
-        local y_offset = -200 - (indicator.nearby_count * 2)
-        
-        -- Enhanced scale and emphasis for critical hits
-        local final_scale = indicator.scale
-        local display_text
-        
-        if is_splash then
-            final_scale = final_scale * 1.6  -- 60% larger for splash indicators
-            display_text = indicator.damage  -- Use the text as-is (e.g., "SPLASH!")
-        elseif type(damage) == "string" then
-            final_scale = final_scale * 1.3  -- 30% larger for text indicators
-            display_text = damage
-        else
-            -- Numeric damage indicators
-            local text_prefix = "-"
-            if is_mega_critical then
-                final_scale = final_scale * 1.4  -- 40% larger for mega crits
-                text_prefix = "★-"  -- Star prefix for mega crits
-            elseif is_critical then
-                final_scale = final_scale * 1.2  -- 20% larger for crits
-                text_prefix = "!-"  -- Exclamation for crits
-            end
-            display_text = text_prefix .. damage
-        end
-        
-        table.insert(dynamic_draw_list, {
-            sort_y = indicator.y + y_offset,  -- Layer indicators with many nearby
-            text = display_text,
-            x = indicator.x,
-            y = indicator.y,
-            font = gameFont,
-            color = {final_color[1], final_color[2], final_color[3], indicator.alpha},
-            scale = final_scale,
-            outline_color = {0, 0, 0, indicator.alpha * (is_critical and 1.0 or 0.9)},  -- Stronger outline for crits
-            is_critical = is_critical,
-            is_mega_critical = is_mega_critical,
-            nearby_count = indicator.nearby_count,
-            blend_mode = {"alpha"},
-            source_object_type = "damage_indicator"
-        })
-        
-        -- Add extra glow effect for mega critical hits and splash indicators
-        if is_mega_critical or is_splash then
-            table.insert(dynamic_draw_list, {
-                sort_y = indicator.y + y_offset - 1,  -- Render behind main text
-                text = display_text,
-                x = indicator.x,
-                y = indicator.y,
-                font = gameFont,
-                color = is_splash and {0.5, 1, 1, indicator.alpha * 0.4} or {1, 1, 1, indicator.alpha * 0.3},  -- Cyan glow for splash, white for mega crits
-                scale = final_scale * 1.1,  -- Slightly larger for glow
-                outline_color = {0, 0, 0, 0},  -- No outline for glow
-                blend_mode = {"add"},  -- Additive blending for glow effect
-                source_object_type = "damage_indicator"
-            })
-        end
-    end
+    -- Damage indicators are now handled by the indicators module
     
     -- Add health bars for damaged enemies
     for i = 1, #enemies_bods do
@@ -514,7 +350,9 @@ function enemy.collision(fixture_a, fixture_b, contact)
 
             end
             if not hit_client then
-            player.health = player.health - 1
+                if not player.god then
+                    player.health = player.health - 1
+                end
             end
             -- You can add player damage logic here
         end
@@ -557,6 +395,10 @@ function enemy.addEnemy(x, y)
     enemy.health[enemy_index] = enemy.max_health
     enemy.enemy_damaged[enemy_index] = false
     
+    -- Initialize noticed state for this enemy
+    enemy.noticed_player[enemy_index] = false
+    enemy.first_notice_time[enemy_index] = nil
+    
     return enemy_index, enemy_body
 end
 
@@ -586,6 +428,10 @@ end
 -- Helper function to remove enemy data (call when enemy dies)
 function enemy.removeEnemy(enemy_index)
     enemy.last_fire_times[enemy_index] = nil
+    enemy.health[enemy_index] = nil
+    enemy.enemy_damaged[enemy_index] = nil
+    enemy.noticed_player[enemy_index] = nil
+    enemy.first_notice_time[enemy_index] = nil
 end
 
 return enemy

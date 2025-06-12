@@ -35,6 +35,7 @@ moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 blood = require("systems.blood")
 border = require("systems.border")
+indicators = require("systems.indicators")
 p2p_permissions = require("security.p2p_permissions")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -231,6 +232,7 @@ function love.draw()
     bullet.populate()
     rocket.populate()  
     blood.populate()
+    indicators.populate(dynamic_draw_list)
 
     gun.drawWorld()
 
@@ -296,6 +298,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     command.update(dt)
     cmdn.update(dt)
     blood.update(dt)
+    indicators.update(dt)
 
     
     if var.multiplayer == 1 or not var.multiplayer  then
