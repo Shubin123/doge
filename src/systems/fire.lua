@@ -4,8 +4,8 @@ fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 6  -- Start with 6 fireballs
-fire.max_fireballs = 20  -- Maximum fireballs allowed
+fire.count = 1  -- Start with 6 fireballs
+fire.max_fireballs = 1  -- Maximum fireballs allowed
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
 fire_instances = {} -- Active fireballs in the ring - no collision on these for now
@@ -71,7 +71,7 @@ function fire.update(dt)
             
             -- Cache draw data for fire instances
             table.insert(fire_draw_data, {
-                sort_y = fire_instance.pos.y + 100,
+                sort_y = fire_instance.pos.y + 130,
                 image_or_particles = fire.particleSystem,
                 quad = nil,
                 x = fire_instance.pos.x,
@@ -175,22 +175,22 @@ end
 
 function fire.populate()
     -- Main static fire
-    local fire_main_x, fire_main_y = 500, 200
-    table.insert(dynamic_draw_list, {
-        sort_y = fire_main_y,
-        image_or_particles = fire.particleSystem,
-        quad = nil,
-        x = fire_main_x,
-        y = fire_main_y,
-        rotation = 0,
-        scale_x = fire.scale,
-        scale_y = fire.scale,
-        offset_x = 0,
-        offset_y = 0,
-        color = { 0.13, 0.37, 1, 1 },
-        blend_mode = { "lighten", "premultiplied" },
-        source_object_type = "fire_effect"
-    })
+    -- local fire_main_x, fire_main_y = 500, 200
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = fire_main_y,
+    --     image_or_particles = fire.particleSystem,
+    --     quad = nil,
+    --     x = fire_main_x,
+    --     y = fire_main_y,
+    --     rotation = 0,
+    --     scale_x = fire.scale,
+    --     scale_y = fire.scale,
+    --     offset_x = 0,
+    --     offset_y = 0,
+    --     color = { 0.13, 0.37, 1, 1 },
+    --     blend_mode = { "lighten", "premultiplied" },
+    --     source_object_type = "fire_effect"
+    -- })
 
     -- Add all cached draw data to dynamic_draw_list
     for _, draw_item in pairs(fire_draw_data) do
@@ -319,8 +319,8 @@ function fire.getNetworkData()
         -- print(fire.fireables[i][1].x)
         if (fire.fireables[i][1]) then
             table.insert(network_data, {
-                x = fire.fireables[i][1].x,
-                y = fire.fireables[i][1].y,
+                x = fire.fireables[i][1].x + 200,
+                y = fire.fireables[i][1].y + 45,
                 active = true,
                 id = i
             })
@@ -333,8 +333,8 @@ function fire.getNetworkData()
     -- Include fire bodies physics data (for collision sync)
     for i = 1, #fire_instances do
         table.insert(network_data, {
-            x = fire_instances[i].pos.x,
-            y = fire_instances[i].pos.y,
+            x = fire_instances[i].pos.x + 200,
+            y = fire_instances[i].pos.y + 45,
             active = false -- starts in this state by the time its non active again it should just be deleted (collided)
         })
     end

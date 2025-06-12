@@ -278,14 +278,14 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         var.State = "game"
     end
     world:update(dt)
-    t = t + dt
-    if t > 0.05 then  -- 20 updates per second for smoother multiplayer
+    -- t = t + dt
+    -- if t > 0.05 then  -- 20 updates per second for smoother multiplayer
         if var.multiplayer then
             mp:update()
             multiplayer.sendMovementMessage()
         end
-        t = 0
-    end
+    --     t = 0
+    -- end
     
     player.update(dt)
     
