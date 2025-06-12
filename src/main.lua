@@ -34,6 +34,8 @@ rocket = require("game.rocket")
 moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 blood = require("systems.blood")
+border = require("systems.border")
+p2p_permissions = require("security.p2p_permissions")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
@@ -43,7 +45,6 @@ json = require("lib.utils.json")
 
 -- Game variables
 world = 0
-local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
 local coin_shape, enemy_shape
@@ -78,11 +79,8 @@ function love.load()
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
-    fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
-        var.game_height + 50, 200,
-        var.game_height + 50)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    -- Create world border
+    border.create(world, var.game_width, var.game_height, 200, 50)
 
     map.createArches(300,200)
     map.createTree(400,100)
@@ -489,7 +487,7 @@ function createCoins(n)
             math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(coin_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, coin_shape)
+        local _fixture = love.physics.newFixture(_bod, coin_shape)
         _fixture:setGroupIndex(69)
     end
 end
@@ -500,7 +498,7 @@ function createEnemies(n)
             math.random(50, var.game_height + 50),
             "dynamic")
         table.insert(enemies_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, enemy_shape)
+        local _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(-777)
         
         -- Set enemy mass and physics properties for proper knockback

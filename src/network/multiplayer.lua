@@ -1,5 +1,6 @@
 -- multiplayer.lua - ENet LAN multiplayer Module
 local enet = require("enet")
+local p2p_permissions = require("security.p2p_permissions")
 
 local multiplayer = {}
 multiplayer.__index = multiplayer
@@ -359,25 +360,37 @@ function multiplayer.load()
             mp:sendToPeer(peer, "Welcome to the server!")
         else
             print("host be aware:", peer, "has joined!")
+            -- Add new player with restricted permissions
+            local player_id = tonumber(tostring(peer)) or 2 -- Simple player ID assignment
+            p2p_permissions.addPlayer(player_id, true)
         end
     end)
 
     mp:onConnection("disconnect", function(peer)
         print("Disconnection event:", peer)
+        -- Remove player from permissions
+        local player_id = tonumber(tostring(peer)) or 2
+        p2p_permissions.removePlayer(player_id)
     end)
 
 
 
-    if var.multiplayer ~= 0 then
+    if var.multiplayer and var.multiplayer ~= 0 then
         -- print(arg[3])
-    local ip = arg[3] and arg[3] or "localhost"
+        local ip = arg[3] and arg[3] or "localhost"
 
-    if var.multiplayer == 1  then
-        mp:startHost(ip)
+        if var.multiplayer == 1  then
+            mp:startHost(ip)
+            -- Initialize as host with developer permissions
+            p2p_permissions.init(true, var.multiplayer)
+        else
+            mp:connectToHost(ip)
+            -- Initialize as client with player permissions
+            p2p_permissions.init(false, var.multiplayer)
+        end
     else
-        mp:connectToHost(ip)
-    end
-    
+        -- Single player mode - always initialize as host with dev permissions
+        p2p_permissions.init(true, 1)
     end
     
     

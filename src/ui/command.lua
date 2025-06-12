@@ -158,19 +158,6 @@ function command.execute(cmd)
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
         return
-    elseif cmd == "tp" then
-        player.body:setPosition(0, 0)
-        return
-    elseif cmd == "save" then
-        -- for this function expect 3 tokens "tp", "x: float", "y: float"
-        -- we extract second and third index for x,y if they dont exist tp to 0
-        serial.quickSave()
-        return
-    elseif cmd == "load" then
-        -- for this function expect 3 tokens "tp", "x: float", "y: float"
-        -- we extract second and third index for x,y if they dont exist tp to 0
-        serial.quickLoad()
-        return
     end
 
     -- Try to execute as Lua code

@@ -1,5 +1,7 @@
 -- cmdn.lua - In-game cmdn line for LÖVE 2D
 local cmdn = {}
+local sandbox = require("security.sandbox")
+local p2p_permissions = require("security.p2p_permissions")
 
 -- Module state
 local isActive = false
@@ -279,17 +281,32 @@ local function updateAutocomplete()
     end
 end
 
+-- Track if sandbox is fully initialized
+local sandbox_fully_initialized = false
+
+-- Ensure sandbox is fully initialized when console is first opened
+local function ensureSandboxInitialized()
+    if not sandbox_fully_initialized then
+        sandbox.init()
+        sandbox_fully_initialized = true
+        cmdn.addOutput("{green}Sandbox security fully activated{/green}", promptColor)
+    end
+end
+
 -- Toggle console visibility
 function cmdn.toggle()
     isActive = not isActive
     if isActive then
+        -- Initialize sandbox security when console is first opened
+        ensureSandboxInitialized()
+        
         inputText = ""
         cursorPos = 0
         historyIndex = #history + 1
         showingAutocomplete = false
         autocompleteText = ""
     end
-    keyRepeatState = {}
+    keyRepeatState = {}  -- Clear key repeat state
 end
 
 -- Check if mouse is over title bar
@@ -359,6 +376,9 @@ local keyRepeatRate = 0.05  -- Time between repeats
 
 -- Initialize the cmdn module
 function cmdn.load()
+    -- Only do basic sandbox initialization during game load
+    sandbox.initBasic()
+    
     -- Try to load the desired font, fallback to default if it fails
     local success, loadedFont = pcall(love.graphics.newFont, "gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     if success then
@@ -368,11 +388,26 @@ function cmdn.load()
     end
     lineHeight = font:getHeight() + 2
     -- consoleWidth is now fixed, not screen-dependent
-    cmdn.addOutput("{green}=== {yellow}LUA DEBUG CONSOLE{/yellow} ==={/green}", promptColor)
+    cmdn.addOutput("{green}=== {yellow}SECURE LUA CONSOLE{/yellow} ==={/green}", promptColor)
     cmdn.addOutput("Type {yellow}help{/yellow} for available commands", outputColor)
     cmdn.addOutput("Press {cyan},{/cyan} to toggle console", outputColor)
+    
+    -- Show permission level and status
+    local level = sandbox.getPermissionLevel()
+    local level_names = {"Guest", "Player", "Admin", "Developer"}
+    local level_name = level_names[level] or "Unknown"
+    cmdn.addOutput("Security Level: {cyan}" .. level .. " (" .. level_name .. "){/cyan}", outputColor)
+    
+    -- Show host/multiplayer status
+    local my_id = (_G.var and _G.var.multiplayer) or 1
+    local is_host = (_G.p2p_permissions and _G.p2p_permissions.isHost(my_id)) or (my_id == 1)
+    if is_host then
+        cmdn.addOutput("Status: {green}HOST{/green} - Full developer access available", outputColor)
+    else
+        cmdn.addOutput("Status: {yellow}CLIENT{/yellow} - Restricted access", outputColor)
+    end
+    
     cmdn.addOutput("Autocomplete: {cyan}Tab{/cyan} to cycle/accept suggestions", outputColor)
-    cmdn.addOutput("Try: {cyan}player.{/cyan} or {cyan}love.{/cyan} for object inspection", outputColor)
     cmdn.addOutput("", outputColor)
 end
 
@@ -443,78 +478,83 @@ function cmdn.execute(cmd)
         cmdn.showHelp()
     elseif cmd == "clear" then
         output = {}
-    elseif cmd == "exit" then
-        love.event.quit()
-    elseif cmd == "reload" then
-        love.event.push("quit", "restart")
-    elseif string.find(cmd, "tp") then
-        local tokens = {}
-        for token in cmd:gmatch("%S+") do
-            table.insert(tokens, token)
-        end
-        local tp_x = tonumber(tokens[2]) or 0
-        local tp_y = tonumber(tokens[3]) or 0
-        if player and player.body then
-            player.body:setPosition(tp_x, tp_y)
-        end
-    elseif cmd == "save" then
-        if serial and serial.quickSave then
-            serial.quickSave()
-        end
-    elseif cmd == "load" then
-        if serial and serial.quickLoad then
-            serial.quickLoad()
-        end
     elseif cmd == "editor" then
         cmdn.showEditorPrompt()
     elseif cmd == "editor.enable" then
-        if editor then
-            editor.setEnabled(true)
+        if _G.editor then
+            _G.editor.setEnabled(true)
             cmdn.addOutput("{green}✓ Map editor {yellow}ENABLED{/yellow}. Click objects to select and move them.{/green}", outputColor)
             cmdn.addOutput("Use {cyan}1{/cyan}, {cyan}2{/cyan}, {cyan}3{/cyan} to switch modes. {cyan}RMB{/cyan} to delete objects.", outputColor)
         else
             cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
         end
     elseif cmd == "editor.disable" then
-        if editor then
-            editor.setEnabled(false)
+        if _G.editor then
+            _G.editor.setEnabled(false)
             cmdn.addOutput("{yellow}✓ Map editor {red}DISABLED{/red}. Objects are now protected from editing.{/yellow}", outputColor)
         else
             cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
         end
     elseif cmd == "editor.status" then
-        if editor then
-            local status = editor.isEnabled() and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
-            local mode = editor.isEnabled() and editor.getMode() or "N/A"
+        if _G.editor then
+            local status = _G.editor.isEnabled() and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
+            local mode = _G.editor.isEnabled() and _G.editor.getMode() or "N/A"
             cmdn.addOutput("{cyan}Map Editor Status: " .. status .. "{/cyan}", outputColor)
             cmdn.addOutput("{cyan}Current Mode: {yellow}" .. mode .. "{/yellow}{/cyan}", outputColor)
         else
             cmdn.addOutput("{red}✗ Editor module not available.{/red}", errorColor)
         end
+    elseif cmd == "security.level" then
+        local current_level = sandbox.getPermissionLevel()
+        local level_names = {"Guest", "Player", "Admin", "Developer"}
+        cmdn.addOutput("{cyan}Current Security Level: {yellow}" .. current_level .. " (" .. (level_names[current_level] or "Unknown") .. "){/yellow}{/cyan}", outputColor)
+    elseif cmd:match("^security%.setlevel%s+%d+$") then
+        local level = tonumber(cmd:match("%d+"))
+        if level and level >= 1 and level <= 4 then
+            sandbox.setPermissionLevel(level)
+            local level_names = {"Guest", "Player", "Admin", "Developer"}
+            cmdn.addOutput("{green}Security level set to: {yellow}" .. level .. " (" .. (level_names[level] or "Unknown") .. "){/yellow}{/green}", outputColor)
+        else
+            cmdn.addOutput("{red}Invalid security level. Use 1-4{/red}", errorColor)
+        end
+    elseif cmd:match("^perms%.") then
+        -- Handle P2P permission commands
+        local my_player_id = (_G.var and _G.var.multiplayer) or 1
+        local success, output = p2p_permissions.handleConsoleCommand(cmd, my_player_id)
+        
+        if success and output then
+            for _, line in ipairs(output) do
+                cmdn.addOutput(line, outputColor)
+            end
+        elseif not success and output then
+            for _, line in ipairs(output) do
+                cmdn.addOutput(line, errorColor)
+            end
+        end
     else
-        local success, result = pcall(function()
-            local func, err = load("return " .. cmd)
-            if func then
-                local results = {func()}
-                if #results > 0 then
-                    for _, v in ipairs(results) do
-                        if type(v) == "table" then
-                            cmdn.addOutput(cmdn.tableToString(v), outputColor)
-                        else
-                            cmdn.addOutput(tostring(v), outputColor)
-                        end
-                    end
-                end
-            else
-                func, err = load(cmd)
-                if func then
-                    func()
+        -- Validate code first
+        local valid, errors = sandbox.validateCode(cmd)
+        if not valid then
+            cmdn.addOutput("{red}Security Error:{/red}", errorColor)
+            for _, error_msg in ipairs(errors) do
+                cmdn.addOutput("  " .. error_msg, errorColor)
+            end
+            return
+        end
+        
+        -- Execute with sandbox security
+        local permission_level = sandbox.getPermissionLevel()
+        local success, result = sandbox.executeCode(cmd, permission_level)
+        
+        if success then
+            if result ~= nil then
+                if type(result) == "table" then
+                    cmdn.addOutput(cmdn.tableToString(result), outputColor)
                 else
-                    error(err)
+                    cmdn.addOutput(tostring(result), outputColor)
                 end
             end
-        end)
-        if not success then
+        else
             cmdn.addOutput("{red}Error:{/red} " .. tostring(result), errorColor)
         end
     end
@@ -551,12 +591,23 @@ function cmdn.showHelp()
     cmdn.addOutput("{green}Available cmdns:{/green}", promptColor)
     cmdn.addOutput("  {yellow}help{/yellow}          - Show this help", outputColor)
     cmdn.addOutput("  {yellow}clear{/yellow}         - Clear console output", outputColor)
-    cmdn.addOutput("  {yellow}exit{/yellow}          - Quit game", outputColor)
-    cmdn.addOutput("  {yellow}reload{/yellow}        - Restart game", outputColor)
-    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
-    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
-    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
+    cmdn.addOutput("  {cyan}player.body:setPosition(x, y){/cyan} - Teleport player", outputColor)
+    cmdn.addOutput("  {cyan}serial.quickSave(){/cyan}        - Quick save", outputColor)
+    cmdn.addOutput("  {cyan}serial.quickLoad(){/cyan}        - Quick load", outputColor)
+    cmdn.addOutput("  {cyan}love.event.quit(){/cyan}         - Quit game", outputColor)
+    cmdn.addOutput("  {cyan}border.create(world, w, h){/cyan} - Create map border", outputColor)
     cmdn.addOutput("  {yellow}editor{/yellow}        - Map editor interface", outputColor)
+    cmdn.addOutput("", outputColor)
+    cmdn.addOutput("{green}Security Commands:{/green}", promptColor)
+    cmdn.addOutput("  {yellow}security.level{/yellow}     - Show current permission level", outputColor)
+    cmdn.addOutput("  {yellow}security.setlevel N{/yellow} - Set permission level (1-4)", outputColor)
+    cmdn.addOutput("    {cyan}1=Guest, 2=Player, 3=Admin, 4=Developer{/cyan}", outputColor)
+    cmdn.addOutput("", outputColor)
+    cmdn.addOutput("{green}Multiplayer Permissions (Host Only):{/green}", promptColor)
+    cmdn.addOutput("  {yellow}perms.list{/yellow}         - List all player permissions", outputColor)
+    cmdn.addOutput("  {yellow}perms.me{/yellow}           - Show your permission level", outputColor)
+    cmdn.addOutput("  {yellow}perms.grant ID LEVEL{/yellow} - Grant permission to player", outputColor)
+    cmdn.addOutput("    {cyan}Example: perms.grant 2 3{/cyan} (give Player 2 Admin level)", outputColor)
     cmdn.addOutput("", outputColor)
     cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
     cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)
@@ -582,7 +633,7 @@ function cmdn.showEditorPrompt()
     cmdn.addOutput("{cyan}│{/cyan}           {yellow}MAP EDITOR INTERFACE{/yellow}           {cyan}│{/cyan}", outputColor)
     cmdn.addOutput("{cyan}├─────────────────────────────────────────┤{/cyan}", outputColor)
     
-    local editorStatus = editor and editor.isEnabled() and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
+    local editorStatus = (_G.editor and _G.editor.isEnabled()) and "{green}ENABLED{/green}" or "{red}DISABLED{/red}"
     cmdn.addOutput("{cyan}│{/cyan} Status: " .. editorStatus .. "                        {cyan}│{/cyan}", outputColor)
     cmdn.addOutput("{cyan}│{/cyan}                                         {cyan}│{/cyan}", outputColor)
     cmdn.addOutput("{cyan}│{/cyan} {white}Commands:{/white}                             {cyan}│{/cyan}", outputColor)
@@ -599,7 +650,7 @@ function cmdn.showEditorPrompt()
     cmdn.addOutput("{cyan}└─────────────────────────────────────────┘{/cyan}", outputColor)
     cmdn.addOutput("", outputColor)
     
-    if editor and editor.isEnabled() then
+    if _G.editor and _G.editor.isEnabled() then
         cmdn.addOutput("{green}Editor is currently {yellow}ACTIVE{/yellow}. Click objects to select and move them.{/green}", outputColor)
     else
         cmdn.addOutput("{yellow}Editor is currently {red}INACTIVE{/red}. Use {cyan}editor.enable(){/cyan} to start editing.{/yellow}", outputColor)

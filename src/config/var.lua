@@ -1,5 +1,7 @@
 local var = {}
-var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
+-- Default to pseudo-multiplayer mode (player 1 = host) for single player with dev access
+-- Other players can join and will get restricted permissions
+var.multiplayer = tonumber(arg[2]) or 1 -- Always default to host (player 1) if no arg provided
 -- globals
 var.screen_height = 600
 var.screen_width = 800
