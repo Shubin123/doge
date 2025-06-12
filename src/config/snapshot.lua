@@ -104,7 +104,7 @@ function snapshot.create()
             end
         end
 
-        local host_rockets = rocket.getNetworkData()
+        -- local host_rockets = rocket.getNetworkData()
         if host_rockets then
             for k, v in pairs(host_rockets) do
                 game_state.rockets["host_" .. tostring(k)] = v
@@ -142,7 +142,7 @@ function snapshot.create()
             player_data = renderer.local_player_state,
             fire_effects = fire.getNetworkData(), -- Clients send their fire effects
             bullets = bullet.getNetworkData(),
-            rockets = rocket.getNetworkData(),
+            -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks()
         }
         
