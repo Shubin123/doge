@@ -44,6 +44,7 @@ json = require("lib.utils.json")
 
 -- Game variables
 world = 0
+t = 0  -- Timer for network updates
 local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
@@ -277,16 +278,21 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         var.State = "game"
     end
     world:update(dt)
-    -- t  = t + dt
-    -- if t > 0.1 then
-    if var.multiplayer then
-    mp:update()
-    multiplayer.sendMovementMessage()
+    t = t + dt
+    if t > 0.05 then  -- 20 updates per second for smoother multiplayer
+        if var.multiplayer then
+            mp:update()
+            multiplayer.sendMovementMessage()
+        end
+        t = 0
     end
-    -- t = 0
-    -- end
     
     player.update(dt)
+    
+    -- Update player interpolation for smooth multiplayer movement
+    if var.multiplayer then
+        renderer.updateInterpolation(dt)
+    end
     
     camera.update(dt, player)
     water.update(dt)

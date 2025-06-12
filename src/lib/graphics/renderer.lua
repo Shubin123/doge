@@ -4,7 +4,7 @@ dynamic_draw_list = {}
 
 -- Networked game state (managed by server, synced to clients)
 renderer.networked_state = {
-    players = {},      -- { player_id = { x, y, animation_frame, scale, rotation, ... } }
+    players = {},      -- { player_id = { x, y, prev_x, prev_y, animation_frame, scale, rotation, ... } }
     enemies = {},      -- { enemy_id = { x, y, active, ... } }
     coins = {},        -- { coin_id = { x, y, active, ... } }
     fire_effects = {}, -- { effect_id = { x, y, active, ... } }
@@ -20,6 +20,31 @@ renderer.local_player_state = {
 
 flipQuads = true
 
+-- Interpolation smoothing factor (adjust for desired smoothness)
+local interpolation_speed = 12
+
+-- Update player interpolation
+function renderer.updateInterpolation(dt)
+    for player_id, player_data in pairs(renderer.networked_state.players) do
+        if player_data.active and player_data.prev_x and player_data.prev_y then
+            -- Calculate interpolated positions
+            local target_x = player_data.x
+            local target_y = player_data.y
+            local current_x = player_data.prev_x
+            local current_y = player_data.prev_y
+            
+            -- Smooth interpolation towards target position
+            local lerp_factor = math.min(1, dt * interpolation_speed)
+            player_data.interpolated_x = current_x + (target_x - current_x) * lerp_factor
+            player_data.interpolated_y = current_y + (target_y - current_y) * lerp_factor
+            
+            -- Update previous position for next frame
+            player_data.prev_x = player_data.interpolated_x
+            player_data.prev_y = player_data.interpolated_y
+        end
+    end
+end
+
 -- Sorting function for Y-axis rendering
 function renderer.sortByRenderY(drawable_a, drawable_b)
     return drawable_a.sort_y < drawable_b.sort_y
@@ -27,7 +52,26 @@ end
 
 -- Network data setters
 function renderer.setNetworkedPlayers(players_data)
-    renderer.networked_state.players = players_data or {}
+    if not players_data then
+        renderer.networked_state.players = {}
+        return
+    end
+    
+    -- Store previous positions for interpolation
+    for player_id, new_data in pairs(players_data) do
+        local existing_player = renderer.networked_state.players[player_id]
+        if existing_player then
+            -- Store current position as previous before updating
+            new_data.prev_x = existing_player.x or new_data.x
+            new_data.prev_y = existing_player.y or new_data.y
+        else
+            -- New player - no previous position yet
+            new_data.prev_x = new_data.x
+            new_data.prev_y = new_data.y
+        end
+    end
+    
+    renderer.networked_state.players = players_data
 end
 
 function renderer.setNetworkedEnemies(enemies_data)
@@ -191,10 +235,13 @@ local function addCoinsFromBodies()
 end
 
 local function addNetworkedEntities()
-    -- Networked players
+    -- Networked players with interpolation
     for player_id, player_data in pairs(renderer.networked_state.players) do
         if player_data.active then
-            addPlayer(player_data.x, player_data.y, player_data.animation_frame,
+            -- Use interpolated positions if available, otherwise fall back to actual positions
+            local render_x = player_data.interpolated_x or player_data.x
+            local render_y = player_data.interpolated_y or player_data.y
+            addPlayer(render_x, render_y, player_data.animation_frame,
                 player_data.scale, player_data.rotation, player_id)
         end
     end
