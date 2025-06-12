@@ -665,9 +665,9 @@ function renderer.renderSortedDrawList()
             love.graphics.setShader(drawable.shader)
             
             -- Send world position to shader
-            if drawable.shader_params and drawable.shader_params.world_position then
-                drawable.shader:send("world_position", drawable.shader_params.world_position)
-            end
+            -- if drawable.shader_params and drawable.shader_params.world_position then
+            --     drawable.shader:send("world_position", {0,0})
+            -- end
             
             -- Draw the tree with shader
             if drawable.quad then

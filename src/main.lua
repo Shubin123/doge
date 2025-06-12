@@ -87,7 +87,7 @@ function love.load()
 
     map.createArches(300,200)
     map.createTree(400,100)
-    map.createTreeWithWind(500,100)
+    -- map.createTreeWithWind(500,100)
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
 
     -- Load map and player
@@ -146,13 +146,10 @@ function love.load()
     blur.load()
     light.load()
     blood.load()
-    
+
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 
-    
-
-    
 end
 
 local W = love.graphics.getWidth()

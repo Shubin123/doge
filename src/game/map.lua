@@ -495,13 +495,13 @@ end
 function map.createTree(x, y)
     local tree = map.createDynamicObject({
         type = "tree",
-        x = x + 78,
-        y = y + 78,
+        x = x + 20,
+        y = y,
         width = 156,
         height = 156,
         physics = {
             type = "static",
-            shape = love.physics.newCircleShape(20),
+            shape = love.physics.newCircleShape(-27, 15,3),
         },
     })
 
@@ -512,6 +512,21 @@ function map.createTree(x, y)
         tileId = 1,
         scale = 0.8,
     })
+
+    -- tree:addComponent("collision", {
+    --     init = function(self, owner)
+            
+            
+
+    --         local left_fixture = love.physics.newFixture(owner.body,love.physics.newCircleShape(20))
+            
+
+    --         left_fixture:setUserData({type = "arch", id = owner.id, side = "left", object = owner})
+            
+
+    --         table.insert(owner.fixtures, left_fixture)
+    --     end,
+    -- })
 
     tree:addComponent("shadow", {
         init = function(self, owner)
@@ -532,8 +547,8 @@ function map.createTree(x, y)
         end,
     })
 
-    tree.x = x
-    tree.y = y
+    -- tree.x = x
+    -- tree.y = y
     
     local originalMove = tree.move
     tree.move = function(self, new_x, new_y)
@@ -676,7 +691,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
 
                     -- Create tree draw item with potential wind shader
                     local drawItem = {
-                        sort_y = base_sort_y + tree.y,
+                        sort_y = base_sort_y + tree.y  -100,
                         image_or_particles = map.tiles4.tilesetImage,
                         quad = map.tiles4.quads[visual.tileId],
                         x = tree.x + visual.offset_x,
