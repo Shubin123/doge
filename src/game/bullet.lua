@@ -1,4 +1,5 @@
 -- local vec2 = require("lib.math.vec2")
+local physSafe = require("util.physics_safe")
 
 local bullet = {}
 bullet.world = nil
@@ -327,10 +328,18 @@ function bullet.collision(fixture_a, fixture_b, contact)
         
         -- Find enemy index and apply damage using the new health system
         for i = 1, #enemies_bods do
-            if enemies_bods[i] == otherBody then
+            if enemies_bods[i] and enemies_bods[i] == otherBody then
                 if enemy and enemy.damageEnemy then
                     local damage_amount = math.random(8, 15)  -- Random damage 8-15
                     enemy.damageEnemy(i, damage_amount)
+                    
+                    -- Add knockback force from bullet impact
+                    local bullet_force = 40  -- Reduced force for proper mass enemies
+                    local knockback_x = inst.dir.x * bullet_force
+                    local knockback_y = inst.dir.y * bullet_force
+                    
+                    -- Apply the knockback force to the enemy using safe utility
+                    physSafe.safeApplyImpulse(otherBody, knockback_x, knockback_y)
                 end
                 break
             end

@@ -538,6 +538,13 @@ function enemy.addEnemy(x, y)
     local enemy_body = love.physics.newBody(world, x, y, "dynamic")
     local enemy_fixture = love.physics.newFixture(enemy_body, love.physics.newCircleShape(25))
     enemy_fixture:setGroupIndex(-777)
+    
+    -- Set enemy mass and physics properties for proper knockback
+    enemy_fixture:setDensity(2.0)  -- Give enemies substantial mass
+    enemy_body:resetMassData()  -- Apply the density changes
+    enemy_body:setLinearDamping(3.0)  -- Add damping so they don't slide forever
+    enemy_body:setAngularDamping(5.0)  -- Prevent excessive spinning
+    
     -- Add to enemies_bods table
     table.insert(enemies_bods, enemy_body)
     local enemy_index = #enemies_bods

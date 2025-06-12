@@ -1,4 +1,5 @@
 local fire = {}
+local physSafe = require("util.physics_safe")
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
@@ -217,11 +218,37 @@ function fire.collision(fixture_a, fixture_b, contact)
         -- print(not_fire:getGroupIndex())
         -- Check if hit an enemy  
         for i = 1, #enemies_bods do
-            if enemies_bods[i] == not_fire:getBody() then
+            if enemies_bods[i] and enemies_bods[i] == not_fire:getBody() then
                 -- Apply fire damage to enemy using new health system
                 if enemy and enemy.damageEnemy then
                     local damage_amount = math.random(15, 25)  -- Fire does more damage than bullets
                     enemy.damageEnemy(i, damage_amount)
+                    
+                    -- Add knockback force from fire impact (stronger than bullets)
+                    local enemy_body = enemies_bods[i]
+                    if firef then
+                        local fire_body = firef:getBody()
+                        if fire_body then
+                            local fx, fy = fire_body:getPosition()
+                            local ex, ey = physSafe.safeGetPosition(enemy_body)
+                            
+                            if ex and ey then
+                                -- Calculate knockback direction from fire to enemy
+                                local dx = ex - fx
+                                local dy = ey - fy
+                                local distance = math.sqrt(dx*dx + dy*dy)
+                                
+                                if distance > 0 then
+                                    local fire_force = 70  -- Reduced but still stronger than bullets
+                                    local knockback_x = (dx / distance) * fire_force
+                                    local knockback_y = (dy / distance) * fire_force
+                                    
+                                    -- Apply the knockback force to the enemy using safe method
+                                    physSafe.safeApplyImpulse(enemy_body, knockback_x, knockback_y)
+                                end
+                            end
+                        end
+                    end
                 end
                 
                 -- 10% chance to add fireball when hitting enemy

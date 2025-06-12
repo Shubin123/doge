@@ -487,6 +487,12 @@ function createEnemies(n)
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(-777)
+        
+        -- Set enemy mass and physics properties for proper knockback
+        _fixture:setDensity(2.0)  -- Give enemies substantial mass
+        _bod:resetMassData()  -- Apply the density changes
+        _bod:setLinearDamping(3.0)  -- Add damping so they don't slide forever
+        _bod:setAngularDamping(5.0)  -- Prevent excessive spinning
     end
 end
 
