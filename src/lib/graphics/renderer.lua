@@ -588,7 +588,7 @@ function renderer.renderSortedDrawList()
         end
 
         -- Handle shader drawing
-        if drawable.shader then
+        if drawable.shader and  drawable.source_object_type ~= "tree_with_wind" then
             -- Set shader and parameters
             love.graphics.setShader(drawable.shader)
             if drawable.shader_params and drawable.source_object_type == "portal_shader" then
@@ -660,7 +660,31 @@ function renderer.renderSortedDrawList()
                drawable.draw_type == "rocket_exhaust" or 
                drawable.draw_type == "rocket_explosion" then
             renderDrawType(drawable)
-
+        elseif drawable.source_object_type == "tree_with_wind" and drawable.shader then
+            
+            love.graphics.setShader(drawable.shader)
+            
+            -- Send world position to shader
+            if drawable.shader_params and drawable.shader_params.world_position then
+                drawable.shader:send("world_position", drawable.shader_params.world_position)
+            end
+            
+            -- Draw the tree with shader
+            if drawable.quad then
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.quad,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            end
+            
+            love.graphics.setShader()
             -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then

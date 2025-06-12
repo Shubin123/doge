@@ -632,6 +632,38 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                 end
             end
         end
+    -- elseif mapData == map.tree then
+    --     for _, tree in ipairs(map.treeInstances) do
+    --         if tree.active then
+    --             local visual = tree:getComponent("visual")
+    --             if visual then
+    --                 local shadow = tree:getComponent("shadow")
+    --                 if shadow and shadow.getDynamicDrawItem then
+    --                     table.insert(drawItems, shadow:getDynamicDrawItem(tree))
+    --                 end
+
+    --                 table.insert(drawItems, {
+    --                     sort_y = base_sort_y + tree.y,
+    --                     image_or_particles = map.tiles4.tilesetImage,
+    --                     quad = map.tiles4.quads[visual.tileId],
+    --                     x = tree.x + visual.offset_x,
+    --                     y = tree.y + visual.offset_y,
+    --                     rotation = tree.rotation,
+    --                     scale_x = map_scale * visual.scale * tree.scale,
+    --                     scale_y = map_scale * visual.scale * tree.scale,
+    --                     offset_x = 0,
+    --                     offset_y = 0,
+    --                     color = tree.color,
+    --                     blend_mode = {"alpha"},
+    --                     source_object_type = "tree",
+    --                     object_id = tree.id,
+    --                 })
+    --                 performance.objectsRendered = performance.objectsRendered + 1
+    --             end
+    --         end
+    --     end
+
+
     elseif mapData == map.tree then
         for _, tree in ipairs(map.treeInstances) do
             if tree.active then
@@ -642,7 +674,8 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         table.insert(drawItems, shadow:getDynamicDrawItem(tree))
                     end
 
-                    table.insert(drawItems, {
+                    -- Create tree draw item with potential wind shader
+                    local drawItem = {
                         sort_y = base_sort_y + tree.y,
                         image_or_particles = map.tiles4.tilesetImage,
                         quad = map.tiles4.quads[visual.tileId],
@@ -657,11 +690,24 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         blend_mode = {"alpha"},
                         source_object_type = "tree",
                         object_id = tree.id,
-                    })
-                    performance.objectsRendered = performance.objectsRendered + 1
+                    }
+                    -- print(visual.usewind, wind.shader)
+                    
+                    -- Add wind shader if enabled
+                    -- if visual.usewind and wind.shader then
+                        drawItem.shader = wind.shader
+                        drawItem.shader_params = {
+                            world_position = {tree.x, tree.y}
+                        }
+                        drawItem.source_object_type = "tree_with_wind"
+                    -- end
+                    
+                    table.insert(drawItems, drawItem)
+                    -- performance.objectsRendered = performance.objectsRendered + 1
                 end
             end
         end
+    
     elseif mapData.draw then
         local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
         local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))

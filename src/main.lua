@@ -34,6 +34,7 @@ rocket = require("game.rocket")
 moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 blood = require("systems.blood")
+wind = require("lib.graphics.wind")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
@@ -86,6 +87,7 @@ function love.load()
 
     map.createArches(300,200)
     map.createTree(400,100)
+    map.createTreeWithWind(500,100)
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
 
     -- Load map and player
@@ -131,6 +133,7 @@ function love.load()
 
     -- Shaders
     grass.public.load()
+    wind.load()
 
     --  grass:setGrassArea(320, 398, 165, 37, 2000)
     fire.load()
@@ -308,7 +311,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     bullet.update(dt)
     rocket.update(dt)
 
-  
+    wind.update(dt)
+
 
 
 end
