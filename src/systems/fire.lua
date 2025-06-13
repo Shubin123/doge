@@ -344,18 +344,6 @@ end
 
 
 
-function fire.setOnline(index,pos)
 
-  if fire.online_fireables[index] then
-    -- print("table index already in use setting")
-    fire.online_fireables[index]:setPosition(pos.x, pos.y)
-  else 
-    fire.online_fireables[index] = love.physics.newBody(world, pos.x, pos.y, "dynamic")
-    local _fixture = love.physics.newFixture(fire.online_fireables[index], love.physics.newCircleShape(20))
-    _fixture:setGroupIndex(-1)
-  end
-
-
-end
 
 return fire

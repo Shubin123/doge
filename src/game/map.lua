@@ -805,6 +805,52 @@ function map.createSaveData()
     return map_data
 end
 
+function map.createSaveDataSmall()
+    local map_data = {}
+    
+    -- -- Capture base tile map data
+    -- if map.map and map.map.tileData then
+    --     map_data.base_tiles = {
+    --         width = map.map.width,
+    --         height = map.map.height,
+    --         tile_data = {}
+    --     }
+        
+    --     -- Deep copy tile data
+    --     for y = 1, map.map.height do
+    --         map_data.base_tiles.tile_data[y] = {}
+    --         for x = 1, map.map.width do
+    --             map_data.base_tiles.tile_data[y][x] = map.map.tileData[y] and map.map.tileData[y][x] or 0
+    --         end
+    --     end
+    -- end
+    
+    -- Capture arch instances
+    map_data.arches = {}
+    for i, arch in ipairs(map.archInstances) do
+        map_data.arches[i] = {
+            pivot_x = arch.pivot_x,
+            pivot_y = arch.pivot_y,
+            id = arch.id,
+            visual_offset_x = arch.visual_offset_x,
+            visual_offset_y = arch.visual_offset_y
+        }
+    end
+    
+    -- Capture tree instances
+    map_data.trees = {}
+    for i, tree in ipairs(map.treeInstances) do
+        map_data.trees[i] = {
+            x = tree.x,
+            y = tree.y,
+            id = tree.id
+        }
+    end
+    
+    return map_data
+end
+
+
 -- Restore map from save data
 function map.restore(map_data)
     if not map_data then

@@ -230,7 +230,7 @@ function enemy.updateEnemyAI(enemy_index, dt)
     local last_fire = enemy.last_fire_times[enemy_index] or 0
     
     if distance <= enemy.detection_range and 
-       (current_time - last_fire) >= enemy.fire_cooldown then
+       (current_time - last_fire) >= enemy.fire_cooldown + math.random() then
         
         -- Fire projectile at player
         enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)

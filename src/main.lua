@@ -113,13 +113,15 @@ function love.load()
     -- physics
 
     -- print(shape_sizes)
+    if not var.multiplayer or var.multiplayer == 1 then
     coin_shape = love.physics.newCircleShape(5)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
+    end
 
-    -- Graphicsw
+    -- Graphics
     if var.num_coins > 0 then
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
@@ -286,7 +288,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
             mp:update()
             multiplayer.sendMovementMessage()
         end
-    --     t = 0
+        -- t = 0
     -- end
     
     player.update(dt)
@@ -551,7 +553,7 @@ function beginContact(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     boss.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
-    bullet.collision(fixture_a, fixture_b, contact)
+    
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

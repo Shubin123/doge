@@ -112,11 +112,11 @@ function snapshot.create()
         end
 
         -- local host_rockets = rocket.getNetworkData()
-        if host_rockets then
-            for k, v in pairs(host_rockets) do
-                game_state.rockets["host_" .. tostring(k)] = v
-            end
-        end
+        -- if host_rockets then
+        --     for k, v in pairs(host_rockets) do
+        --         game_state.rockets["host_" .. tostring(k)] = v
+        --     end
+        -- end
 
         -- Add accumulated client bullets and rockets
         for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
@@ -136,7 +136,10 @@ function snapshot.create()
         end
 
         -- print(game_state.players)
-        game_state.map_data = map.createSaveData()
+        -- game_state.map_data = map.createSaveData()
+        game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
+
+
         
         -- Collect host's command blocks (which now includes accumulated client blocks)
         game_state.command_blocks = command.getCommandBlocks()
