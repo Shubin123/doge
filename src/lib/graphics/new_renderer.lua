@@ -1,5 +1,7 @@
 local rendererPlus = {}
 
+rendererPlus.debug_mode = true
+
 -- Asset Management System
 local assets = {
     textures = {},
@@ -48,12 +50,9 @@ function rendererPlus.preloadAssets()
         ["player_hurt"] = "src/gfx/testCharacter/hurt.png",
         
         -- Enemy sprites
-        ["enemy_01"] = "src/gfx/EnemiesSpriteSheets/enemy-01.png",
-        ["enemy_02"] = "src/gfx/EnemiesSpriteSheets/enemy-02.png",
-        ["enemy_03"] = "src/gfx/EnemiesSpriteSheets/enemy-03.png",
-        ["enemy_explosion"] = "src/gfx/EnemiesSpriteSheets/enemy-explosion.png",
+        ["Jerome_Enemy"] = "src/gfx/enemy.png",
         
-        -- Boss sprites
+        -- bear: boss sprites
         ["bear_boss_default"] = "src/gfx/EnemiesSpriteSheets/BearBoss/bear_enemy_default_state.png",
         ["bear_boss_threatening"] = "src/gfx/EnemiesSpriteSheets/BearBoss/bear_enemy_laser_threatening.png",
         ["bear_boss_shooting"] = "src/gfx/EnemiesSpriteSheets/BearBoss/bear_enemy_laser_shooting.png",
@@ -135,14 +134,19 @@ function rendererPlus.preloadAssets()
         ["laser_particles"] = "src/gfx/EnemiesSpriteSheets/BearBoss/laser_charging_particles.png"
     }
     
+    local function normalize(path)
+        return path:gsub("^src/", "")
+    end
+
     -- Load all textures
     for name, path in pairs(asset_paths) do
-        local success, texture = pcall(love.graphics.newImage, path)
+        local loadPath = normalize(path)
+        local success, texture = pcall(love.graphics.newImage, loadPath)
         if success then
             assets.textures[name] = texture
-            print("[NEW_RENDERER] Loaded texture: " .. name .. " from " .. path)
+            print("[rendererPlus] Loaded texture: " .. name .. " from " .. loadPath)
         else
-            print("[NEW_RENDERER] Failed to load texture: " .. name .. " from " .. path)
+            print("[rendererPlus] Failed to load texture: " .. name .. " from " .. loadPath)
         end
     end
     
@@ -157,20 +161,20 @@ function rendererPlus.preloadAssets()
         local success, font = pcall(love.graphics.newFont, path, 16)
         if success then
             assets.fonts[name] = font
-            print("[NEW_RENDERER] Loaded font: " .. name)
+            print("[rendererPlus] Loaded font: " .. name)
         else
-            print("[NEW_RENDERER] Failed to load font: " .. name)
+            print("[rendererPlus] Failed to load font: " .. name)
         end
     end
     
-    print("[NEW_RENDERER] Asset preloading complete!")
+    print("[rendererPlus] Asset preloading complete!")
 end
 
 -- Particle System Manager
 function rendererPlus.createParticleSystem(texture_name, buffer_size)
     local texture = assets.textures[texture_name]
     if not texture then
-        print("[NEW_RENDERER] Warning: Texture not found for particle system: " .. texture_name)
+        print("[rendererPlus] Warning: Texture not found for particle system: " .. texture_name)
         return nil
     end
     
@@ -183,10 +187,10 @@ function rendererPlus.loadShader(name, vertex_path, fragment_path)
     local success, shader = pcall(love.graphics.newShader, vertex_path, fragment_path)
     if success then
         assets.shaders[name] = shader
-        print("[NEW_RENDERER] Loaded shader: " .. name)
+        print("[rendererPlus] shader --> " .. name .. " loaded")
         return shader
     else
-        print("[NEW_RENDERER] Failed to load shader: " .. name)
+        print("[rendererPlus] Failed to load shader: " .. name)
         return nil
     end
 end
@@ -202,18 +206,21 @@ end
 
 function rendererPlus.addToQueue(layer, draw_data)
     if not render_queue[layer] then
-        print("[NEW_RENDERER] Warning: Invalid render layer: " .. tostring(layer))
+        print("[rendererPlus] Warning: Invalid render layer: " .. tostring(layer))
         return
     end
-    
+    if not draw_data or type(draw_data) ~= "table" then
+        print("[rendererPlus] Warning: Invalid draw data provided to addToQueue --> note: draw_data or type(draw_data) ~= 'table'")
+        return
+    end
     table.insert(render_queue[layer], draw_data)
 end
 
 -- Enhanced Drawing Functions
-function rendererPlus.drawSprite(sprite_name, x, y, rotation, scale_x, scale_y, offset_x, offset_y, color)
+function rendererPlus.drawSprite(sprite_name, x, y, rotation, scale_x, scale_y, offset_x, offset_y)
     local texture = assets.textures[sprite_name]
     if not texture then
-        --print("[NEW_RENDERER] Warning: Texture not found: " .. tostring(sprite_name))
+        print("[rendererPlus] Warning: Texture not found: " .. tostring(sprite_name))
         return
     end
     
@@ -229,7 +236,7 @@ end
 function rendererPlus.drawSpriteWithQuad(sprite_name, quad, x, y, rotation, scale_x, scale_y, offset_x, offset_y, color)
     local texture = assets.textures[sprite_name]
     if not texture then
-        print("[NEW_RENDERER] Warning: Texture not found: " .. tostring(sprite_name))
+        print("[rendererPlus] Warning: Texture not found: " .. tostring(sprite_name))
         return
     end
     
@@ -261,7 +268,7 @@ end
 function rendererPlus.addShaderEffect(name, shader_name, x, y, width, height, params)
     local shader = assets.shaders[shader_name]
     if not shader then
-        print("[NEW_RENDERER] Warning: Shader not found: " .. tostring(shader_name))
+        print("[rendererPlus] Warning: Shader not found: " .. tostring(shader_name))
         return nil
     end
     
@@ -308,7 +315,7 @@ function rendererPlus.updatePerformance(dt)
         performance.last_gc = love.timer.getTime()
         
         if gc_before - gc_after > 100 then
-            print("[NEW_RENDERER] GC collected: " .. string.format("%.2f", gc_before - gc_after) .. " KB")
+            print("[rendererPlus] GC collected: " .. string.format("%.2f", gc_before - gc_after) .. " KB")
         end
     end
 end
@@ -535,7 +542,6 @@ function rendererPlus.renderParticleEffect(effect, dt)
 end
 
 -- Debug and Utility Functions
-rendererPlus.debug_mode = false
 
 function rendererPlus.toggleDebug()
     rendererPlus.debug_mode = not rendererPlus.debug_mode
@@ -548,8 +554,8 @@ function rendererPlus.drawDebugInfo()
         love.timer.getFPS(),
         performance.draw_calls,
         performance.frame_time * 1000,
-        table.getn(assets.textures) or 0,
-        table.getn(assets.shaders) or 0,
+        #assets.textures,
+        #assets.shaders,
         #effects.particles,
         #effects.lights
     )
@@ -572,14 +578,15 @@ function rendererPlus.cleanup()
     assets.particle_systems = {}
     assets.fonts = {}
     
-    print("[NEW_RENDERER] Cleanup complete")
+    print("[rendererPlus] Cleanup complete")
 end
 
 -- Initialize the renderer
 function rendererPlus.init()
-    print("[NEW_RENDERER] Initializing new rendering system...")
+    print("\n[rendererPlus] \n\nInitializing rendererPlus system...")
+    if rendererPlus.debug_mode then print(" \n * rendererPlus.debug_mode is enabled\n") end
     rendererPlus.preloadAssets()
-    print("[NEW_RENDERER] Ready for advanced effects and high-performance rendering!")
+    print("[rendererPlus] Ready for advanced effects and high-performance rendering!")
 end
 
 return rendererPlus

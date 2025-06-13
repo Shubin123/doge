@@ -217,56 +217,60 @@ function fire.collision(fixture_a, fixture_b, contact)
     if not_fire ~= nil then
         -- print(not_fire:getGroupIndex())
         -- Check if hit an enemy  
-        for i = 1, #enemies_bods do
-            if enemies_bods[i] and enemies_bods[i] == not_fire:getBody() then
-                -- Apply fire damage to enemy using new health system
-                if enemy and enemy.damageEnemy then
-                    local damage_amount = math.random(15, 25)  -- Fire does more damage than bullets
-                    enemy.damageEnemy(i, damage_amount)
+
+          -- NEEDS TO BE MIGRATED!!! --> NEW ENEMY/ENTITY SYSTEM!!
+        -- for i = 1, #enemies_bods do
+        --     if enemies_bods[i] and enemies_bods[i] == not_fire:getBody() then
+        --         -- Apply fire damage to enemy using new health system
+        --         if enemy and enemy.damageEnemy then
+        --             local damage_amount = math.random(15, 25)  -- Fire does more damage than bullets
+        --             enemy.damageEnemy(i, damage_amount)
                     
-                    -- Add knockback force from fire impact (stronger than bullets)
-                    local enemy_body = enemies_bods[i]
-                    if firef then
-                        local fire_body = firef:getBody()
-                        if fire_body then
-                            local fx, fy = fire_body:getPosition()
-                            local ex, ey = physSafe.safeGetPosition(enemy_body)
+        --             -- Add knockback force from fire impact (stronger than bullets)
+        --             local enemy_body = enemies_bods[i]
+        --             if firef then
+        --                 local fire_body = firef:getBody()
+        --                 if fire_body then
+        --                     local fx, fy = fire_body:getPosition()
+        --                     local ex, ey = physSafe.safeGetPosition(enemy_body)
                             
-                            if ex and ey then
-                                -- Calculate knockback direction from fire to enemy
-                                local dx = ex - fx
-                                local dy = ey - fy
-                                local distance = math.sqrt(dx*dx + dy*dy)
+        --                     if ex and ey then
+        --                         -- Calculate knockback direction from fire to enemy
+        --                         local dx = ex - fx
+        --                         local dy = ey - fy
+        --                         local distance = math.sqrt(dx*dx + dy*dy)
                                 
-                                if distance > 0 then
-                                    local fire_force = 70  -- Reduced but still stronger than bullets
-                                    local knockback_x = (dx / distance) * fire_force
-                                    local knockback_y = (dy / distance) * fire_force
+        --                         if distance > 0 then
+        --                             local fire_force = 70  -- Reduced but still stronger than bullets
+        --                             local knockback_x = (dx / distance) * fire_force
+        --                             local knockback_y = (dy / distance) * fire_force
                                     
-                                    -- Apply the knockback force to the enemy using safe method
-                                    physSafe.safeApplyImpulse(enemy_body, knockback_x, knockback_y)
-                                end
-                            end
-                        end
-                    end
-                end
+        --                             -- Apply the knockback force to the enemy using safe method
+        --                             physSafe.safeApplyImpulse(enemy_body, knockback_x, knockback_y)
+        --                         end
+        --                     end
+        --                 end
+        --             end
+        --         end
                 
-                -- 10% chance to add fireball when hitting enemy
-                if math.random() < 0.1 then
-                    fire.addFireball()
-                end
-                break
-            end
-        end
-        if (checkDestroy(coin_bods, not_fire:getBody())) then
-            -- 10% chance to add fireball when hitting coin with fireball
-            if math.random() < 0.1 then
-                fire.addFireball()
-            end
-        end
-        if not fire.pierce then
-            table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
-        end
+        --         -- 10% chance to add fireball when hitting enemy
+        --         if math.random() < 0.1 then
+        --             fire.addFireball()
+        --         end
+        --         break
+        --     end
+        -- end
+
+          -- NEEDS TO BE MIGRATED!!! --> NEW ENTITY SYSTEM!!
+        -- if (checkDestroy(coin_bods, not_fire:getBody())) then
+        --     -- 10% chance to add fireball when hitting coin with fireball
+        --     if math.random() < 0.1 then
+        --         fire.addFireball()
+        --     end
+        -- end
+        -- if not fire.pierce then
+        --     table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
+        -- end
         -- checkDestroy(fire_bodies, firef:getBody())
         -- print()
     end

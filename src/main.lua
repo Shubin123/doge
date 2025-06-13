@@ -2,12 +2,12 @@
 
 -- math.randomseed(os.time())
 
-menu = require("ui.menu")
+menu = require("ui.menu")  -- base game engine component (no ui modding support yet)
 mymath = require("lib.math.myMath")
 effects = require("lib.graphics.effects")
 var = require("config.var")
 -- map = require("game.map") -- MIGRATED TO MOD SYSTEM
-player = require("game.player")
+player = require("game.player") -- base game engine component
 mydraw = require("lib.graphics.draw")
 shader = require("lib.graphics.shader")
 water = require("systems.water")
@@ -16,45 +16,45 @@ smoke = require("systems.smoke")
 sprite = require('lib.graphics.sprite')
 fire = require("systems.fire")
 gun = require("game.gun")
-camera = require("lib.graphics.camera")
+camera = require("lib.graphics.camera") -- base game engine component
 vec2 = require("lib.math.vec2")
 vec4 = require("lib.math.vec4")
 player = require("game.player")
-enemy = require("game.enemy")
-boss = require("game.boss")
+-- enemy = require("game.enemy") -- MIGRATED TO MOD SYSTEM
+-- boss = require("game.boss")   -- MIGRATED TO MOD SYSTEM  
 portal = require("game.portal")
 crt = require("systems.crt")
-renderer = require("lib.graphics.renderer")
+-- renderer = require("lib.graphics.renderer") -- MIGRATED TO NEW RENDERER SYSTEM
 rendererPlus = require("lib.graphics.new_renderer")
-modSystem = require("engine.mod_system")
+modSystem = require("engine.mod_system")  -- base game engine component
 snapshot = require("config.snapshot")
 blur = require ("systems.blur")
 serial = require("lib.utils.serial")
-editor = require("ui.editor")
-multiplayer = require("network.multiplayer")
+editor = require("ui.editor")  -- base game engine component (to be added)
+multiplayer = require("network.multiplayer")  -- base game engine component
 bullet = require("game.bullet")
 rocket = require("game.rocket")
 moonshine = require("lib.graphics.moonshine")
-light = require("systems.light")
+light = require("systems.light")  -- base game engine component
 blood = require("systems.blood")
 wind = require("lib.graphics.wind")
 
-command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
-cmdn = require("ui.cmndX") -- improved console - always active
+command = require("ui.command")  -- base game engine component
+cmdn = require("ui.cmndX")  -- base game engine component
 -- hotreloader / helpers
-local lurker = require("lib.utils.lurker")
-json = require("lib.utils.json")
+local lurker = require("lib.utils.lurker")  -- base game engine component
+json = require("lib.utils.json")  -- base game engine component
 
 -- Game variables
 world = 0
 t = 0  -- Timer for network updates
 local fence_body, fence_shape, fence_fixture
-coin_bods = {}
-enemies_bods = {}
+-- coin_bods = {} -- MIGRATE TO MOD SYSTEM
+-- enemies_bods = {} -- MIGRATED TO MOD SYSTEM
 local coin_shape, enemy_shape
 coin_image, coin_quad, coin_sprite = 0, 0, 0
 png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
-enemy_image = 0
+-- enemy_image = 0 -- MIGRATED TO MOD SYSTEM
 
 W = love.graphics.getWidth()
 H = love.graphics.getHeight()
@@ -62,123 +62,120 @@ game_area_x = (W - var.game_width) / 2
 game_area_y = var.header_height
 
 
--- lighting variables
--- local ldist = 30 -- 5-80
--- local lsample = 40 -- 10-64
-
 function love.load()
-    -- love.mouse.setVisible(false)
 
-    -- Window setup
-    success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
+    -- * Default Window Settings *
+    local W = love.graphics.getWidth()
+    local H = love.graphics.getHeight()
+    local game_area_x = (W - var.game_width) / 2
+    local game_area_y = var.header_height
 
-    -- Load fonts
+    -- Initialize new renderer and mod system
+    rendererPlus.init()
+    --success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags) ??? what for
+
+ 
     statsFont = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     gameFont = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
 
-    -- Initialize the menu
+    -- Initialize the menu, the menu is constant accross clients its a base component of the game. Currently it lacks mod support.
     menu.load(var.ScreenInfo)
 
-    -- Physics setup
+    -- Physics setup, this is a baked in feature of the game, the physics world is always created regardless of mods or multiplayer state.
     world = love.physics.newWorld(0, 0)
-    world:setCallbacks(beginContact, endContact, preSolve, postSolve)
+    world:setCallbacks(beginContact, endContact, preSolve, postSolve) -- might need to be changed to use the new physic/game_engine system's callbacks
 
+    -- this is a base component of the game, the fence is always created regardless of mods or multiplayer state. The fence is modifyable only by the server host or in singleplayer.
+    -- need some changes to the fence system to allow for modding and multiplayer support, but for now it is a static fence.
     fence_body = love.physics.newBody(world, 0, 0, "static")
     fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
         var.game_height + 50, 200,
         var.game_height + 50)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
-    -- Legacy map loading removed - now handled by map_system mod
-    -- map.createArches(300,200)
-    -- map.createTree(400,100)
-    -- map.load()
-    -- map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200)
-    -- map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
+    multiplayer.load() -- needs refactoring/revisition after new game engine system overhaul, specifically in handling syncing and updates - we want to ensure that the improved mutliplayer accounts for optimiziations done by the rendering and phsyics engine.
+    player.load(world) -- Baked in feature, the player is always spawned regardless of mods or multiplayer state.
+    -- enemy.load() -- MIGRATED TO MOD SYSTEM: basic_enemies_mod
+    -- boss.load()  -- MIGRATED TO MOD SYSTEM: bear_boss_mod
 
-    multiplayer.load()
-    player.load(world)
-    enemy.load()
-    boss.load()
-
-    -- Legacy combat systems disabled - now handled by mods
-    -- gun.load(world)
-    -- bullet.load(world)
-    -- rocket.load(world)
-
-        command.load()
+    -- Do not touch these, baked feature to allow console access for a number of features, including debugging, modding, and multiplayer commands.
+    command.load()
     cmdn.load()
+    -- do not touch cmnd and command load() calls.
+
+
+
     -- Coins and enemies 
-    
     -- physics
 
     -- print(shape_sizes)
-    if not var.multiplayer or var.multiplayer == 1 then
-    coin_shape = love.physics.newCircleShape(5)
-    createCoins(var.num_coins)
+    -- need migrate to new rendering and mod system, furthermore this multiplayer functionality might be legacy and no longer supported.
+    -- if not var.multiplayer or var.multiplayer == 1 then
+    -- coin_shape = love.physics.newCircleShape(5)
+    -- -- createCoins(var.num_coins) -- migrate this logic to the new "pickups" mod
 
-    enemy_shape = love.physics.newCircleShape(10)
-    createEnemies(var.num_enemies)
-    end
+    -- enemy_shape = love.physics.newCircleShape(10)
+    -- --createEnemies(var.num_enemies)
+    -- end
 
-    -- Graphics
-    if var.num_coins > 0 then
-    coin_image = love.graphics.newImage("gfx/coin.png")
-    coin_x, coin_y = coin_image:getDimensions()
-    coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
-    coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
-    end
+    -- Graphics that need to be migrated to the pickups and integrated with the mod system for collisions and score and fireball circling mod!!!
+    -- if var.num_coins > 0 then
+    -- coin_image = love.graphics.newImage("gfx/coin.png")
+    -- coin_x, coin_y = coin_image:getDimensions()
+    -- coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
+    -- coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
+    -- end
 
-    enemy_image = love.graphics.newImage("gfx/enemy.png")
-    enemy_width, enemy_height = enemy_image:getDimensions()
+    -- enemy_image = love.graphics.newImage("gfx/enemy.png") -- MIGRATED TO MOD SYSTEM
+    -- enemy_width, enemy_height = enemy_image:getDimensions()
 
 
-    -- Create compatibility wrapper for editor to work with mod system
-    local mapCompat = {
-        archInstances = {},
-        treeInstances = {},
-        createArches = function(x, y)
-            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
-            if mapMod and mapMod.instance and mapMod.instance.createArches then
-                return mapMod.instance.createArches(x, y)
-            end
-        end,
-        createTree = function(x, y)
-            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
-            if mapMod and mapMod.instance and mapMod.instance.createTree then
-                return mapMod.instance.createTree(x, y)
-            end
-        end,
-        addMapToDynamicDrawList = function(...)
-            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
-            if mapMod and mapMod.instance and mapMod.instance.addMapToDynamicDrawList then
-                return mapMod.instance.addMapToDynamicDrawList(...)
-            end
-            return {}
-        end
-    }
+    -- editor needs complete reimplementation and design overhaul due to migration and new renderer system, consider this feature deprecated for now.
+    -- local mapCompat = {
+    --     archInstances = {},
+    --     treeInstances = {},
+    --     createArches = function(x, y)
+    --         local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+    --         if mapMod and mapMod.instance and mapMod.instance.createArches then
+    --             return mapMod.instance.createArches(x, y)
+    --         end
+    --     end,
+    --     createTree = function(x, y)
+    --         local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+    --         if mapMod and mapMod.instance and mapMod.instance.createTree then
+    --             return mapMod.instance.createTree(x, y)
+    --         end
+    --     end,
+    --     addMapToDynamicDrawList = function(...)
+    --         local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+    --         if mapMod and mapMod.instance and mapMod.instance.addMapToDynamicDrawList then
+    --             return mapMod.instance.addMapToDynamicDrawList(...)
+    --         end
+    --         return {}
+    --     end
+    -- }
     
-    -- Populate compatibility arrays with mod data
-    function updateMapCompat()
-        local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
-        if mapMod and mapMod.instance and mapMod.instance.map then
-            mapCompat.archInstances = mapMod.instance.map.archInstances or {}
-            mapCompat.treeInstances = mapMod.instance.map.treeInstances or {}
-            mapCompat.arches = mapMod.instance.map.arches
-            mapCompat.tree = mapMod.instance.map.tree
-        end
-    end
-    updateMapCompat()
+    -- -- Populate compatibility arrays with mod data
+    -- function updateMapCompat()
+    --     local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+    --     if mapMod and mapMod.instance and mapMod.instance.map then
+    --         mapCompat.archInstances = mapMod.instance.map.archInstances or {}
+    --         mapCompat.treeInstances = mapMod.instance.map.treeInstances or {}
+    --         mapCompat.arches = mapMod.instance.map.arches
+    --         mapCompat.tree = mapMod.instance.map.tree
+    --     end
+    -- end
+    -- updateMapCompat()
     
     -- Make the compatibility wrapper available globally for editor
-    _G.map = mapCompat
+    -- _G.map = mapCompat
     
-    editor.load(world, mapCompat)
+    -- editor.load(world, mapCompat)
 
 
-    -- Shaders
-    grass.public.load()
-    wind.load()
+    -- Shaders to be migrated to the new renderer system
+    -- grass.public.load()
+    -- wind.load()
 
     --  grass:setGrassArea(320, 398, 165, 37, 2000)
     fire.load()
@@ -189,11 +186,9 @@ function love.load()
     portal.load()
     crt.load()
     blur.load()
-    light.load()
+    --light.load()
     blood.load()
 
-    -- Initialize new renderer and mod system
-    rendererPlus.init()
     
     -- Initialize mod system with engine components
     local engine_systems = {
@@ -205,9 +200,7 @@ function love.load()
     
     -- Load core system mods first
     modSystem.loadMod("map_system")
-    
-    -- Load glowing tree mod
-    modSystem.loadMod("glowing_tree_mod")
+    --modSystem.loadMod("glowing_tree_mod")
     
     -- Load combat mods
     modSystem.loadMod("weapons_core_mod")
@@ -221,15 +214,12 @@ function love.load()
     modSystem.loadMod("basic_enemies_mod")
     modSystem.loadMod("bear_boss_mod")
 
-    water.setWaterArea(320, 238, 165, 67)
-    smoke.setsmokeArea(320, 138, 165, 67)
+    -- TO BE MIGRATED TO MOD SYSTEM
+    -- water.setWaterArea(320, 238, 165, 67)
+    -- smoke.setsmokeArea(320, 138, 165, 67)
 
 end
 
-local W = love.graphics.getWidth()
-local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
 
 
 function love.draw()
@@ -248,27 +238,27 @@ function love.draw()
 
     -- if moonshine then 
          
-      blueNeon(function()
-    love.graphics.setColor(0.17, 0.46, 1)
-        -- print( -camera.pos.x)
-        -- print( -player.body:getX())
-        -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
-    --   love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
-      love.graphics.circle("fill",(camera.pos.x + player.body:getX()*camera.zoom - 2), (camera.pos.y + player.body:getY()*camera.zoom  + 6), 20*camera.zoom)
+    --   blueNeon(function()
+    -- love.graphics.setColor(0.17, 0.46, 1)
+    --     -- print( -camera.pos.x)
+    --     -- print( -player.body:getX())
+    --     -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
+    -- --   love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
+    --   love.graphics.circle("fill",(camera.pos.x + player.body:getX()*camera.zoom - 2), (camera.pos.y + player.body:getY()*camera.zoom  + 6), 20*camera.zoom)
         
-    love.graphics.setColor(1,1,1,1)
-    end)
+    -- love.graphics.setColor(1,1,1,1)
+    -- end)
 
-    yellowNeon(function()
-    love.graphics.setColor(1, 0.46, 0.3)
-    local mx = player.body:getX() + 20*math.sin(fire.t)
-    local my = player.body:getY() + 20*math.cos(fire.t)
+    -- yellowNeon(function()
+    -- love.graphics.setColor(1, 0.46, 0.3)
+    -- local mx = player.body:getX() + 20*math.sin(fire.t)
+    -- local my = player.body:getY() + 20*math.cos(fire.t)
     
 
-      love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 10*camera.zoom)
+    --   love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 10*camera.zoom)
         
-    love.graphics.setColor(1,1,1,1)
-    end)
+    -- love.graphics.setColor(1,1,1,1)
+    -- end)
     -- end 
     
    
@@ -292,73 +282,23 @@ function love.draw()
     -- Clear render queues for new frame
     rendererPlus.clearQueue()
     
-    -- Populate and sort dynamic draw list if neccessary    
-    grass.public.draw()
-    if var.multiplayer then
-        renderer.populateDynamicDrawListNetworked()
+    -- Legacy renderer disabled - using new renderer system
+    -- grass.public.draw()
+    -- if var.multiplayer then
+    --     renderer.populateDynamicDrawListNetworked()
 
-        if var.multiplayer == 1 then
-            renderer.populateDynamicDrawListNETHOST()
-        end
-    else
-        renderer.populateDynamicDrawList()
-    end
+    --     if var.multiplayer == 1 then
+    --         renderer.populateDynamicDrawListNETHOST()
+    --     end
+    -- else
+    --     renderer.populateDynamicDrawList()
+    -- end
     
     -- Legacy systems disabled - now handled by mods
     -- bullet.populate()
     -- rocket.populate()  
+    -- Legacy systems completely removed - all rendering now handled by new renderer and mods
     blood.populate()
-
-    -- Legacy gun drawing disabled - now handled by weapons_core_mod
-    -- gun.drawWorld()
-
-    -- Convert legacy draw list to new renderer queue system
-    table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    for _, drawable in ipairs(dynamic_draw_list) do
-        -- Convert legacy drawable to new renderer format
-        local draw_data = {
-            active = true,
-            x = drawable.x,
-            y = drawable.y,
-            sort_y = drawable.sort_y,
-            rotation = drawable.rotation,
-            scale_x = drawable.scale_x,
-            scale_y = drawable.scale_y,
-            offset_x = drawable.offset_x,
-            offset_y = drawable.offset_y,
-            color = drawable.color,
-            blend_mode = drawable.blend_mode,
-            shader = drawable.shader,
-            shader_params = drawable.shader_params,
-            -- Handle different drawable types
-            draw_func = function()
-                if drawable.line then
-                    love.graphics.setLineWidth(drawable.width or 1)
-                    love.graphics.line(drawable.line)
-                elseif drawable.image_or_particles then
-                    if drawable.quad then
-                        love.graphics.draw(drawable.image_or_particles, drawable.quad, 
-                            drawable.x, drawable.y, drawable.rotation or 0,
-                            drawable.scale_x or 1, drawable.scale_y or 1,
-                            drawable.offset_x or 0, drawable.offset_y or 0)
-                    else
-                        love.graphics.draw(drawable.image_or_particles, 
-                            drawable.x, drawable.y, drawable.rotation or 0,
-                            drawable.scale_x or 1, drawable.scale_y or 1,
-                            drawable.offset_x or 0, drawable.offset_y or 0)
-                    end
-                elseif drawable.particles then
-                    love.graphics.draw(drawable.particles, drawable.x, drawable.y)
-                end
-            end
-        }
-        
-        -- Add to appropriate layer
-        rendererPlus.addToQueue("world", draw_data)
-    end
-    
-    -- Clear the legacy draw list after converting
-    dynamic_draw_list = {}
     
     -- Update and render mod system
     modSystem.update(love.timer.getDelta())
@@ -400,7 +340,8 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
-    editor.update(dt)
+    -- migrated, left here to assist with migration fixing, this is how the old update loop worked, furthermore the editor must be redone and handled with a mod.
+    -- editor.update(dt)
 
     if var.State == "menu" then
         menu.update(dt)
@@ -422,10 +363,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     
     player.update(dt)
     
-    -- Update player interpolation for smooth multiplayer movement
-    if var.multiplayer then
-        renderer.updateInterpolation(dt)
-    end
+    -- Legacy renderer interpolation removed - handled by new renderer
     
     camera.update(dt, player)
     water.update(dt)
@@ -440,8 +378,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     
     if var.multiplayer == 1 or not var.multiplayer  then
-        enemy.update(dt)
-        boss.update(dt)
+        -- enemy.update(dt) -- MIGRATED TO MOD SYSTEM: basic_enemies_mod
+        -- boss.update(dt)  -- MIGRATED TO MOD SYSTEM: bear_boss_mod
     end
     
     -- Legacy combat systems disabled - now handled by mods
@@ -511,7 +449,8 @@ function love.mousepressed(x, y, button, istouch, presses)
         fire.removeFireball()
     end
 
-    editor.mousepressed(x, y, button)
+    -- deprecated handling of editor.
+--    editor.mousepressed(x, y, button)
 
     lurker.scan()
 end
@@ -561,7 +500,8 @@ function love.keypressed(key)
     -- Forward input to mod system
     modSystem.keypressed(key)
 
-    editor.keypressed(key)
+    -- Legacy editor input disabled - now handled by mods
+    -- editor.keypressed(key)
     command.keypressed(key)
     cmdn.keypressed(key)
     -- Legacy gun input disabled - now handled by weapons_core_mod
@@ -619,17 +559,20 @@ function quad_in_out(a, b, t)
     end
 end
 
-function createCoins(n)
-    for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
-            "dynamic")
-        table.insert(coin_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, coin_shape)
-        _fixture:setGroupIndex(69)
-    end
-end
+-- Legacy coin creation function - TO BE MIGRATED TO a new "pickups" mod
+-- function createCoins(n)
+--     for _ = 1, n do
+--         local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
+--             math.random(50, var.game_height + 50),
+--             "dynamic")
+--         table.insert(coin_bods, 1, _bod)
+--         _fixture = love.physics.newFixture(_bod, coin_shape)
+--         _fixture:setGroupIndex(69)
+--     end
+-- end
 
+-- Legacy enemy creation function - migrated to basic_enemies_mod
+--[[
 function createEnemies(n)
     for _ = 1, n do
         local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
@@ -646,6 +589,7 @@ function createEnemies(n)
         _bod:setAngularDamping(5.0)  -- Prevent excessive spinning
     end
 end
+--]]
 
 
 function createAnimation(image, width, height, duration, numFrames)
@@ -689,8 +633,8 @@ function beginContact(fixture_a, fixture_b, contact)
     
     player.collision(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
-    enemy.collision(fixture_a, fixture_b, contact)
-    boss.collision(fixture_a, fixture_b, contact)
+    -- enemy.collision(fixture_a, fixture_b, contact) -- MIGRATED TO MOD SYSTEM: basic_enemies_mod
+    -- boss.collision(fixture_a, fixture_b, contact)  -- MIGRATED TO MOD SYSTEM: bear_boss_mod
     -- Legacy gun collision disabled - now handled by projectiles_mod
     -- gun.collision(fixture_a, fixture_b, contact)
     
@@ -699,16 +643,16 @@ function beginContact(fixture_a, fixture_b, contact)
 
 end
 
-function checkDestroy(t, v)
-    for i = 1, #t do
-        if t[i] == v then
-            v:destroy()
-            table.remove(t, i)
-            return i
-        end
-    end
-    return false -- should never reach
-end
+-- function checkDestroy(t, v)
+--     for i = 1, #t do
+--         if t[i] == v then
+--             v:destroy()
+--             table.remove(t, i)
+--             return i
+--         end
+--     end
+--     return false -- should never reach
+-- end
 
 function endContact(a, b, contact)
 end

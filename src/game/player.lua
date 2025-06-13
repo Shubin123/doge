@@ -268,20 +268,20 @@ function player.collision(fixture_a,fixture_b,contact)
     -- print(fixture_a:getCategory(),fixture_b:getCategory())
     
 
-    
-    if checkDestroy(coin_bods, not_player) then
-        var.player_score = var.player_score + 1
-        var.num_coins = var.num_coins - 1
-        -- Add fireball to ring when collecting coins
-        if fire and fire.addFireball then
-            fire.addFireball()
-        end
+    -- NEEDS TO BE MIGRATED!!!
+    -- if checkDestroy(coin_bods, not_player) then
+    --     var.player_score = var.player_score + 1
+    --     var.num_coins = var.num_coins - 1
+    --     -- Add fireball to ring when collecting coins
+    --     if fire and fire.addFireball then
+    --         fire.addFireball()
+    --     end
         
-    elseif  checkDestroy(enemies_bods, not_player) then
-        player.health = player.health - 1
-        -- var.num_enemies = var.num_enemies - 1
+    -- elseif  checkDestroy(enemies_bods, not_player) then
+    --     player.health = player.health - 1
+    --     -- var.num_enemies = var.num_enemies - 1
      
-     end
+    --  end
 
 
 end
