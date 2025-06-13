@@ -1,0 +1,64 @@
+{
+    "id": "blood_effects_mod",
+    "name": "Blood Effects System",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Provides realistic blood splatter effects, pools, and particle systems for combat damage.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["health_damage_mod"],
+    "assets": [
+        "assets/blood_splat_01.png",
+        "assets/blood_splat_02.png",
+        "assets/blood_splat_03.png",
+        "assets/blood_pool.png",
+        "assets/blood_particle.png"
+    ],
+    "shaders": [
+        "shaders/blood_splatter.frag",
+        "shaders/blood_pool.frag"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.add_particles",
+        "renderer.load_shader",
+        "physics.create_bodies",
+        "utils.math",
+        "utils.getTime"
+    ],
+    "configuration": {
+        "enable_blood_splatters": true,
+        "enable_blood_pools": true,
+        "enable_blood_particles": true,
+        "max_blood_splatters": 100,
+        "max_blood_pools": 50,
+        "blood_lifetime": 30.0,
+        "splatter_size_variation": 0.5,
+        "blood_intensity": 1.0
+    },
+    "hooks": {
+        "on_entity_damage": "createBloodEffect",
+        "on_entity_death": "createDeathBlood"
+    },
+    "exports": [
+        "createBloodSplatter",
+        "createBloodPool", 
+        "createBloodParticles",
+        "clearBlood",
+        "setBloodIntensity"
+    ],
+    "commands": [
+        {
+            "name": "blood_test",
+            "description": "Test blood effects at cursor position",
+            "syntax": "/blood_test [intensity]",
+            "permission": "mod.blood_effects.test"
+        },
+        {
+            "name": "clear_blood",
+            "description": "Clear all blood effects",
+            "syntax": "/clear_blood",
+            "permission": "mod.blood_effects.clear"
+        }
+    ]
+}

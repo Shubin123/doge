@@ -1,0 +1,66 @@
+{
+    "id": "combat_effects_mod",
+    "name": "Combat Visual Effects",
+    "version": "1.0.0",
+    "author": "DogeGame Combat Team",
+    "description": "Visual effects system for combat including muzzle flashes, explosions, shell casings, blood effects, and impact particles.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["weapons_core_mod", "projectiles_mod"],
+    "assets": [
+        "assets/muzzle_flash.png",
+        "assets/shell_brass.png",
+        "assets/explosion_particle.png",
+        "assets/blood_splatter.png"
+    ],
+    "shaders": [
+        "shaders/muzzle_flash.frag",
+        "shaders/explosion.frag",
+        "shaders/blood_effect.frag"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.add_particles",
+        "renderer.shader_access",
+        "physics.create_bodies",
+        "network.sync_entities"
+    ],
+    "configuration": {
+        "enable_muzzle_flash": true,
+        "enable_shell_ejection": true,
+        "enable_blood_effects": true,
+        "enable_explosions": true,
+        "enable_particle_physics": true,
+        "max_particles": 500,
+        "effect_lifetime": 5.0,
+        "blood_splatter_intensity": 1.0
+    },
+    "hooks": {
+        "on_weapon_fire": "createMuzzleFlash",
+        "on_projectile_hit": "createHitEffect",
+        "on_explosion": "createExplosionEffect",
+        "on_damage": "createBloodEffect"
+    },
+    "commands": [
+        {
+            "name": "spawn_effect",
+            "description": "Spawn a visual effect at location",
+            "syntax": "/spawn_effect [effect_type] [x] [y]",
+            "permission": "mod.effects.spawn"
+        },
+        {
+            "name": "clear_effects",
+            "description": "Clear all visual effects",
+            "syntax": "/clear_effects",
+            "permission": "mod.effects.clear"
+        }
+    ],
+    "effect_types": [
+        "muzzle_flash",
+        "explosion",
+        "blood_splatter",
+        "shell_ejection",
+        "sparks",
+        "smoke"
+    ]
+}

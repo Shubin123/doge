@@ -1,0 +1,65 @@
+{
+    "id": "bear_boss_mod",
+    "name": "Bear Boss Fight",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Adds the challenging Bear Boss with laser attacks, ground pounds, and multiple combat phases.",
+    "engine_version": "1.0.0",
+    "dependencies": ["ai_behaviors_mod"],
+    "optional_dependencies": ["basic_enemies_mod"],
+    "assets": [
+        "assets/bear_boss.png",
+        "assets/bear_boss_headless.png",
+        "assets/laser_beam.png",
+        "assets/shockwave.png"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.add_lights",
+        "physics.create_bodies",
+        "physics.raycast",
+        "network.sync_entities",
+        "game.damage_player",
+        "game.spawn_entities",
+        "particles.create_system"
+    ],
+    "configuration": {
+        "max_bosses_per_world": 3,
+        "boss_health": 500,
+        "enable_laser_attacks": true,
+        "enable_ground_pounds": true,
+        "enable_headless_phase": true,
+        "enable_particles": true,
+        "enable_networking": true,
+        "boss_collision_group": -888,
+        "laser_damage": 30,
+        "ground_pound_damage": 50
+    },
+    "hooks": {
+        "on_boss_spawn": "spawnBoss",
+        "on_boss_death": "handleBossDeath",
+        "on_network_sync": "syncBossStates"
+    },
+    "shaders": [],
+    "exports": [],
+    "commands": [
+        {
+            "name": "spawn_boss",
+            "description": "Spawn a bear boss at specified location",
+            "syntax": "/spawn_boss [x] [y]",
+            "permission": "mod.bear_boss.spawn"
+        },
+        {
+            "name": "boss_stats",
+            "description": "Show statistics about active bosses",
+            "syntax": "/boss_stats",
+            "permission": "mod.bear_boss.info"
+        }
+    ],
+    "collision_groups": {
+        "boss": -888
+    },
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": []
+}

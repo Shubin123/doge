@@ -1,0 +1,70 @@
+{
+    "id": "projectiles_mod",
+    "name": "Enhanced Projectiles System",
+    "version": "2.0.0",
+    "author": "DogeGame Combat Team", 
+    "description": "Advanced projectile system with object pooling, sophisticated tracers, speed variation, trail rendering, and performance optimizations migrated from legacy bullet.lua system.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["weapons_core_mod", "combat_effects_mod"],
+    "assets": [
+        "assets/bullet_trail.png",
+        "assets/rocket_exhaust.png"
+    ],
+    "shaders": [
+        "shaders/bullet_tracer.frag",
+        "shaders/explosion.frag"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "physics.create_bodies",
+        "physics.collision_detection",
+        "network.sync_entities",
+        "game.damage_system",
+        "entities.management"
+    ],
+    "configuration": {
+        "enable_bullet_trails": true,
+        "enable_collision_effects": true,
+        "enable_networking": true,
+        "max_projectiles": 200,
+        "projectile_cleanup_time": 10.0,
+        "damage_falloff": false,
+        "enable_object_pooling": true,
+        "max_pool_size": 50,
+        "enable_shaders": true,
+        "enable_muzzle_flashes": true,
+        "enable_shell_ejection": true,
+        "enable_particle_effects": true
+    },
+    "hooks": {
+        "on_projectile_spawn": "spawnProjectile",
+        "on_projectile_hit": "handleProjectileHit",
+        "on_network_sync": "syncProjectileStates"
+    },
+    "commands": [
+        {
+            "name": "spawn_projectile",
+            "description": "Spawn a projectile at location",
+            "syntax": "/spawn_projectile [type] [x] [y] [dx] [dy]",
+            "permission": "mod.projectiles.spawn"
+        },
+        {
+            "name": "clear_projectiles",
+            "description": "Clear all projectiles",
+            "syntax": "/clear_projectiles",
+            "permission": "mod.projectiles.clear"
+        }
+    ],
+    "projectile_types": [
+        "bullet",
+        "rocket",
+        "plasma",
+        "tracer"
+    ],
+    "collision_groups": {
+        "projectile": -2,
+        "rocket": -3,
+        "explosion": -4
+    }
+}

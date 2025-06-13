@@ -35,7 +35,7 @@ local showingAutocomplete = false
 -- Command index for autocomplete (all available commands)
 local commandIndex = {
     -- Console commands
-    "help", "clear", "exit", "reload", "tp", "save", "load", "boss",
+    "help", "clear", "exit", "reload", "tp", "save", "load", "boss", "weapon",
     
     -- Lua built-ins
     "print", "type", "pairs", "ipairs", "math", "string", "table", "io", "os", "debug",
@@ -462,6 +462,31 @@ function cmdn.execute(cmd)
             end
         else
             cmdn.addOutput("{red}Error:{/red} Boss module not loaded", errorColor)
+        end
+    elseif string.find(cmd, "weapon") then
+        -- Handle weapon debug commands
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        if tokens[2] == "debug" then
+            -- Toggle weapon debug mode (makes weapons very visible)
+            local mod_system = _G.modSystem
+            if mod_system and mod_system.getMod then
+                local weapons_mod = mod_system.getMod("weapons_core_mod")
+                if weapons_mod and weapons_mod.public and weapons_mod.public.toggleDebug then
+                    local debug_state = weapons_mod.public.toggleDebug()
+                    local state_text = debug_state and "enabled" or "disabled"
+                    cmdn.addOutput("Weapon debug mode " .. state_text, outputColor)
+                else
+                    cmdn.addOutput("{red}Error:{/red} Weapons mod debug not available", errorColor)
+                end
+            else
+                cmdn.addOutput("{red}Error:{/red} Mod system not available", errorColor)
+            end
+        else
+            cmdn.addOutput("Usage: weapon debug", outputColor)
         end
     else
         local success, result = pcall(function()

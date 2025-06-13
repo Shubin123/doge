@@ -1,0 +1,20 @@
+#!/bin/bash
+cd "/Users/amanson/Desktop/Projects_Main_Folder/CanvasTools/doge"
+echo "=================================================="
+echo "🤖 AGENT 2: Combat & Projectiles"
+echo "=================================================="
+echo ""
+echo "📋 Your task is in: /Users/amanson/Desktop/Projects_Main_Folder/CanvasTools/doge/agent_workspaces/agent2_combat_mods/task.md"
+echo ""
+echo "Please read your task file and begin work on your assigned migration."
+echo "Remember to:"
+echo "1. Plan your approach before implementing"
+echo "2. Test thoroughly at each step"
+echo "3. Ensure compatibility with other agents' work"
+echo "4. Document your changes"
+echo ""
+echo "Project root: /Users/amanson/Desktop/Projects_Main_Folder/CanvasTools/doge"
+echo "Your workspace: /Users/amanson/Desktop/Projects_Main_Folder/CanvasTools/doge/agent_workspaces/agent2_combat_mods"
+echo ""
+# Keep terminal open
+exec bash

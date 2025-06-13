@@ -213,7 +213,7 @@ end
 function rendererPlus.drawSprite(sprite_name, x, y, rotation, scale_x, scale_y, offset_x, offset_y, color)
     local texture = assets.textures[sprite_name]
     if not texture then
-        print("[NEW_RENDERER] Warning: Texture not found: " .. tostring(sprite_name))
+        --print("[NEW_RENDERER] Warning: Texture not found: " .. tostring(sprite_name))
         return
     end
     
@@ -384,6 +384,19 @@ function rendererPlus.processDrawData(draw_data)
         end
     end
     
+    -- Set shader if specified
+    if draw_data.shader then
+        love.graphics.setShader(draw_data.shader)
+        -- Send shader parameters if available
+        if draw_data.shader_params then
+            for param_name, param_value in pairs(draw_data.shader_params) do
+                if draw_data.shader:hasUniform(param_name) then
+                    draw_data.shader:send(param_name, param_value)
+                end
+            end
+        end
+    end
+    
     -- Handle different draw types
     if draw_data.type == "sprite" then
         rendererPlus.drawSprite(
@@ -413,6 +426,19 @@ function rendererPlus.processDrawData(draw_data)
             love.graphics.rectangle("fill", draw_data.x, draw_data.y, draw_data.width, draw_data.height)
             love.graphics.setShader()
         end
+    elseif draw_data.type == "shader_sprite" then
+        if draw_data.shader then
+            love.graphics.setShader(draw_data.shader)
+            rendererPlus.drawSprite(
+                draw_data.texture_name,
+                draw_data.x, draw_data.y,
+                draw_data.rotation,
+                draw_data.scale_x, draw_data.scale_y,
+                draw_data.offset_x, draw_data.offset_y,
+                draw_data.color
+            )
+            love.graphics.setShader()
+        end
     elseif draw_data.type == "text" then
         local current_font = love.graphics.getFont()
         if draw_data.font then
@@ -434,9 +460,17 @@ function rendererPlus.processDrawData(draw_data)
         love.graphics.circle(draw_data.mode or "fill", draw_data.x, draw_data.y, draw_data.radius)
     elseif draw_data.type == "rectangle" then
         love.graphics.rectangle(draw_data.mode or "fill", draw_data.x, draw_data.y, draw_data.width, draw_data.height)
+    elseif draw_data.draw_func then
+        -- Support for custom draw functions (for legacy compatibility)
+        draw_data.draw_func()
     end
     
     performance.draw_calls = performance.draw_calls + 1
+    
+    -- Reset shader if it was set
+    if draw_data.shader then
+        love.graphics.setShader()
+    end
 end
 
 function rendererPlus.renderEffects(dt)

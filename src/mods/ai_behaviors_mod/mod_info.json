@@ -1,0 +1,47 @@
+{
+    "id": "ai_behaviors_mod",
+    "name": "AI Behavior System",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Provides reusable AI behavior patterns and state machines for enemy and NPC entities.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": [],
+    "assets": [],
+    "shaders": [],
+    "permissions": [
+        "statemachine.create",
+        "statemachine.transition",
+        "utils.math",
+        "utils.distance"
+    ],
+    "configuration": {
+        "debug_ai": false,
+        "ai_update_rate": 60,
+        "pathfinding_enabled": true,
+        "behavior_trees_enabled": true
+    },
+    "hooks": {
+        "on_ai_update": "updateAllAI",
+        "on_ai_debug": "debugAI"
+    },
+    "exports": [
+        "createAIBehavior",
+        "updateAIBehavior",
+        "createStateMachine",
+        "transitionState",
+        "getAIStats"
+    ],
+    "commands": [
+        {
+            "name": "ai_debug",
+            "description": "Toggle AI debug visualization",
+            "syntax": "/ai_debug [on|off]",
+            "permission": "mod.ai_behaviors.debug"
+        }
+    ],
+    "collision_groups": {},
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": []
+}

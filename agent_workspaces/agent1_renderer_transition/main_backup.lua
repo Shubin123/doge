@@ -104,10 +104,9 @@ function love.load()
     enemy.load()
     boss.load()
 
-    -- Legacy combat systems disabled - now handled by mods
-    -- gun.load(world)
-    -- bullet.load(world)
-    -- rocket.load(world)
+    gun.load(world)
+    bullet.load(world)
+    rocket.load(world)
 
         command.load()
     cmdn.load()
@@ -168,18 +167,6 @@ function love.load()
     
     -- Load glowing tree mod
     modSystem.loadMod("glowing_tree_mod")
-    
-    -- Load combat mods
-    modSystem.loadMod("weapons_core_mod")
-    modSystem.loadMod("projectiles_mod")
-    modSystem.loadMod("combat_effects_mod")
-    
-    -- Load enemy and boss mods
-    modSystem.loadMod("health_damage_mod")
-    modSystem.loadMod("blood_effects_mod")
-    modSystem.loadMod("ai_behaviors_mod")
-    modSystem.loadMod("basic_enemies_mod")
-    modSystem.loadMod("bear_boss_mod")
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -249,9 +236,6 @@ function love.draw()
 
     
 
-    -- Clear render queues for new frame
-    rendererPlus.clearQueue()
-    
     -- Populate and sort dynamic draw list if neccessary    
     grass.public.draw()
     if var.multiplayer then
@@ -264,69 +248,21 @@ function love.draw()
         renderer.populateDynamicDrawList()
     end
     
-    -- Legacy systems disabled - now handled by mods
-    -- bullet.populate()
-    -- rocket.populate()  
+
+    
+    bullet.populate()
+    rocket.populate()  
     blood.populate()
 
-    -- Legacy gun drawing disabled - now handled by weapons_core_mod
-    -- gun.drawWorld()
+    gun.drawWorld()
 
-    -- Convert legacy draw list to new renderer queue system
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    for _, drawable in ipairs(dynamic_draw_list) do
-        -- Convert legacy drawable to new renderer format
-        local draw_data = {
-            active = true,
-            x = drawable.x,
-            y = drawable.y,
-            sort_y = drawable.sort_y,
-            rotation = drawable.rotation,
-            scale_x = drawable.scale_x,
-            scale_y = drawable.scale_y,
-            offset_x = drawable.offset_x,
-            offset_y = drawable.offset_y,
-            color = drawable.color,
-            blend_mode = drawable.blend_mode,
-            shader = drawable.shader,
-            shader_params = drawable.shader_params,
-            -- Handle different drawable types
-            draw_func = function()
-                if drawable.line then
-                    love.graphics.setLineWidth(drawable.width or 1)
-                    love.graphics.line(drawable.line)
-                elseif drawable.image_or_particles then
-                    if drawable.quad then
-                        love.graphics.draw(drawable.image_or_particles, drawable.quad, 
-                            drawable.x, drawable.y, drawable.rotation or 0,
-                            drawable.scale_x or 1, drawable.scale_y or 1,
-                            drawable.offset_x or 0, drawable.offset_y or 0)
-                    else
-                        love.graphics.draw(drawable.image_or_particles, 
-                            drawable.x, drawable.y, drawable.rotation or 0,
-                            drawable.scale_x or 1, drawable.scale_y or 1,
-                            drawable.offset_x or 0, drawable.offset_y or 0)
-                    end
-                elseif drawable.particles then
-                    love.graphics.draw(drawable.particles, drawable.x, drawable.y)
-                end
-            end
-        }
-        
-        -- Add to appropriate layer
-        rendererPlus.addToQueue("world", draw_data)
-    end
+    -- Render sorted entities
+    renderer.renderSortedDrawList()
     
-    -- Clear the legacy draw list after converting
-    dynamic_draw_list = {}
-    
-    -- Update and render mod system
+    -- Update and render mod system and new renderer
     modSystem.update(love.timer.getDelta())
-    
-    -- Render everything with new renderer
     rendererPlus.render(love.timer.getDelta())
-    
-    -- Draw mod system UI elements on top
     modSystem.draw()
 
     
@@ -399,10 +335,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         boss.update(dt)
     end
     
-    -- Legacy combat systems disabled - now handled by mods
-    -- gun.update(dt)
-    -- bullet.update(dt)
-    -- rocket.update(dt)
+    gun.update(dt)
+    bullet.update(dt)
+    rocket.update(dt)
 
     wind.update(dt)
 
@@ -441,8 +376,8 @@ function love.mousepressed(x, y, button, istouch, presses)
     -- Forward mouse input to mod system
     modSystem.mousepressed(x, y, button)
     
-    -- Legacy gun input disabled - now handled by weapons_core_mod
-    -- gun.mousepressed(x, y, button)
+    -- Delegate to gun system for shooting (only when not in menu)
+    gun.mousepressed(x, y, button)
     
     local center_x = love.graphics.getWidth() / 2 -- or player's screen position
     local center_y = love.graphics.getHeight() / 2
@@ -519,8 +454,7 @@ function love.keypressed(key)
     editor.keypressed(key)
     command.keypressed(key)
     cmdn.keypressed(key)
-    -- Legacy gun input disabled - now handled by weapons_core_mod
-    -- gun.keypressed(key)
+    gun.keypressed(key)
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
@@ -528,8 +462,7 @@ function love.mousereleased(x, y, button, istouch, presses)
     cmdn.mousereleased(x, y, button)
     
     if var.State ~= "menu" then
-        -- Legacy gun input disabled - now handled by weapons_core_mod
-        -- gun.mousereleased(x, y, button)
+        gun.mousereleased(x, y, button)
     end
 end
 
@@ -646,8 +579,7 @@ function beginContact(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     boss.collision(fixture_a, fixture_b, contact)
-    -- Legacy gun collision disabled - now handled by projectiles_mod
-    -- gun.collision(fixture_a, fixture_b, contact)
+    gun.collision(fixture_a, fixture_b, contact)
     
     -- editor.collision(fixture_a, fixture_b, contact)
 

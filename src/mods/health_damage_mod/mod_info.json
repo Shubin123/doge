@@ -1,0 +1,51 @@
+{
+    "id": "health_damage_mod",
+    "name": "Health & Damage Indicators",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Provides health bars and floating damage number indicators for entities in combat.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": [],
+    "assets": [
+        "assets/health_bar_bg.png",
+        "assets/damage_numbers.png"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.add_text",
+        "utils.math",
+        "utils.getTime"
+    ],
+    "configuration": {
+        "health_bar_duration": 3.0,
+        "damage_indicator_duration": 1.5,
+        "floating_speed": 30,
+        "enable_critical_colors": true,
+        "enable_animations": true
+    },
+    "hooks": {
+        "on_entity_damage": "showDamageIndicator",
+        "on_entity_heal": "showHealIndicator"
+    },
+    "exports": [
+        "showHealthBar",
+        "showDamageIndicator",
+        "showHealIndicator",
+        "hideHealthBar",
+        "updateHealthBar"
+    ],
+    "shaders": [],
+    "commands": [
+        {
+            "name": "damage_test",
+            "description": "Test damage indicator at cursor position",
+            "syntax": "/damage_test [damage_amount]",
+            "permission": "mod.health_damage.test"
+        }
+    ],
+    "collision_groups": {},
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": []
+}

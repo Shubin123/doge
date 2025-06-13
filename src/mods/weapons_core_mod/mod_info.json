@@ -1,0 +1,61 @@
+{
+    "id": "weapons_core_mod",
+    "name": "Enhanced Weapons System",
+    "version": "2.0.0",
+    "author": "DogeGame Combat Team",
+    "description": "Sophisticated weapon system with advanced aiming, realistic effects, object pooling, and sophisticated visual features migrated from legacy gun.lua system.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["projectiles_mod", "combat_effects_mod"],
+    "assets": [
+        "assets/weapon_icons.png"
+    ],
+    "shaders": [],
+    "permissions": [
+        "renderer.add_effects",
+        "physics.create_bodies",
+        "input.mouse_handlers",
+        "input.key_handlers",
+        "network.sync_entities",
+        "game.player_access",
+        "entities.management"
+    ],
+    "configuration": {
+        "enable_weapon_switching": true,
+        "enable_weapon_drops": false,
+        "enable_custom_weapons": true,
+        "enable_networking": true,
+        "default_weapon": "pistol",
+        "max_weapons_per_player": 5
+    },
+    "hooks": {
+        "on_player_spawn": "equipDefaultWeapon",
+        "on_weapon_pickup": "handleWeaponPickup",
+        "on_network_sync": "syncWeaponStates"
+    },
+    "commands": [
+        {
+            "name": "give_weapon",
+            "description": "Give a weapon to the player",
+            "syntax": "/give_weapon [weapon_id]",
+            "permission": "mod.weapons.give"
+        },
+        {
+            "name": "list_weapons",
+            "description": "List all available weapons",
+            "syntax": "/list_weapons",
+            "permission": "mod.weapons.list"
+        }
+    ],
+    "exports": [],
+    "collision_groups": {},
+    "weapon_templates": [
+        "pistol",
+        "smg",
+        "shotgun",
+        "assault_rifle",
+        "rocket_launcher"
+    ],
+    "projectile_types": [],
+    "effect_types": []
+}

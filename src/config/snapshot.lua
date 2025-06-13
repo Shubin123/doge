@@ -103,13 +103,13 @@ function snapshot.create()
             end
         end
 
-        -- Add host's bullets and rockets
-        local host_bullets = bullet.getNetworkData()
-        if host_bullets then
-            for k, v in pairs(host_bullets) do
-                game_state.bullets["host_" .. tostring(k)] = v
-            end
-        end
+        -- Legacy bullet system disabled - now handled by projectiles_mod
+        -- local host_bullets = bullet.getNetworkData()
+        -- if host_bullets then
+        --     for k, v in pairs(host_bullets) do
+        --         game_state.bullets["host_" .. tostring(k)] = v
+        --     end
+        -- end
 
         -- local host_rockets = rocket.getNetworkData()
         -- if host_rockets then
@@ -118,14 +118,14 @@ function snapshot.create()
         --     end
         -- end
 
-        -- Add accumulated client bullets and rockets
-        for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
-            if client_bullets then
-                for k, v in pairs(client_bullets) do
-                    game_state.bullets[client_id .. "_" .. tostring(k)] = v
-                end
-            end
-        end
+        -- Legacy accumulated bullets disabled - now handled by projectiles_mod
+        -- for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
+        --     if client_bullets then
+        --         for k, v in pairs(client_bullets) do
+        --             game_state.bullets[client_id .. "_" .. tostring(k)] = v
+        --         end
+        --     end
+        -- end
 
         for client_id, client_rockets in pairs(accumulated_game_state.accumulated_rockets) do
             if client_rockets then
@@ -151,7 +151,8 @@ function snapshot.create()
             client_id = "client_" .. var.multiplayer,
             player_data = renderer.local_player_state,
             fire_effects = fire.getNetworkData(), -- Clients send their fire effects
-            bullets = bullet.getNetworkData(),
+            -- Legacy bullet system disabled - now handled by projectiles_mod
+            -- bullets = bullet.getNetworkData(),
             -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil  -- Add boss spawn request field
@@ -174,9 +175,10 @@ function snapshot.apply(game_state)
             if game_state.fire_effects then
                 accumulated_game_state.accumulated_fires[game_state.client_id] = game_state.fire_effects
             end
-            if game_state.bullets then
-                accumulated_game_state.accumulated_bullets[game_state.client_id] = game_state.bullets
-            end
+            -- Legacy bullet accumulation disabled - now handled by projectiles_mod
+            -- if game_state.bullets then
+            --     accumulated_game_state.accumulated_bullets[game_state.client_id] = game_state.bullets
+            -- end
             if game_state.rockets then
                 accumulated_game_state.accumulated_rockets[game_state.client_id] = game_state.rockets
             end
@@ -216,15 +218,16 @@ function snapshot.apply(game_state)
             end
             renderer.setNetworkedFireEffects(all_client_fires)
 
-            local all_client_bullets = {}
-            for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
-                if client_bullets then
-                    for k, v in pairs(client_bullets) do
-                        all_client_bullets[client_id .. "_" .. tostring(k)] = v
-                    end
-                end
-            end
-            renderer.setNetworkedBullets(all_client_bullets)
+            -- Legacy bullet networking disabled - now handled by projectiles_mod  
+            -- local all_client_bullets = {}
+            -- for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
+            --     if client_bullets then
+            --         for k, v in pairs(client_bullets) do
+            --             all_client_bullets[client_id .. "_" .. tostring(k)] = v
+            --         end
+            --     end
+            -- end
+            -- renderer.setNetworkedBullets(all_client_bullets)
 
             local all_client_rockets = {}
             for client_id, client_rockets in pairs(accumulated_game_state.accumulated_rockets) do
@@ -283,16 +286,17 @@ function snapshot.apply(game_state)
             renderer.setNetworkedFireEffects(other_fires)
         end
 
-        if game_state.bullets then
-            local other_bullets = {}
-            local own_client_prefix = "client_" .. var.multiplayer .. "_"
-            for bullet_id, bullet_data in pairs(game_state.bullets) do
-                if not string.match(bullet_id, "^" .. own_client_prefix) then
-                    other_bullets[bullet_id] = bullet_data
-                end
-            end
-            renderer.setNetworkedBullets(other_bullets)
-        end
+        -- Legacy bullet networking disabled - now handled by projectiles_mod
+        -- if game_state.bullets then
+        --     local other_bullets = {}
+        --     local own_client_prefix = "client_" .. var.multiplayer .. "_"
+        --     for bullet_id, bullet_data in pairs(game_state.bullets) do
+        --         if not string.match(bullet_id, "^" .. own_client_prefix) then
+        --             other_bullets[bullet_id] = bullet_data
+        --         end
+        --     end
+        --     renderer.setNetworkedBullets(other_bullets)
+        -- end
 
         if game_state.rockets then
             local other_rockets = {}

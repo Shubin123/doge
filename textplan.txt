@@ -1,0 +1,13 @@
+Please use task list generated
+     from analysis within 
+    "plan.txt", the migration 
+    plan, and assign sub-agents in
+     order to complete the parts 
+    of the plan that complete the 
+    goal: migrate this love2d game
+     into a state ready for custom
+     content that doesnt imapact 
+    the base game. Do not create a new tasks list,
+   look at the plan as agent roles are already 
+  defined, you are the orchestrator who will 
+  executre the existing plan.

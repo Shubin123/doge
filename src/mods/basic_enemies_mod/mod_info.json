@@ -1,0 +1,62 @@
+{
+    "id": "basic_enemies_mod",
+    "name": "Basic Enemy Types",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Adds standard enemy types with AI behaviors, projectile attacks, and health systems to the game world.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["ai_behaviors_mod"],
+    "assets": [
+        "assets/enemy_grunt.png",
+        "assets/enemy_soldier.png",
+        "assets/enemy_sniper.png",
+        "assets/enemy_projectile.png"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "physics.create_bodies",
+        "input.key_handlers",
+        "network.sync_entities",
+        "game.damage_player",
+        "game.spawn_entities"
+    ],
+    "configuration": {
+        "max_enemies_per_world": 100,
+        "enemy_spawn_rate": 5.0,
+        "enemy_types": ["grunt", "soldier", "sniper"],
+        "enable_projectiles": true,
+        "enable_particles": true,
+        "enable_networking": true,
+        "enemy_collision_group": -777,
+        "projectile_collision_group": -777
+    },
+    "hooks": {
+        "on_world_load": "spawnInitialEnemies",
+        "on_enemy_death": "handleEnemyDeath",
+        "on_network_sync": "syncEnemyStates"
+    },
+    "shaders": [],
+    "exports": [],
+    "commands": [
+        {
+            "name": "spawn_enemy",
+            "description": "Spawn an enemy at specified location",
+            "syntax": "/spawn_enemy [type] [x] [y]",
+            "permission": "mod.basic_enemies.spawn"
+        },
+        {
+            "name": "enemy_stats",
+            "description": "Show statistics about active enemies",
+            "syntax": "/enemy_stats",
+            "permission": "mod.basic_enemies.info"
+        }
+    ],
+    "collision_groups": {
+        "enemy": -777,
+        "projectile": -777
+    },
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": []
+}

@@ -1,0 +1,55 @@
+{
+    "id": "glowing_tree_mod",
+    "name": "Mystical Glowing Trees",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Adds magical glowing trees with particle effects, healing abilities, and shader-based visual effects to the game world.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": [],
+    "assets": [
+        "assets/tree_sparkle.png",
+        "assets/tree_glow.png"
+    ],
+    "shaders": [
+        "shaders/glowing_tree.frag",
+        "shaders/magical_aura.frag"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "physics.create_bodies",
+        "input.key_handlers",
+        "network.sync_entities"
+    ],
+    "configuration": {
+        "max_trees_per_world": 50,
+        "default_tree_types": ["MYSTICAL", "ANCIENT", "ENCHANTED"],
+        "enable_healing": true,
+        "enable_particles": true,
+        "enable_networking": true
+    },
+    "hooks": {
+        "on_world_load": "spawnInitialTrees",
+        "on_player_interact": "handleTreeInteraction",
+        "on_network_sync": "syncTreeStates"
+    },
+    "exports": [],
+    "commands": [
+        {
+            "name": "spawn_tree",
+            "description": "Spawn a glowing tree at player location",
+            "syntax": "/spawn_tree [type] [health]",
+            "permission": "mod.glowing_tree.spawn"
+        },
+        {
+            "name": "tree_stats",
+            "description": "Show statistics about glowing trees",
+            "syntax": "/tree_stats",
+            "permission": "mod.glowing_tree.info"
+        }
+    ],
+    "collision_groups": {},
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": []
+}
