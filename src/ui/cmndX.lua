@@ -35,7 +35,7 @@ local showingAutocomplete = false
 -- Command index for autocomplete (all available commands)
 local commandIndex = {
     -- Console commands
-    "help", "clear", "exit", "reload", "tp", "save", "load",
+    "help", "clear", "exit", "reload", "tp", "save", "load", "boss",
     
     -- Lua built-ins
     "print", "type", "pairs", "ipairs", "math", "string", "table", "io", "os", "debug",
@@ -413,6 +413,56 @@ function cmdn.execute(cmd)
         if serial and serial.quickLoad then
             serial.quickLoad()
         end
+    elseif string.find(cmd, "boss") then
+        -- Handle boss commands
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        if boss then
+            if tokens[2] == "spawn" then
+                local x = tonumber(tokens[3]) or (player and player.body and player.body:getX() or 0)
+                local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() or 0)
+                local result = boss.requestSpawn(x, y)
+                if result == "spawn_requested" then
+                    cmdn.addOutput("Boss spawn requested (waiting for host)", outputColor)
+                else
+                    cmdn.addOutput("Boss spawned with ID: " .. result, outputColor)
+                end
+            elseif tokens[2] == "despawn" then
+                if tokens[3] == "all" then
+                    boss.despawnAll()
+                    cmdn.addOutput("All bosses despawned", outputColor)
+                else
+                    local id = tonumber(tokens[3])
+                    if id and boss.despawn(id) then
+                        cmdn.addOutput("Boss " .. id .. " despawned", outputColor)
+                    else
+                        cmdn.addOutput("{red}Error:{/red} Invalid boss ID", errorColor)
+                    end
+                end
+            elseif tokens[2] == "list" then
+                local count = 0
+                for id, _ in pairs(boss.bosses) do
+                    count = count + 1
+                end
+                cmdn.addOutput("Active bosses: " .. count, outputColor)
+            elseif tokens[2] == "damage" then
+                local id = tonumber(tokens[3])
+                local damage = tonumber(tokens[4]) or 100
+                if id and boss.bosses[id] then
+                    boss.damage(id, damage)
+                    cmdn.addOutput("Dealt " .. damage .. " damage to boss " .. id, outputColor)
+                else
+                    cmdn.addOutput("{red}Error:{/red} Invalid boss ID", errorColor)
+                end
+            else
+                cmdn.addOutput("Usage: boss spawn [x] [y] | boss despawn <id|all> | boss list | boss damage <id> [amount]", outputColor)
+            end
+        else
+            cmdn.addOutput("{red}Error:{/red} Boss module not loaded", errorColor)
+        end
     else
         local success, result = pcall(function()
             local func, err = load("return " .. cmd)
@@ -478,6 +528,10 @@ function cmdn.showHelp()
     cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
     cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
     cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
+    cmdn.addOutput("  {yellow}boss spawn [x] [y]{/yellow} - Spawn a boss", outputColor)
+    cmdn.addOutput("  {yellow}boss despawn <id|all>{/yellow} - Despawn boss(es)", outputColor)
+    cmdn.addOutput("  {yellow}boss list{/yellow}      - List active bosses", outputColor)
+    cmdn.addOutput("  {yellow}boss damage <id> [amt]{/yellow} - Damage a boss", outputColor)
     cmdn.addOutput("", outputColor)
     cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
     cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)

@@ -21,6 +21,7 @@ vec2 = require("lib.math.vec2")
 vec4 = require("lib.math.vec4")
 player = require("game.player")
 enemy = require("game.enemy")
+boss = require("game.boss")
 portal = require("game.portal")
 crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
@@ -99,6 +100,7 @@ function love.load()
     multiplayer.load()
     player.load(world)
     enemy.load()
+    boss.load()
 
     gun.load(world)
     bullet.load(world)
@@ -308,6 +310,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)
+        boss.update(dt)
     end
     
     gun.update(dt)
@@ -546,6 +549,7 @@ function beginContact(fixture_a, fixture_b, contact)
     player.collision(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
+    boss.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
     bullet.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)

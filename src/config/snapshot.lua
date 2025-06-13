@@ -12,6 +12,7 @@ local accumulated_game_state = {
     arches = {},
     trees = {},
     map_data = {},
+    bosses = {},  -- Add boss tracking
     accumulated_fires = {}, -- Track fire effects from all clients
     accumulated_bullets = {},
     accumulated_rockets = {},
@@ -36,7 +37,8 @@ function snapshot.create()
             command_blocks = {},
             arches = {},
             trees = {},
-            map_data = {}
+            map_data = {},
+            bosses = {}  -- Add boss data
         }
         
         -- Add host's player data
@@ -64,6 +66,11 @@ function snapshot.create()
                 y = ey,
                 active = true
             }
+        end
+        
+        -- Collect boss data
+        if boss then
+            game_state.bosses = boss.getNetworkData()
         end
         
         -- Collect coin data from physics bodies
@@ -143,7 +150,8 @@ function snapshot.create()
             fire_effects = fire.getNetworkData(), -- Clients send their fire effects
             bullets = bullet.getNetworkData(),
             -- rockets = rocket.getNetworkData(),
-            command_blocks = command.getCommandBlocks()
+            command_blocks = command.getCommandBlocks(),
+            boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil  -- Add boss spawn request field
         }
         
 
@@ -186,6 +194,12 @@ function snapshot.apply(game_state)
                     end
                 end
                 renderer.setNetworkedCommandBlocks(all_client_command_blocks)
+            end
+            
+            -- Handle boss spawn request from client
+            if game_state.boss_spawn_request and boss then
+                local request = game_state.boss_spawn_request
+                boss.spawn(request.x, request.y)
             end
             
             -- Apply all accumulated fire effects to host's renderer
@@ -290,6 +304,10 @@ function snapshot.apply(game_state)
         
         if game_state.enemies then
             renderer.setNetworkedEnemies(game_state.enemies)
+        end
+        
+        if game_state.bosses then
+            renderer.setNetworkedBosses(game_state.bosses)
         end
         
         if game_state.coins then

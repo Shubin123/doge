@@ -10,7 +10,8 @@ renderer.networked_state = {
     fire_effects = {}, -- { effect_id = { x, y, active, ... } }
     bullets = {},
     rockets = {},
-    command_blocks = {}
+    command_blocks = {},
+    bosses = {}        -- { boss_id = { x, y, health, state, ... } }
 }
 
 -- Local player state (for smooth interpolation/prediction)
@@ -76,6 +77,10 @@ end
 
 function renderer.setNetworkedEnemies(enemies_data)
     renderer.networked_state.enemies = enemies_data or {}
+end
+
+function renderer.setNetworkedBosses(bosses_data)
+    renderer.networked_state.bosses = bosses_data or {}
 end
 
 function renderer.setNetworkedCoins(coins_data)
@@ -437,6 +442,7 @@ function renderer.populateDynamicDrawList()
 
     fire.populate()
     enemy.populate()
+    boss.populate()
     -- light.populate()
     command.populate()
 end
@@ -445,6 +451,7 @@ function renderer.populateDynamicDrawListNETHOST()
     addEnemiesFromBodies()
     addCoinsFromBodies()
     enemy.populate()
+    boss.populate()
 end
 
 -- function renderer.renderSortedDrawList()
@@ -616,10 +623,11 @@ function renderer.renderSortedDrawList()
 
     for _, drawable in ipairs(dynamic_draw_list) do
         -- Set color if different from last
-        if drawable.color[1] ~= last_color[1] or drawable.color[2] ~= last_color[2] or
-            drawable.color[3] ~= last_color[3] or drawable.color[4] ~= last_color[4] then
-            love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
-            last_color = drawable.color
+        local color = drawable.color or {1, 1, 1, 1}  -- Default to white if no color specified
+        if color[1] ~= last_color[1] or color[2] ~= last_color[2] or
+            color[3] ~= last_color[3] or color[4] ~= last_color[4] then
+            love.graphics.setColor(color[1], color[2], color[3], color[4])
+            last_color = color
         end
 
         -- Set blend mode if different from last (with nil check)
