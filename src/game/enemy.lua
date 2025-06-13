@@ -14,6 +14,8 @@ enemy.health = {}  -- health per enemy index
 enemy.max_health = 100
 enemy.damage_indicators = {}  -- floating damage numbers
 enemy.enemy_damaged = {}  -- track which enemies have been damaged (for health bars)
+enemy.damage_flash_timers = {}  -- flash timer per enemy
+enemy.damage_shader = nil  -- shader for low health/damage effects
 
 -- Reuse the same fire sprite from the fire module
 local function getFireSprite()
@@ -25,57 +27,75 @@ local function getFireSprite()
      return love.graphics.newImage('gfx/firelowres.png')
 end
 
-function enemy.damageEnemy(enemy_index, damage)
+function enemy.damageEnemy(enemy_index, damage, damage_type, attacker_x, attacker_y)
     if not enemy.health[enemy_index] then
         enemy.health[enemy_index] = enemy.max_health
     end
     
     enemy.health[enemy_index] = enemy.health[enemy_index] - damage
     enemy.enemy_damaged[enemy_index] = true
+    enemy.damage_flash_timers[enemy_index] = 0.2  -- Flash for 0.2 seconds
     
-    -- Create floating damage indicator
+    -- Use damage indicators mod if available
     if enemies_bods[enemy_index] then
         local ex, ey = enemies_bods[enemy_index]:getPosition()
         
-        -- Count existing indicators near this enemy for better spacing
-        local nearby_count = 0
-        for _, ind in ipairs(enemy.damage_indicators) do
-            local dist = math.sqrt((ind.x - ex)^2 + (ind.y - ey)^2)
-            if dist < 50 then  -- Within 50 pixels
-                nearby_count = nearby_count + 1
+        -- Try to use damage_indicators_mod
+        if modSystem and modSystem.getMod then
+            local damage_mod = modSystem.getMod("damage_indicators_mod")
+            if damage_mod and damage_mod.instance and damage_mod.instance.exports then
+                local is_critical = damage >= 25
+                damage_mod.instance.exports.showDamageIndicator(ex, ey, damage, damage_type or "physical", is_critical, "enemy_" .. enemy_index)
+            else
+                -- Fallback to legacy system
+                enemy.createLegacyDamageIndicator(enemy_index, ex, ey, damage)
             end
+        else
+            -- Fallback to legacy system
+            enemy.createLegacyDamageIndicator(enemy_index, ex, ey, damage)
         end
-        
-        -- Calculate spread pattern based on number of nearby indicators
-        local angle = (nearby_count * 45) % 360  -- Spread in 45-degree increments
-        local spread_radius = math.min(15 + nearby_count * 3, 35)  -- Increase spread with more indicators
-        local spread_x = math.cos(math.rad(angle)) * spread_radius
-        local spread_y = math.sin(math.rad(angle)) * spread_radius * 0.5  -- Less vertical spread
-        
-        -- Dynamic duration - faster fade with more indicators
-        local base_duration = 1.0
-        local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))  -- Faster with more indicators
-        local final_duration = base_duration * duration_multiplier
-        
-        table.insert(enemy.damage_indicators, {
-            x = ex + spread_x,
-            y = ey - 10 + spread_y,
-            damage = damage,
-            time = 0,
-            duration = final_duration,
-            velocity_y = -80 - (nearby_count * 5),  -- Faster with more indicators
-            velocity_x = math.random(-10, 10) + spread_x * 0.3,  -- Drift in spread direction
-            alpha = 1,
-            scale = 1.2,
-            bounce_factor = 0.95,
-            nearby_count = nearby_count  -- Store for reference
-        })
     end
     
     -- Check if enemy dies
     if enemy.health[enemy_index] <= 0 then
         enemy.killEnemy(enemy_index)
     end
+end
+
+function enemy.createLegacyDamageIndicator(enemy_index, ex, ey, damage)
+    -- Count existing indicators near this enemy for better spacing
+    local nearby_count = 0
+    for _, ind in ipairs(enemy.damage_indicators) do
+        local dist = math.sqrt((ind.x - ex)^2 + (ind.y - ey)^2)
+        if dist < 50 then  -- Within 50 pixels
+            nearby_count = nearby_count + 1
+        end
+    end
+    
+    -- Calculate spread pattern based on number of nearby indicators
+    local angle = (nearby_count * 45) % 360  -- Spread in 45-degree increments
+    local spread_radius = math.min(15 + nearby_count * 3, 35)  -- Increase spread with more indicators
+    local spread_x = math.cos(math.rad(angle)) * spread_radius
+    local spread_y = math.sin(math.rad(angle)) * spread_radius * 0.5  -- Less vertical spread
+    
+    -- Dynamic duration - faster fade with more indicators
+    local base_duration = 1.0
+    local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))  -- Faster with more indicators
+    local final_duration = base_duration * duration_multiplier
+    
+    table.insert(enemy.damage_indicators, {
+        x = ex + spread_x,
+        y = ey - 10 + spread_y,
+        damage = damage,
+        time = 0,
+        duration = final_duration,
+        velocity_y = -80 - (nearby_count * 5),  -- Faster with more indicators
+        velocity_x = math.random(-10, 10) + spread_x * 0.3,  -- Drift in spread direction
+        alpha = 1,
+        scale = 1.2,
+        bounce_factor = 0.95,
+        nearby_count = nearby_count  -- Store for reference
+    })
 end
 
 function enemy.killEnemy(enemy_index)
@@ -87,30 +107,41 @@ function enemy.killEnemy(enemy_index)
         enemy.health[enemy_index] = nil
         enemy.enemy_damaged[enemy_index] = nil
         enemy.last_fire_times[enemy_index] = nil
+        enemy.damage_flash_timers[enemy_index] = nil
         
         -- Shift indices for remaining enemies
         local new_health = {}
         local new_damaged = {}
         local new_fire_times = {}
+        local new_flash_timers = {}
         for i = 1, #enemies_bods do
             if i < enemy_index then
                 new_health[i] = enemy.health[i]
                 new_damaged[i] = enemy.enemy_damaged[i]
                 new_fire_times[i] = enemy.last_fire_times[i]
+                new_flash_timers[i] = enemy.damage_flash_timers[i]
             else
                 new_health[i] = enemy.health[i + 1]
                 new_damaged[i] = enemy.enemy_damaged[i + 1]
                 new_fire_times[i] = enemy.last_fire_times[i + 1]
+                new_flash_timers[i] = enemy.damage_flash_timers[i + 1]
             end
         end
         enemy.health = new_health
         enemy.enemy_damaged = new_damaged
         enemy.last_fire_times = new_fire_times
+        enemy.damage_flash_timers = new_flash_timers
     end
 end
 
 function enemy.load()
     -- local fireImg = getFireSprite()
+    
+    -- Load damage shader
+    local shader_code = love.filesystem.read("shaders/enemy_damage.frag")
+    if shader_code then
+        enemy.damage_shader = love.graphics.newShader(shader_code)
+    end
     
     -- Create particle system for enemy projectiles (different color/settings
     Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
@@ -152,6 +183,11 @@ function enemy.update(dt)
         -- Initialize health if not set
         if not enemy.health[i] then
             enemy.health[i] = enemy.max_health
+        end
+        
+        -- Update damage flash timer
+        if enemy.damage_flash_timers[i] and enemy.damage_flash_timers[i] > 0 then
+            enemy.damage_flash_timers[i] = enemy.damage_flash_timers[i] - dt
         end
     end
     

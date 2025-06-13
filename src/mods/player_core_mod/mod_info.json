@@ -1,0 +1,65 @@
+{
+    "id": "player_core_mod",
+    "name": "Player Core System",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Core player system including movement, physics, health, dodge mechanics, and collision handling. Migrated from main game engine to modular architecture.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": [],
+    "assets": [
+        "gfx/doge.png",
+        "gfx/testCharacter/jump.png"
+    ],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.draw_sprite",
+        "physics.create_bodies",
+        "physics.create_shapes",
+        "physics.create_fixtures",
+        "input.key_handlers",
+        "input.mouse_handlers",
+        "network.sync_entities",
+        "game.access_world",
+        "game.access_camera",
+        "game.player_systems"
+    ],
+    "configuration": {
+        "player_health": 100,
+        "player_max_speed": 100,
+        "player_acceleration": 2000,
+        "player_friction": 0.85,
+        "dodge_speed": 300,
+        "dodge_duration": 0.2,
+        "dodge_cooldown": 1.0,
+        "player_scale": 0.8,
+        "collision_group": -1,
+        "enable_animations": true,
+        "enable_dodge_system": true,
+        "enable_knockback": true,
+        "enable_networking": true
+    },
+    "hooks": {
+        "on_player_damage": "handlePlayerDamage",
+        "on_player_death": "handlePlayerDeath",
+        "on_network_sync": "syncPlayerState"
+    },
+    "collision_groups": {
+        "player": -1
+    },
+    "entity_templates": {
+        "player": {
+            "health": 100,
+            "physics": {
+                "type": "dynamic",
+                "shapes": [
+                    {
+                        "type": "circle",
+                        "radius": 10,
+                        "group_index": -1
+                    }
+                ]
+            }
+        }
+    }
+}

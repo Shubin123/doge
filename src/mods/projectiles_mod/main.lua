@@ -4,6 +4,11 @@
 
 local projectilesMod = {}
 
+-- Vec2 compatibility helper (for mods that don't have access to vec2 library)
+local function vec2_new(x, y)
+    return {x = x or 0, y = y or 0}
+end
+
 -- Mod state
 local active_projectiles = {}
 local projectile_pool = {}  -- Object pool for efficient reuse
@@ -233,6 +238,12 @@ function projectilesMod.spawnProjectile(template_id, x, y, dx, dy, params)
         end
     end
     
+    -- Store owner information if provided (for PvP)
+    if params and params.owner_id then
+        projectile.owner_id = params.owner_id
+        projectile.owner_client_id = params.owner_client_id  -- For network identification
+    end
+    
     local instance
     
     -- Try to reuse from pool (object pooling from legacy system)
@@ -379,6 +390,12 @@ function projectilesMod.update(dt)
     for i = #active_projectiles, 1, -1 do
         local proj = active_projectiles[i]
         
+        -- Check if body is destroyed
+        if not proj.body or proj.body:isDestroyed() then
+            table.remove(active_projectiles, i)
+            goto continue
+        end
+        
         -- Record last position for drawing tracers
         local x, y = proj.body:getPosition()
         proj.prev_pos = {x = x, y = y}
@@ -408,10 +425,12 @@ function projectilesMod.update(dt)
         end
         
         -- Set constant velocity (from legacy system)
-        proj.body:setLinearVelocity(
-            proj.direction.x * proj.current_speed,
-            proj.direction.y * proj.current_speed
-        )
+        if proj.body and not proj.body:isDestroyed() then
+            proj.body:setLinearVelocity(
+                proj.direction.x * proj.current_speed,
+                proj.direction.y * proj.current_speed
+            )
+        end
         
         ::continue::
     end
@@ -449,17 +468,51 @@ end
 -- Handle projectile collision
 function projectilesMod.handleCollision(projectile_fixture, other_fixture, contact)
     local proj = projectile_fixture:getUserData()
-    if not proj then return end
+    if not proj or not proj.params then return end
     
+    -- Get collision data
+    local other_data = other_fixture:getUserData()
     local other_group = other_fixture:getGroupIndex()
     local other_body = other_fixture:getBody()
     local x, y = other_body:getPosition()
+    
+    -- Check if this is a projectile (to determine who fired it)
+    local is_projectile = type(proj) == "table" and proj.params and proj.template_id
+    if not is_projectile then
+        -- Swap if the other fixture is the projectile
+        proj, other_data = other_data, proj
+        projectile_fixture, other_fixture = other_fixture, projectile_fixture
+        if not proj or not proj.params then return end
+    end
+    
+    -- Skip if projectile hit its owner (check owner field if available)
+    if proj.params.owner_id and other_data and other_data.id == proj.params.owner_id then
+        return
+    end
+    
+    -- For multiplayer, also check client ID to prevent self-damage
+    if proj.params.owner_client_id and other_data and other_data.client_id == proj.params.owner_client_id then
+        return
+    end
     
     -- Handle different collision types
     if other_group == COLLISION_GROUPS.ENEMY then
         projectilesMod.handleEnemyHit(proj, other_body, x, y)
     elseif other_group == COLLISION_GROUPS.PLAYER then
-        projectilesMod.handlePlayerHit(proj, other_body, x, y)
+        -- Check if this is player vs player damage (PvP)
+        if other_data and other_data.type == "player" then
+            -- In multiplayer, allow damage between different players
+            local isMultiplayer = api.network and api.network.isMultiplayer and api.network.isMultiplayer()
+            if isMultiplayer then
+                -- Check if this is a different player (not the owner)
+                if not proj.params.owner_id or other_data.id ~= proj.params.owner_id then
+                    projectilesMod.handlePlayerHit(proj, other_body, x, y, other_data)
+                end
+            else
+                -- Single player mode - normal player hit
+                projectilesMod.handlePlayerHit(proj, other_body, x, y, other_data)
+            end
+        end
     elseif other_group == COLLISION_GROUPS.BOSS then
         projectilesMod.handleBossHit(proj, other_body, x, y)
     else
@@ -504,12 +557,57 @@ function projectilesMod.handleEnemyHit(proj, enemy_body, x, y)
 end
 
 -- Handle player hit
-function projectilesMod.handlePlayerHit(proj, player_body, x, y)
-    -- Apply damage to player
-    local current_health = api.game.getPlayerHealth()
-    api.game.setPlayerHealth(current_health - proj.params.damage)
+function projectilesMod.handlePlayerHit(proj, player_body, x, y, player_data)
+    -- Get the player core mod for damage handling
+    local player_mod = api.mods and api.mods.player_core_mod
     
-    api.utils.log("Player hit for " .. proj.params.damage .. " damage", "projectiles_mod")
+    -- Determine if this is local player or remote player
+    local isLocalPlayer = true
+    if player_data and player_data.client_id then
+        -- Check if this is the local player based on client ID
+        local localClientId = api.network and api.network.getLocalClientId and api.network.getLocalClientId()
+        isLocalPlayer = (player_data.client_id == localClientId)
+    end
+    
+    if isLocalPlayer then
+        -- Apply damage to local player
+        if player_mod and player_mod.exports and player_mod.exports.damagePlayer then
+            -- Apply damage through player core mod
+            player_mod.exports.damagePlayer(proj.params.damage, "projectile")
+            
+            -- Apply knockback if available
+            if proj.params.knockback > 0 and player_mod.exports.applyKnockback then
+                player_mod.exports.applyKnockback(proj.direction, proj.params.knockback)
+            end
+        else
+            -- Fallback to direct API if available
+            local current_health = api.game.getPlayerHealth()
+            api.game.setPlayerHealth(current_health - proj.params.damage)
+        end
+    end
+    
+    -- Create blood effect for any player hit
+    api.renderer.addParticleEffect("blood_splatter", x, y, "impact", {
+        direction = proj.direction,
+        intensity = proj.params.damage / 10
+    })
+    
+    -- Network sync damage event
+    if mod_config.enable_networking then
+        api.network.sendToAll({
+            action = "player_hit",
+            damage = proj.params.damage,
+            x = x,
+            y = y,
+            direction = proj.direction,
+            hit_player_id = player_data and player_data.id,
+            hit_client_id = player_data and player_data.client_id,
+            attacker_id = proj.params.owner_id,
+            attacker_client_id = proj.params.owner_client_id
+        }, "projectiles_mod")
+    end
+    
+    api.utils.log("Player hit for " .. proj.params.damage .. " damage (Local: " .. tostring(isLocalPlayer) .. ")", "projectiles_mod")
 end
 
 -- Handle boss hit
@@ -566,8 +664,10 @@ function projectilesMod.returnToPool(proj, index)
         end
     else
         -- Reset physics state but keep body/fixture for reuse
-        proj.body:setLinearVelocity(0, 0)
-        proj.body:setPosition(-1000, -1000)  -- move offscreen
+        if proj.body and proj.body:isDestroyed() == false then
+            proj.body:setLinearVelocity(0, 0)
+            proj.body:setPosition(-1000, -1000)  -- move offscreen
+        end
         
         -- Add to pool if not too many (limit pool size)
         if #projectile_pool < mod_config.max_pool_size then
@@ -663,6 +763,11 @@ function projectilesMod.populateRenderer()
     
     -- Add bullet tracers to draw list with sophisticated rendering
     for _, proj in ipairs(active_projectiles) do
+        -- Skip destroyed bodies
+        if not proj.body or proj.body:isDestroyed() then
+            goto continue
+        end
+        
         local x, y = proj.body:getPosition()
         
         -- Calculate distance from player for fading effect
@@ -682,6 +787,8 @@ function projectilesMod.populateRenderer()
             color = {1, 1, 1, 1},
             active = true
         })
+        
+        ::continue::
     end
 end
 
@@ -699,6 +806,17 @@ function projectilesMod.handleNetworkMessage(data)
     if data.action == "projectile_spawn" then
         -- Spawn projectile from network data
         projectilesMod.spawnProjectile(data.template_id, data.x, data.y, data.dx, data.dy, data.params)
+    elseif data.action == "player_hit" then
+        -- Handle networked player hit (for effects and synchronization)
+        -- Create blood effect at hit location
+        api.renderer.addParticleEffect("blood_splatter", data.x, data.y, "impact", {
+            direction = data.direction,
+            intensity = data.damage / 10
+        })
+        
+        -- If this hit was on the local player, damage was already applied locally
+        -- This is just for visual effects and logging
+        api.utils.log("Networked player hit: " .. (data.hit_client_id or "unknown") .. " damaged by " .. (data.attacker_client_id or "unknown"), "projectiles_mod")
     end
 end
 
@@ -856,6 +974,11 @@ projectilesMod.public = {
     createMuzzleFlash = projectilesMod.createMuzzleFlash,
     createParticleEffect = projectilesMod.createParticleEffect,
     createShellEjection = projectilesMod.createShellEjection
+}
+
+-- Export for collision handling
+projectilesMod.exports = {
+    handleCollision = projectilesMod.handleCollision
 }
 
 return projectilesMod

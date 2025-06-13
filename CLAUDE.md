@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Host Multiplayer**: `'/Applications/love.app/Contents/MacOS/love' ./src 1`
 - **Join Multiplayer**: `'/Applications/love.app/Contents/MacOS/love' ./src 2 <ip_address>`
 - **Build Distribution**: `./build.sh` (creates .love files and cross-platform packages)
+- **Testing**: Use `run.sh` to test always.
 
 ### Development Tools
 - **Hot Reload**: Game automatically restarts when files change (via `lurker.lua`)

@@ -37,6 +37,7 @@ local performance = {
 
 -- Asset Preloading System
 function rendererPlus.preloadAssets()
+    local missing_textures = {}
     -- Define all assets to preload from gfx folder
     local asset_paths = {
         -- Character sprites
@@ -146,10 +147,16 @@ function rendererPlus.preloadAssets()
             assets.textures[name] = texture
             print("[rendererPlus] Loaded texture: " .. name .. " from " .. loadPath)
         else
+            table.insert(missing_textures, name)
             print("[rendererPlus] Failed to load texture: " .. name .. " from " .. loadPath)
         end
     end
-    
+    if #missing_textures > 0 then
+        print("[rendererPlus] Missing textures summary:")
+        for _, name in ipairs(missing_textures) do
+            print(" - " .. name)
+        end
+    end
     -- Load fonts
     local font_paths = {
         ["game_font"] = "src/gfx/menu/stats_font.ttf",
@@ -220,7 +227,11 @@ end
 function rendererPlus.drawSprite(sprite_name, x, y, rotation, scale_x, scale_y, offset_x, offset_y)
     local texture = assets.textures[sprite_name]
     if not texture then
-        print("[rendererPlus] Warning: Texture not found: " .. tostring(sprite_name))
+        -- Debug placeholder for missing texture
+        love.graphics.setColor(1, 0, 0, 1)
+        love.graphics.rectangle("fill", x or 0, y or 0, 16, 16)
+        love.graphics.setColor(1, 1, 1, 1)
+        print("[rendererPlus] Debug placeholder: Missing texture '" .. tostring(sprite_name) .. "'")
         return
     end
     
@@ -236,7 +247,11 @@ end
 function rendererPlus.drawSpriteWithQuad(sprite_name, quad, x, y, rotation, scale_x, scale_y, offset_x, offset_y, color)
     local texture = assets.textures[sprite_name]
     if not texture then
-        print("[rendererPlus] Warning: Texture not found: " .. tostring(sprite_name))
+        -- Debug placeholder for missing texture with quad
+        love.graphics.setColor(1, 0, 0, 1)
+        love.graphics.rectangle("fill", x or 0, y or 0, quad and quad:getViewport() or 16, 16)
+        love.graphics.setColor(1, 1, 1, 1)
+        print("[rendererPlus] Debug placeholder quad: Missing texture '" .. tostring(sprite_name) .. "'")
         return
     end
     
@@ -346,6 +361,11 @@ function rendererPlus.render(dt)
         return (a.sort_y or a.y or 0) < (b.sort_y or b.y or 0)
     end)
     
+    -- Debug: Log world queue size occasionally
+    if math.random() < 0.01 then -- 1% chance each frame
+        print("[rendererPlus] World queue size: " .. #render_queue.world)
+    end
+    
     for _, draw_data in ipairs(render_queue.world) do
         rendererPlus.processDrawData(draw_data)
     end
@@ -411,8 +431,7 @@ function rendererPlus.processDrawData(draw_data)
             draw_data.x, draw_data.y,
             draw_data.rotation,
             draw_data.scale_x, draw_data.scale_y,
-            draw_data.offset_x, draw_data.offset_y,
-            draw_data.color
+            draw_data.offset_x, draw_data.offset_y
         )
     elseif draw_data.type == "sprite_quad" then
         rendererPlus.drawSpriteWithQuad(
@@ -420,8 +439,7 @@ function rendererPlus.processDrawData(draw_data)
             draw_data.x, draw_data.y,
             draw_data.rotation,
             draw_data.scale_x, draw_data.scale_y,
-            draw_data.offset_x, draw_data.offset_y,
-            draw_data.color
+            draw_data.offset_x, draw_data.offset_y
         )
     elseif draw_data.type == "particle_system" then
         if draw_data.particle_system then
@@ -441,8 +459,7 @@ function rendererPlus.processDrawData(draw_data)
                 draw_data.x, draw_data.y,
                 draw_data.rotation,
                 draw_data.scale_x, draw_data.scale_y,
-                draw_data.offset_x, draw_data.offset_y,
-                draw_data.color
+                draw_data.offset_x, draw_data.offset_y
             )
             love.graphics.setShader()
         end
@@ -467,6 +484,71 @@ function rendererPlus.processDrawData(draw_data)
         love.graphics.circle(draw_data.mode or "fill", draw_data.x, draw_data.y, draw_data.radius)
     elseif draw_data.type == "rectangle" then
         love.graphics.rectangle(draw_data.mode or "fill", draw_data.x, draw_data.y, draw_data.width, draw_data.height)
+    elseif draw_data.type == "bullet_tracer" then
+        -- Draw bullet tracer effect
+        if draw_data.bullet_data then
+            local bullet = draw_data.bullet_data
+            local x, y = bullet.body:getPosition()
+            
+            -- Draw tracer line from previous position to current
+            if bullet.prev_pos then
+                love.graphics.setLineWidth(3)
+                love.graphics.setColor(1, 1, 0.8, 0.8)  -- Yellow tracer
+                love.graphics.line(bullet.prev_pos.x, bullet.prev_pos.y, x, y)
+                
+                -- Add glow effect
+                love.graphics.setLineWidth(6)
+                love.graphics.setColor(1, 1, 0.5, 0.3)
+                love.graphics.line(bullet.prev_pos.x, bullet.prev_pos.y, x, y)
+                love.graphics.setLineWidth(1)
+            end
+            
+            -- Draw bullet point
+            love.graphics.setColor(1, 1, 0.9, 1)
+            love.graphics.circle("fill", x, y, 3)
+        end
+    elseif draw_data.type == "muzzle_flash" then
+        -- Draw muzzle flash effect
+        if draw_data.flash_data then
+            local flash = draw_data.flash_data
+            local alpha = flash.life / flash.max_life
+            
+            love.graphics.setBlendMode("add")
+            love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * flash.intensity)
+            love.graphics.circle("fill", flash.pos.x, flash.pos.y, flash.size * alpha)
+            love.graphics.setBlendMode("alpha")
+        end
+    elseif draw_data.type == "gunpowder_particle" then
+        -- Draw gunpowder particle
+        if draw_data.particle_data then
+            local particle = draw_data.particle_data
+            local alpha = particle.life / particle.max_life
+            
+            love.graphics.push()
+            love.graphics.translate(particle.pos.x, particle.pos.y)
+            love.graphics.rotate(particle.rotation)
+            
+            love.graphics.setColor(particle.color[1], particle.color[2], particle.color[3], alpha)
+            love.graphics.rectangle("fill", -particle.size/2, -particle.size/4, particle.size, particle.size/2)
+            
+            love.graphics.pop()
+        end
+    elseif draw_data.type == "shell_casing" then
+        -- Draw shell casing
+        if draw_data.shell_data then
+            local shell = draw_data.shell_data
+            local alpha = math.min(1, shell.life / shell.max_life)
+            
+            love.graphics.push()
+            love.graphics.translate(shell.pos.x, shell.pos.y)
+            love.graphics.rotate(shell.rotation)
+            
+            love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
+            love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
+                                  shell.size.width, shell.size.height)
+            
+            love.graphics.pop()
+        end
     elseif draw_data.draw_func then
         -- Support for custom draw functions (for legacy compatibility)
         draw_data.draw_func()

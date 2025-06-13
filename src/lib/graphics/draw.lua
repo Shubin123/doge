@@ -13,7 +13,13 @@ function draw.mydraw()
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.rectangle("fill", 0, 0, W, var.header_height)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Health: "..player.health, 10, 10)
+    local health = 100
+    if modSystem and modSystem.getPlayerHealth then
+        health = modSystem.getPlayerHealth()
+    elseif player and player.health then
+        health = player.health
+    end
+    love.graphics.print("Health: "..health, 10, 10)
     love.graphics.print("Points: " .. var.player_score, W - 100, 10)
     
     -- Draw left panel (inventory)

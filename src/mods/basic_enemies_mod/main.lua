@@ -200,15 +200,23 @@ function basicEnemiesMod.update(dt)
                 end
             end
             
-            -- Update damage indicators
-            for j = #enemy.damage_indicators, 1, -1 do
-                local indicator = enemy.damage_indicators[j]
-                indicator.timer = indicator.timer - dt
-                indicator.y = indicator.y - dt * 30
-                indicator.alpha = indicator.alpha - dt * 2
-                
-                if indicator.timer <= 0 then
-                    table.remove(enemy.damage_indicators, j)
+            -- Update damage flash timer
+            if enemy.damage_flash_timer then
+                enemy.damage_flash_timer = math.max(0, enemy.damage_flash_timer - dt)
+            end
+            
+            -- Update legacy damage indicators if damage_indicators_mod not available
+            local damage_mod = basicEnemiesMod.api.mods and basicEnemiesMod.api.mods.damage_indicators_mod
+            if not damage_mod or not damage_mod.exports then
+                for j = #enemy.damage_indicators, 1, -1 do
+                    local indicator = enemy.damage_indicators[j]
+                    indicator.timer = indicator.timer - dt
+                    indicator.y = indicator.y - dt * 30
+                    indicator.alpha = indicator.alpha - dt * 2
+                    
+                    if indicator.timer <= 0 then
+                        table.remove(enemy.damage_indicators, j)
+                    end
                 end
             end
             
@@ -411,7 +419,32 @@ end
 function basicEnemiesMod.renderEnemy(enemy)
     local api = basicEnemiesMod.api
     
-    -- Main enemy sprite
+    -- Calculate health percentage for shader
+    local health_percent = enemy.health / enemy.max_health
+    local damage_flash = enemy.damage_flash_timer or 0
+    
+    -- Determine if we should use damage shader
+    local use_damage_shader = health_percent < 0.5 or damage_flash > 0
+    local shader_data = nil
+    
+    if use_damage_shader and api.renderer.loadShader then
+        -- Load damage shader if not already loaded
+        if not basicEnemiesMod.damage_shader_loaded then
+            api.renderer.loadShader("enemy_damage", nil, "shaders/enemy_damage.frag")
+            basicEnemiesMod.damage_shader_loaded = true
+        end
+        
+        shader_data = {
+            shader_name = "enemy_damage",
+            uniforms = {
+                health_percent = health_percent,
+                time = api.utils.getTime(),
+                damage_flash = math.max(0, damage_flash / 0.2)  -- Normalize to 0-1
+            }
+        }
+    end
+    
+    -- Main enemy sprite with shader
     api.renderer.addToQueue("world", {
         type = "sprite",
         texture_name = enemy.config.sprite,
@@ -422,7 +455,8 @@ function basicEnemiesMod.renderEnemy(enemy)
         scale_y = enemy.config.scale,
         sort_y = enemy.y,
         active = true,
-        color = {1, 1, 1, 1}
+        color = {1, 1, 1, 1},
+        shader = shader_data
     })
     
     -- Health bar if damaged
@@ -459,18 +493,22 @@ function basicEnemiesMod.renderEnemy(enemy)
         })
     end
     
-    -- Damage indicators
-    for _, indicator in ipairs(enemy.damage_indicators) do
-        api.renderer.addToQueue("ui", {
-            type = "text",
-            text = tostring(indicator.damage),
-            x = indicator.x,
-            y = indicator.y,
-            font = "default",
-            sort_y = 10002,
-            active = true,
-            color = {indicator.color[1], indicator.color[2], indicator.color[3], indicator.alpha}
-        })
+    -- Damage indicators handled by damage_indicators_mod or rendered as fallback
+    local damage_mod = api.mods and api.mods.damage_indicators_mod
+    if not damage_mod or not damage_mod.exports then
+        -- Fallback rendering for legacy indicators
+        for _, indicator in ipairs(enemy.damage_indicators) do
+            api.renderer.addToQueue("ui", {
+                type = "text",
+                text = tostring(indicator.damage),
+                x = indicator.x,
+                y = indicator.y,
+                font = "default",
+                sort_y = 10002,
+                active = true,
+                color = {indicator.color[1], indicator.color[2], indicator.color[3], indicator.alpha}
+            })
+        end
     end
 end
 
@@ -518,11 +556,16 @@ function basicEnemiesMod.damageEnemy(enemy_id, damage, from_player, attacker_x, 
     if not enemy or not enemy.active then return end
     
     enemy.health = enemy.health - damage
+    enemy.damage_flash_timer = 0.2  -- Flash for 0.2 seconds
     
-    -- Use health/damage mod if available
-    local health_mod = basicEnemiesMod.api.mods and basicEnemiesMod.api.mods.health_damage_mod
-    if health_mod and health_mod.exports then
-        health_mod.exports.onEntityDamage(enemy.id, enemy.x, enemy.y, damage, enemy.health, enemy.max_health, "enemy")
+    -- Determine damage type and criticality
+    local damage_type = "physical"
+    local is_critical = damage >= 25
+    
+    -- Use damage_indicators_mod if available
+    local damage_mod = basicEnemiesMod.api.mods and basicEnemiesMod.api.mods.damage_indicators_mod
+    if damage_mod and damage_mod.exports then
+        damage_mod.exports.showDamageIndicator(enemy.x, enemy.y, damage, damage_type, is_critical, "enemy_" .. enemy.id)
     else
         -- Fallback to basic indicators
         enemy.health_bar_visible = true
@@ -534,9 +577,18 @@ function basicEnemiesMod.damageEnemy(enemy_id, damage, from_player, attacker_x, 
             y = enemy.y - 20,
             timer = 1.0,
             alpha = 1.0,
-            color = damage > 20 and {1, 0.2, 0.2} or {1, 0.8, 0.2}
+            color = is_critical and {1, 0.2, 0.2} or {1, 0.8, 0.2}
         }
         table.insert(enemy.damage_indicators, indicator)
+    end
+    
+    -- Use health_damage_mod for health bars if available
+    local health_mod = basicEnemiesMod.api.mods and basicEnemiesMod.api.mods.health_damage_mod
+    if health_mod and health_mod.exports then
+        health_mod.exports.updateHealthBar(enemy.id, enemy.health, enemy.max_health, enemy.x, enemy.y)
+    else
+        enemy.health_bar_visible = true
+        enemy.health_bar_timer = 3.0
     end
     
     -- Use blood effects mod if available

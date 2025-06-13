@@ -1,4 +1,9 @@
+-- there is a better version of this: new_renderer.lua! ! !
 local renderer = {}
+
+
+-- THIS IS OLD DO NOT USE! THIS IS A LEGACY RENDERER MEANT FOR REFERENCING PRE-MOD SYSTEM GAME!
+
 -- Dynamic draw list for Y-sorting
 dynamic_draw_list = {}
 
@@ -1023,3 +1028,6 @@ local function renderImage(drawable)
 end
 
 return renderer
+
+
+-- THIS IS OLD DO NOT USE! THIS FILE IS DEPRECATED

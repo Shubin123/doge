@@ -64,7 +64,12 @@ function fire.update(dt)
             local radius = 40 + math.sin(fire.t * 2) * 10  -- Pulsing radius
             
             -- Get player position - no offsets, ring should be centered on player
-            local player_x, player_y = player.getPosition()
+            local player_x, player_y = 0, 0
+            if modSystem and modSystem.getPlayerPosition then
+                player_x, player_y = modSystem.getPlayerPosition()
+            elseif player and player.getPosition then
+                player_x, player_y = player.getPosition()
+            end
             
             fire_instance.pos.x = player_x + math.cos(angle) * radius
             fire_instance.pos.y = player_y + math.sin(angle) * radius

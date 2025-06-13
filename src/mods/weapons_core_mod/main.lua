@@ -434,6 +434,17 @@ function weaponsCoremod.handleShoot(x, y, button)
         -- Add slight speed variation for realism (±10%)
         local speed_variation = template.projectile_speed * (0.9 + math.random() * 0.2)
         
+        -- Get client ID for multiplayer identification
+        local client_id = nil
+        if api.network and api.network.getLocalClientId then
+            client_id = api.network.getLocalClientId()
+        elseif api.game and api.game.getMultiplayerMode then
+            local mp_mode = api.game.getMultiplayerMode()
+            if mp_mode then
+                client_id = "client_" .. mp_mode
+            end
+        end
+        
         -- Enhanced projectile parameters
         local projectile_params = {
             speed = speed_variation,
@@ -441,6 +452,8 @@ function weaponsCoremod.handleShoot(x, y, button)
             radius = template.projectile_radius or 3,
             lifetime = template.projectile_lifetime or 5.0,
             owner = "player",
+            owner_id = "player",  -- Add owner_id for PvP damage filtering
+            owner_client_id = client_id,  -- Add client ID for multiplayer PvP
             weapon_id = current_weapon.id,
             trail_enabled = true,
             trail_color = {1, 1, 0.8, 0.8}

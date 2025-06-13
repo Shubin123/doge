@@ -7,7 +7,11 @@ local modSystem = {}
 local loaded_mods = {}
 local mod_registry = {}
 -- Removed: mod_api is now created per-mod with proper mod_id scoping
-local mod_hooks = {}
+local mod_hooks = {
+    key_handlers = {},
+    mouse_handlers = {},
+    network_handlers = {}
+}
 local mod_network_pending = {}
 
 -- Mod system configuration
@@ -46,7 +50,7 @@ local entity_counter = 0
 local state_machines = {}
 
 -- Mod API - What mods can access from the engine
-function modSystem.createModAPI(engine_systems)
+function modSystem.createModAPI(engine_systems, mod_id)
     return {
         -- Enhanced rendering system with new_renderer integration
         renderer = {
@@ -184,8 +188,30 @@ function modSystem.createModAPI(engine_systems)
             end,
             registerMouseHandler = function(button, callback)
                 mod_hooks.mouse_handlers = mod_hooks.mouse_handlers or {}
-                mod_hooks.mouse_handlers[button] = mod_hooks.mouse_handlers[button] or {}
-                table.insert(mod_hooks.mouse_handlers[button], callback)
+                table.insert(mod_hooks.mouse_handlers, {
+                    button = button,
+                    callback = callback,
+                    on_press = true,
+                    on_release = false
+                })
+            end,
+            registerMousePressHandler = function(button, callback)
+                mod_hooks.mouse_handlers = mod_hooks.mouse_handlers or {}
+                table.insert(mod_hooks.mouse_handlers, {
+                    button = button,
+                    callback = callback,
+                    on_press = true,
+                    on_release = false
+                })
+            end,
+            registerMouseReleaseHandler = function(button, callback)
+                mod_hooks.mouse_handlers = mod_hooks.mouse_handlers or {}
+                table.insert(mod_hooks.mouse_handlers, {
+                    button = button,
+                    callback = callback,
+                    on_press = false,
+                    on_release = true
+                })
             end,
             getMousePosition = function()
                 if love.mouse then
@@ -204,21 +230,69 @@ function modSystem.createModAPI(engine_systems)
         -- Game state access
         game = {
             getPlayerPosition = function()
+                -- Try to get from player_core_mod first
+                local player_mod = loaded_mods["player_core_mod"]
+                if player_mod and player_mod.instance and player_mod.instance.exports then
+                    return player_mod.instance.exports.getPosition()
+                end
+                
+                -- Fallback to legacy player if still available
                 if player and player.body then
                     return player.body:getX(), player.body:getY()
                 end
                 return 0, 0
             end,
             getPlayerHealth = function()
+                -- Try to get from player_core_mod first
+                local player_mod = loaded_mods["player_core_mod"]
+                if player_mod and player_mod.instance and player_mod.instance.exports then
+                    local health, max_health = player_mod.instance.exports.getHealth()
+                    return health
+                end
+                
+                -- Fallback to legacy player
                 return player and player.health or 100
             end,
             setPlayerHealth = function(health)
+                -- Try to set via player_core_mod first
+                local player_mod = loaded_mods["player_core_mod"]
+                if player_mod and player_mod.instance and player_mod.instance.exports then
+                    player_mod.instance.exports.damagePlayer(player_mod.instance.exports.getHealth() - health, "api_call")
+                    return
+                end
+                
+                -- Fallback to legacy player
                 if player then
                     player.health = math.max(0, math.min(player.max_health or 100, health))
                 end
             end,
             getWorld = function()
                 return world
+            end,
+            getMultiplayerMode = function()
+                -- Return the multiplayer mode (1 = host, 2+ = client, nil = single player)
+                return var.multiplayer
+            end,
+            getPlayerData = function()
+                -- Get comprehensive player data for systems like camera
+                local player_mod = loaded_mods["player_core_mod"]
+                if player_mod and player_mod.instance and player_mod.instance.exports then
+                    local x, y = player_mod.instance.exports.getPosition()
+                    local health, max_health = player_mod.instance.exports.getHealth()
+                    return {
+                        body = {
+                            getX = function() return x end,
+                            getY = function() return y end
+                        },
+                        health = health,
+                        max_health = max_health,
+                        x = x,
+                        y = y
+                    }
+                end
+                
+                -- Fallback to legacy player
+                return player
             end
         },
         
@@ -238,6 +312,17 @@ function modSystem.createModAPI(engine_systems)
             registerMessageHandler = function(mod_id, callback)
                 mod_hooks.network_handlers = mod_hooks.network_handlers or {}
                 mod_hooks.network_handlers[mod_id] = callback
+            end,
+            getLocalClientId = function()
+                -- Return the local client ID based on multiplayer mode
+                if var.multiplayer then
+                    return "client_" .. var.multiplayer
+                end
+                return nil
+            end,
+            isMultiplayer = function()
+                -- Check if game is in multiplayer mode
+                return var.multiplayer ~= nil and var.multiplayer > 0
             end
         },
         
@@ -299,6 +384,17 @@ function modSystem.createModAPI(engine_systems)
             end
         },
         
+        -- Direct access to loaded mods (easier API)
+        mods = setmetatable({}, {
+            __index = function(t, key)
+                local mod = loaded_mods[key]
+                if mod and mod.instance then
+                    return mod.instance
+                end
+                return nil
+            end
+        }),
+        
         -- Utility functions
         utils = {
             log = function(message, mod_id)
@@ -355,6 +451,17 @@ function modSystem.createModAPI(engine_systems)
                     return math.max(min, math.min(max, value))
                 end
             }
+        },
+        
+        -- Mod System API (for inter-mod communication)
+        mod_system = {
+            getMod = function(target_mod_id)
+                return loaded_mods[target_mod_id]
+            end,
+            
+            isModLoaded = function(target_mod_id)
+                return loaded_mods[target_mod_id] ~= nil
+            end
         },
 
         -- Audio API
@@ -683,19 +790,56 @@ function modSystem.draw()
     end
 end
 
+-- Handle mouse press events
+function modSystem.mousepressed(x, y, button)
+    -- Process mouse handlers
+    for _, handler in ipairs(mod_hooks.mouse_handlers) do
+        if handler.button == button and handler.on_press then
+            pcall(handler.callback, x, y, button)
+        end
+    end
+end
+
+-- Handle mouse release events
+function modSystem.mousereleased(x, y, button)
+    -- Process mouse handlers
+    for _, handler in ipairs(mod_hooks.mouse_handlers) do
+        if handler.button == button and handler.on_release then
+            pcall(handler.callback, x, y, button)
+        end
+    end
+end
+
+-- Handle collision events
+function modSystem.handleCollision(fixture_a, fixture_b, contact)
+    -- Get user data from fixtures to determine what collided
+    local data_a = fixture_a:getUserData()
+    local data_b = fixture_b:getUserData()
+    
+    -- Forward collision to relevant mods
+    for mod_id, mod in pairs(loaded_mods) do
+        if mod.enabled and mod.instance and mod.instance.handleCollision then
+            local success, error_msg = pcall(mod.instance.handleCollision, fixture_a, fixture_b, contact)
+            if not success then
+                print("[MOD_SYSTEM] Error in mod collision handler (" .. mod_id .. "): " .. error_msg)
+            end
+        end
+        
+        -- Also check for collision handlers in exports
+        if mod.enabled and mod.instance and mod.instance.exports and mod.instance.exports.handleCollision then
+            local success, error_msg = pcall(mod.instance.exports.handleCollision, fixture_a, fixture_b, contact)
+            if not success then
+                print("[MOD_SYSTEM] Error in mod collision export (" .. mod_id .. "): " .. error_msg)
+            end
+        end
+    end
+end
+
 -- Handle input events
 function modSystem.keypressed(key)
     if mod_hooks.key_handlers[key] then
         for _, callback in ipairs(mod_hooks.key_handlers[key]) do
             pcall(callback, key)
-        end
-    end
-end
-
-function modSystem.mousepressed(x, y, button)
-    if mod_hooks.mouse_handlers[button] then
-        for _, callback in ipairs(mod_hooks.mouse_handlers[button]) do
-            pcall(callback, x, y, button)
         end
     end
 end
@@ -1055,6 +1199,32 @@ function modSystem.updateEntitySystems(dt)
     end
 end
 
+-- Global API access for core systems (like camera)
+function modSystem.getPlayerData()
+    local player_mod = loaded_mods["player_core_mod"]
+    if player_mod and player_mod.instance and player_mod.instance.exports then
+        local x, y = player_mod.instance.exports.getPosition()
+        local health, max_health = player_mod.instance.exports.getHealth()
+        return {
+            body = {
+                getX = function() return x end,
+                getY = function() return y end
+            },
+            health = health,
+            max_health = max_health,
+            x = x,
+            y = y
+        }
+    end
+    
+    -- Fallback to legacy player if available
+    if player then
+        return player
+    end
+    
+    return nil
+end
+
 -- Cleanup
 function modSystem.cleanup()
     for mod_id, _ in pairs(loaded_mods) do
@@ -1105,6 +1275,35 @@ function modSystem.validateMod(mod_path)
     end
     
     return true
+end
+
+-- Get current player position (for camera, collision checks, etc.)
+function modSystem.getPlayerPosition()
+    local player_mod = loaded_mods["player_core_mod"]
+    if player_mod and player_mod.instance and player_mod.instance.exports then
+        return player_mod.instance.exports.getPosition()
+    end
+    
+    -- Fallback to legacy player if still available
+    if player and player.body then
+        return player.body:getX(), player.body:getY()
+    end
+    return 0, 0
+end
+
+-- Get current player health (for UI display)
+function modSystem.getPlayerHealth()
+    local player_mod = loaded_mods["player_core_mod"]
+    if player_mod and player_mod.instance and player_mod.instance.exports then
+        local health, max_health = player_mod.instance.exports.getHealth()
+        return health
+    end
+    
+    -- Fallback to legacy player if still available
+    if player and player.health then
+        return player.health
+    end
+    return 100
 end
 
 return modSystem

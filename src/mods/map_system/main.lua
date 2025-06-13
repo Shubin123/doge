@@ -91,7 +91,7 @@ local function createChunk(cx, cy)
         tiles = {},
         objects = {},
         dirty = true,
-        lastAccess = love.timer.getTime(),
+        lastAccess = api.utils.getTime(),
     }
 
     for y = 1, MAP_CONFIG.CHUNK_SIZE do
@@ -105,7 +105,7 @@ local function createChunk(cx, cy)
 end
 
 -- Tileset creation
-function newTiles(tilesetImage, tileWidth, tileHeight)
+function newTiles(tilesetImage, tileWidth, tileHeight, api)
     local tiles = {}
     tiles.tilesetImage = tilesetImage
     tiles.tileWidth = tileWidth
@@ -116,7 +116,7 @@ function newTiles(tilesetImage, tileWidth, tileHeight)
     for y = 0, tilesetImage:getHeight() - tileHeight, tileHeight do
         for x = 0, tilesetImage:getWidth() - tileWidth, tileWidth do
             tileCount = tileCount + 1
-            tiles.quads[tileCount] = love.graphics.newQuad(x, y, tileWidth, tileHeight, tilesetImage:getDimensions())
+            tiles.quads[tileCount] = api.renderer.createQuad(x, y, tileWidth, tileHeight, tilesetImage:getDimensions())
         end
     end
     return tiles
@@ -140,7 +140,7 @@ function map.newTilesetAdvanced(config)
     for y = 0, tilesHigh - 1 do
         for x = 0, tilesWide - 1 do
             tileId = tileId + 1
-            tileset.quads[tileId] = love.graphics.newQuad(
+            tileset.quads[tileId] = api.renderer.createQuad(
                 x * tileset.tileWidth,
                 y * tileset.tileHeight,
                 tileset.tileWidth,
@@ -198,15 +198,9 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
             for col = 1, max_tiles_x do
                 local tileId = self.tileData[row] and self.tileData[row][col]
                 if tileId and tileId > 0 and self.tiles.quads[tileId] then
-                    love.graphics.draw(
-                        self.tiles.tilesetImage,
-                        self.tiles.quads[tileId],
-                        x + (col-1) * self.tiles.tileWidth * scale,
-                        y + (row-1) * self.tiles.tileHeight * scale,
-                        0,
-                        scale,
-                        scale
-                    )
+                    -- Note: This draw function is for legacy compatibility
+                    -- In practice, the mod should use api.renderer.addToQueue
+                    -- This function might be called from legacy code
                 end
             end
         end
@@ -228,7 +222,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
 end
 
 -- Enhanced map creation with layers and chunks
-function map.createAdvancedMap(config)
+function map.createAdvancedMap(config, api)
     local advancedMap = {
         tilesets = config.tilesets or {},
         width = config.width,
@@ -519,28 +513,44 @@ end
 
 -- Load map assets and initialize
 function map.load(api)
-    -- Load grass tileset - use absolute path
-    local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
-    map.tiles = newTiles(tilesetImage, mod_config.tile_w, mod_config.tile_h)
-    map.map = createMap(map.tiles, mod_config.map_display_w, mod_config.map_display_h)
-    
-    for x = 1, 70 do 
-        for y = 1, 50 do
-            map.map:setTile(x, y, math.random(1,200))
+    -- Load grass tileset using API
+    local tilesetImage = api.utils.loadTexture("tileset_grass", "../gfx/TileSet/TX Tileset Grass.png")
+    if not tilesetImage then
+        -- Fallback: try to get from preloaded textures
+        tilesetImage = api.renderer.getTexture("tileset_grass")
+    end
+    if tilesetImage then
+        map.tiles = newTiles(tilesetImage, mod_config.tile_w, mod_config.tile_h, api)
+        map.map = createMap(map.tiles, mod_config.map_display_w, mod_config.map_display_h)
+        
+        for x = 1, 70 do 
+            for y = 1, 50 do
+                map.map:setTile(x, y, math.random(1,200))
+            end
         end
     end
 
-    -- Load arch tileset - use absolute path
-    local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
-    map.tiles3 = newTiles(tilesetImage3, 98, 128)
-    map.arches = createMap(map.tiles3, 1, 1)
-    map.arches:setTile(1, 1, 10)
+    -- Load arch tileset using API
+    local tilesetImage3 = api.utils.loadTexture("tileset_struct", "../gfx/TileSet/TX Struct.png")
+    if not tilesetImage3 then
+        tilesetImage3 = api.renderer.getTexture("tileset_struct")
+    end
+    if tilesetImage3 then
+        map.tiles3 = newTiles(tilesetImage3, 98, 128, api)
+        map.arches = createMap(map.tiles3, 1, 1)
+        map.arches:setTile(1, 1, 10)
+    end
 
-    -- Load tree tileset - use absolute path
-    local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
-    map.tiles4 = newTiles(tilesetImage4, 156, 156)
-    map.tree = createMap(map.tiles4, 1, 1)
-    map.tree:setTile(1, 1, 1)
+    -- Load tree tileset using API
+    local tilesetImage4 = api.utils.loadTexture("tileset_plant", "../gfx/TileSet/TX Plant.png")
+    if not tilesetImage4 then
+        tilesetImage4 = api.renderer.getTexture("tileset_plant")
+    end
+    if tilesetImage4 then
+        map.tiles4 = newTiles(tilesetImage4, 156, 156, api)
+        map.tree = createMap(map.tiles4, 1, 1)
+        map.tree:setTile(1, 1, 1)
+    end
 end
 
 -- Optimized dynamic draw list generation for the new renderer
@@ -854,7 +864,7 @@ function mapSystemMod.init(api)
         function() return createChunk(0, 0) end,
         function(chunk) 
             chunk.dirty = true
-            chunk.lastAccess = love.timer.getTime()
+            chunk.lastAccess = api.utils.getTime()
             for y = 1, MAP_CONFIG.CHUNK_SIZE do
                 for x = 1, MAP_CONFIG.CHUNK_SIZE do
                     chunk.tiles[y][x] = {}

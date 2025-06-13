@@ -140,7 +140,7 @@ end
 
 -- Update all trees
 function glowingTreeMod.update(dt)
-    local current_time = love.timer.getTime()
+    local current_time = glowingTreeMod.api.utils.getTime()
     
     for i = #trees, 1, -1 do
         local tree = trees[i]
@@ -328,7 +328,7 @@ function glowingTreeMod.interactWithTree(tree)
     if not tree.active or not mod_config.enable_healing then return end
     
     local api = glowingTreeMod.api
-    local current_time = love.timer.getTime()
+    local current_time = api.utils.getTime()
     
     -- Cooldown check
     if current_time - tree.last_heal_time < 3.0 then

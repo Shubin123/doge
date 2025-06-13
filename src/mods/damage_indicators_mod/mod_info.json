@@ -1,0 +1,52 @@
+{
+    "id": "damage_indicators_mod",
+    "name": "Advanced Damage Indicators",
+    "version": "2.0.0",
+    "author": "DogeGame Developers",
+    "description": "Enhanced damage indicator system with floating numbers, color-coded damage types, and multiplayer synchronization.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": ["health_damage_mod"],
+    "assets": [],
+    "permissions": [
+        "renderer.addToQueue",
+        "renderer.add_effects",
+        "renderer.add_text",
+        "utils.math",
+        "utils.getTime",
+        "utils.getDelta",
+        "network.sendToAll",
+        "network.onReceive",
+        "game.getPlayerPosition",
+        "mod_system.getMod"
+    ],
+    "configuration": {
+        "damage_indicator_duration": 1.5,
+        "heal_indicator_duration": 1.2,
+        "floating_speed": 50,
+        "spread_radius": 20,
+        "enable_critical_effects": true,
+        "critical_threshold": 25,
+        "font_size": 16,
+        "enable_multiplayer_sync": true,
+        "max_indicators_per_entity": 5
+    },
+    "hooks": {
+        "on_entity_damage": "onEntityDamage",
+        "on_entity_heal": "onEntityHeal",
+        "on_player_damage": "onPlayerDamage",
+        "on_player_heal": "onPlayerHeal"
+    },
+    "exports": [
+        "showDamageIndicator",
+        "showHealIndicator",
+        "showCustomIndicator",
+        "clearIndicators",
+        "setDamageColor",
+        "setHealColor"
+    ],
+    "network_events": [
+        "damage_indicator_spawn",
+        "heal_indicator_spawn"
+    ]
+}

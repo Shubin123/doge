@@ -72,8 +72,14 @@ function camera.update(dt, player)
         camera.shake_offset_y = 0
     end
     
-    -- Get player world position
-    local player_x, player_y = player.body:getPosition()
+    -- Get player world position through mod system
+    local player_x, player_y = 0, 0
+    if modSystem and modSystem.getPlayerPosition then
+        player_x, player_y = modSystem.getPlayerPosition()
+    elseif player and player.body then
+        -- Fallback to legacy player if available
+        player_x, player_y = player.body:getPosition()
+    end
     camera.player_world_x = player_x
     camera.player_world_y = player_y
     
