@@ -536,11 +536,31 @@ function boss.checkLaserHits(boss_instance)
         local end_x = start_x + math.cos(boss_instance.laser_angle) * laser_length
         local end_y = start_y + math.sin(boss_instance.laser_angle) * laser_length
         
+        -- local function rayCastCallback(fixture, fraction, xn, yn)
+        
+        --     world:rayCast(start_x, start_y, end_x, end_y, rayCastCallback)
+        -- end
+
+
+
+
+
+
+
+
         -- Raycast callback function
         local function rayCastCallback(fixture, fraction, xn, yn)
             -- Check if hit player
-            if fixture:getGroupIndex() == -1 then -- Player group
+            
+
+            -- sort list 
+            
+            if fixture:getGroupIndex() == -1 or fixture:getGroupIndex() == 69 then
                 -- Calculate hit position
+                for i,v in pairs(enemies_bods) do
+                
+                end
+
                 local hit_x = start_x + (end_x - start_x) * fraction
                 local hit_y = start_y + (end_y - start_y) * fraction
                 
@@ -711,13 +731,16 @@ function boss.populate()
         
         -- Draw laser targeting lines and beams (two lasers from eyes)
         if boss_instance.state == boss.STATES.CHARGING_LASER or boss_instance.state == boss.STATES.FIRING_LASER then
-            local eye_offsets = {{x = 10, y = -15}, {x = -10, y = -15}}
+            local eye_offsets = {{x = 10, y = -15}, {x = -10, y = -15}} -- should tune to the correct position....
             
             for i, offset in ipairs(eye_offsets) do
                 local start_x = render_x + offset.x
                 local start_y = render_y + offset.y
-                local end_x = start_x + math.cos(boss_instance.laser_angle) * 1000
-                local end_y = start_y + math.sin(boss_instance.laser_angle) * 1000
+                local end_x = start_x + math.cos(boss_instance.laser_angle) * 100
+                local end_y = start_y + math.sin(boss_instance.laser_angle) * 100
+
+
+                
                 
                 if boss_instance.state == boss.STATES.CHARGING_LASER then
                     -- Draw laser targeting lines
