@@ -33,45 +33,33 @@ end
 
 -- Function to calculate sprite frame based on player's heading
 
-function car.getSpriteForHeading(playerAngle)
+function car.getSpriteForHeading(carBody)
     -- If player doesn't have angle property, calculate from velocity
-    if not playerAngle and player.body then
-        local vx, vy = player.body:getLinearVelocity()
-        if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
-            playerAngle = math.atan2(vy, -vx)
-        elseif player.angle then
-            playerAngle = player.angle
-        else
-            playerAngle = 0 -- Default to north if no angle available
-        end
-    elseif not playerAngle then
-        playerAngle = player.angle or 0
-    end
-    -- spriteFrame mapping:
-    -- 1 : north
-    -- 140 : west  
-    -- 250 : south
-    -- 350 : east
+        local angle = 0
     
-    -- Normalize angle to 0-2π range
-    local normalizedAngle = (playerAngle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
+        -- local vx, vy = carBody:getLinearVelocity()--when off vehicle
+        local vx, vy = player.body:getLinearVelocity() 
+
+        if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
+            angle = math.atan2(vy, -vx)
+        end
+    
+    
+    local normalizedAngle = (angle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
     
     -- Convert to degrees (0-360)
     local degrees = math.deg(normalizedAngle) + 1
     
-    -- Adjust for sprite sheet orientation
-    -- atan2 gives 0° for East pointing right (+X axis)
-    -- We want 0° to correspond to North (frame 1)
-    -- So we rotate by 90° to make North = 0°
+    -- frames: North=1, west=91, South=181, east=271
     local adjustedDegrees = (degrees + 155) % 400 
     
-    -- Map to sprite frame (360 frames for full rotation)
-    -- Since we have 360 frames: North=1, East=91, South=181, West=271
+    
+    
     local spriteFrame = math.floor(adjustedDegrees) + 1
     
     -- Ensure we stay within bounds (1 to 360)
     spriteFrame = math.max(1, math.min(390, spriteFrame))
-    print(degrees,spriteFrame)
+    
     return spriteFrame
 end
 
@@ -86,7 +74,7 @@ function car.load(world)
     
     -- Create an initial car instance for testing
     local newCar = {
-        body = love.physics.newBody(world, var.game_width / 2, var.game_height / 2, "dynamic"),
+        body = love.physics.newBody(world, var.game_width / 2 + 100, var.game_height / 2 + 100, "dynamic"),
         shape = love.physics.newRectangleShape(20, 40),
         animation = { 
             spriteSheet = car.spriteSheet,
@@ -134,7 +122,7 @@ function car.populate()
     -- Add each car to the dynamic draw list for rendering
     for i, currentCar in ipairs(car.cars) do
         -- local cx, cy = currentCar.body:getX(), currentCar.body:getY()
-        local cx, cy = player.body:getX(), player.body:getY() + 100
+        local cx, cy = player.body:getX(), player.body:getY()
         currentCar.body:setPosition(player.body:getPosition())
         -- Get player's heading angle (assuming player has an angle property or calculate from velocity)
         -- local playerAngle = 0  -- Replace with actual player angle
@@ -142,15 +130,15 @@ function car.populate()
         
         
         -- Get the appropriate sprite frame based on player's heading
-        local spriteNum = car.getSpriteForHeading()
+        local spriteNum = car.getSpriteForHeading(currentCar.body)
         -- local spriteNum =  math.floor(fire.t*100) %450 + 1
         -- print(spriteNum) 
         table.insert(dynamic_draw_list, {
-            sort_y = cy + 40, -- Adjust sorting position as needed
+            sort_y = cy + 130, -- Adjust sorting position as needed
             image_or_particles = currentCar.animation.spriteSheet,
             quad = currentCar.animation.quads[spriteNum],
             x = cx,
-            y = cy - 100,
+            y = cy,
             rotation = 0,
             scale_x = car.scale,
             scale_y = car.scale,
