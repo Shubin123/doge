@@ -111,13 +111,15 @@ function love.load()
     -- physics
 
     -- print(shape_sizes)
+    if not var.multiplayer or var.multiplayer == 1 then
     coin_shape = love.physics.newCircleShape(5)
     createCoins(var.num_coins)
 
     enemy_shape = love.physics.newCircleShape(10)
     createEnemies(var.num_enemies)
+    end
 
-    -- Graphicsw
+    -- Graphics
     if var.num_coins > 0 then
     coin_image = love.graphics.newImage("gfx/coin.png")
     coin_x, coin_y = coin_image:getDimensions()
