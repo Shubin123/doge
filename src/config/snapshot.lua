@@ -130,6 +130,9 @@ function snapshot.create()
 
         -- print(game_state.players)
         -- game_state.map_data = map.createSaveData()
+        game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
+
+
         
         -- Collect host's command blocks (which now includes accumulated client blocks)
         game_state.command_blocks = command.getCommandBlocks()

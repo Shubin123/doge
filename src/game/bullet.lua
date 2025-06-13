@@ -296,8 +296,10 @@ function bullet.collision(fixture_a, fixture_b, contact)
                     
                     -- Add knockback force from bullet impact
                     local bullet_force = 40  -- Reduced force for proper mass enemies
-                    local knockback_x = 1 * bullet_force
-                    local knockback_y = 1* bullet_force
+                    local knockback_x = math.random()* bullet_force
+                    -- local knockback_x = inst.dir.x* bullet_force
+                    local knockback_y = math.random()* bullet_force
+                    -- local knockback_y = inst.dir.y* bullet_force
                     
                     -- Apply the knockback force to the enemy using safe utility
                     physSafe.safeApplyImpulse(otherBody, knockback_x, knockback_y)
@@ -789,6 +791,7 @@ function bullet.setOnline(index, pos)
         local shape = love.physics.newCircleShape(5)
         local fixture = love.physics.newFixture(bullet.online_bullets[index], shape)
         fixture:setGroupIndex(bullet.groupIndex)
+        
     end
 end
 
