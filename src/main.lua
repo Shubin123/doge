@@ -284,7 +284,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
             mp:update()
             multiplayer.sendMovementMessage()
         end
-    --     t = 0
+        -- t = 0
     -- end
     
     player.update(dt)
@@ -547,7 +547,7 @@ function beginContact(fixture_a, fixture_b, contact)
     fire.collision(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
-    bullet.collision(fixture_a, fixture_b, contact)
+    
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

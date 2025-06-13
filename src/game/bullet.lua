@@ -1,6 +1,7 @@
 -- local vec2 = require("lib.math.vec2")
 local physSafe = require("util.physics_safe")
 
+
 local bullet = {}
 bullet.world = nil
 bullet.t = 0
@@ -186,6 +187,9 @@ function bullet.update(dt)
             bullet.returnToPool(inst, i)
         end
     end
+
+
+
 end
 
 -- Populate dynamic draw list with bullet effects for Y-sorting
@@ -258,50 +262,6 @@ function bullet.populate()
     end
 end
 
--- Draw bullets with advanced tracer effects
-function bullet.draw()
-    -- This function is now deprecated in favor of populate()
-    -- Keeping for backward compatibility
-    bullet.drawMuzzleFlashes()
-    bullet.drawShells() 
-    bullet.drawParticles()
-    
-    -- Draw bullet tracers
-    for _, inst in ipairs(bullet.instances) do
-        local x, y = inst.body:getPosition()
-        local age = bullet.t - inst.birthTime
-        
-        -- Draw bright tracer core (reduced brightness to prevent shader issues)
-        love.graphics.setColor(0.9, 0.9, 0.7, 0.8)
-        love.graphics.setLineWidth(3)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw glowing outer tracer (reduced brightness)
-        love.graphics.setColor(0.8, 0.6, 0.3, 0.5)
-        love.graphics.setLineWidth(6)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        
-        -- Draw fading trail
-        if #inst.trail > 1 then
-            for i = 1, #inst.trail - 1 do
-                local p1 = inst.trail[i]
-                local p2 = inst.trail[i + 1]
-                local trailAlpha = (1 - (i / #inst.trail)) * 0.4
-                love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-                love.graphics.setLineWidth(2)
-                love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-            end
-        end
-        
-        -- Draw bullet impact point
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.circle("fill", x, y, 2)
-    end
-    
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setLineWidth(1)
-end
-
 -- Handle collisions: bullet vs enemy or obstacles
 function bullet.collision(fixture_a, fixture_b, contact)
     local bullet_f, other_f
@@ -323,7 +283,8 @@ function bullet.collision(fixture_a, fixture_b, contact)
         -- Add blood effect at hit location
         local x, y = otherBody:getPosition()
         if blood and blood.onEnemyDamage then
-            blood.onEnemyDamage(x, y, inst.damage or 1, inst.dir)
+            -- blood.onEnemyDamage(x, y, inst.damage or 1, inst.dir)
+            blood.onEnemyDamage(x, y, 1, vec2.new(1,1))
         end
         
         -- Find enemy index and apply damage using the new health system
@@ -335,8 +296,8 @@ function bullet.collision(fixture_a, fixture_b, contact)
                     
                     -- Add knockback force from bullet impact
                     local bullet_force = 40  -- Reduced force for proper mass enemies
-                    local knockback_x = inst.dir.x * bullet_force
-                    local knockback_y = inst.dir.y * bullet_force
+                    local knockback_x = 1 * bullet_force
+                    local knockback_y = 1* bullet_force
                     
                     -- Apply the knockback force to the enemy using safe utility
                     physSafe.safeApplyImpulse(otherBody, knockback_x, knockback_y)
@@ -345,6 +306,47 @@ function bullet.collision(fixture_a, fixture_b, contact)
             end
         end
     end
+
+    
+    -- if (var.multiplayer == 1) then
+        if other_f:getGroupIndex() == -1 then
+            
+            -- Add blood effect at player hit location
+            -- local x, y = player.body:getPosition()
+            -- if blood and blood.onEnemyDamage then
+            --     blood.onEnemyDamage(x, y, 1)
+            -- end
+            
+            -- Damage player or trigger player hit logic here
+            -- print("Player hit by enemy fire! or collided with enemy", not_enemy_proj:getBody())
+            -- print(player.online.bodies)
+            local hit_client = false -- for every collision check through client bodies if the collision was made was it then dont hit the player aswell
+            for k,body in pairs(player.online.bodies) do
+            -- print(body == not_enemy_proj:getBody())
+                if body == other_f:getBody() then
+            -- player.health = player.health - 1
+                    -- print(k)
+                    -- game_state
+                    player.online.health[k] =  player.online.health[k] - 1
+                    hit_client = true
+                    
+                    -- Add blood effect for online players
+                    local px, py = body:getPosition()
+                    if blood and blood.onEnemyDamage then
+                        blood.onEnemyDamage(px, py, 1)
+                    end
+                end
+
+            end
+
+            if not hit_client then
+            player.health = player.health - 1
+            end
+            -- You can add player damage logic here
+        end
+        -- end
+    -- end
+
 
     -- defer removal until after physics step
     table.insert(bullet.toReturn, inst)
@@ -803,6 +805,13 @@ function bullet.drawSingleNetworkedBullet(bullet_data, x, y)
     -- Draw bullet impact point
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.circle("fill", x, y, 2)
+        bullet.setOnline(bullet_data.id,vec2.new(bullet_data.x,bullet_data.y))
+
+    -- for k,v in pairs(bullet_data) do 
+    --     -- print(k,v)
+    --     bullet.setOnline(v.id,vec2.new(v.x,v.y))
+
+    -- end
 end
 
 return bullet
