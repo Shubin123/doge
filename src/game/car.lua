@@ -31,14 +31,58 @@ function newAnimation(image, width, height, duration, numFrames)
     return animation
 end
 
+-- Function to calculate sprite frame based on player's heading
+
+function car.getSpriteForHeading(playerAngle)
+    -- If player doesn't have angle property, calculate from velocity
+    if not playerAngle and player.body then
+        local vx, vy = player.body:getLinearVelocity()
+        if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
+            playerAngle = math.atan2(vy, -vx)
+        elseif player.angle then
+            playerAngle = player.angle
+        else
+            playerAngle = 0 -- Default to north if no angle available
+        end
+    elseif not playerAngle then
+        playerAngle = player.angle or 0
+    end
+    -- spriteFrame mapping:
+    -- 1 : north
+    -- 140 : west  
+    -- 250 : south
+    -- 350 : east
+    
+    -- Normalize angle to 0-2π range
+    local normalizedAngle = (playerAngle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
+    
+    -- Convert to degrees (0-360)
+    local degrees = math.deg(normalizedAngle) + 1
+    
+    -- Adjust for sprite sheet orientation
+    -- atan2 gives 0° for East pointing right (+X axis)
+    -- We want 0° to correspond to North (frame 1)
+    -- So we rotate by 90° to make North = 0°
+    local adjustedDegrees = (degrees + 155) % 400 
+    
+    -- Map to sprite frame (360 frames for full rotation)
+    -- Since we have 360 frames: North=1, East=91, South=181, West=271
+    local spriteFrame = math.floor(adjustedDegrees) + 1
+    
+    -- Ensure we stay within bounds (1 to 360)
+    spriteFrame = math.max(1, math.min(390, spriteFrame))
+    print(degrees,spriteFrame)
+    return spriteFrame
+end
+
 function car.load(world)
     -- Load the sprite sheet for all cars to use
     car.spriteSheet = love.graphics.newImage("gfx/vehicles/car.png")
     car.width, car.height = car.spriteSheet:getDimensions()
-    -- Assuming 5 columns and 168 total frames, calculate frame width and height
-    local frameWidth = car.width / 5
-    local frameHeight = car.height / (168 / 5)
-    car.animationTemplate = newAnimation(car.spriteSheet, 128, 128, 2, 456)
+    -- With 456 frames, calculate frame dimensions
+    local frameWidth = car.width / 5  -- Assuming 5 columns
+    local frameHeight = car.height / (456 / 5)  -- Calculate rows needed for 456 frames
+    car.animationTemplate = newAnimation(car.spriteSheet, 128, 128, 2, 450)
     
     -- Create an initial car instance for testing
     local newCar = {
@@ -52,38 +96,38 @@ function car.load(world)
         }
     }
     newCar.fixture = love.physics.newFixture(newCar.body, newCar.shape)
-    newCar.fixture:setGroupIndex(-2) -- Different group from player to avoid collision initially
+    newCar.fixture:setGroupIndex(-1) -- Different group from player to avoid collision initially
     table.insert(car.cars, newCar)
 end
 
 function car.update(dt)
     -- Update each car instance
-    for _, currentCar in ipairs(car.cars) do
-        -- Update animation
-        currentCar.animation.currentTime = currentCar.animation.currentTime + dt
+    -- for _, currentCar in ipairs(car.cars) do
+    --     -- Update animation time (though we'll use heading-based sprite selection)
+    --     currentCar.animation.currentTime = currentCar.animation.currentTime + dt
         
-        if currentCar.animation.currentTime >= currentCar.animation.duration then
-            currentCar.animation.currentTime = currentCar.animation.currentTime - currentCar.animation.duration
-        end
+    --     if currentCar.animation.currentTime >= currentCar.animation.duration then
+    --         currentCar.animation.currentTime = currentCar.animation.currentTime - currentCar.animation.duration
+    --     end
         
-        -- Basic movement for testing (can be replaced with proper controls)
-        local maxSpeed = 150
-        local acceleration = 2000
-        local friction = 0.9
-        local vx, vy = currentCar.body:getLinearVelocity()
-        local inputX, inputY = 0, 0
+    --     -- Basic movement for testing (can be replaced with proper controls)
+    --     local maxSpeed = 150
+    --     local acceleration = 2000
+    --     local friction = 0.9
+    --     local vx, vy = currentCar.body:getLinearVelocity()
+    --     local inputX, inputY = 0, 0
         
-        -- Placeholder for movement logic (e.g., AI or player control)
-        -- For now, the car will be stationary or move based on simple logic
-        -- This can be expanded later as needed
+    --     -- Placeholder for movement logic (e.g., AI or player control)
+    --     -- For now, the car will be stationary or move based on simple logic
+    --     -- This can be expanded later as needed
         
-        local newVX = vx * friction
-        local newVY = vy * friction
-        if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
-            newVX, newVY = 0, 0
-        end
-        currentCar.body:setLinearVelocity(newVX, newVY)
-    end
+    --     local newVX = vx * friction
+    --     local newVY = vy * friction
+    --     if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
+    --         newVX, newVY = 0, 0
+    --     end
+    --     currentCar.body:setLinearVelocity(newVX, newVY)
+    -- end
 end
 
 function car.populate()
@@ -91,22 +135,27 @@ function car.populate()
     for i, currentCar in ipairs(car.cars) do
         -- local cx, cy = currentCar.body:getX(), currentCar.body:getY()
         local cx, cy = player.body:getX(), player.body:getY() + 100
-
-        local spriteNum = math.floor(currentCar.animation.currentTime / currentCar.animation.duration * #currentCar.animation.quads) + 1
-
-      
-
+        currentCar.body:setPosition(player.body:getPosition())
+        -- Get player's heading angle (assuming player has an angle property or calculate from velocity)
+        -- local playerAngle = 0  -- Replace with actual player angle
+        
+        
+        
+        -- Get the appropriate sprite frame based on player's heading
+        local spriteNum = car.getSpriteForHeading()
+        -- local spriteNum =  math.floor(fire.t*100) %450 + 1
+        -- print(spriteNum) 
         table.insert(dynamic_draw_list, {
             sort_y = cy + 40, -- Adjust sorting position as needed
             image_or_particles = currentCar.animation.spriteSheet,
             quad = currentCar.animation.quads[spriteNum],
             x = cx,
-            y = cy,
+            y = cy - 100,
             rotation = 0,
             scale_x = car.scale,
             scale_y = car.scale,
             offset_x = car.width / 10, -- Center the sprite
-            offset_y = (car.height / (168 / 5)) / 2,
+            offset_y = (car.height / (456 / 5)) / 2,
             color = { 1, 1, 1, 1 },
             blend_mode = { "alpha" },
             source_object_type = "car",
