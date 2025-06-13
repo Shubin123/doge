@@ -163,7 +163,6 @@ local game_area_x = (W - var.game_width) / 2
 local game_area_y = var.header_height
 
 
-
 function love.draw()
     if var.State == "menu" then
         menu.draw()

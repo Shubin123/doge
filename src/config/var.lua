@@ -58,6 +58,6 @@ var.nullquad = love.graphics.newQuad(
             0, 0  -- total texture width, height
         )
 
-var.graphics_high = false -- for now just a high settings for all the shaders or nothing
+var.graphics_high = true -- for now just a high settings for all the shaders or nothing
 
 return var

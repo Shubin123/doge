@@ -394,6 +394,158 @@ local function addNetworkedEntities()
             end
         end
     end
+    
+    -- Networked bosses
+    for boss_id, boss_data in pairs(renderer.networked_state.bosses) do
+        if boss_data.health > 0 then
+            local bx, by = boss_data.x, boss_data.y
+            local render_x = bx + (boss_data.shake_offset_x or 0)
+            local render_y = by + (boss_data.shake_offset_y or 0)
+            
+            -- Determine sprite based on state (requires access to boss module)
+            local boss_module = rawget(_G, "boss") or {}
+            local boss_sprites = boss_module.sprites or {}
+            local boss_states = boss_module.STATES or {}
+            local sprite = boss_sprites.default or enemy_image
+            if boss_data.state == boss_states.CHARGING_LASER then
+                sprite = boss_sprites.threatening or enemy_image
+            elseif boss_data.state == boss_states.FIRING_LASER then
+                sprite = boss_sprites.shooting or enemy_image
+            end
+            
+            -- Calculate color (flash red when damaged, if damage timer is available)
+            local color = {1, 1, 1, 1}
+            -- Simplified, as damage flash timer might not be networked
+            
+            -- Calculate rage factor based on health loss
+            local rage_factor = 1 - (boss_data.health / boss_data.max_health)
+            local boss_scale = boss_module.scale or 1.8
+            
+            -- Add rage glow effect behind boss if angry
+            if rage_factor > 0 then
+                table.insert(dynamic_draw_list, {
+                    sort_y = render_y + 99,
+                    image_or_particles = sprite,
+                    x = render_x,
+                    y = render_y,
+                    rotation = 0,
+                    scale_x = (boss_data.facing_right and boss_scale or -boss_scale) * (1 + rage_factor * 0.2),
+                    scale_y = boss_scale * (boss_data.squish_amount or 1.0) * (1 + rage_factor * 0.2),
+                    offset_x = sprite:getWidth() / 2,
+                    offset_y = sprite:getHeight() / 2,
+                    color = {1, 0, 0, rage_factor * 0.3},
+                    blend_mode = {"add"},
+                    source_object_type = "networked_boss_glow",
+                    boss_id = boss_id
+                })
+            end
+            
+            -- Add boss sprite to draw list
+            table.insert(dynamic_draw_list, {
+                sort_y = render_y + 100,
+                image_or_particles = sprite,
+                quad = nil,
+                x = render_x,
+                y = render_y,
+                rotation = 0,
+                scale_x = boss_data.facing_right and boss_scale or -boss_scale,
+                scale_y = boss_scale * (boss_data.squish_amount or 1.0),
+                offset_x = sprite:getWidth() / 2,
+                offset_y = sprite:getHeight() / 2,
+                color = color,
+                blend_mode = {"alpha"},
+                source_object_type = "networked_boss",
+                boss_id = boss_id
+            })
+            
+            -- Draw laser targeting line if charging
+            if boss_data.state == boss_states.CHARGING_LASER then
+                local eye_offset_x = boss_data.facing_right and 15 or -15
+                local start_x = render_x + eye_offset_x
+                local start_y = render_y - 10
+                local end_x = start_x + math.cos(boss_data.laser_angle or 0) * 1000
+                local end_y = start_y + math.sin(boss_data.laser_angle or 0) * 1000
+                table.insert(dynamic_draw_list, {
+                    sort_y = render_y + 95,
+                    line = {start_x, start_y, end_x, end_y},
+                    color = {1, 0, 0, 0.3},
+                    width = 1,
+                    blend_mode = {"alpha"},
+                    source_object_type = "networked_laser_targeting",
+                    boss_id = boss_id
+                })
+            end
+            
+            -- Draw laser beam if firing
+            if boss_data.state == boss_states.FIRING_LASER then
+                local eye_offset_x = boss_data.facing_right and 15 or -15
+                local start_x = render_x + eye_offset_x
+                local start_y = render_y - 10
+                local end_x = start_x + math.cos(boss_data.laser_angle or 0) * 1000
+                local end_y = start_y + math.sin(boss_data.laser_angle or 0) * 1000
+                local laser_width = boss_module.laser_width or 5
+                table.insert(dynamic_draw_list, {
+                    sort_y = render_y + 95,
+                    line = {start_x, start_y, end_x, end_y},
+                    color = {1, 0, 0, 0.7},
+                    width = laser_width,
+                    blend_mode = {"add"},
+                    source_object_type = "networked_laser_beam",
+                    boss_id = boss_id
+                })
+            end
+            
+            -- Draw health bar
+            local health_percent = boss_data.health / boss_data.max_health
+            local bar_width = 60
+            local bar_height = 8
+            local bar_y = render_y - 60
+            
+            -- Health bar background
+            table.insert(dynamic_draw_list, {
+                sort_y = bar_y,
+                rectangle = {
+                    x = render_x - bar_width/2,
+                    y = bar_y,
+                    width = bar_width,
+                    height = bar_height
+                },
+                color = {0.2, 0.2, 0.2, 0.8},
+                blend_mode = {"alpha"},
+                source_object_type = "networked_health_bar_bg",
+                boss_id = boss_id
+            })
+            
+            -- Health bar fill
+            table.insert(dynamic_draw_list, {
+                sort_y = bar_y + 1,
+                rectangle = {
+                    x = render_x - bar_width/2 + 1,
+                    y = bar_y + 1,
+                    width = (bar_width - 2) * health_percent,
+                    height = bar_height - 2
+                },
+                color = health_percent > 0.3 and {0.8, 0.2, 0.2, 0.9} or {1, 0, 0, 0.9},
+                blend_mode = {"alpha"},
+                source_object_type = "networked_health_bar_fill",
+                boss_id = boss_id
+            })
+            
+            -- Boss name
+            table.insert(dynamic_draw_list, {
+                sort_y = bar_y - 5,
+                text = "BEAR BOSS",
+                x = render_x - 25,
+                y = bar_y - 15,
+                font = gameFont,
+                color = {1, 1, 1, 0.9},
+                scale = 0.8,
+                outline_color = {0, 0, 0, 0.9},
+                source_object_type = "networked_boss_name",
+                boss_id = boss_id
+            })
+        end
+    end
 end
 
 -- Public populate functions (maintain existing interface)
