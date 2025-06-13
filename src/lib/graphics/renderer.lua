@@ -407,7 +407,12 @@ local function addNetworkedEntities()
             local boss_sprites = boss_module.sprites or {}
             local boss_states = boss_module.STATES or {}
             local sprite = boss_sprites.default or enemy_image
-            if boss_data.state == boss_states.CHARGING_LASER then
+            
+            if boss_data.is_headless then
+                sprite = boss_sprites.headless or enemy_image
+            elseif boss_data.is_backwards then
+                sprite = boss_sprites.backwards or enemy_image
+            elseif boss_data.state == boss_states.CHARGING_LASER then
                 sprite = boss_sprites.threatening or enemy_image
             elseif boss_data.state == boss_states.FIRING_LASER then
                 sprite = boss_sprites.shooting or enemy_image
@@ -960,6 +965,16 @@ function renderer.renderSortedDrawList()
         -- Handle health bar rectangles
         elseif drawable.rectangle and (drawable.source_object_type == "health_bar_bg" or drawable.source_object_type == "health_bar_fill") then
             love.graphics.rectangle("fill", drawable.rectangle.x, drawable.rectangle.y, drawable.rectangle.width, drawable.rectangle.height)
+        
+        -- Handle line drawing (for lasers)
+        elseif drawable.line then
+            if drawable.width then
+                love.graphics.setLineWidth(drawable.width)
+            end
+            love.graphics.line(drawable.line[1], drawable.line[2], drawable.line[3], drawable.line[4])
+            if drawable.width then
+                love.graphics.setLineWidth(1) -- Reset to default
+            end
     
         end
 

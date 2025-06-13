@@ -1,4 +1,7 @@
 local boss = {}
+-- if not world then
+--     world = love.physics.newWorld(0, 0, true)
+-- end
 
 -- Boss configuration
 boss.scale = 1.8  -- Final adjustment to better match game scale
@@ -32,7 +35,8 @@ boss.STATES = {
     HOPPING = "hopping",
     LANDING = "landing",
     CHARGING_LASER = "charging_laser",
-    FIRING_LASER = "firing_laser"
+    FIRING_LASER = "firing_laser",
+    HEADLESS = "headless"
 }
 
 -- Sprite assets
@@ -49,6 +53,8 @@ function boss.load()
     boss.sprites.default = love.graphics.newImage(sprite_path .. 'bear_enemy_default_state.png')
     boss.sprites.threatening = love.graphics.newImage(sprite_path .. 'bear_enemy_laser_threatening.png')
     boss.sprites.shooting = love.graphics.newImage(sprite_path .. 'bear_enemy_laser_shooting.png')
+    boss.sprites.backwards = love.graphics.newImage(sprite_path .. 'bear_boss_backside.pxo.png')
+    boss.sprites.headless = love.graphics.newImage(sprite_path .. 'bear_boss_headless.png')
     
     -- Create particle system for landing impact
     local dustImg = love.graphics.newImage('gfx/EnemiesSpriteSheets/BearBoss/bear_dust_landing.png')
@@ -171,9 +177,17 @@ function boss.spawn(x, y)
         laser_target_x = 0,
         laser_target_y = 0,
         laser_angle = 0,
+        laser_sweep_angle = 0,
+        laser_sweep_speed = 2,
         last_laser_time = 0,
         laser_charge_amount = 0,
         laser_damage = boss.laser_damage,
+        
+        -- Visual state data
+        is_backwards = false,
+        is_headless = false,
+        last_update_direction_time = 0,
+        update_direction_interval = 0.1,
         
         -- Visual effects
         damage_flash_timer = 0,
@@ -278,9 +292,17 @@ function boss.updateBoss(boss_instance, dt)
     -- Find nearest player
     local target_x, target_y = boss.findNearestPlayer(bx, by)
     
-    -- Update facing direction
-    if target_x then
-        boss_instance.facing_right = target_x > bx
+    -- Update facing direction more frequently
+    if boss.t - boss_instance.last_update_direction_time > boss_instance.update_direction_interval then
+        boss_instance.last_update_direction_time = boss.t
+        
+        if target_x then
+            boss_instance.facing_right = target_x > bx
+            
+            -- Check if player is above the bear (backwards sprite)
+            local vertical_diff = by - target_y
+            boss_instance.is_backwards = vertical_diff > 30
+        end
     end
     
     -- Calculate rage factor based on health loss
@@ -372,9 +394,8 @@ function boss.updateBoss(boss_instance, dt)
         -- Charge laser
         boss_instance.laser_charge_amount = boss_instance.state_timer / boss.laser_charge_time
         
-        -- Update particle position for laser charging
-        local eye_offset_x = boss_instance.facing_right and 15 or -15  -- Reduced from 30
-        boss_instance.particle_emitters.laser_charge:setPosition(bx + eye_offset_x, by - 10)  -- Adjusted Y offset
+        -- Update particle position for laser charging (underneath bear)
+        boss_instance.particle_emitters.laser_charge:setPosition(bx, by + 20)
         
         if boss_instance.state_timer >= boss.laser_charge_time then
             -- Fire laser
@@ -385,11 +406,24 @@ function boss.updateBoss(boss_instance, dt)
         end
         
     elseif boss_instance.state == boss.STATES.FIRING_LASER then
+        -- Update laser sweep towards player
+        if target_x then
+            local target_angle = math.atan2(target_y - by, target_x - bx)
+            local angle_diff = target_angle - boss_instance.laser_angle
+            
+            -- Normalize angle difference
+            while angle_diff > math.pi do angle_diff = angle_diff - 2 * math.pi end
+            while angle_diff < -math.pi do angle_diff = angle_diff + 2 * math.pi end
+            
+            -- Sweep laser slowly towards player
+            boss_instance.laser_angle = boss_instance.laser_angle + angle_diff * dt * boss_instance.laser_sweep_speed
+        end
+        
         -- Update laser beam particles
-        local eye_offset_x = boss_instance.facing_right and 15 or -15  -- Reduced from 30
-        boss_instance.particle_emitters.laser_beam:setPosition(bx + eye_offset_x, by - 10)  -- Adjusted Y offset
+        local eye_offset_x = boss_instance.facing_right and 15 or -15
+        boss_instance.particle_emitters.laser_beam:setPosition(bx + eye_offset_x, by - 10)
         boss_instance.particle_emitters.laser_beam:setDirection(boss_instance.laser_angle)
-        boss_instance.particle_emitters.laser_beam:setEmissionRate(200)  -- Increased from 100
+        boss_instance.particle_emitters.laser_beam:setEmissionRate(200)
         
         -- Check for laser hits
         boss.checkLaserHits(boss_instance)
@@ -489,47 +523,59 @@ end
 
 function boss.checkLaserHits(boss_instance)
     local bx, by = boss_instance.body:getPosition()
-    local eye_offset_x = boss_instance.facing_right and 15 or -15  -- Reduced from 30
-    local start_x = bx + eye_offset_x
-    local start_y = by - 10  -- Adjusted Y offset
     
-    -- Calculate laser end point
-    local laser_length = 1000
-    local end_x = start_x + math.cos(boss_instance.laser_angle) * laser_length
-    local end_y = start_y + math.sin(boss_instance.laser_angle) * laser_length
+    -- Two lasers from eyes
+    local eye_offsets = {{x = 10, y = -15}, {x = -10, y = -15}}
     
-    -- Check collision with players using raycasting
-    world:rayCast(start_x, start_y, end_x, end_y, function(fixture, x, y, xn, yn, fraction)
-        -- Check if hit player
-        if fixture:getGroupIndex() == -1 then -- Player group
-            -- Apply laser damage
-            if player and player.body and fixture:getBody() == player.body then
-                player.health = player.health - boss_instance.laser_damage
-                if blood and blood.onEnemyDamage then
-                    blood.onEnemyDamage(x, y, boss_instance.laser_damage / 10)
+    for i, offset in ipairs(eye_offsets) do
+        local start_x = bx + offset.x
+        local start_y = by + offset.y
+        
+        -- Calculate laser end point
+        local laser_length = 1000
+        local end_x = start_x + math.cos(boss_instance.laser_angle) * laser_length
+        local end_y = start_y + math.sin(boss_instance.laser_angle) * laser_length
+        
+        -- Raycast callback function
+        local function rayCastCallback(fixture, fraction, xn, yn)
+            -- Check if hit player
+            if fixture:getGroupIndex() == -1 then -- Player group
+                -- Calculate hit position
+                local hit_x = start_x + (end_x - start_x) * fraction
+                local hit_y = start_y + (end_y - start_y) * fraction
+                
+                -- Apply laser damage
+                if player and player.body and fixture:getBody() == player.body then
+                    player.health = player.health - boss_instance.laser_damage
+                    if blood and blood.onEnemyDamage then
+                        blood.onEnemyDamage(hit_x, hit_y, boss_instance.laser_damage / 10)
+                    end
                 end
-            end
-            
-            -- Check online players
-            if player.online and player.online.bodies then
-                for k, body in pairs(player.online.bodies) do
-                    if body == fixture:getBody() then
-                        player.online.health[k] = player.online.health[k] - boss_instance.laser_damage
-                        if blood and blood.onEnemyDamage then
-                            blood.onEnemyDamage(x, y, boss_instance.laser_damage / 10)
+                
+                -- Check online players
+                if player.online and player.online.bodies then
+                    for k, body in pairs(player.online.bodies) do
+                        if body == fixture:getBody() then
+                            player.online.health[k] = player.online.health[k] - boss_instance.laser_damage
+                            if blood and blood.onEnemyDamage then
+                                blood.onEnemyDamage(hit_x, hit_y, boss_instance.laser_damage / 10)
+                            end
                         end
                     end
                 end
+                
+                -- Add impact particles at hit location
+                boss_instance.particle_emitters.landing:setPosition(hit_x, hit_y)
+                boss_instance.particle_emitters.landing:emit(10)
+                
+                return fraction -- Stop at first hit
             end
-            
-            -- Add impact particles at hit location
-            boss_instance.particle_emitters.landing:setPosition(x, y)
-            boss_instance.particle_emitters.landing:emit(10)
-            
-            return 0 -- Stop at first hit
+            return -1 -- Continue (ignore this fixture)
         end
-        return 1 -- Continue
-    end)
+        
+        -- Check collision with players using raycasting
+        world:rayCast(start_x, start_y, end_x, end_y, rayCastCallback)
+    end
 end
 
 function boss.damage(boss_id, damage)
@@ -557,9 +603,13 @@ function boss.damage(boss_id, damage)
         })
     end
     
-    -- Check if boss dies
+    -- Check if boss becomes headless or dies
     if boss_instance.health <= 0 then
         boss.kill(boss_id)
+    elseif boss_instance.health <= boss.max_health * 0.2 and not boss_instance.is_headless then
+        -- Transition to headless state at 20% health
+        boss_instance.is_headless = true
+        boss_instance.state = boss.STATES.HEADLESS
     end
 end
 
@@ -588,9 +638,14 @@ function boss.populate()
         local render_x = bx + boss_instance.shake_offset_x
         local render_y = by + boss_instance.shake_offset_y
         
-        -- Determine sprite based on state
+        -- Determine sprite based on state and direction
         local sprite = boss.sprites.default
-        if boss_instance.state == boss.STATES.CHARGING_LASER then
+        
+        if boss_instance.is_headless then
+            sprite = boss.sprites.headless
+        elseif boss_instance.is_backwards then
+            sprite = boss.sprites.backwards
+        elseif boss_instance.state == boss.STATES.CHARGING_LASER then
             sprite = boss.sprites.threatening
         elseif boss_instance.state == boss.STATES.FIRING_LASER then
             sprite = boss.sprites.shooting
@@ -641,47 +696,62 @@ function boss.populate()
             source_object_type = "boss"
         })
         
-        -- Draw laser
+        -- Add laser charging particles underneath bear
         if boss_instance.state == boss.STATES.CHARGING_LASER then
-            -- Draw laser targeting line
-            local eye_offset_x = boss_instance.facing_right and 15 or -15
-            local start_x = render_x + eye_offset_x
-            local start_y = render_y - 10
-            local end_x = start_x + math.cos(boss_instance.laser_angle) * 1000
-            local end_y = start_y + math.sin(boss_instance.laser_angle) * 1000
             table.insert(dynamic_draw_list, {
-                sort_y = render_y + 95,
-                line = {start_x, start_y, end_x, end_y},
-                color = {1, 0, 0, 0.3},
-                width = 1,
-                blend_mode = {"alpha"},
-                source_object_type = "laser_targeting"
+                sort_y = render_y + 89,
+                image_or_particles = boss_instance.particle_emitters.laser_charge,
+                x = render_x,
+                y = render_y,
+                color = {1, 1, 1, 1},
+                blend_mode = {"add"},
+                source_object_type = "boss_laser_charge_particles"
             })
         end
         
-        if boss_instance.state == boss.STATES.FIRING_LASER then
-            -- Draw solid laser beam
-            local eye_offset_x = boss_instance.facing_right and 15 or -15
-            local start_x = render_x + eye_offset_x
-            local start_y = render_y - 10
-            local end_x = start_x + math.cos(boss_instance.laser_angle) * 1000
-            local end_y = start_y + math.sin(boss_instance.laser_angle) * 1000
-            table.insert(dynamic_draw_list, {
-                sort_y = render_y + 95,
-                line = {start_x, start_y, end_x, end_y},
-                color = {1, 0, 0, 0.7},
-                width = boss.laser_width,
-                blend_mode = {"add"},
-                source_object_type = "laser_beam"
-            })
+        -- Draw laser targeting lines and beams (two lasers from eyes)
+        if boss_instance.state == boss.STATES.CHARGING_LASER or boss_instance.state == boss.STATES.FIRING_LASER then
+            local eye_offsets = {{x = 10, y = -15}, {x = -10, y = -15}}
             
-            -- Draw laser beam particles
-            table.insert(dynamic_draw_list, {
-                sort_y = render_y + 95,
-                image_or_particles = boss_instance.particle_emitters.laser_beam,
-                blend_mode = {"add"},
-                source_object_type = "boss_laser_particles"
-            })
+            for i, offset in ipairs(eye_offsets) do
+                local start_x = render_x + offset.x
+                local start_y = render_y + offset.y
+                local end_x = start_x + math.cos(boss_instance.laser_angle) * 1000
+                local end_y = start_y + math.sin(boss_instance.laser_angle) * 1000
+                
+                if boss_instance.state == boss.STATES.CHARGING_LASER then
+                    -- Draw laser targeting lines
+                    table.insert(dynamic_draw_list, {
+                        sort_y = render_y + 102,
+                        line = {start_x, start_y, end_x, end_y},
+                        color = {1, 0, 0, 0.3},
+                        width = 1,
+                        blend_mode = {"alpha"},
+                        source_object_type = "laser_targeting"
+                    })
+                elseif boss_instance.state == boss.STATES.FIRING_LASER then
+                    -- Draw solid laser beams on top of bear
+                    table.insert(dynamic_draw_list, {
+                        sort_y = render_y + 102,
+                        line = {start_x, start_y, end_x, end_y},
+                        color = {1, 0, 0, 0.7},
+                        width = boss.laser_width,
+                        blend_mode = {"add"},
+                        source_object_type = "laser_beam"
+                    })
+                    
+                    -- Draw laser beam particles for each eye
+                    local emitter_clone = boss_instance.particle_emitters.laser_beam
+                    emitter_clone:setPosition(start_x, start_y)
+                    emitter_clone:setDirection(boss_instance.laser_angle)
+                    table.insert(dynamic_draw_list, {
+                        sort_y = render_y + 102,
+                        image_or_particles = emitter_clone,
+                        blend_mode = {"add"},
+                        source_object_type = "boss_laser_particles"
+                    })
+                end
+            end
         end
         
         -- Draw particles
@@ -692,16 +762,6 @@ function boss.populate()
             y = render_y,
             color = {1, 1, 1, 1},
             blend_mode = {"alpha"},
-            source_object_type = "boss_particles"
-        })
-        
-        table.insert(dynamic_draw_list, {
-            sort_y = render_y + 90,
-            image_or_particles = boss_instance.particle_emitters.laser_charge,
-            x = render_x,
-            y = render_y,
-            color = {1, 1, 1, 1},
-            blend_mode = {"add"},
             source_object_type = "boss_particles"
         })
         
@@ -781,7 +841,9 @@ function boss.getNetworkData()
             shake_offset_x = boss_instance.shake_offset_x,
             shake_offset_y = boss_instance.shake_offset_y,
             laser_angle = boss_instance.laser_angle,
-            laser_charge_amount = boss_instance.laser_charge_amount
+            laser_charge_amount = boss_instance.laser_charge_amount,
+            is_backwards = boss_instance.is_backwards,
+            is_headless = boss_instance.is_headless
         }
     end
     return data
