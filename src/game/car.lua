@@ -33,12 +33,12 @@ end
 
 -- Function to calculate sprite frame based on player's heading
 
-function car.getSpriteForHeading(carBody)
+function car.getSpriteForHeading(vx,vy)
     -- If player doesn't have angle property, calculate from velocity
         local angle = 0
     
         -- local vx, vy = carBody:getLinearVelocity()--when off vehicle
-        local vx, vy = player.body:getLinearVelocity() 
+        
 
         if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
             angle = math.atan2(vy, -vx)
@@ -65,7 +65,7 @@ end
 
 function car.load(world)
     -- Load the sprite sheet for all cars to use
-    car.spriteSheet = love.graphics.newImage("gfx/vehicles/car.png")
+    car.spriteSheet = love.graphics.newImage("gfx/vehicles/bike.png")
     car.width, car.height = car.spriteSheet:getDimensions()
     -- With 456 frames, calculate frame dimensions
     local frameWidth = car.width / 5  -- Assuming 5 columns
@@ -80,11 +80,13 @@ function car.load(world)
             spriteSheet = car.spriteSheet,
             quads = car.animationTemplate.quads,
             duration = car.animationTemplate.duration,
-            currentTime = 0
-        }
+            currentTime = 0,
+        
+        },
+        inUse = false,
     }
     newCar.fixture = love.physics.newFixture(newCar.body, newCar.shape)
-    newCar.fixture:setGroupIndex(-1) -- Different group from player to avoid collision initially
+    newCar.fixture:setGroupIndex(-2) -- Different group from player to avoid collision initially
     table.insert(car.cars, newCar)
 end
 
@@ -121,16 +123,26 @@ end
 function car.populate()
     -- Add each car to the dynamic draw list for rendering
     for i, currentCar in ipairs(car.cars) do
-        -- local cx, cy = currentCar.body:getX(), currentCar.body:getY()
-        local cx, cy = player.body:getX(), player.body:getY()
-        currentCar.body:setPosition(player.body:getPosition())
+        -- 
+        local relVel = {}
+        local cx, cy
+        if currentCar.inUse then
+            cx, cy = player.body:getX(), player.body:getY()
+            currentCar.body:setPosition(player.body:getPosition())
+             relVel.x,relVel.y = player.body:getLinearVelocity()
+             currentCar.fixture:setGroupIndex(-1)
+        else
+            cx, cy = currentCar.body:getX(), currentCar.body:getY()
+            relVel.x,relVel.y = currentCar.body:getLinearVelocity()
+            currentCar.fixture:setGroupIndex(-3)
+        end
         -- Get player's heading angle (assuming player has an angle property or calculate from velocity)
         -- local playerAngle = 0  -- Replace with actual player angle
         
-        
+        -- print(relVel.x)
         
         -- Get the appropriate sprite frame based on player's heading
-        local spriteNum = car.getSpriteForHeading(currentCar.body)
+        local spriteNum = car.getSpriteForHeading(relVel.x, relVel.y)
         -- local spriteNum =  math.floor(fire.t*100) %450 + 1
         -- print(spriteNum) 
         table.insert(dynamic_draw_list, {
