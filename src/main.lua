@@ -25,6 +25,8 @@ boss = require("game.boss")
 portal = require("game.portal")
 crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
+rendererPlus = require("lib.graphics.new_renderer")
+glowingTree = require("entities.glowing_tree")
 snapshot = require("config.snapshot")
 blur = require ("systems.blur")
 serial = require("lib.utils.serial")
@@ -152,6 +154,15 @@ function love.load()
     light.load()
     blood.load()
 
+    -- Initialize new renderer and glowing trees
+    rendererPlus.init()
+    glowingTree.init(rendererPlus)
+    
+    -- Create a few glowing trees
+    glowingTree.createTree(300, 200, "MYSTICAL", 100)
+    glowingTree.createTree(500, 150, "ANCIENT", 120)
+    glowingTree.createTree(400, 350, "ENCHANTED", 90)
+
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 
@@ -243,6 +254,10 @@ function love.draw()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
     renderer.renderSortedDrawList()
+    
+    -- Update and render new glowing trees
+    glowingTree.update(love.timer.getDelta())
+    rendererPlus.render(love.timer.getDelta())
 
     
 
@@ -421,6 +436,14 @@ function love.keypressed(key)
         blur.blur_enabled = not blur.blur_enabled
         
         -- blur.set_radius(0.00001)
+    end
+    
+    -- Tree interaction
+    if key == "e" then
+        local nearby_tree = glowingTree.checkInteraction(player.body:getX(), player.body:getY())
+        if nearby_tree then
+            glowingTree.interactWithTree(nearby_tree, player)
+        end
     end
 
     editor.keypressed(key)

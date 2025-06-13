@@ -133,8 +133,8 @@ end
 
 -- Core drawing functions
 local function initDrawList()
-    dynamic_draw_list = { unpack(map_a, 1, #map_a) }
-    rebuildArray(dynamic_draw_list, map_b)
+    -- dynamic_draw_list = { unpack(map_a, 1, #map_a) }
+    -- rebuildArray(dynamic_draw_list, map_b)
 end
 
 local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
