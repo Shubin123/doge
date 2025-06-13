@@ -13,7 +13,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 1000
+var.num_coins = 2000
 var.coin_bods = {}
 var.num_enemies = 10
 var.enemies_bods = {}
@@ -57,6 +57,6 @@ var.nullquad = love.graphics.newQuad(
             0, 0  -- total texture width, height
         )
 
-var.graphics_high = true -- for now just a high settings for all the shaders or nothing
+var.graphics_high = false -- for now just a high settings for all the shaders or nothing
 
 return var

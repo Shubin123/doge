@@ -27,7 +27,7 @@ function multiplayer.new(config)
 
     return self
 end
-
+host = 0
 -- Start as host (server)
 function multiplayer:startHost(ip)
     if self.host then
@@ -36,7 +36,8 @@ function multiplayer:startHost(ip)
 
     local address = ip .. ":" .. self.port
     self.host = enet.host_create(address, self.max_peers)
-
+    host = self.host
+    
     if self.host then
         self.is_host = true
         print("Host started on " .. address)
@@ -46,6 +47,12 @@ function multiplayer:startHost(ip)
         return false
     end
 end
+
+-- function multiplayer:getHost()
+--     if self.host then
+--         print(self.host:compress_with_range_coder())
+--     end
+-- end
 
 -- Connect as client
 function multiplayer:connectToHost(host_address)
@@ -153,14 +160,14 @@ function multiplayer:broadcast(message, channel, exclude_peer)
     channel = channel or 0
     local sent_count = 0
 
-    for peer, peer_info in pairs(self.connected_peers) do
-        if peer ~= exclude_peer then
-            peer:send(message, channel)
-            sent_count = sent_count + 1
-        end
-    end
-
-    return sent_count
+    -- for peer, peer_info in pairs(self.connected_peers) do
+    --     if peer ~= exclude_peer then
+    --         peer:send(message, channel)
+    --         sent_count = sent_count + 1
+    --     end
+    -- end
+        host:broadcast(message,channel,"reliable")
+    -- return sent_count
 end
 
 -- Send message to server (client only)
