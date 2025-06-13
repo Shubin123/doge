@@ -6,7 +6,7 @@ local modSystem = {}
 -- Core mod system state
 local loaded_mods = {}
 local mod_registry = {}
-local mod_api = {}
+-- Removed: mod_api is now created per-mod with proper mod_id scoping
 local mod_hooks = {}
 local mod_network_pending = {}
 
@@ -59,6 +59,17 @@ function modSystem.createModAPI(engine_systems)
             clearQueue = engine_systems.renderer.clearQueue,
             render = engine_systems.renderer.render,
             toggleDebug = engine_systems.renderer.toggleDebug,
+            -- Quad creation for texture atlas management
+            createQuad = function(x, y, width, height, sw, sh)
+                -- Safe wrapper for Love2D's newQuad
+                local success, quad = pcall(love.graphics.newQuad, x, y, width, height, sw, sh)
+                if success then
+                    return quad
+                else
+                    print("[MOD_SYSTEM] Failed to create quad")
+                    return nil
+                end
+            end,
             -- Asset management
             getTexture = function(name)
                 return engine_systems.renderer.assets and engine_systems.renderer.assets.textures[name]
@@ -72,7 +83,54 @@ function modSystem.createModAPI(engine_systems)
                     end
                 end
                 return nil
-            end
+            end,
+            -- Shader system integration
+            shader = {
+                load = function(shader_name, vertex_path, fragment_path)
+                    -- Load custom shader for mod
+                    local mod_shader_path = MOD_DIRECTORY .. mod_id .. "/shaders/"
+                    local vertex_code = nil
+                    local fragment_code = nil
+                    
+                    if vertex_path then
+                        local full_vertex_path = mod_shader_path .. vertex_path
+                        if love.filesystem.getInfo(full_vertex_path) then
+                            vertex_code = love.filesystem.read(full_vertex_path)
+                        end
+                    end
+                    
+                    if fragment_path then
+                        local full_fragment_path = mod_shader_path .. fragment_path
+                        if love.filesystem.getInfo(full_fragment_path) then
+                            fragment_code = love.filesystem.read(full_fragment_path)
+                        end
+                    end
+                    
+                    if vertex_code or fragment_code then
+                        local success, shader = pcall(love.graphics.newShader, vertex_code, fragment_code)
+                        if success then
+                            if engine_systems.renderer.assets then
+                                engine_systems.renderer.assets.shaders[shader_name] = shader
+                            end
+                            return shader
+                        else
+                            print("[MOD_SYSTEM] Failed to load shader: " .. shader_name .. " (mod: " .. mod_id .. ")")
+                        end
+                    end
+                    return nil
+                end,
+                setUniform = function(shader_name, uniform_name, value)
+                    local shader = engine_systems.renderer.assets and engine_systems.renderer.assets.shaders[shader_name]
+                    if shader and shader:hasUniform(uniform_name) then
+                        shader:send(uniform_name, value)
+                        return true
+                    end
+                    return false
+                end,
+                get = function(shader_name)
+                    return engine_systems.renderer.assets and engine_systems.renderer.assets.shaders[shader_name]
+                end
+            }
         },
         
         -- Enhanced physics system with abstraction layer
@@ -249,10 +307,31 @@ function modSystem.createModAPI(engine_systems)
             getAssetPath = function(mod_id, asset_name)
                 return MOD_DIRECTORY .. mod_id .. "/assets/" .. asset_name
             end,
-            loadTexture = function(mod_id, texture_name)
-                local path = MOD_DIRECTORY .. mod_id .. "/assets/" .. texture_name
+            loadTexture = function(texture_name, path)
+                -- If path is not provided, assume it's a shared texture
+                if not path then
+                    path = "gfx/" .. texture_name
+                else
+                    -- Support both relative paths (from mod) and shared paths (from src)
+                    if path:sub(1, 3) == "../" then
+                        -- Shared texture from src directory
+                        path = path:sub(4)  -- Remove "../"
+                    else
+                        -- Mod-specific texture
+                        local mod_id_from_path = path:match("^([^/]+)/")
+                        if not mod_id_from_path then
+                            -- Use the current mod's assets directory
+                            path = MOD_DIRECTORY .. mod_id .. "/assets/" .. path
+                        end
+                    end
+                end
+                
                 local success, texture = pcall(love.graphics.newImage, path)
                 if success then
+                    -- Store in renderer assets for future use
+                    if engine_systems.renderer and engine_systems.renderer.assets then
+                        engine_systems.renderer.assets.textures[texture_name] = texture
+                    end
                     return texture
                 else
                     print("[MOD_SYSTEM] Failed to load texture: " .. path)
@@ -276,6 +355,79 @@ function modSystem.createModAPI(engine_systems)
                     return math.max(min, math.min(max, value))
                 end
             }
+        },
+
+        -- Audio API
+        audio = {
+            playSound = function(filename, options)
+                options = options or {}
+                local source
+                
+                -- First try mod-specific path
+                local modPath = "mods/" .. mod_id .. "/assets/" .. filename
+                if love.filesystem.getInfo(modPath) then
+                    source = love.audio.newSource(modPath, "static")
+                else
+                    -- Try shared assets
+                    local sharedPath = "src/sfx/" .. filename
+                    if love.filesystem.getInfo(sharedPath) then
+                        source = love.audio.newSource(sharedPath, "static")
+                    else
+                        print("[Audio] Warning: Sound not found: " .. filename)
+                        return nil
+                    end
+                end
+                
+                if source then
+                    source:setVolume(options.volume or 1.0)
+                    source:setPitch(options.pitch or 1.0)
+                    source:setLooping(options.loop or false)
+                    
+                    if options.position then
+                        source:setPosition(options.position.x, options.position.y, 0)
+                    end
+                    
+                    love.audio.play(source)
+                    return source
+                end
+            end,
+            
+            stopSound = function(source)
+                if source then
+                    love.audio.stop(source)
+                end
+            end,
+            
+            setVolume = function(volume)
+                love.audio.setVolume(volume)
+            end,
+            
+            playMusic = function(filename, options)
+                options = options or {}
+                local source
+                
+                -- First try mod-specific path
+                local modPath = "mods/" .. mod_id .. "/assets/" .. filename
+                if love.filesystem.getInfo(modPath) then
+                    source = love.audio.newSource(modPath, "stream")
+                else
+                    -- Try shared assets
+                    local sharedPath = "src/music/" .. filename
+                    if love.filesystem.getInfo(sharedPath) then
+                        source = love.audio.newSource(sharedPath, "stream")
+                    else
+                        print("[Audio] Warning: Music not found: " .. filename)
+                        return nil
+                    end
+                end
+                
+                if source then
+                    source:setVolume(options.volume or 0.7)
+                    source:setLooping(options.loop ~= false) -- Default to true for music
+                    love.audio.play(source)
+                    return source
+                end
+            end
         }
     }
 end
@@ -284,8 +436,8 @@ end
 function modSystem.init(engine_systems)
     print("[MOD_SYSTEM] Initializing mod system...")
     
-    -- Create mod API
-    mod_api = modSystem.createModAPI(engine_systems)
+    -- Store engine systems for per-mod API creation
+    modSystem.engine_systems = engine_systems
     
     -- Initialize mod hooks
     mod_hooks = {
@@ -394,8 +546,11 @@ function modSystem.loadMod(mod_id)
         return false
     end
     
+    -- Create per-mod API instance with proper mod_id scoping
+    local mod_specific_api = modSystem.createModAPI(modSystem.engine_systems, mod_id)
+    
     -- Create sandboxed environment for the mod
-    local mod_env = modSystem.createModEnvironment(mod_id, mod_api)
+    local mod_env = modSystem.createModEnvironment(mod_id, mod_specific_api)
     
     -- Load and execute the mod
     local mod_code = love.filesystem.read(main_path)
@@ -412,9 +567,9 @@ function modSystem.loadMod(mod_id)
         return false
     end
     
-    -- Initialize the mod
+    -- Initialize the mod with its specific API
     if mod_instance and mod_instance.init then
-        local init_success, init_error = pcall(mod_instance.init, mod_api)
+        local init_success, init_error = pcall(mod_instance.init, mod_specific_api)
         if not init_success then
             print("[MOD_SYSTEM] Failed to initialize mod: " .. init_error)
             return false
@@ -449,20 +604,6 @@ function modSystem.createModEnvironment(mod_id, api)
         math = math,
         string = string,
         table = table,
-        
-        -- Love2D graphics (restricted)
-        love = {
-            timer = love.timer,
-            graphics = {
-                newImage = function(path)
-                    -- Restrict to mod assets directory
-                    local full_path = MOD_DIRECTORY .. mod_id .. "/assets/" .. path
-                    return love.graphics.newImage(full_path)
-                end,
-                newQuad = love.graphics.newQuad,
-                newFont = love.graphics.newFont
-            }
-        },
         
         -- Mod API access
         api = api,
