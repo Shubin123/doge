@@ -88,7 +88,7 @@ Serialization system handling save/load and network synchronization. Critical fo
 
 The codebase is actively migrating from monolithic to modular architecture:
 
-**Still Legacy** (hardcoded in main systems):
+**Still Legacy** (hardcoded in main systems): but require migrating!
 - Enemy AI (`src/game/enemy.lua`, `src/game/boss.lua`)
 - Weapon systems (`src/game/gun.lua`, `src/game/bullet.lua`)
 - Map generation (`src/game/map.lua`)

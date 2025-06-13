@@ -119,6 +119,8 @@ end
 
 -- Integration with the map system
 -- Modify the tree creation to include wind shader component
+-- DISABLED: Legacy map system integration - moved to mod system
+--[[
 function map.createTreeWithWind(x, y)
     local tree = map.createDynamicObject({
         type = "tree",
@@ -173,6 +175,7 @@ function map.createTreeWithWind(x, y)
     table.insert(map.treeInstances, tree)
     return tree
 end
+--]]
 
 -- Modified addMapToDynamicDrawList function for trees with wind shader
 -- function map.addTreesWithWindToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort_y)
@@ -332,7 +335,7 @@ function wind.createWindyForest(start_x, start_y, count_x, count_y, spacing)
         for y = 0, count_y - 1 do
             local tree_x = start_x + x * spacing + (love.math.random() - 0.5) * spacing * 0.3
             local tree_y = start_y + y * spacing + (love.math.random() - 0.5) * spacing * 0.3
-            map.createTreeWithWind(tree_x, tree_y)
+            -- map.createTreeWithWind(tree_x, tree_y) -- DISABLED: map integration moved to mod system
         end
     end
 end

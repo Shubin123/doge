@@ -136,8 +136,11 @@ function snapshot.create()
         end
 
         -- print(game_state.players)
-        -- game_state.map_data = map.createSaveData()
-        game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
+        -- Get map data from map_system mod
+        local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+        if mapMod and mapMod.instance and mapMod.instance.createSaveDataSmall then
+            game_state.map_data = mapMod.instance.createSaveDataSmall()
+        end
 
 
         
@@ -322,7 +325,11 @@ function snapshot.apply(game_state)
         end
 
         if game_state.map_data then
-            map.restore(game_state.map_data)
+            -- Restore map data through map_system mod
+            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+            if mapMod and mapMod.instance and mapMod.instance.restore then
+                mapMod.instance.restore(game_state.map_data)
+            end
         end
 
         if game_state.command_blocks then

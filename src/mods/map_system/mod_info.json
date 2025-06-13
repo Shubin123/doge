@@ -1,0 +1,87 @@
+{
+    "id": "map_system",
+    "name": "Map System Core",
+    "version": "1.0.0",
+    "author": "DogeGame Developers",
+    "description": "Core map generation and management system with tileset support, object pooling, and dynamic map objects including arches and trees.",
+    "engine_version": "1.0.0",
+    "dependencies": [],
+    "optional_dependencies": [],
+    "assets": [
+        "gfx/TileSet/TX Tileset Grass.png",
+        "gfx/TileSet/TX Struct.png",
+        "gfx/TileSet/TX Plant.png"
+    ],
+    "shaders": [],
+    "permissions": [
+        "renderer.add_effects",
+        "renderer.addToQueue",
+        "renderer.drawSprite",
+        "physics.create_bodies",
+        "physics.createBody",
+        "physics.createCircleShape",
+        "physics.createRectangleShape",
+        "physics.createFixture",
+        "physics.getWorld",
+        "input.key_handlers",
+        "input.mouse_handlers",
+        "network.sync_entities",
+        "network.sendToAll",
+        "utils.loadTexture",
+        "game.getPlayerPosition"
+    ],
+    "configuration": {
+        "chunk_size": 16,
+        "visible_chunks_radius": 3,
+        "max_pool_size": 100,
+        "enable_dynamic_objects": true,
+        "enable_performance_monitoring": true,
+        "enable_networking": true,
+        "map_width": 70,
+        "map_height": 50,
+        "tile_width": 32,
+        "tile_height": 32
+    },
+    "hooks": {
+        "on_world_load": "generateInitialMap",
+        "on_save": "createSaveData",
+        "on_restore": "restoreMap"
+    },
+    "exports": [
+        "createArches",
+        "createTree",
+        "addMapToDynamicDrawList",
+        "findArchByFixture",
+        "findTreeByFixture",
+        "createSaveData",
+        "restore"
+    ],
+    "commands": [
+        {
+            "name": "spawn_arch",
+            "description": "Spawn an arch at specified location",
+            "syntax": "/spawn_arch [x] [y]",
+            "permission": "mod.map_system.spawn"
+        },
+        {
+            "name": "spawn_tree", 
+            "description": "Spawn a tree at specified location",
+            "syntax": "/spawn_tree [x] [y]",
+            "permission": "mod.map_system.spawn"
+        },
+        {
+            "name": "map_stats",
+            "description": "Show map performance and object statistics",
+            "syntax": "/map_stats",
+            "permission": "mod.map_system.info"
+        }
+    ],
+    "collision_groups": {
+        "MAP_OBJECT": -100,
+        "ARCH": -101,
+        "TREE": -102
+    },
+    "weapon_templates": [],
+    "projectile_types": [],
+    "effect_types": ["tree_shadow", "arch_collision"]
+}

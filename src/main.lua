@@ -6,7 +6,7 @@ menu = require("ui.menu")
 mymath = require("lib.math.myMath")
 effects = require("lib.graphics.effects")
 var = require("config.var")
-map = require("game.map")
+-- map = require("game.map") -- MIGRATED TO MOD SYSTEM
 player = require("game.player")
 mydraw = require("lib.graphics.draw")
 shader = require("lib.graphics.shader")
@@ -89,15 +89,12 @@ function love.load()
         var.game_height + 50)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
 
-    map.createArches(300,200)
-    map.createTree(400,100)
-    -- map.createTreeWithWind(500,100)
-    -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
-
-    -- Load map and player
-    map.load()
-    map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
-    map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
+    -- Legacy map loading removed - now handled by map_system mod
+    -- map.createArches(300,200)
+    -- map.createTree(400,100)
+    -- map.load()
+    -- map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200)
+    -- map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
 
     multiplayer.load()
     player.load(world)
@@ -136,7 +133,47 @@ function love.load()
     enemy_width, enemy_height = enemy_image:getDimensions()
 
 
-    editor.load(world,map)
+    -- Create compatibility wrapper for editor to work with mod system
+    local mapCompat = {
+        archInstances = {},
+        treeInstances = {},
+        createArches = function(x, y)
+            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+            if mapMod and mapMod.instance and mapMod.instance.createArches then
+                return mapMod.instance.createArches(x, y)
+            end
+        end,
+        createTree = function(x, y)
+            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+            if mapMod and mapMod.instance and mapMod.instance.createTree then
+                return mapMod.instance.createTree(x, y)
+            end
+        end,
+        addMapToDynamicDrawList = function(...)
+            local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+            if mapMod and mapMod.instance and mapMod.instance.addMapToDynamicDrawList then
+                return mapMod.instance.addMapToDynamicDrawList(...)
+            end
+            return {}
+        end
+    }
+    
+    -- Populate compatibility arrays with mod data
+    function updateMapCompat()
+        local mapMod = modSystem.loaded_mods and modSystem.loaded_mods["map_system"]
+        if mapMod and mapMod.instance and mapMod.instance.map then
+            mapCompat.archInstances = mapMod.instance.map.archInstances or {}
+            mapCompat.treeInstances = mapMod.instance.map.treeInstances or {}
+            mapCompat.arches = mapMod.instance.map.arches
+            mapCompat.tree = mapMod.instance.map.tree
+        end
+    end
+    updateMapCompat()
+    
+    -- Make the compatibility wrapper available globally for editor
+    _G.map = mapCompat
+    
+    editor.load(world, mapCompat)
 
 
     -- Shaders
@@ -165,6 +202,9 @@ function love.load()
         multiplayer = multiplayer
     }
     modSystem.init(engine_systems)
+    
+    -- Load core system mods first
+    modSystem.loadMod("map_system")
     
     -- Load glowing tree mod
     modSystem.loadMod("glowing_tree_mod")
@@ -238,12 +278,12 @@ function love.draw()
     camera.apply()
 
     love.graphics.setColor(1, 1, 1, 0.35)
-    -- Draw map with blood effects
-    if blood and blood.drawBackground then
-        blood.drawBackground(map.map, game_area_x, game_area_y)
-    else
-        map.map:draw(game_area_x, game_area_y, 1)
-    end
+    -- Legacy map drawing removed - now handled by map_system mod
+    -- if blood and blood.drawBackground then
+    --     blood.drawBackground(map.map, game_area_x, game_area_y)
+    -- else
+    --     map.map:draw(game_area_x, game_area_y, 1)
+    -- end
     love.graphics.setColor(1, 1, 1, 1)
 
 
@@ -322,6 +362,11 @@ function love.draw()
     
     -- Update and render mod system
     modSystem.update(love.timer.getDelta())
+    
+    -- Update map compatibility wrapper with current mod data
+    if updateMapCompat then
+        updateMapCompat()
+    end
     
     -- Render everything with new renderer
     rendererPlus.render(love.timer.getDelta())
