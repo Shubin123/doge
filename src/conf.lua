@@ -1,4 +1,4 @@
-local var = {}
+var = {}
 var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
 -- globals
 var.screen_height = 600
@@ -46,18 +46,20 @@ var.sprite_width = 100
  var.points = {}
 
  var.State = "running"
- var.cursorImage = love.graphics.newImage("gfx/menu/old_hand.png")
+ 
 
  var.game_width = 400
  var.game_height = 400
  var.header_height = 50
 
-var.nullquad = love.graphics.newQuad(
-            0, 0,                        -- x, y position in the texture (top-left corner)
-            0, 0, -- width, height of the quad
-            0, 0  -- total texture width, height
-        )
+
 
 var.graphics_high = true -- for now just a high settings for all the shaders or nothing
+
+function love.conf(t)
+    
+
+
+end
 
 return var

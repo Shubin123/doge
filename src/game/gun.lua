@@ -1,9 +1,3 @@
-local vec2 = require("lib.math.vec2")
-local player = require("game.player")
-local camera = require("lib.graphics.camera")
-local bullet = require("game.bullet")
-local rocket = require("game.rocket")
-local var = require("config.var")
 
 -- Gun prototype
 local Gun = {}

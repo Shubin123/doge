@@ -58,7 +58,7 @@ function blood.load()
     end
     
     -- Load shader
-    local shader_code = love.filesystem.read("shaders_/blood_pool.frag")
+    local shader_code = love.filesystem.read("shaders/blood_pool.frag")
     if shader_code then
         blood.shader = love.graphics.newShader(shader_code)
     else

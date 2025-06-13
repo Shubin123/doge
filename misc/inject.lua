@@ -1,2 +1,259 @@
+-- main.lua
+-- LÖVE 2D Image URL Downloader and Viewer
+
+-- http = require('socket.http')
+-- ltn12 = require('ltn12')
+-- injectVar = { image = nil, isDownloading = false, errorMessage = nil, downloadComplete = false }
+-- IMAGE_URL = 'https://fastly.picsum.photos/id/936/800/600.jpg?hmac=WbNMCbsY-Q5pGIMQvZvVUWUK7ThFST3ZCK_YQ87QxTE'
+-- _IMAGE_PATH = 'downloaded_image.png'
+-- WINDOW_WIDTH = 800
+-- WINDOW_HEIGHT = 600
+-- function love.load()
+--     love.window.setTitle('LÖVE Image URL Loader')
+--     love.window.setMode(WINDOW_WIDTH, WINDOW_HEIGHT)
+
+--     -- Start downloading the image
+--     downloadImage()
+-- end
+
+-- function downloadImage()
+--     injectVar.isDownloading = true
+--     injectVar.errorMessage = nil
+--     print('Downloading image from: ' .. IMAGE_URL)
+--     response_body = {}
+--     result, status_code, headers, status_line = http.request {
+--         url = IMAGE_URL,
+--         sink = ltn12.sink.table(response_body),
+--         headers = { ['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'},
+--         redirect = false -- Disable automatic redirects
+--     }
+--     print('HTTP Status: ' .. tostring(status_code))
+--     print('Result: ' .. tostring(result))
+--     if headers then
+--         for k, v in pairs(headers) do
+--             print('Header ' .. k .. ': ' .. v)
+--         end
+--     end
+--     if status_code == 200 then
+--         -- Success! Download complete
+--         image_data = table.concat(response_body)
+--         print('Downloaded ' .. #image_data .. ' bytes')
+--         if #image_data > 0 then
+--             -- Write to file
+--             success = love.filesystem.write(_IMAGE_PATH, image_data)
+--             if success then
+--                 injectVar.isDownloading = false
+--                 injectVar.downloadComplete = true
+--                 loadImage()
+--             else
+--                 injectVar.isDownloading = false
+--                 injectVar.errorMessage = 'Failed to write image file'
+--             end
+--         else
+--             injectVar.isDownloading = false
+--             injectVar.errorMessage = 'Downloaded file is empty'
+--         end
+--     else
+--         injectVar.isDownloading = false
+--         injectVar.errorMessage = 'HTTP request failed (Status: ' .. tostring(status_code) .. ')'
+--         if status_line then
+--             injectVar.errorMessage = injectVar.errorMessage .. ' - ' .. status_line
+--         end
+--     end
+-- end
+
+
+-- function loadImage()
+--     -- Try to load the downloaded image
+--     success, image = pcall(love.graphics.newImage, _IMAGE_PATH)
+
+--     if success and image then
+--         injectVar.image = image
+--         injectVar.errorMessage = nil
+--         print('Image loaded successfully!')
+--         print('Image dimensions: ' .. image:getWidth() .. 'x' .. image:getHeight())
+--     else
+--         injectVar.errorMessage = 'Failed to load image file: ' .. tostring(image)
+--         print('Error loading image:', image)
+--     end
+-- end
+
+
+-- function love.draw()
+--     -- Set background color
+--     love.graphics.setBackgroundColor(0.1, 0.1, 0.1)
+
+--     -- Draw image if available
+--     if injectVar.image then
+--         imageWidth = injectVar.image:getWidth()
+--         imageHeight = injectVar.image:getHeight()
+
+--         -- Scale image to fit screen while maintaining aspect ratio
+--         scaleX = WINDOW_WIDTH / imageWidth
+--         scaleY = WINDOW_HEIGHT / imageHeight
+--         scale = math.min(scaleX, scaleY)
+
+--         drawWidth = imageWidth * scale
+--         drawHeight = imageHeight * scale
+--         drawX = (WINDOW_WIDTH - drawWidth) / 2
+--         drawY = (WINDOW_HEIGHT - drawHeight) / 2
+
+--         love.graphics.draw(injectVar.image, drawX, drawY, 0, scale, scale)
+--     end
+
+--     -- Draw UI
+--     love.graphics.setColor(1, 1, 1)
+--     love.graphics.setFont(love.graphics.getFont())
+
+--     yOffset = 10
+
+--     -- Status messages
+--     if injectVar.isDownloading then
+--         love.graphics.print('Downloading image...', 10, yOffset)
+--         yOffset = yOffset + 25
+--     elseif injectVar.downloadComplete and not injectVar.image then
+--         love.graphics.print('Download complete. Loading image...', 10, yOffset)
+--         yOffset = yOffset + 25
+--     elseif injectVar.image then
+--         love.graphics.print('Image loaded successfully!', 10, yOffset)
+--         yOffset = yOffset + 25
+--     end
+
+--     -- Error message
+--     if injectVar.errorMessage then
+--         love.graphics.setColor(1, 0.5, 0.5)
+--         love.graphics.print('Error: ' .. injectVar.errorMessage, 10, yOffset)
+--         yOffset = yOffset + 25
+--         love.graphics.setColor(1, 1, 1)
+--     end
+
+--     -- Instructions
+--     if not injectVar.isDownloading then
+--         love.graphics.print('Controls:', 10, yOffset + 20)
+--         love.graphics.print('D - Download new image', 10, yOffset + 40)
+--         love.graphics.print('ESC - Quit', 10, yOffset + 60)
+--     end
+
+--     -- Image info
+--     if injectVar.image then
+--         info = string.format('Image: %dx%d',
+--             injectVar.image:getWidth(),
+--             injectVar.image:getHeight())
+--         love.graphics.print(info, 10, WINDOW_HEIGHT - 30)
+--     end
+
+--     -- URL info
+--     love.graphics.print('URL: ' .. IMAGE_URL, 10, WINDOW_HEIGHT - 50)
+-- end
+
+
+-- function downloadImage()
+--     local url = IMAGE_URL
+    
+--     injectVar.isDownloading = true
+--     injectVar.errorMessage = nil
+    
+--     -- Initialize curl
+--     local curl_handle = curl.curl_easy_init()
+--     if curl_handle == nil then
+--         injectVar.isDownloading = false
+--         injectVar.errorMessage = 'Failed to initialize curl'
+--         return
+--     end
+    
+--     -- Initialize memory struct
+--     local chunk = ffi.new('MemoryStruct')
+--     chunk.memory = ffi.cast('char*', ffi.C.malloc(1))
+--     chunk.size = 0
+    
+--     print('Downloading image from: ' .. url)
+    
+--     -- Set curl options
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_URL, url)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, chunk)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, 
+--         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36')
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 5)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_REFERER, 'https://www.google.com/')
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 1)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30)
+--     curl.curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10)
+    
+--     -- Perform the request
+--     local res = curl.curl_easy_perform(curl_handle)
+    
+--     if res ~= CURLE_OK then
+--         local error_str = ffi.string(curl.curl_easy_strerror(res))
+--         print('curl_easy_perform() failed: ' .. error_str)
+--         injectVar.isDownloading = false
+--         injectVar.errorMessage = 'Download failed: ' .. error_str
+        
+--         -- Cleanup
+--         ffi.C.free(chunk.memory)
+--         curl.curl_easy_cleanup(curl_handle)
+--         return
+--     end
+    
+--     -- Get response code
+--     local response_code = ffi.new('long[1]')
+--     curl.curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, response_code)
+    
+--     print('HTTP Status: ' .. tonumber(response_code[0]))
+    
+--     if tonumber(response_code[0]) == 200 then
+--         if chunk.size > 0 then
+--             -- Convert the downloaded data to a Lua string
+--             local image_data = ffi.string(chunk.memory, chunk.size)
+--             -- print('Downloaded ' .. chunk.size .. ' bytes')
+            
+--             -- Write to file
+--             local success = love.filesystem.write(_IMAGE_PATH, image_data)
+--             if success then
+--                 injectVar.isDownloading = false
+--                 injectVar.downloadComplete = true
+--                 loadImage()
+--             else
+--                 injectVar.isDownloading = false
+--                 injectVar.errorMessage = 'Failed to write image file'
+--             end
+--         else
+--             injectVar.isDownloading = false
+--             injectVar.errorMessage = 'Downloaded file is empty'
+--         end
+--     else
+--         injectVar.isDownloading = false
+--         injectVar.errorMessage = 'HTTP request failed (Status: ' .. tonumber(response_code[0]) .. ')'
+--     end
+    
+--     -- Cleanup
+--     ffi.C.free(chunk.memory)
+--     curl.curl_easy_cleanup(curl_handle)
+-- end
+
+-- IMAGE_URL = 'https://opengraph.githubassets.com/f45569e2c13622a63aa882ed6b8ccbfeb39fdbb3b0dd9b175c3a0cb02c7b0a6c/lunarmodules/luasocket/issues/331';ffi = require('ffi');curl = ffi.load('curl');http = require('socket.http'); ltn12 = require('ltn12'); injectVar = { image = nil, isDownloading = false, errorMessage = nil, downloadComplete = false }; _IMAGE_PATH = 'downloaded_image.png'; WINDOW_WIDTH = 800; WINDOW_HEIGHT = 600;
+-- ffi.cdef[[typedef void CURL;typedef int CURLcode;typedef int CURLoption;    typedef struct {char *memory;size_t size;} MemoryStruct;    typedef size_t (*curl_write_callback)(char *ptr, size_t size, size_t nmemb, void *userdata);CURL *curl_easy_init(void);CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);CURLcode curl_easy_perform(CURL *curl);void curl_easy_cleanup(CURL *curl);CURLcode curl_easy_getinfo(CURL *curl, int info, ...); char *curl_easy_strerror(CURLcode errornum); void *malloc(size_t size); void *realloc(void *ptr, size_t size); void free(void *ptr); void *memcpy(void *dest, const void *src, size_t n); ]]
+-- -- cURL constants
+-- local CURLOPT_URL = 10002; local CURLOPT_WRITEFUNCTION = 20011; local CURLOPT_WRITEDATA = 10001; local CURLOPT_USERAGENT = 10018; local CURLOPT_FOLLOWLOCATION = 52; local CURLOPT_MAXREDIRS = 68; local CURLOPT_REFERER = 10016; local CURLOPT_HTTPHEADER = 10023; local CURLOPT_SSL_VERIFYPEER = 64; local CURLOPT_SSL_VERIFYHOST = 81; local CURLOPT_TIMEOUT = 13; local CURLOPT_CONNECTTIMEOUT = 78; local CURLINFO_RESPONSE_CODE = 2097154; local CURLE_OK = 0
+-- -- Memory structure for storing downloaded data
+-- local MemoryStruct = ffi.metatype('MemoryStruct', {})
+
+-- -- Write callback function
+-- local function WriteMemoryCallback(contents, size, nmemb, userp) local realsize = size * nmemb; local mem = ffi.cast('MemoryStruct*', userp);local ptr = ffi.C.realloc(mem.memory, mem.size + realsize + 1) ;if ptr == nil then print('Not enough memory (realloc returned NULL)') return 0 end; mem.memory = ffi.cast('char*', ptr); ffi.C.memcpy(mem.memory + mem.size, contents, realsize);mem.size = mem.size + realsize; mem.memory[mem.size] = 0; return realsize end;
+
+-- -- Convert Lua callback to C callback
+-- local write_callback = ffi.cast('curl_write_callback', WriteMemoryCallback)
+-- function downloadImage() local url = IMAGE_URL injectVar.isDownloading = true injectVar.errorMessage = nil local curl_handle = curl.curl_easy_init() if curl_handle == nil then injectVar.isDownloading = false injectVar.errorMessage = 'Failed to initialize curl' return end local chunk = ffi.new('MemoryStruct') chunk.memory = ffi.cast('char*', ffi.C.malloc(1)) chunk.size = 0 print('Downloading image from: ' .. url) curl.curl_easy_setopt(curl_handle, CURLOPT_URL, url) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, chunk) curl.curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36') curl.curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 5) curl.curl_easy_setopt(curl_handle, CURLOPT_REFERER, 'https://www.google.com/') curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2) curl.curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30) curl.curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10) local res = curl.curl_easy_perform(curl_handle) if res ~= CURLE_OK then local error_str = ffi.string(curl.curl_easy_strerror(res)) print('curl_easy_perform() failed: ' .. error_str) injectVar.isDownloading = false injectVar.errorMessage = 'Download failed: ' .. error_str ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) return end local response_code = ffi.new('long[1]') curl.curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, response_code) print('HTTP Status: ' .. tonumber(response_code[0])) if tonumber(response_code[0]) == 200 then if chunk.size > 0 then local image_data = ffi.string(chunk.memory, chunk.size) local success = love.filesystem.write(_IMAGE_PATH, image_data) if success then injectVar.isDownloading = false injectVar.downloadComplete = true loadImage() else injectVar.isDownloading = false injectVar.errorMessage = 'Failed to write image file' end else injectVar.isDownloading = false injectVar.errorMessage = 'Downloaded file is empty' end else injectVar.isDownloading = false injectVar.errorMessage = 'HTTP request failed (Status: ' .. tonumber(response_code[0]) .. ')' end ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) end
+
+
+-- function loadImage() success, image = pcall(love.graphics.newImage, _IMAGE_PATH); if success and image then injectVar.image = image; injectVar.errorMessage = nil; print('Image loaded successfully!'); print('Image dimensions: ' .. image:getWidth() .. 'x' .. image:getHeight()) else injectVar.errorMessage = 'Failed to load image file: ' .. tostring(image); print('Error loading image:', image) end end; 
+-- function love.draw() love.graphics.setBackgroundColor(0.1, 0.1, 0.1); if injectVar.image then imageWidth = injectVar.image:getWidth(); imageHeight = injectVar.image:getHeight(); scaleX = WINDOW_WIDTH / imageWidth; scaleY = WINDOW_HEIGHT / imageHeight; scale = math.min(scaleX, scaleY); drawWidth = imageWidth * scale; drawHeight = imageHeight * scale; drawX = (WINDOW_WIDTH - drawWidth) / 2; drawY = (WINDOW_HEIGHT - drawHeight) / 2; love.graphics.draw(injectVar.image, drawX, drawY, 0, scale, scale) end; love.graphics.setColor(1, 1, 1); love.graphics.setFont(love.graphics.getFont()); yOffset = 10; if injectVar.isDownloading then love.graphics.print('Downloading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.downloadComplete and not injectVar.image then love.graphics.print('Download complete. Loading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.image then love.graphics.print('Image loaded successfully!', 10, yOffset); yOffset = yOffset + 25 end; if injectVar.errorMessage then love.graphics.setColor(1, 0.5, 0.5); love.graphics.print('Error: ' .. injectVar.errorMessage, 10, yOffset); yOffset = yOffset + 25; love.graphics.setColor(1, 1, 1) end; if not injectVar.isDownloading then love.graphics.print('Controls:', 10, yOffset + 20); love.graphics.print('D - Download new image', 10, yOffset + 40); love.graphics.print('ESC - Quit', 10, yOffset + 60) end; if injectVar.image then info = string.format('Image: %dx%d', injectVar.image:getWidth(), injectVar.image:getHeight()); love.graphics.print(info, 10, WINDOW_HEIGHT - 30) end; love.graphics.print('URL: ' .. IMAGE_URL, 10, WINDOW_HEIGHT - 50) end;
+-- downloadImage(IMAGE_URL, 10)
+
+
+-- main variable is injectVar
+
 -- press "/" or "," then >require("misc.inject") => spawns the block
 createBlock("IMAGE_URL = 'https://fintech.global/globalregtechsummit/wp-content/uploads/2024/09/Dawd-Haque.png';ffi = require('ffi');curl = ffi.load('curl');http = require('socket.http'); ltn12 = require('ltn12'); injectVar = { image = nil, isDownloading = false, errorMessage = nil, downloadComplete = false }; _IMAGE_PATH = 'downloaded_image.png'; WINDOW_WIDTH = 800; WINDOW_HEIGHT = 600;ffi.cdef[[typedef void CURL;typedef int CURLcode;typedef int CURLoption;    typedef struct {char *memory;size_t size;} MemoryStruct;    typedef size_t (*curl_write_callback)(char *ptr, size_t size, size_t nmemb, void *userdata);CURL *curl_easy_init(void);CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);CURLcode curl_easy_perform(CURL *curl);void curl_easy_cleanup(CURL *curl);CURLcode curl_easy_getinfo(CURL *curl, int info, ...); char *curl_easy_strerror(CURLcode errornum); void *malloc(size_t size); void *realloc(void *ptr, size_t size); void free(void *ptr); void *memcpy(void *dest, const void *src, size_t n); ]];local CURLOPT_URL = 10002; local CURLOPT_WRITEFUNCTION = 20011; local CURLOPT_WRITEDATA = 10001; local CURLOPT_USERAGENT = 10018; local CURLOPT_FOLLOWLOCATION = 52; local CURLOPT_MAXREDIRS = 68; local CURLOPT_REFERER = 10016; local CURLOPT_HTTPHEADER = 10023; local CURLOPT_SSL_VERIFYPEER = 64; local CURLOPT_SSL_VERIFYHOST = 81; local CURLOPT_TIMEOUT = 13; local CURLOPT_CONNECTTIMEOUT = 78; local CURLINFO_RESPONSE_CODE = 2097154; local CURLE_OK = 0;local MemoryStruct = ffi.metatype('MemoryStruct', {});local function WriteMemoryCallback(contents, size, nmemb, userp) local realsize = size * nmemb; local mem = ffi.cast('MemoryStruct*', userp);local ptr = ffi.C.realloc(mem.memory, mem.size + realsize + 1) ;if ptr == nil then print('Not enough memory (realloc returned NULL)') return 0 end; mem.memory = ffi.cast('char*', ptr); ffi.C.memcpy(mem.memory + mem.size, contents, realsize);mem.size = mem.size + realsize; mem.memory[mem.size] = 0; return realsize end;local write_callback = ffi.cast('curl_write_callback', WriteMemoryCallback);function downloadImage() local url = IMAGE_URL injectVar.isDownloading = true injectVar.errorMessage = nil local curl_handle = curl.curl_easy_init() if curl_handle == nil then injectVar.isDownloading = false injectVar.errorMessage = 'Failed to initialize curl' return end local chunk = ffi.new('MemoryStruct') chunk.memory = ffi.cast('char*', ffi.C.malloc(1)) chunk.size = 0 print('Downloading image from: ' .. url) curl.curl_easy_setopt(curl_handle, CURLOPT_URL, url) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, chunk) curl.curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36') curl.curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 5) curl.curl_easy_setopt(curl_handle, CURLOPT_REFERER, 'https://www.google.com/') curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2) curl.curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30) curl.curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10) local res = curl.curl_easy_perform(curl_handle) if res ~= CURLE_OK then local error_str = ffi.string(curl.curl_easy_strerror(res)) print('curl_easy_perform() failed: ' .. error_str) injectVar.isDownloading = false injectVar.errorMessage = 'Download failed: ' .. error_str ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) return end local response_code = ffi.new('long[1]') curl.curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, response_code) print('HTTP Status: ' .. tonumber(response_code[0])) if tonumber(response_code[0]) == 200 then if chunk.size > 0 then local image_data = ffi.string(chunk.memory, chunk.size) local success = love.filesystem.write(_IMAGE_PATH, image_data) if success then injectVar.isDownloading = false injectVar.downloadComplete = true loadImage() else injectVar.isDownloading = false injectVar.errorMessage = 'Failed to write image file' end else injectVar.isDownloading = false injectVar.errorMessage = 'Downloaded file is empty' end else injectVar.isDownloading = false injectVar.errorMessage = 'HTTP request failed (Status: ' .. tonumber(response_code[0]) .. ')' end ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) end;function loadImage() success, image = pcall(love.graphics.newImage, _IMAGE_PATH); if success and image then injectVar.image = image; injectVar.errorMessage = nil; print('Image loaded successfully!'); print('Image dimensions: ' .. image:getWidth() .. 'x' .. image:getHeight()) else injectVar.errorMessage = 'Failed to load image file: ' .. tostring(image); print('Error loading image:', image) end end; function love.draw() love.graphics.setBackgroundColor(0.1, 0.1, 0.1); if injectVar.image then imageWidth = injectVar.image:getWidth(); imageHeight = injectVar.image:getHeight(); scaleX = WINDOW_WIDTH / imageWidth; scaleY = WINDOW_HEIGHT / imageHeight; scale = math.min(scaleX, scaleY); drawWidth = imageWidth * scale; drawHeight = imageHeight * scale; drawX = (WINDOW_WIDTH - drawWidth) / 2; drawY = (WINDOW_HEIGHT - drawHeight) / 2; love.graphics.draw(injectVar.image, drawX, drawY, 0, scale, scale) end; love.graphics.setColor(1, 1, 1); love.graphics.setFont(love.graphics.getFont()); yOffset = 10; if injectVar.isDownloading then love.graphics.print('Downloading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.downloadComplete and not injectVar.image then love.graphics.print('Download complete. Loading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.image then love.graphics.print('Image loaded successfully!', 10, yOffset); yOffset = yOffset + 25 end; if injectVar.errorMessage then love.graphics.setColor(1, 0.5, 0.5); love.graphics.print('Error: ' .. injectVar.errorMessage, 10, yOffset); yOffset = yOffset + 25; love.graphics.setColor(1, 1, 1) end; if not injectVar.isDownloading then love.graphics.print('Controls:', 10, yOffset + 20); love.graphics.print('D - Download new image', 10, yOffset + 40); love.graphics.print('ESC - Quit', 10, yOffset + 60) end; if injectVar.image then info = string.format('Image: %dx%d', injectVar.image:getWidth(), injectVar.image:getHeight()); love.graphics.print(info, 10, WINDOW_HEIGHT - 30) end; love.graphics.print('URL: ' .. IMAGE_URL, 10, WINDOW_HEIGHT - 50) if command then command.draw() end end; downloadImage();")

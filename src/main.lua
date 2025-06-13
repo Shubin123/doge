@@ -5,7 +5,6 @@
 menu = require("ui.menu")
 mymath = require("lib.math.myMath")
 effects = require("lib.graphics.effects")
-var = require("config.var")
 map = require("game.map")
 player = require("game.player")
 mydraw = require("lib.graphics.draw")
@@ -19,15 +18,14 @@ gun = require("game.gun")
 camera = require("lib.graphics.camera")
 vec2 = require("lib.math.vec2")
 vec4 = require("lib.math.vec4")
-player = require("game.player")
 enemy = require("game.enemy")
 boss = require("game.boss")
 portal = require("game.portal")
 crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
-snapshot = require("config.snapshot")
+snapshot = require("network.snapshot")
 blur = require ("systems.blur")
-serial = require("lib.utils.serial")
+serial = require("src.util.serial")
 editor = require("ui.editor")
 multiplayer = require("network.multiplayer")
 bullet = require("game.bullet")
@@ -36,12 +34,13 @@ moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 blood = require("systems.blood")
 wind = require("lib.graphics.wind")
+car = require("game.car")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
 -- hotreloader / helpers
-local lurker = require("lib.utils.lurker")
-json = require("lib.utils.json")
+local lurker = require("src.util.lurker")
+json = require("src.util.json")
 
 -- Game variables
 world = 0
@@ -151,6 +150,7 @@ function love.load()
     blur.load()
     light.load()
     blood.load()
+    car.load(world)
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -237,6 +237,7 @@ function love.draw()
     bullet.populate()
     rocket.populate()  
     blood.populate()
+    car.populate()
 
     gun.drawWorld()
 
@@ -307,6 +308,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     command.update(dt)
     cmdn.update(dt)
     blood.update(dt)
+    car.update(dt)
 
     
     if var.multiplayer == 1 or not var.multiplayer  then

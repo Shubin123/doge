@@ -142,7 +142,7 @@ local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
     table.insert(dynamic_draw_list, {
         sort_y = sort_y + 45,
         image_or_particles = player.animation.spriteSheet,
-        quad = player.animation.quads[((animation_frame + 5) % 5) + 6] or var.nullquad,
+        quad = player.animation.quads[((animation_frame + 5) % 5) + 6],
         x = x,
         y = y,
         rotation = rotation or 0,

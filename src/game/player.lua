@@ -3,6 +3,7 @@ player.health = 100
 player.online = {}
 player.online.bodies = {}
 player.online.health = {}
+player.scale = 0.8
 
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
@@ -38,8 +39,8 @@ function player.load(world)
     player.shape = love.physics.newCircleShape(10)
     player.fixture = love.physics.newFixture(player.body, player.shape)
     player.fixture:setGroupIndex(-1)
-    player.character = love.graphics.newImage("gfx/doge.png")
-    player.width, player.height = player.character:getDimensions()
+    -- player.character = love.graphics.newImage("gfx/doge.png")
+    -- player.width, player.height = player.character:getDimensions()
     -- player.animation = newAnimation(love.graphics.newImage("gfx/Spritepack/1.png"), 16, 24, 2, 16)
     
     -- player.animation = newAnimation(love.graphics.newImage("gfx/SoldierSpriteSheets/Soldier_Idle.png"), 100,100, 1, 6)
