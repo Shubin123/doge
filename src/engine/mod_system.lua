@@ -1,6 +1,8 @@
 -- Mod System - Core engine for loading and managing game modifications
 -- This separates the game engine from game content, allowing dynamic mod loading and sharing
 
+-- may need to add registerKeyReleaseHandler
+
 local modSystem = {}
 
 -- Core mod system state

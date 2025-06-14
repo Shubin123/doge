@@ -238,28 +238,69 @@ function love.load()
                         -- Return a proxy body for teleportation
                         return {
                             setPosition = function(self, x, y)
+                                local playerMod = nil
+                                if modSystem.getLoadedMod then
+                                    playerMod = modSystem.getLoadedMod("player_core_mod")
+                                    if playerMod and playerMod.instance then
+                                        playerMod = {exports = playerMod.instance.exports}
+                                    end
+                                end
                                 -- Call a teleport function if available
-                                if playerMod.exports and playerMod.exports.teleportPlayer then
+                                if playerMod and playerMod.exports and playerMod.exports.teleportPlayer then
                                     playerMod.exports.teleportPlayer(x, y)
                                 else
                                     print("Teleport not available in player mod")
                                 end
                             end,
                             getX = function()
-                                local px, py = playerMod.exports.getPosition()
-                                return px
+                                local playerMod = nil
+                                if modSystem.getLoadedMod then
+                                    playerMod = modSystem.getLoadedMod("player_core_mod")
+                                    if playerMod and playerMod.instance then
+                                        playerMod = {exports = playerMod.instance.exports}
+                                    end
+                                end
+                                if playerMod and playerMod.exports and playerMod.exports.getPosition then
+                                    local px, py = playerMod.exports.getPosition()
+                                    return px
+                                elseif playerData and playerData.body then
+                                    return playerData.body.getX()
+                                end
+                                return 0
                             end,
                             getY = function()
-                                local px, py = playerMod.exports.getPosition()
-                                return py
+                                local playerMod = nil
+                                if modSystem.getLoadedMod then
+                                    playerMod = modSystem.getLoadedMod("player_core_mod")
+                                    if playerMod and playerMod.instance then
+                                        playerMod = {exports = playerMod.instance.exports}
+                                    end
+                                end
+                                if playerMod and playerMod.exports and playerMod.exports.getPosition then
+                                    local px, py = playerMod.exports.getPosition()
+                                    return py
+                                elseif playerData and playerData.body then
+                                    return playerData.body.getY()
+                                end
+                                return 0
                             end
                         }
                     elseif k == "health" then
-                        local h, _ = playerMod.exports.getHealth()
-                        return h
+                        if playerMod and playerMod.exports and playerMod.exports.getHealth then
+                            local h, _ = playerMod.exports.getHealth()
+                            return h
+                        elseif playerData then
+                            return playerData.health
+                        end
+                        return 0
                     elseif k == "max_health" then
-                        local _, mh = playerMod.exports.getHealth()
-                        return mh
+                        if playerMod and playerMod.exports and playerMod.exports.getHealth then
+                            local _, mh = playerMod.exports.getHealth()
+                            return mh
+                        elseif playerData then
+                            return playerData.max_health
+                        end
+                        return 100
                     elseif k == "godmode" then
                         return cmdn.isGodmodeEnabled("local")
                     end
@@ -278,9 +319,9 @@ function love.load()
                         playerMod = {exports = playerMod.instance.exports}
                     end
                 end
-                if playerMod then
-                    if k == "health" and playerMod.setHealth then
-                        playerMod.setHealth(v)
+                if playerMod and playerMod.exports then
+                    if k == "health" and playerMod.exports.setHealth then
+                        playerMod.exports.setHealth(v)
                     elseif k == "godmode" then
                         -- This is handled by console
                     end

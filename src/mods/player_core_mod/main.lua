@@ -1,8 +1,6 @@
--- Player Core Mod - Main Entry Point
--- Provides the core player system migrated from hardcoded main.lua implementation
--- Handles movement, physics, health, dodge mechanics, animations, and collision responses
-
--- represents the "local player" when lodaded in the engine
+-- Player Core Mod - Enhanced Version with LPC Assets
+-- Provides the core player system with full LPC sprite animations
+-- Implements acceleration-based movement, state machine, and 8-directional animations
 
 local playerCoreMod = {}
 
@@ -11,71 +9,179 @@ local player_data = {}
 local mod_config = {}
 local api = nil
 
--- Animation system
-local animation_system = {}
+-- Animation system with full LPC support
+local animation_system = {
+    animations = {},
+    current_state = "IDLE",
+    current_direction = "down",
+    blend_time = 0.1,
+    blend_timer = 0
+}
 
--- Input state tracking (since we can't directly access love.keyboard in sandbox)
+-- Player movement states
+local MOVEMENT_STATES = {
+    IDLE = "IDLE",
+    WALKING = "WALKING", 
+    RUNNING = "RUNNING",
+    DODGING = "DODGING",
+    JUMPING = "JUMPING"
+}
+
+-- 8-directional movement mapping
+local DIRECTIONS = {
+    "down", "down_left", "left", "up_left",
+    "up", "up_right", "right", "down_right"
+}
+
+-- Input state tracking
 local input_state = {
     keys_down = {},
     key_pressed_this_frame = {},
     mouse_pressed = false,
     mouse_x = 0,
-    mouse_y = 0
+    mouse_y = 0,
+    movement_vector = {x = 0, y = 0}
 }
 
--- Player entity template
+-- Enhanced player template with state machine
 local PLAYER_TEMPLATE = {
     health = 100,
     max_health = 100,
     scale = 0.8,
-    max_speed = 100,
-    acceleration = 2000,
+    
+    -- Movement physics
+    max_walk_speed = 80,
+    max_run_speed = 140,
+    acceleration = 800,
+    deceleration = 1200,
     friction = 0.85,
     
     -- Dodge system
     dodge_speed = 300,
-    dodge_duration = 0.2,
-    dodge_cooldown = 1.0,
+    dodge_duration = 0.3,
+    dodge_cooldown = 1.2,
     is_dodging = false,
     dodge_timer = 0,
     dodge_cooldown_timer = 0,
     dodge_direction = {x = 0, y = 0},
     
-    -- Animation
+    -- State machine
+    state = MOVEMENT_STATES.IDLE,
+    previous_state = MOVEMENT_STATES.IDLE,
+    state_timer = 0,
+    
+    -- Animation and direction
     current_animation = "idle",
-    direction = 0,
+    direction = "down",
+    direction_angle = 0,
     
     -- Physics
-    collision_group = -1
+    collision_group = -1,
+    
+    -- Velocity tracking
+    velocity = {x = 0, y = 0}
 }
 
--- Animation creation helper (migrated from player.lua)
-function createAnimation(texture, width, height, duration, numFrames)
-    local animation = {}
-    animation.spriteSheet = texture
-    animation.quads = {}
+-- Helper to create animation quads when texture is available
+local function createAnimationQuads(texture, width, height, direction_count, frame_count)
+    local quads = {}
     
-    local totalPossibleFrames = math.floor(texture:getWidth() / width) * math.floor(texture:getHeight() / height)
-    local framesToUse = numFrames or totalPossibleFrames
-    framesToUse = math.min(framesToUse, totalPossibleFrames)
+    -- LPC standard: 8 directions, multiple frames per direction
+    local directions = {"down", "left", "right", "up", "down_left", "down_right", "up_left", "up_right"}
     
-    local frameCount = 0
-    for y = 0, texture:getHeight() - height, height do
-        for x = 0, texture:getWidth() - width, width do
-            table.insert(animation.quads, api.renderer.createQuad(x, y, width, height, texture:getDimensions()))
-            frameCount = frameCount + 1
-            if frameCount >= framesToUse then
-                break
+    -- LPC row mapping (standard LPC format)
+    local row_mapping = {
+        down = 0,
+        left = 1,
+        right = 2,
+        up = 3,
+        down_left = 4,
+        down_right = 5,
+        up_left = 6,
+        up_right = 7
+    }
+    
+    for _, direction in ipairs(directions) do
+        if direction_count >= 8 or row_mapping[direction] < direction_count then
+            quads[direction] = {}
+            
+            local row = row_mapping[direction]
+            for frame = 0, (frame_count or 4) - 1 do
+                local quad = api.renderer.createQuad(
+                    frame * width, row * height, 
+                    width, height, 
+                    texture:getDimensions()
+                )
+                table.insert(quads[direction], quad)
             end
-        end
-        if frameCount >= framesToUse then
-            break
         end
     end
     
-    animation.duration = duration or 1
-    animation.currentTime = 0
-    return animation
+    return quads
+end
+
+-- Get current animation frame
+local function getCurrentAnimationFrame(animation, direction)
+    if not animation then
+        return nil
+    end
+    
+    -- Safety check for frame count
+    if not animation.frame_count or animation.frame_count <= 0 then
+        return 1
+    end
+    
+    -- Safety check for duration
+    if not animation.duration or animation.duration <= 0 then
+        return 1
+    end
+    
+    -- For simplified animations, we'll create quads on demand
+    -- This returns frame index instead of quad
+    local frame_duration = animation.duration / animation.frame_count
+    local current_frame = math.floor(animation.currentTime / frame_duration) + 1
+    current_frame = math.min(current_frame, animation.frame_count)
+    
+    return current_frame
+end
+
+-- Calculate direction from movement vector
+local function calculateDirection(vx, vy)
+    if vx == 0 and vy == 0 then
+        return player_data and player_data.direction or "down" -- Keep current direction when idle
+    end
+    
+    local angle = math.atan2(vy, vx)
+    
+    -- Convert angle to degrees for easier debugging
+    local degrees = angle * 180 / math.pi
+    
+    -- Normalize angle to [0, 2*pi)
+    if angle < 0 then angle = angle + 2*math.pi end
+    
+    -- Convert to 8-directional index
+    -- Add pi/8 to shift the boundaries so each direction covers 45 degrees centered on its angle
+    local dir_index = math.floor((angle + math.pi/8) / (math.pi/4)) % 8
+    
+    -- Map indices to directions
+    -- 0 = right (0°), 1 = down_right (45°), 2 = down (90°), etc.
+    local direction_map = {
+        [0] = "right",      -- 0° (East)
+        [1] = "down_right", -- 45° (Southeast)
+        [2] = "down",       -- 90° (South)
+        [3] = "down_left",  -- 135° (Southwest)
+        [4] = "left",       -- 180° (West)
+        [5] = "up_left",    -- 225° (Northwest)
+        [6] = "up",         -- 270° (North)
+        [7] = "up_right"    -- 315° (Northeast)
+    }
+    
+    local direction = direction_map[dir_index] or "down"
+    
+    -- Debug output
+    print(string.format("[PLAYER_CORE_MOD] Direction calc: vx=%.2f, vy=%.2f, angle=%.1f°, dir=%s", vx, vy, degrees, direction))
+    
+    return direction
 end
 
 -- Initialize the mod
@@ -83,30 +189,40 @@ function playerCoreMod.init(mod_api)
     print(" * [PLAYER_CORE_MOD] Initializing Player Core System")
     
     api = mod_api
+    print("[PLAYER_CORE_MOD DEBUG] API received")
     
-    -- Load configuration
+    -- Enhanced configuration (matching PRD specs)
     mod_config = {
         player_health = 100,
-        player_max_speed = 100,
-        player_acceleration = 2000,
-        player_friction = 0.85,
+        player_max_walk_speed = 100,      -- PRD: 100 units/s
+        player_max_run_speed = 200,       -- PRD: 200 units/s
+        player_acceleration = 2000,       -- PRD: 2000 units/s²
+        player_deceleration = 1200,
+        player_friction = 0.85,           -- PRD: 0.85
         dodge_speed = 300,
-        dodge_duration = 0.2,
-        dodge_cooldown = 1.0,
+        dodge_duration = 0.3,
+        dodge_cooldown = 1.2,
         player_scale = 0.8,
         collision_group = -1,
         enable_animations = true,
+        enable_8_directional = true,
+        enable_running = true,
         enable_dodge_system = true,
         enable_knockback = true,
-        enable_networking = true
+        enable_networking = true,
+        enable_state_machine = true,
+        enable_visual_effects = true,     -- For damage flash, particles
+        damage_flash_duration = 0.2,      -- PRD: 0.2s white tint
+        animation_blend_time = 0.1        -- PRD: 0.1s transitions
     }
     
-    -- Handle Player Movement Register input handlers for movement
+    -- Register input handlers for enhanced movement
     api.input.registerKeyHandler("w", function() playerCoreMod.handleKeyPress("w") end)
     api.input.registerKeyHandler("a", function() playerCoreMod.handleKeyPress("a") end)
     api.input.registerKeyHandler("s", function() playerCoreMod.handleKeyPress("s") end)
     api.input.registerKeyHandler("d", function() playerCoreMod.handleKeyPress("d") end)
     api.input.registerKeyHandler("space", function() playerCoreMod.handleKeyPress("space") end)
+    api.input.registerKeyHandler("lshift", function() playerCoreMod.handleKeyPress("lshift") end)
     
     -- Register network handler
     if mod_config.enable_networking then
@@ -114,56 +230,41 @@ function playerCoreMod.init(mod_api)
     end
     
     -- Initialize player
+    print("[PLAYER_CORE_MOD DEBUG] About to create player...")
     playerCoreMod.createPlayer()
     
     print("[PLAYER_CORE_MOD] Player system initialized!")
 end
 
--- Handle key press events (called by input handlers)
+-- Enhanced key press handling for acceleration-based movement
 function playerCoreMod.handleKeyPress(key)
     if not player_data.active then return end
     
     input_state.key_pressed_this_frame[key] = true
     
-    -- For movement keys, apply immediate impulse-based movement
-    if key == "w" or key == "a" or key == "s" or key == "d" then
-        playerCoreMod.applyMovementImpulse(key)
-    end
-    
-    -- Set key as currently down
-    input_state.keys_down[key] = true
+    -- Update movement vector based on key presses
+    playerCoreMod.updateMovementVector()
 end
 
--- Handle key release events
-function playerCoreMod.handleKeyRelease(key)
-    input_state.keys_down[key] = nil
-end
-
--- Apply movement impulse (called immediately on key press)
-function playerCoreMod.applyMovementImpulse(key)
-    if not player_data.body or player_data.is_dodging then return end
+-- Update movement vector based on current key states
+function playerCoreMod.updateMovementVector()
+    local moveX, moveY = 0, 0
     
-    local impulse_strength = 15  -- Impulse force
-    local vx, vy = player_data.body:getLinearVelocity()
+    -- Use api.input.isKeyDown to check current key state
+    if api.input.isKeyDown("w") then moveY = moveY - 1 end
+    if api.input.isKeyDown("s") then moveY = moveY + 1 end
+    if api.input.isKeyDown("a") then moveX = moveX - 1 end
+    if api.input.isKeyDown("d") then moveX = moveX + 1 end
     
-    -- Apply impulse based on key
-    if key == "w" then
-        player_data.body:setLinearVelocity(vx, math.max(vy - impulse_strength, -player_data.max_speed))
-        player_data.current_animation = "walkUp"
-        player_data.direction = -math.pi/2
-    elseif key == "s" then
-        player_data.body:setLinearVelocity(vx, math.min(vy + impulse_strength, player_data.max_speed))
-        player_data.current_animation = "walkDown"
-        player_data.direction = math.pi/2
-    elseif key == "a" then
-        player_data.body:setLinearVelocity(math.max(vx - impulse_strength, -player_data.max_speed), vy)
-        player_data.current_animation = "walkLeft"
-        player_data.direction = math.pi
-    elseif key == "d" then
-        player_data.body:setLinearVelocity(math.min(vx + impulse_strength, player_data.max_speed), vy)
-        player_data.current_animation = "walkRight"
-        player_data.direction = 0
+    -- Normalize diagonal movement for 8-directional support
+    if moveX ~= 0 and moveY ~= 0 then
+        local length = math.sqrt(moveX * moveX + moveY * moveY)
+        moveX = moveX / length
+        moveY = moveY / length
     end
+    
+    input_state.movement_vector.x = moveX
+    input_state.movement_vector.y = moveY
 end
 
 -- Create the player entity
@@ -211,7 +312,7 @@ function playerCoreMod.createPlayer()
         })
     end
     
-    -- Initialize player data
+    -- Initialize enhanced player data with state machine
     player_data = {
         -- Core properties
         health = mod_config.player_health,
@@ -224,10 +325,18 @@ function playerCoreMod.createPlayer()
         x = game_width / 2,
         y = game_height / 2,
         
-        -- Movement
-        max_speed = mod_config.player_max_speed,
+        -- Enhanced movement system
+        max_walk_speed = mod_config.player_max_walk_speed,
+        max_run_speed = mod_config.player_max_run_speed,
         acceleration = mod_config.player_acceleration,
+        deceleration = mod_config.player_deceleration,
         friction = mod_config.player_friction,
+        velocity = {x = 0, y = 0},
+        
+        -- State machine
+        state = MOVEMENT_STATES.IDLE,
+        previous_state = MOVEMENT_STATES.IDLE,
+        state_timer = 0,
         
         -- Dodge system
         dodge_speed = mod_config.dodge_speed,
@@ -238,51 +347,145 @@ function playerCoreMod.createPlayer()
         dodge_cooldown_timer = 0,
         dodge_direction = {x = 0, y = 0},
         
-        -- Animation and rendering
+        -- Enhanced animation system
         scale = mod_config.player_scale,
-        current_animation = "idle",
-        direction = 0,
-        animation = nil,
-        character_texture = nil,
+        current_animation_name = "idle",
+        current_animation = nil,
+        animations = {},
+        direction = "down",
+        direction_angle = 0,
+        has_fallback = false,
         
         -- Network sync
         last_sync_time = 0,
-        sync_interval = 1/30  -- 30 FPS sync rate
+        sync_interval = 0.1,  -- PRD: sync every 100ms
+        
+        -- Animation blending
+        animation_blend_timer = 0,
+        animation_blend_duration = mod_config.animation_blend_time,
+        
+        -- Visual effects
+        damage_flash_timer = 0,
+        footstep_timer = 0,
+        footstep_interval = 0.3,
+        
+        -- Jumping state
+        is_jumping = false,
+        jump_timer = 0,
+        jump_duration = 0.5,
+        can_double_jump = false,
+        has_double_jumped = false,
+        
+        -- Combat animation
+        combat_animation_timer = nil,
+        previous_animation_name = "idle"
     }
     
     -- Load textures and create animations
+    print("[PLAYER_CORE_MOD DEBUG] About to initialize assets...")
     playerCoreMod.initializeAssets()
     
     print("[PLAYER_CORE_MOD] Player entity created successfully")
 end
 
--- Initialize player assets (textures and animations)
+-- Load LPC assets from engine's preloaded textures
 function playerCoreMod.initializeAssets()
-    -- Load main character texture (using shared assets)
-    player_data.character_texture = api.utils.loadTexture("doge", "../gfx/doge.png")
+    print("[PLAYER_CORE_MOD] Loading LPC sprite assets from engine...")
     
-    -- Load animation texture (using shared assets)
-    local anim_texture = api.utils.loadTexture("player_jump_anim", "../gfx/testCharacter/jump.png")
-    
-    if anim_texture then
-        player_data.animation = createAnimation(anim_texture, 64, 65, 2, 10)
-        print("[PLAYER_CORE_MOD] Player animation loaded successfully")
-    else
-        print("[PLAYER_CORE_MOD] Warning: Failed to load player animation texture")
+    -- Safety check: ensure renderer is available
+    if not api or not api.renderer then
+        print("[PLAYER_CORE_MOD] ERROR: Renderer API not available yet")
+        return
     end
     
-    if player_data.character_texture then
-        player_data.width, player_data.height = player_data.character_texture:getDimensions()
-        print("[PLAYER_CORE_MOD] Player textures loaded successfully")
-    else
-        print("[PLAYER_CORE_MOD] Warning: Failed to load player character texture")
+    -- Create animation objects using engine's preloaded textures
+    player_data.animations = {}
+    
+    -- For now, let's use a simpler approach to avoid freezing
+    -- We'll store texture names and get textures on demand during rendering
+    local anim_configs = {
+        -- Name, texture_name, duration, directions, frames
+        {"idle", "player_idle", 2.0, 8, 1},
+        {"walk", "player_walk", 1.0, 8, 9},
+        {"run", "player_run", 0.8, 8, 8},
+        {"jump", "player_jump", 0.6, 8, 6},
+        {"hurt", "player_hurt", 0.5, 8, 6},
+        {"slash", "player_slash", 0.4, 8, 6},
+        {"shoot", "player_shoot", 0.4, 8, 13},
+        {"spellcast", "player_spellcast", 0.8, 8, 7},
+        {"thrust", "player_thrust", 0.4, 8, 8},
+        {"dodge", "player_dodge", 0.3, 8, 6}  -- Using dodge animation if available
+    }
+    
+    -- Create animations with just metadata (no texture loading yet)
+    print("[PLAYER_CORE_MOD DEBUG] Starting animation loop with " .. #anim_configs .. " configs")
+    for i, config in ipairs(anim_configs) do
+        print("[PLAYER_CORE_MOD DEBUG] Processing config " .. i)
+        if not config then
+            print("[PLAYER_CORE_MOD ERROR] Config " .. i .. " is nil!")
+            break
+        end
+        
+        -- Direct access instead of unpack (more reliable in sandboxed environments)
+        local name = config[1]
+        local texture_name = config[2]
+        local duration = config[3]
+        local dirs = config[4]
+        local frames = config[5]
+        
+        print("[PLAYER_CORE_MOD DEBUG] Config " .. i .. ": name=" .. tostring(name))
+        
+        -- Create a simplified animation structure with safety checks
+        player_data.animations[name] = {
+            texture_name = texture_name,
+            duration = duration > 0 and duration or 1.0,  -- Ensure positive duration
+            direction_count = dirs,
+            frame_count = frames > 0 and frames or 1,     -- Ensure positive frame count
+            currentTime = 0,
+            width = 64,
+            height = 64
+        }
+        print("[PLAYER_CORE_MOD] " .. name .. " animation configured")
     end
+    print("[PLAYER_CORE_MOD DEBUG] Animation loop completed")
+    
+    -- Check if we have doge fallback (but don't load it yet)
+    player_data.has_fallback = true
+    
+    -- Set default animation
+    player_data.current_animation_name = "idle"
+    player_data.current_animation = player_data.animations.idle
+    
+    -- Safety check
+    if not player_data.current_animation then
+        print("[PLAYER_CORE_MOD ERROR] Failed to set initial animation!")
+        print("[PLAYER_CORE_MOD DEBUG] Available animations:")
+        for name, _ in pairs(player_data.animations) do
+            print("  - " .. name)
+        end
+    else
+        print("[PLAYER_CORE_MOD] Initial animation set to 'idle' with currentTime=" .. tostring(player_data.current_animation.currentTime))
+    end
+    
+    -- Initialize visual effects data
+    player_data.damage_flash_timer = 0
+    player_data.footstep_timer = 0
+    player_data.footstep_interval = 0.3  -- Time between footstep particles
+    
+    print("[PLAYER_CORE_MOD] LPC assets initialization complete")
 end
 
 -- Update player system
 function playerCoreMod.update(dt)
     if not player_data.active or not player_data.body then
         return
+    end
+    
+    -- Debug: Log update calls periodically
+    if not player_data.update_counter then player_data.update_counter = 0 end
+    player_data.update_counter = player_data.update_counter + 1
+    if player_data.update_counter % 60 == 0 then
+        print("[PLAYER_CORE_MOD DEBUG] Update call #" .. player_data.update_counter)
     end
     
     -- Check if player is dead
@@ -294,19 +497,64 @@ function playerCoreMod.update(dt)
     -- Update player position from physics
     player_data.x, player_data.y = player_data.body:getPosition()
     
+    -- Update visual effects
+    if mod_config.enable_visual_effects then
+        playerCoreMod.updateVisualEffects(dt)
+    end
+    
+    -- Update input state every frame
+    playerCoreMod.updateMovementVector()
+    
     -- Update dodge system
     playerCoreMod.updateDodgeSystem(dt)
+    
+    -- Update jump system
+    playerCoreMod.updateJumpSystem(dt)
     
     -- Update movement (only if not dodging)
     if not player_data.is_dodging then
         playerCoreMod.updateMovement(dt)
     end
     
-    -- Update animations
-    if player_data.animation then
-        player_data.animation.currentTime = player_data.animation.currentTime + dt
-        if player_data.animation.currentTime >= player_data.animation.duration then
-            player_data.animation.currentTime = player_data.animation.currentTime - player_data.animation.duration
+    -- Update animations with safety checks
+    if player_data.current_animation and type(player_data.current_animation) == "table" then
+        -- Safety check for valid dt
+        if dt > 0 and dt < 1 then  -- Reasonable frame time (less than 1 second)
+            -- Make sure currentTime exists
+            if player_data.current_animation.currentTime then
+                player_data.current_animation.currentTime = player_data.current_animation.currentTime + dt
+            else
+                player_data.current_animation.currentTime = 0
+            end
+            
+            -- Use modulo for wrapping to avoid potential infinite subtraction loop
+            if player_data.current_animation.duration and player_data.current_animation.duration > 0 then
+                if player_data.current_animation.currentTime >= player_data.current_animation.duration then
+                    player_data.current_animation.currentTime = player_data.current_animation.currentTime % player_data.current_animation.duration
+                end
+            else
+                -- Reset to 0 if duration is invalid
+                player_data.current_animation.currentTime = 0
+            end
+        end
+    end
+    
+    -- Update animation blending
+    if player_data.animation_blend_timer < player_data.animation_blend_duration then
+        player_data.animation_blend_timer = player_data.animation_blend_timer + dt
+    end
+    
+    -- Update state timer
+    player_data.state_timer = player_data.state_timer + dt
+    
+    -- Update combat animation timer
+    if player_data.combat_animation_timer and player_data.combat_animation_timer > 0 then
+        player_data.combat_animation_timer = player_data.combat_animation_timer - dt
+        if player_data.combat_animation_timer <= 0 then
+            -- Return to previous animation
+            player_data.current_animation_name = player_data.previous_animation_name or "idle"
+            player_data.current_animation = player_data.animations[player_data.current_animation_name]
+            player_data.combat_animation_timer = nil
         end
     end
     
@@ -328,6 +576,8 @@ function playerCoreMod.updateDodgeSystem(dt)
         player_data.dodge_timer = player_data.dodge_timer - dt
         if player_data.dodge_timer <= 0 then
             player_data.is_dodging = false
+            player_data.state = MOVEMENT_STATES.IDLE
+            playerCoreMod.updateAnimationState()
         end
     end
     
@@ -340,15 +590,15 @@ function playerCoreMod.updateDodgeSystem(dt)
         -- Get current movement direction for dodge
         local inputX, inputY = 0, 0
         
-        if input_state.keys_down["a"] then inputX = inputX - 1 end
-        if input_state.keys_down["d"] then inputX = inputX + 1 end
-        if input_state.keys_down["w"] then inputY = inputY - 1 end
-        if input_state.keys_down["s"] then inputY = inputY + 1 end
+        if api.input.isKeyDown("a") then inputX = inputX - 1 end
+        if api.input.isKeyDown("d") then inputX = inputX + 1 end
+        if api.input.isKeyDown("w") then inputY = inputY - 1 end
+        if api.input.isKeyDown("s") then inputY = inputY + 1 end
         
         -- If no movement keys, dodge forward based on last facing direction
         if inputX == 0 and inputY == 0 then
-            inputX = math.cos(player_data.direction or 0)
-            inputY = math.sin(player_data.direction or 0)
+            inputX = math.cos(player_data.direction_angle or 0)
+            inputY = math.sin(player_data.direction_angle or 0)
         end
         
         -- Normalize dodge direction
@@ -361,8 +611,13 @@ function playerCoreMod.updateDodgeSystem(dt)
             player_data.is_dodging = true
             player_data.dodge_timer = player_data.dodge_duration
             player_data.dodge_cooldown_timer = player_data.dodge_cooldown
+            player_data.state = MOVEMENT_STATES.DODGING
+            playerCoreMod.updateAnimationState()
             
-            print("[PLAYER_CORE_MOD] Player dodging!")
+            -- Spawn dodge particles if visual effects enabled
+            if mod_config.enable_visual_effects then
+                playerCoreMod.spawnDodgeParticles()
+            end
         end
     end
     
@@ -378,72 +633,207 @@ function playerCoreMod.updateDodgeSystem(dt)
     end
 end
 
--- Update player movement (simplified for impulse-based system)
+-- Enhanced acceleration-based movement with state machine
 function playerCoreMod.updateMovement(dt)
+    if player_data.is_dodging then return end
+    
+    local moveX = input_state.movement_vector.x
+    local moveY = input_state.movement_vector.y
+    local isMoving = (moveX ~= 0 or moveY ~= 0)
+    local isRunning = input_state.keys_down["lshift"] and mod_config.enable_running
+    
+    -- Update state machine
+    playerCoreMod.updateMovementState(isMoving, isRunning)
+    
+    -- Calculate target speed based on state
+    local target_speed = 0
+    if player_data.state == MOVEMENT_STATES.WALKING then
+        target_speed = player_data.max_walk_speed
+    elseif player_data.state == MOVEMENT_STATES.RUNNING then
+        target_speed = player_data.max_run_speed
+    end
+    
     -- Get current velocity
     local vx, vy = player_data.body:getLinearVelocity()
     
-    -- Check for continuous movement input
-    local moveX, moveY = 0, 0
-    local isMoving = false
-    
-    -- Check which keys are currently held down using Love2D's isDown
-    if api.input.isKeyDown("w") then
-        moveY = moveY - 1
-        isMoving = true
-        player_data.current_animation = "walkUp"
-        player_data.direction = -math.pi/2
-    end
-    if api.input.isKeyDown("s") then
-        moveY = moveY + 1
-        isMoving = true
-        player_data.current_animation = "walkDown"
-        player_data.direction = math.pi/2
-    end
-    if api.input.isKeyDown("a") then
-        moveX = moveX - 1
-        isMoving = true
-        player_data.current_animation = "walkLeft"
-        player_data.direction = math.pi
-    end
-    if api.input.isKeyDown("d") then
-        moveX = moveX + 1
-        isMoving = true
-        player_data.current_animation = "walkRight"
-        player_data.direction = 0
-    end
-    
-    -- Normalize diagonal movement
-    if moveX ~= 0 and moveY ~= 0 then
-        moveX = moveX * 0.707
-        moveY = moveY * 0.707
-    end
-    
     if isMoving then
-        -- Apply movement force
-        local force = 300
-        player_data.body:applyForce(moveX * force, moveY * force)
+        -- Calculate target velocity
+        local target_vx = moveX * target_speed
+        local target_vy = moveY * target_speed
         
-        -- Limit maximum speed
-        vx, vy = player_data.body:getLinearVelocity()
-        local speed = math.sqrt(vx * vx + vy * vy)
-        if speed > player_data.max_speed then
-            local scale = player_data.max_speed / speed
-            player_data.body:setLinearVelocity(vx * scale, vy * scale)
-        end
+        -- Apply acceleration towards target velocity
+        local accel_rate = player_data.acceleration * dt
+        local new_vx = vx + (target_vx - vx) * math.min(accel_rate / target_speed, 1)
+        local new_vy = vy + (target_vy - vy) * math.min(accel_rate / target_speed, 1)
+        
+        player_data.body:setLinearVelocity(new_vx, new_vy)
+        
+        -- Update direction
+        player_data.direction = calculateDirection(moveX, moveY)
+        player_data.direction_angle = math.atan2(moveY, moveX)
+        
     else
-        -- Apply friction when not moving
-        local friction_factor = math.pow(player_data.friction, dt * 60)
-        local newVX = vx * friction_factor
-        local newVY = vy * friction_factor
+        -- Apply deceleration when not moving
+        local decel_rate = player_data.deceleration * dt
+        local speed = math.sqrt(vx * vx + vy * vy)
         
-        -- Stop completely if moving very slowly
-        if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
-            newVX, newVY = 0, 0
-            player_data.current_animation = "idle"
+        if speed > 0 then
+            local decel_factor = math.max(0, speed - decel_rate) / speed
+            local new_vx = vx * decel_factor
+            local new_vy = vy * decel_factor
+            
+            -- Stop completely if moving very slowly
+            if math.abs(new_vx) < 5 and math.abs(new_vy) < 5 then
+                new_vx, new_vy = 0, 0
+            end
+            
+            player_data.body:setLinearVelocity(new_vx, new_vy)
+        end
+    end
+    
+    -- Update stored velocity for state tracking
+    player_data.velocity.x, player_data.velocity.y = player_data.body:getLinearVelocity()
+end
+
+-- Add visual effects update function
+function playerCoreMod.updateVisualEffects(dt)
+    -- Update damage flash timer
+    if player_data.damage_flash_timer > 0 then
+        player_data.damage_flash_timer = player_data.damage_flash_timer - dt
+    end
+    
+    -- Update footstep particles for movement
+    if (player_data.state == MOVEMENT_STATES.WALKING or player_data.state == MOVEMENT_STATES.RUNNING) then
+        player_data.footstep_timer = player_data.footstep_timer + dt
+        
+        if player_data.footstep_timer >= player_data.footstep_interval then
+            player_data.footstep_timer = 0
+            playerCoreMod.spawnFootstepParticle()
+        end
+    end
+end
+
+-- Spawn footstep particle
+function playerCoreMod.spawnFootstepParticle()
+    -- Calculate footstep position based on direction
+    local offset_x = -math.cos(player_data.direction_angle) * 10
+    local offset_y = -math.sin(player_data.direction_angle) * 10
+    
+    api.renderer.addToQueue("effects", {
+        type = "particle",
+        x = player_data.x + offset_x,
+        y = player_data.y + offset_y,
+        color = {0.5, 0.4, 0.3, 0.3},  -- Dusty brown
+        lifetime = 0.5,
+        scale = 0.5,
+        fade_out = true
+    })
+end
+
+-- Spawn dodge particles
+function playerCoreMod.spawnDodgeParticles()
+    for i = 1, 5 do
+        local angle = (i / 5) * math.pi * 2
+        local speed = 50 + math.random() * 50
+        
+        api.renderer.addToQueue("effects", {
+            type = "particle",
+            x = player_data.x,
+            y = player_data.y,
+            velocity_x = math.cos(angle) * speed,
+            velocity_y = math.sin(angle) * speed,
+            color = {0.8, 0.8, 1.0, 0.6},  -- Light blue
+            lifetime = 0.4,
+            scale = 0.8,
+            fade_out = true
+        })
+    end
+end
+
+-- Update jump system
+function playerCoreMod.updateJumpSystem(dt)
+    -- Update jump timer
+    if player_data.is_jumping then
+        player_data.jump_timer = player_data.jump_timer - dt
+        if player_data.jump_timer <= 0 then
+            player_data.is_jumping = false
+            player_data.has_double_jumped = false
+            
+            -- Return to previous state
+            if input_state.movement_vector.x ~= 0 or input_state.movement_vector.y ~= 0 then
+                player_data.state = input_state.keys_down["lshift"] and MOVEMENT_STATES.RUNNING or MOVEMENT_STATES.WALKING
+            else
+                player_data.state = MOVEMENT_STATES.IDLE
+            end
+            playerCoreMod.updateAnimationState()
+        end
+    end
+    
+    -- Check for jump input (future implementation)
+    -- Currently jumping is not bound to any key in the PRD
+end
+
+-- Update movement state machine
+function playerCoreMod.updateMovementState(isMoving, isRunning)
+    local new_state = player_data.state
+    
+    -- Don't change state if dodging or jumping
+    if player_data.is_dodging then
+        return
+    end
+    
+    if not isMoving then
+        new_state = MOVEMENT_STATES.IDLE
+    elseif isMoving and isRunning then
+        new_state = MOVEMENT_STATES.RUNNING
+    elseif isMoving then
+        new_state = MOVEMENT_STATES.WALKING
+    end
+    
+    -- Handle state transitions
+    if new_state ~= player_data.state then
+        player_data.previous_state = player_data.state
+        player_data.state = new_state
+        player_data.state_timer = 0
+        
+        -- Debug state changes
+        print("[PLAYER_CORE_MOD] State: " .. player_data.state .. ", Direction: " .. player_data.direction)
+        
+        -- Trigger animation change
+        playerCoreMod.updateAnimationState()
+    end
+end
+
+-- Update animation based on current state
+function playerCoreMod.updateAnimationState()
+    local new_animation = "idle"
+    
+    if player_data.state == MOVEMENT_STATES.IDLE then
+        new_animation = "idle"
+    elseif player_data.state == MOVEMENT_STATES.WALKING then
+        new_animation = "walk"
+    elseif player_data.state == MOVEMENT_STATES.RUNNING then
+        new_animation = "run"
+    elseif player_data.state == MOVEMENT_STATES.DODGING then
+        new_animation = "dodge" -- Use dodge animation if available
+        if not player_data.animations.dodge then
+            new_animation = "jump" -- Fallback to jump
+        end
+    elseif player_data.state == MOVEMENT_STATES.JUMPING then
+        new_animation = "jump"
+    end
+    
+    -- Only change animation if different
+    if new_animation ~= player_data.current_animation_name then
+        player_data.current_animation_name = new_animation
+        player_data.current_animation = player_data.animations[new_animation]
+        
+        -- Reset animation timer for smooth transitions
+        if player_data.current_animation then
+            player_data.current_animation.currentTime = 0
         end
         
-        player_data.body:setLinearVelocity(newVX, newVY)
+        player_data.animation_blend_timer = 0
     end
 end
 
@@ -458,29 +848,75 @@ function playerCoreMod.renderPlayer()
     --     print("[PLAYER_CORE_MOD] Player rendering at: " .. player_data.x .. ", " .. player_data.y)
     -- end
     
-    -- Add player to render queue
-    if player_data.animation and player_data.animation.spriteSheet then
-        local spriteNum = math.floor(player_data.animation.currentTime / player_data.animation.duration * #player_data.animation.quads) + 1
-        if spriteNum > #player_data.animation.quads then spriteNum = #player_data.animation.quads end
+    -- Calculate color tint for damage flash
+    local color = {1, 1, 1, 1}
+    if player_data.damage_flash_timer > 0 then
+        -- White flash effect
+        local flash_intensity = player_data.damage_flash_timer / mod_config.damage_flash_duration
+        color = {1, 1, 1, 1}  -- Full white during flash
+    end
+    
+    -- Enhanced LPC sprite rendering with 8-directional support
+    if player_data.current_animation then
+        local anim = player_data.current_animation
+        local texture_name = anim.texture_name
         
-        -- Use sprite_quad type for animated sprites
-        api.renderer.addToQueue("world", {
-            type = "sprite_quad",
-            texture_name = "player_jump", -- Use the preloaded texture name
-            quad = player_data.animation.quads[spriteNum],
-            x = player_data.x,
-            y = player_data.y,
-            rotation = 0,
-            scale_x = player_data.scale,
-            scale_y = player_data.scale,
-            offset_x = 32, -- Half of 64 (sprite width) to center
-            offset_y = 32, -- Half of 64 (approximate sprite height) to center
-            sort_y = player_data.y,
-            active = true,
-            color = {1, 1, 1, 1}
-        })
-    elseif player_data.character_texture then
-        -- Fallback to static character texture
+        -- Get texture to create quad
+        local texture = api.renderer.getTexture(texture_name)
+        if texture then
+            -- Calculate quad position for current frame and direction
+            local frame_index = getCurrentAnimationFrame(anim, player_data.direction) or 1
+            
+            -- LPC row mapping for directions
+            local row_mapping = {
+                down = 0, left = 1, right = 2, up = 3,
+                down_left = 4, down_right = 5, up_left = 6, up_right = 7
+            }
+            
+            local row = row_mapping[player_data.direction] or 0
+            local col = (frame_index - 1) % anim.frame_count
+            
+            -- Create quad for current frame
+            local quad = api.renderer.createQuad(
+                col * 64, row * 64,  -- x, y position in sprite sheet
+                64, 64,              -- width, height of frame
+                texture:getDimensions()
+            )
+            
+            api.renderer.addToQueue("world", {
+                type = "sprite_quad",
+                texture_name = texture_name,
+                quad = quad,
+                x = player_data.x,
+                y = player_data.y,
+                rotation = 0,
+                scale_x = player_data.scale,
+                scale_y = player_data.scale,
+                offset_x = 32, -- Half of 64 (LPC sprite width)
+                offset_y = 32, -- Half of 64 (LPC sprite height)
+                sort_y = player_data.y,
+                active = true,
+                color = color
+            })
+        else
+            -- Fallback to simple sprite if texture not loaded
+            api.renderer.addToQueue("world", {
+                type = "sprite",
+                texture_name = texture_name,
+                x = player_data.x,
+                y = player_data.y,
+                rotation = 0,
+                scale_x = player_data.scale,
+                scale_y = player_data.scale,
+                offset_x = 32,
+                offset_y = 32,
+                sort_y = player_data.y,
+                active = true,
+                color = color
+            })
+        end
+    elseif player_data.fallback_texture then
+        -- Ultimate fallback to doge texture
         api.renderer.addToQueue("world", {
             type = "sprite",
             texture_name = "doge",
@@ -489,7 +925,7 @@ function playerCoreMod.renderPlayer()
             rotation = 0,
             scale_x = player_data.scale,
             scale_y = player_data.scale,
-            offset_x = -150, -- Add missing offset
+            offset_x = -150,
             offset_y = 0,
             sort_y = player_data.y,
             active = true,
@@ -565,6 +1001,11 @@ function playerCoreMod.damagePlayer(damage, source)
     end
     
     player_data.health = math.max(0, player_data.health - damage)
+    
+    -- Trigger damage flash effect
+    if mod_config.enable_visual_effects then
+        player_data.damage_flash_timer = mod_config.damage_flash_duration
+    end
     
     print("[PLAYER_CORE_MOD] Player took " .. damage .. " damage. Health: " .. player_data.health)
     
@@ -677,15 +1118,51 @@ function playerCoreMod.updateNetworkSync(dt)
     player_data.last_sync_time = player_data.last_sync_time + dt
     
     if player_data.last_sync_time >= player_data.sync_interval then
-        -- Send player state
-        api.network.sendToAll({
+        -- Only send delta updates for changed properties
+        local sync_data = {
             action = "player_sync",
-            x = player_data.x,
-            y = player_data.y,
-            health = player_data.health,
-            animation = player_data.current_animation,
-            direction = player_data.direction
-        }, "player_core_mod")
+            client_id = api.network.getLocalClientId and api.network.getLocalClientId() or "local"
+        }
+        
+        -- Track what changed
+        local has_changes = false
+        
+        -- Position changes
+        if not player_data.last_synced_x or math.abs(player_data.x - player_data.last_synced_x) > 1 or
+           not player_data.last_synced_y or math.abs(player_data.y - player_data.last_synced_y) > 1 then
+            sync_data.x = player_data.x
+            sync_data.y = player_data.y
+            player_data.last_synced_x = player_data.x
+            player_data.last_synced_y = player_data.y
+            has_changes = true
+        end
+        
+        -- Health changes
+        if not player_data.last_synced_health or player_data.health ~= player_data.last_synced_health then
+            sync_data.health = player_data.health
+            player_data.last_synced_health = player_data.health
+            has_changes = true
+        end
+        
+        -- Animation/state changes
+        if not player_data.last_synced_animation or player_data.current_animation_name ~= player_data.last_synced_animation then
+            sync_data.animation = player_data.current_animation_name
+            sync_data.direction = player_data.direction
+            player_data.last_synced_animation = player_data.current_animation_name
+            has_changes = true
+        end
+        
+        -- State changes
+        if not player_data.last_synced_state or player_data.state ~= player_data.last_synced_state then
+            sync_data.state = player_data.state
+            player_data.last_synced_state = player_data.state
+            has_changes = true
+        end
+        
+        -- Only send if something changed
+        if has_changes then
+            api.network.sendToAll(sync_data, "player_core_mod")
+        end
         
         player_data.last_sync_time = 0
     end
@@ -694,15 +1171,21 @@ end
 -- Handle network messages
 function playerCoreMod.handleNetworkMessage(data)
     if data.action == "player_sync" then
-        -- Handle remote player state updates
-        -- This would need more complex logic for multiplayer
-        print("[PLAYER_CORE_MOD] Received player sync from network")
+        -- Only process updates from other clients
+        if data.client_id and data.client_id ~= (api.network.getLocalClientId and api.network.getLocalClientId() or "local") then
+            -- Apply delta updates with client-side prediction
+            -- This is simplified - a full implementation would include interpolation
+            print("[PLAYER_CORE_MOD] Received player sync from client: " .. (data.client_id or "unknown"))
+        end
     elseif data.action == "player_damage" then
         -- Handle remote player damage
         print("[PLAYER_CORE_MOD] Remote player took damage: " .. data.damage)
     elseif data.action == "player_death" then
         -- Handle remote player death
         print("[PLAYER_CORE_MOD] Remote player died at " .. data.x .. ", " .. data.y)
+    elseif data.action == "player_teleport" then
+        -- Handle remote player teleport
+        print("[PLAYER_CORE_MOD] Remote player teleported to " .. data.x .. ", " .. data.y)
     end
 end
 
@@ -726,6 +1209,71 @@ function playerCoreMod.cleanup()
     print("[PLAYER_CORE_MOD] Cleanup complete * * *")
 end
 
+-- Play combat animation
+function playerCoreMod.playCombatAnimation(animation_name)
+    if not player_data.animations[animation_name] then
+        print("[PLAYER_CORE_MOD] Combat animation not found: " .. animation_name)
+        return
+    end
+    
+    -- Override current animation temporarily
+    player_data.previous_animation_name = player_data.current_animation_name
+    player_data.current_animation_name = animation_name
+    player_data.current_animation = player_data.animations[animation_name]
+    
+    if player_data.current_animation then
+        player_data.current_animation.currentTime = 0
+    end
+    
+    -- Set a timer to return to previous animation
+    player_data.combat_animation_timer = player_data.current_animation and player_data.current_animation.duration or 0.5
+end
+
+-- Get player state for saving
+function playerCoreMod.getPlayerState()
+    return {
+        x = player_data.x,
+        y = player_data.y,
+        health = player_data.health,
+        max_health = player_data.max_health,
+        state = player_data.state,
+        direction = player_data.direction,
+        animation = player_data.current_animation_name
+    }
+end
+
+-- Restore player state from save data
+function playerCoreMod.restorePlayerState(save_data)
+    if not save_data then return end
+    
+    if save_data.x and save_data.y then
+        playerCoreMod.teleportPlayer(save_data.x, save_data.y)
+    end
+    
+    if save_data.health then
+        player_data.health = save_data.health
+    end
+    
+    if save_data.max_health then
+        player_data.max_health = save_data.max_health
+    end
+    
+    if save_data.state then
+        player_data.state = save_data.state
+    end
+    
+    if save_data.direction then
+        player_data.direction = save_data.direction
+    end
+    
+    if save_data.animation and player_data.animations[save_data.animation] then
+        player_data.current_animation_name = save_data.animation
+        player_data.current_animation = player_data.animations[save_data.animation]
+    end
+    
+    print("[PLAYER_CORE_MOD] Player state restored from save")
+end
+
 -- Export PlayerCore Function
 playerCoreMod.exports = {
     getPosition = playerCoreMod.getPosition,
@@ -734,7 +1282,14 @@ playerCoreMod.exports = {
     damagePlayer = playerCoreMod.damagePlayer,
     applyKnockback = playerCoreMod.applyKnockback,
     handleCollision = playerCoreMod.handleCollision,
-    teleportPlayer = playerCoreMod.teleportPlayer
+    teleportPlayer = playerCoreMod.teleportPlayer,
+    playCombatAnimation = playerCoreMod.playCombatAnimation,
+    getPlayerState = playerCoreMod.getPlayerState,
+    restorePlayerState = playerCoreMod.restorePlayerState,
+    getDirection = function() return player_data.direction end,
+    getVelocity = function() return player_data.velocity end,
+    isRunning = function() return player_data.state == MOVEMENT_STATES.RUNNING end,
+    isDodging = function() return player_data.is_dodging end
 }
 
 return playerCoreMod
