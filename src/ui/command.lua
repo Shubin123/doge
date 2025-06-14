@@ -664,8 +664,8 @@ function command.getCommandBlocks()
             cmd = block.cmd,
             x = block.x,
             y = block.y,
-            w = 0,
-            h = 0,
+            w = block.w,
+            h = block.h,
             active = block.active
         })
     end
@@ -757,7 +757,7 @@ function command.populate()
                 draw_type = "text",
                 text = block.cmd,
                 x = block.x, 
-                y = block.y -20,
+                y = block.y -50,
                 color = { 1, 1, 1, 1 },
                 blend_mode = { "alpha" }
             })
@@ -772,13 +772,16 @@ function command.mousepressed(x, y, button)
 
         -- Check local command blocks first (for server and single player)
         if var.multiplayer == 1 or not var.multiplayer then
-            world:queryBoundingBox(world_x, world_y, world_x, world_y, function(fixture)
+            -- Expand the query area slightly to ensure detection
+            local query_size = 10
+            world:queryBoundingBox(world_x - query_size, world_y - query_size, world_x + query_size, world_y + query_size, function(fixture)
                 for i, block in ipairs(command_blocks) do
                     if block.fixture == fixture then
                         clicked_block = block
                         return false -- stop querying
                     end
                 end
+                return true -- continue querying
             end)
         end
 
@@ -786,10 +789,11 @@ function command.mousepressed(x, y, button)
         if not clicked_block and renderer and renderer.networked_state then
             for _, block in pairs(renderer.networked_state.command_blocks) do
                 if block.active then
-                    local dx = world_x
-                    local dy = world_y
-                    local half_w = 0
-                    local half_h = 0
+                    local dx = world_x - block.x
+                    local dy = world_y - block.y
+                    -- Use a hitbox size based on sprite frame dimensions (128x128 as per animation setup)
+                    local half_w = 64 -- Half of 128, adjusted for sprite frame
+                    local half_h = 64 -- Half of 128, adjusted for sprite frame
 
                     if dx >= -half_w and dx <= half_w and dy >= -half_h and dy <= half_h then
                         clicked_block = block
