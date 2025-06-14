@@ -6,14 +6,14 @@ camera.x = 0
 camera.y = 0
 camera.pos = require("lib.math.vec2").new(0,0)
 
-camera.zoom = 1.0
-camera.target_zoom = 1.0
+camera.zoom = 1.5
+camera.target_zoom = 1.5
 camera.zoom_lerp_speed = 3
 
 -- Deadzone configuration (as percentage of screen)
 camera.deadzone_x = 0.15 -- 15% of screen width
 camera.deadzone_y = 0.15 -- 15% of screen height
-camera.lag_speed = 4 -- Speed when player is within deadzone
+camera.lag_speed = 5 -- Speed when player is within deadzone
 camera.catch_up_speed = 8 -- Speed when player exits deadzone
 
 -- Screen shake variables

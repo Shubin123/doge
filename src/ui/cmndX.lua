@@ -781,6 +781,44 @@ function cmdn.execute(cmd)
         else
             cmdn.addOutput("{red}Error:{/red} Boss module not loaded", errorColor)
         end
+    elseif string.find(cmd, "^map") or string.find(cmd, "^maps") then
+        -- Handle map system commands
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        -- Get map system
+        local mapSystem = nil
+        if modSystem and modSystem.getLoadedMod then
+            local mapMod = modSystem.getLoadedMod("map_system")
+            if mapMod and mapMod.instance and mapMod.instance.exports then
+                mapSystem = mapMod.instance.exports
+            end
+        end
+        
+        if not mapSystem then
+            cmdn.addOutput("{red}Error:{/red} Map system not loaded", errorColor)
+            return
+        end
+        
+        if tokens[2] == "list" then
+            mapSystem.list()
+        elseif tokens[2] == "load" then
+            local mapId = tokens[3]
+            if mapId then
+                mapSystem.load(mapId)
+            else
+                cmdn.addOutput("{red}Error:{/red} Usage: map load <map_id>", errorColor)
+            end
+        elseif tokens[2] == "reload" then
+            mapSystem.reload()
+        elseif tokens[2] == "current" then
+            mapSystem.current()
+        else
+            cmdn.addOutput("Map commands: map list | map load <id> | map reload | map current", outputColor)
+            cmdn.addOutput("Or use: ms = modSystem.getLoadedMod('map_system').instance.exports", outputColor)
+        end
     elseif string.find(cmd, "weapon") then
         -- Handle weapon debug commands
         local tokens = {}
@@ -863,6 +901,19 @@ end
 
 -- Command help documentation
 local commandHelp = {
+    -- Map Commands
+    map = {
+        category = "mod",
+        usage = "map [list|load <id>|reload|current]",
+        description = "Map system management commands",
+        examples = {
+            "map list" .. " - Show all available maps",
+            "map load starter" .. " - Load the starter map",
+            "map reload" .. " - Reload current map",
+            "map current" .. " - Show current map"
+        },
+        aliases = {"maps"}
+    },
     -- Admin Commands
     godmode = {
         category = "admin",

@@ -89,16 +89,18 @@ local function createAnimationQuads(texture, width, height, direction_count, fra
     -- LPC standard: 8 directions, multiple frames per direction
     local directions = {"down", "left", "right", "up", "down_left", "down_right", "up_left", "up_right"}
     
-    -- LPC row mapping (standard LPC format)
+    -- Sprite sheet row mapping based on actual layout:
+    -- Row 0: up, Row 1: left, Row 2: down/front, Row 3: right
     local row_mapping = {
-        down = 0,
-        left = 1,
-        right = 2,
-        up = 3,
-        down_left = 4,
-        down_right = 5,
-        up_left = 6,
-        up_right = 7
+        up = 0,         -- Row 0 (1st row)
+        left = 1,       -- Row 1 (2nd row)
+        down = 2,       -- Row 2 (3rd row) - front facing
+        right = 3,      -- Row 3 (4th row)
+        -- For now, use cardinal directions for diagonals
+        up_left = 1,    -- Use left animation
+        up_right = 3,   -- Use right animation
+        down_left = 1,  -- Use left animation
+        down_right = 3  -- Use right animation
     }
     
     for _, direction in ipairs(directions) do
@@ -240,7 +242,15 @@ end
 function playerCoreMod.handleKeyPress(key)
     if not player_data.active then return end
     
+    -- Track keys that are held down
+    input_state.keys_down[key] = true
+    
+    -- Mark this key as pressed this frame
     input_state.key_pressed_this_frame[key] = true
+    
+    if key == "space" then
+        print("[PLAYER_CORE_MOD] Space key pressed! Dodge cooldown: " .. (player_data.dodge_cooldown_timer or 0))
+    end
     
     -- Update movement vector based on key presses
     playerCoreMod.updateMovementVector()
@@ -405,16 +415,10 @@ function playerCoreMod.initializeAssets()
     -- We'll store texture names and get textures on demand during rendering
     local anim_configs = {
         -- Name, texture_name, duration, directions, frames
-        {"idle", "player_idle", 2.0, 8, 1},
-        {"walk", "player_walk", 1.0, 8, 9},
-        {"run", "player_run", 0.8, 8, 8},
-        {"jump", "player_jump", 0.6, 8, 6},
-        {"hurt", "player_hurt", 0.5, 8, 6},
-        {"slash", "player_slash", 0.4, 8, 6},
-        {"shoot", "player_shoot", 0.4, 8, 13},
-        {"spellcast", "player_spellcast", 0.8, 8, 7},
-        {"thrust", "player_thrust", 0.4, 8, 8},
-        {"dodge", "player_dodge", 0.3, 8, 6}  -- Using dodge animation if available
+        {"idle", "player_idle", 2.0, 4, 2},      -- 4 directions, 2 frames per direction
+        {"walk", "player_walk", 1.0, 4, 9},      -- 4 directions, 9 frames per direction
+        {"run", "player_run", 0.8, 4, 8},        -- 4 directions, 8 frames per direction
+        {"jump", "player_jump", 0.5, 4, 5}       -- 4 directions, 5 frames for jump/dash
     }
     
     -- Create animations with just metadata (no texture loading yet)
@@ -587,6 +591,7 @@ function playerCoreMod.updateDodgeSystem(dt)
     
     -- Check for dodge input (space key)
     if input_state.key_pressed_this_frame["space"] and not player_data.is_dodging and player_data.dodge_cooldown_timer <= 0 then
+        print("[PLAYER_CORE_MOD] Dodge triggered!")
         -- Get current movement direction for dodge
         local inputX, inputY = 0, 0
         
@@ -628,8 +633,7 @@ function playerCoreMod.updateDodgeSystem(dt)
         local dodgeVY = player_data.dodge_direction.y * player_data.dodge_speed
         player_data.body:setLinearVelocity(dodgeVX, dodgeVY)
         
-        -- Set dodge animation
-        player_data.current_animation = "dodge"
+        -- Animation state is handled by updateAnimationState()
     end
 end
 
@@ -640,7 +644,7 @@ function playerCoreMod.updateMovement(dt)
     local moveX = input_state.movement_vector.x
     local moveY = input_state.movement_vector.y
     local isMoving = (moveX ~= 0 or moveY ~= 0)
-    local isRunning = input_state.keys_down["lshift"] and mod_config.enable_running
+    local isRunning = api.input.isKeyDown("lshift") and mod_config.enable_running
     
     -- Update state machine
     playerCoreMod.updateMovementState(isMoving, isRunning)
@@ -761,7 +765,7 @@ function playerCoreMod.updateJumpSystem(dt)
             
             -- Return to previous state
             if input_state.movement_vector.x ~= 0 or input_state.movement_vector.y ~= 0 then
-                player_data.state = input_state.keys_down["lshift"] and MOVEMENT_STATES.RUNNING or MOVEMENT_STATES.WALKING
+                player_data.state = api.input.isKeyDown("lshift") and MOVEMENT_STATES.RUNNING or MOVEMENT_STATES.WALKING
             else
                 player_data.state = MOVEMENT_STATES.IDLE
             end
@@ -815,10 +819,7 @@ function playerCoreMod.updateAnimationState()
     elseif player_data.state == MOVEMENT_STATES.RUNNING then
         new_animation = "run"
     elseif player_data.state == MOVEMENT_STATES.DODGING then
-        new_animation = "dodge" -- Use dodge animation if available
-        if not player_data.animations.dodge then
-            new_animation = "jump" -- Fallback to jump
-        end
+        new_animation = "jump" -- Use jump animation for dodging
     elseif player_data.state == MOVEMENT_STATES.JUMPING then
         new_animation = "jump"
     end
@@ -867,10 +868,20 @@ function playerCoreMod.renderPlayer()
             -- Calculate quad position for current frame and direction
             local frame_index = getCurrentAnimationFrame(anim, player_data.direction) or 1
             
-            -- LPC row mapping for directions
+            -- Sprite sheet row mapping based on actual layout:
+            -- Row 0: up, Row 1: left, Row 2: down/front, Row 3: right
+            -- Since we only have 4 directions in the sprite sheet, we need to pick the best match for diagonals
             local row_mapping = {
-                down = 0, left = 1, right = 2, up = 3,
-                down_left = 4, down_right = 5, up_left = 6, up_right = 7
+                up = 0,         -- Row 0 (1st row)
+                left = 1,       -- Row 1 (2nd row)
+                down = 2,       -- Row 2 (3rd row) - front facing
+                right = 3,      -- Row 3 (4th row)
+                -- For diagonals, use the dominant direction based on player preference
+                -- Typically in 4-dir sprites, we prioritize horizontal movement for diagonals
+                up_left = 1,    -- Use left animation (could also use up)
+                up_right = 3,   -- Use right animation (could also use up)
+                down_left = 1,  -- Use left animation (could also use down)
+                down_right = 3  -- Use right animation (could also use down)
             }
             
             local row = row_mapping[player_data.direction] or 0

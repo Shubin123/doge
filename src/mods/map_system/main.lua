@@ -1,5 +1,5 @@
--- Map System Mod - Core map generation and management
--- Migrated from legacy src/game/map.lua to modular architecture
+-- Map System Mod - Advanced map management with scripting interface
+-- Provides easy map creation and management similar to Roblox
 
 local mapSystemMod = {}
 
@@ -7,6 +7,18 @@ local mapSystemMod = {}
 local map = {}
 local mod_config = {}
 local performance = {}
+local current_map_id = nil
+local available_maps = {}
+local map_scripts = {}
+local fence_body = nil
+local fence_fixture = nil
+
+-- Store API reference
+local api = nil
+
+-- Map selector UI state
+local show_map_selector = false
+local selected_map_index = 1
 
 -- Configuration
 local MAP_CONFIG = {
@@ -35,6 +47,11 @@ map.treeInstances = {}
 map.dynamicObjects = {}
 map.chunks = {}
 map.layers = {}
+map.spawns = {
+    player = nil,
+    enemies = {},
+    items = {}
+}
 
 -- Performance monitoring
 performance = {
@@ -43,6 +60,365 @@ performance = {
     objectsRendered = 0,
     lastFrameTime = 0,
 }
+
+-- Map scripting interface (similar to Roblox)
+local MapAPI = {}
+
+-- Create the map scripting API
+function MapAPI.new(map_id)
+    local mapApi = {
+        -- Current map ID
+        id = map_id,
+        
+        -- Workspace-like container
+        workspace = {
+            -- Set the world boundary/fence
+            setBoundary = function(left, top, width, height)
+                if fence_body then
+                    fence_body:destroy()
+                end
+                
+                local world = api.physics.getWorld()
+                if world then
+                    fence_body = api.physics.createBody(0, 0, "static")
+                    local fence_shape = api.physics.createChainShape(true, 
+                        left, top, 
+                        left + width, top, 
+                        left + width, top + height, 
+                        left, top + height)
+                    fence_fixture = api.physics.createFixture(fence_body, fence_shape)
+                    fence_fixture:setUserData({type = "fence", map_id = map_id})
+                end
+            end,
+            
+            -- Place a tile
+            placeTile = function(x, y, tileType, layer)
+                layer = layer or MAP_CONFIG.LAYER_GROUND
+                if not map.map then return end
+                
+                local tileId = 1 -- Default grass
+                if tileType == "grass" then
+                    tileId = math.random(1, 200)
+                elseif tileType == "stone" then
+                    tileId = math.random(201, 250)
+                elseif tileType == "dirt" then
+                    tileId = math.random(251, 300)
+                elseif type(tileType) == "number" then
+                    tileId = tileType
+                end
+                
+                map.map:setTile(x, y, tileId)
+            end,
+            
+            -- Fill an area with tiles
+            fillArea = function(x1, y1, x2, y2, tileType, layer)
+                for x = x1, x2 do
+                    for y = y1, y2 do
+                        mapApi.workspace.placeTile(x, y, tileType, layer)
+                    end
+                end
+            end,
+            
+            -- Create an arch
+            createArch = function(x, y)
+                return map.createArches(x, y, api)
+            end,
+            
+            -- Create a tree
+            createTree = function(x, y)
+                return map.createTree(x, y, api)
+            end,
+            
+            -- Create a wall segment
+            createWall = function(x, y, width, height)
+                local wall = map.createDynamicObject({
+                    type = "wall",
+                    x = x,
+                    y = y,
+                    width = width,
+                    height = height,
+                    physics = {
+                        type = "static",
+                        shape = api.physics.createRectangleShape(width, height),
+                        group_index = -101
+                    },
+                }, api)
+                return wall
+            end,
+            
+            -- Set player spawn
+            setPlayerSpawn = function(x, y)
+                map.spawns.player = {x = x, y = y}
+            end,
+            
+            -- Add enemy spawn
+            addEnemySpawn = function(x, y, enemyType)
+                table.insert(map.spawns.enemies, {
+                    x = x,
+                    y = y,
+                    type = enemyType or "basic"
+                })
+            end,
+            
+            -- Add item spawn
+            addItemSpawn = function(x, y, itemType)
+                table.insert(map.spawns.items, {
+                    x = x,
+                    y = y,
+                    type = itemType
+                })
+            end,
+            
+            -- Create a custom object
+            createObject = function(config)
+                return map.createDynamicObject(config, api)
+            end,
+            
+            -- Get all objects of a type
+            getObjectsByType = function(objType)
+                local results = {}
+                for _, obj in ipairs(map.dynamicObjects) do
+                    if obj.type == objType and obj.active then
+                        table.insert(results, obj)
+                    end
+                end
+                return results
+            end,
+            
+            -- Remove an object
+            removeObject = function(obj)
+                if obj and obj.destroy then
+                    obj:destroy()
+                end
+            end,
+            
+            -- Clear all objects
+            clearObjects = function()
+                map.clearDynamicObjects()
+            end
+        },
+        
+        -- Instance creation (similar to Instance.new)
+        Instance = {
+            new = function(className, properties)
+                properties = properties or {}
+                
+                if className == "Tile" then
+                    mapApi.workspace.placeTile(
+                        properties.x or 1,
+                        properties.y or 1,
+                        properties.tileType or "grass",
+                        properties.layer or MAP_CONFIG.LAYER_GROUND
+                    )
+                elseif className == "Arch" then
+                    return mapApi.workspace.createArch(
+                        properties.x or 0,
+                        properties.y or 0
+                    )
+                elseif className == "Tree" then
+                    return mapApi.workspace.createTree(
+                        properties.x or 0,
+                        properties.y or 0
+                    )
+                elseif className == "Wall" then
+                    return mapApi.workspace.createWall(
+                        properties.x or 0,
+                        properties.y or 0,
+                        properties.width or 32,
+                        properties.height or 32
+                    )
+                elseif className == "PlayerSpawn" then
+                    mapApi.workspace.setPlayerSpawn(
+                        properties.x or 0,
+                        properties.y or 0
+                    )
+                elseif className == "EnemySpawn" then
+                    mapApi.workspace.addEnemySpawn(
+                        properties.x or 0,
+                        properties.y or 0,
+                        properties.enemyType
+                    )
+                elseif className == "Object" then
+                    return mapApi.workspace.createObject(properties)
+                end
+            end
+        },
+        
+        -- Utility functions
+        utils = {
+            random = math.random,
+            sin = math.sin,
+            cos = math.cos,
+            sqrt = math.sqrt,
+            floor = math.floor,
+            ceil = math.ceil,
+        },
+        
+        -- Get preloaded game assets
+        assets = {
+            tilesets = {
+                grass = "tileset_grass",
+                structures = "tileset_struct", 
+                plants = "tileset_plant"
+            },
+            getTexture = function(name)
+                return api.renderer.getTexture(name)
+            end
+        }
+    }
+    
+    return mapApi
+end
+
+-- Scan for available maps
+function mapSystemMod.scanForMaps()
+    available_maps = {}
+    local maps_dir = "mods/map_system/maps"
+    
+    -- Create maps directory if it doesn't exist
+    if not love.filesystem.getInfo(maps_dir) then
+        love.filesystem.createDirectory(maps_dir)
+        print("[MAP_SYSTEM] Created maps directory")
+    end
+    
+    -- Scan for map files
+    local items = love.filesystem.getDirectoryItems(maps_dir)
+    for _, item in ipairs(items) do
+        if item:match("%.lua$") then
+            local map_id = item:sub(1, -5) -- Remove .lua extension
+            available_maps[map_id] = maps_dir .. "/" .. item
+            print("[MAP_SYSTEM] Found map: " .. map_id)
+        end
+    end
+    
+    return available_maps
+end
+
+-- Load a specific map
+function mapSystemMod.loadMap(map_id)
+    if not available_maps[map_id] then
+        print("[MAP_SYSTEM] Map not found: " .. map_id)
+        return false
+    end
+    
+    -- Clear current map
+    mapSystemMod.unloadCurrentMap()
+    
+    print("[MAP_SYSTEM] Loading map: " .. map_id)
+    
+    -- Reset spawns
+    map.spawns = {
+        player = nil,
+        enemies = {},
+        items = {}
+    }
+    
+    -- Create map API for the script
+    local mapApi = MapAPI.new(map_id)
+    
+    -- Load and execute map script
+    local map_code = love.filesystem.read(available_maps[map_id])
+    if not map_code then
+        print("[MAP_SYSTEM] Failed to read map file: " .. map_id)
+        return false
+    end
+    
+    -- Create sandboxed environment for map script
+    local map_env = {
+        map = mapApi,
+        workspace = mapApi.workspace,
+        Instance = mapApi.Instance,
+        utils = mapApi.utils,
+        assets = mapApi.assets,
+        print = function(...) print("[MAP:" .. map_id .. "]", ...) end,
+        
+        -- Math functions
+        math = math,
+        
+        -- Limited table access
+        pairs = pairs,
+        ipairs = ipairs,
+        type = type,
+        tostring = tostring,
+        tonumber = tonumber,
+    }
+    
+    -- Execute map script
+    local map_func, load_error = load(map_code, map_id, "t", map_env)
+    if not map_func then
+        print("[MAP_SYSTEM] Failed to compile map: " .. load_error)
+        return false
+    end
+    
+    local success, exec_error = pcall(map_func)
+    if not success then
+        print("[MAP_SYSTEM] Failed to execute map: " .. exec_error)
+        return false
+    end
+    
+    current_map_id = map_id
+    
+    -- Apply player spawn if set
+    if map.spawns.player then
+        local player_mod = api.mod_system.getMod("player_core_mod")
+        if player_mod and player_mod.instance and player_mod.instance.exports then
+            player_mod.instance.exports.setPosition(map.spawns.player.x, map.spawns.player.y)
+        end
+    end
+    
+    -- Notify network if in multiplayer
+    if api.network.isMultiplayer() then
+        api.network.sendToAll({
+            action = "load_map",
+            map_id = map_id
+        }, "map_system")
+    end
+    
+    print("[MAP_SYSTEM] Map loaded successfully: " .. map_id)
+    return true
+end
+
+-- Unload current map
+function mapSystemMod.unloadCurrentMap()
+    if not current_map_id then return end
+    
+    print("[MAP_SYSTEM] Unloading map: " .. current_map_id)
+    
+    -- Clear all dynamic objects
+    map.clearDynamicObjects()
+    
+    -- Clear fence
+    if fence_body then
+        fence_body:destroy()
+        fence_body = nil
+        fence_fixture = nil
+    end
+    
+    -- Reset map tiles
+    if map.map then
+        for y = 1, map.map.height do
+            for x = 1, map.map.width do
+                map.map:setTile(x, y, 0)
+            end
+        end
+    end
+    
+    current_map_id = nil
+end
+
+-- Get current map ID
+function mapSystemMod.getCurrentMapId()
+    return current_map_id
+end
+
+-- Get list of available maps
+function mapSystemMod.getAvailableMaps()
+    local map_list = {}
+    for map_id, _ in pairs(available_maps) do
+        table.insert(map_list, map_id)
+    end
+    return map_list
+end
 
 -- Initialize object pool
 local function initPool(poolName, createFunc, resetFunc)
@@ -122,55 +498,6 @@ function newTiles(tilesetImage, tileWidth, tileHeight, api)
     return tiles
 end
 
--- Enhanced tile system with metadata
-function map.newTilesetAdvanced(config)
-    local tileset = {
-        image = config.image,
-        tileWidth = config.tileWidth,
-        tileHeight = config.tileHeight,
-        quads = {},
-        metadata = {},
-        animations = {},
-    }
-
-    local tilesWide = math.floor(tileset.image:getWidth() / tileset.tileWidth)
-    local tilesHigh = math.floor(tileset.image:getHeight() / tileset.tileHeight)
-
-    local tileId = 0
-    for y = 0, tilesHigh - 1 do
-        for x = 0, tilesWide - 1 do
-            tileId = tileId + 1
-            tileset.quads[tileId] = api.renderer.createQuad(
-                x * tileset.tileWidth,
-                y * tileset.tileHeight,
-                tileset.tileWidth,
-                tileset.tileHeight,
-                tileset.image:getDimensions()
-            )
-
-            tileset.metadata[tileId] = config.metadata and config.metadata[tileId] or {
-                walkable = true,
-                transparent = true,
-                friction = 1.0,
-                tags = {},
-            }
-        end
-    end
-
-    if config.animations then
-        for animName, animData in pairs(config.animations) do
-            tileset.animations[animName] = {
-                frames = animData.frames,
-                duration = animData.duration,
-                currentFrame = 1,
-                timer = 0,
-            }
-        end
-    end
-
-    return tileset
-end
-
 -- Create basic map
 function createMap(tiles, mapWidth, mapHeight, tileData)
     local mapData = {}
@@ -188,24 +515,6 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         end
     end
     
-    mapData.draw = function(self, x, y, scale)
-        x = x or 0
-        y = y or 0
-        scale = scale or 1
-        local max_tiles_x = math.ceil(mod_config.game_width / (self.tiles.tileWidth * scale)) + 200
-        local max_tiles_y = math.ceil(mod_config.game_height / (self.tiles.tileHeight * scale))
-        for row = 1, max_tiles_y do
-            for col = 1, max_tiles_x do
-                local tileId = self.tileData[row] and self.tileData[row][col]
-                if tileId and tileId > 0 and self.tiles.quads[tileId] then
-                    -- Note: This draw function is for legacy compatibility
-                    -- In practice, the mod should use api.renderer.addToQueue
-                    -- This function might be called from legacy code
-                end
-            end
-        end
-    end
-    
     mapData.setTile = function(self, x, y, tileId)
         if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
             self.tileData[y][x] = tileId
@@ -219,63 +528,6 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         return 0
     end
     return mapData
-end
-
--- Enhanced map creation with layers and chunks
-function map.createAdvancedMap(config, api)
-    local advancedMap = {
-        tilesets = config.tilesets or {},
-        width = config.width,
-        height = config.height,
-        tileWidth = config.tileWidth,
-        tileHeight = config.tileHeight,
-        layers = {},
-        chunks = {},
-        camera = config.camera,
-    }
-
-    for i, layerConfig in ipairs(config.layers or {{name = "default"}}) do
-        advancedMap.layers[i] = {
-            name = layerConfig.name,
-            visible = layerConfig.visible ~= false,
-            opacity = layerConfig.opacity or 1.0,
-            tilesetIndex = layerConfig.tilesetIndex or 1,
-            data = {},
-        }
-    end
-
-    advancedMap.setTile = function(self, x, y, tileId, layer)
-        layer = layer or 1
-        local cx, cy = worldToChunk(x * self.tileWidth, y * self.tileHeight, self.tileWidth)
-        local chunkKey = getChunkKey(cx, cy)
-
-        if not self.chunks[chunkKey] then
-            self.chunks[chunkKey] = createChunk(cx, cy)
-        end
-
-        local chunk = self.chunks[chunkKey]
-        local localX = ((x - 1) % MAP_CONFIG.CHUNK_SIZE) + 1
-        local localY = ((y - 1) % MAP_CONFIG.CHUNK_SIZE) + 1
-
-        chunk.tiles[localY][localX][layer] = tileId
-        chunk.dirty = true
-    end
-
-    advancedMap.getTile = function(self, x, y, layer)
-        layer = layer or 1
-        local cx, cy = worldToChunk(x * self.tileWidth, y * self.tileHeight, self.tileWidth)
-        local chunkKey = getChunkKey(cx, cy)
-
-        local chunk = self.chunks[chunkKey]
-        if not chunk then return 0 end
-
-        local localX = ((x - 1) % MAP_CONFIG.CHUNK_SIZE) + 1
-        local localY = ((y - 1) % MAP_CONFIG.CHUNK_SIZE) + 1
-
-        return chunk.tiles[localY][localX][layer] or 0
-    end
-
-    return advancedMap
 end
 
 -- Enhanced object system with components using mod API
@@ -522,12 +774,6 @@ function map.load(api)
     if tilesetImage then
         map.tiles = newTiles(tilesetImage, mod_config.tile_w, mod_config.tile_h, api)
         map.map = createMap(map.tiles, mod_config.map_display_w, mod_config.map_display_h)
-        
-        for x = 1, 70 do 
-            for y = 1, 50 do
-                map.map:setTile(x, y, math.random(1,200))
-            end
-        end
     end
 
     -- Load arch tileset using API
@@ -626,7 +872,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                 end
             end
         end
-    elseif mapData.draw then
+    elseif mapData and mapData.tileData then
         local max_tiles_x = math.ceil(mod_config.game_width / (mapData.tiles.tileWidth * map_scale))
         local max_tiles_y = math.ceil(mod_config.game_height / (mapData.tiles.tileHeight * map_scale))
 
@@ -661,7 +907,9 @@ end
 
 -- Create serializable map data for saving
 function map.createSaveData()
-    local map_data = {}
+    local map_data = {
+        current_map_id = current_map_id
+    }
     
     if map.map and map.map.tileData then
         map_data.base_tiles = {
@@ -698,11 +946,15 @@ function map.createSaveData()
         }
     end
     
+    map_data.spawns = map.spawns
+    
     return map_data
 end
 
 function map.createSaveDataSmall()
-    local map_data = {}
+    local map_data = {
+        current_map_id = current_map_id
+    }
     
     map_data.arches = {}
     for i, arch in ipairs(map.archInstances) do
@@ -733,6 +985,13 @@ function map.restore(map_data, api)
         return true
     end
     
+    -- Restore current map
+    if map_data.current_map_id then
+        mapSystemMod.loadMap(map_data.current_map_id)
+        return true
+    end
+    
+    -- Legacy restore for old save format
     if map_data.base_tiles and map.map then
         if map.map.width ~= map_data.base_tiles.width or map.map.height ~= map_data.base_tiles.height then
             map.map.width = map_data.base_tiles.width
@@ -777,6 +1036,10 @@ function map.restore(map_data, api)
         end
     end
     
+    if map_data.spawns then
+        map.spawns = map_data.spawns
+    end
+    
     return true
 end
 
@@ -801,6 +1064,7 @@ end
 -- Get summary of current map state
 function map.getSummary()
     return {
+        current_map = current_map_id,
         arch_count = #map.archInstances,
         tree_count = #map.treeInstances,
         dynamic_object_count = #map.dynamicObjects,
@@ -828,11 +1092,19 @@ function map.resetPerformanceStats()
 end
 
 -- Initialize the mod
-function mapSystemMod.init(api)
-    print("Initializing Map System Mod v1.0.0")
+function mapSystemMod.init(api_ref)
+    print("[MAP_SYSTEM] === STARTING INITIALIZATION ===")
+    print("Initializing Map System Mod v2.0.0")
     
     -- Store API reference
-    mapSystemMod.api = api
+    api = api_ref
+    mapSystemMod.api = api_ref
+    
+    -- Debug: Check if API is valid
+    if not api then
+        print("[MAP_SYSTEM] ERROR: No API provided!")
+        return
+    end
     
     -- Load configuration from var system (fallback values)
     mod_config = {
@@ -877,6 +1149,75 @@ function mapSystemMod.init(api)
     -- Load map assets
     map.load(api)
     
+    -- Scan for available maps
+    mapSystemMod.scanForMaps()
+    
+    -- Since mods are sandboxed, we can't create globals
+    -- Users will need to access through modSystem
+    print("[MAP_SYSTEM] Console commands available through modSystem!")
+    
+    -- Debug: Check if our exports are properly set
+    print("[MAP_SYSTEM] Exports defined: " .. tostring(mapSystemMod.exports ~= nil))
+    
+    -- Register simple key handler for quick access
+    api.input.registerKeyHandler("m", function()
+        print("[MAP_SYSTEM] M key pressed! Toggling map selector...")
+        show_map_selector = not show_map_selector
+        if show_map_selector then
+            local maps = mapSystemMod.getAvailableMaps()
+            if #maps == 0 then
+                print("[MAP_SYSTEM] No maps found! Create a .lua file in mods/map_system/maps/")
+                show_map_selector = false
+            else
+                selected_map_index = 1
+                -- Find current map index
+                for i, map_id in ipairs(maps) do
+                    if map_id == current_map_id then
+                        selected_map_index = i
+                        break
+                    end
+                end
+            end
+        end
+    end)
+    
+    -- Register arrow key handlers for map selection
+    api.input.registerKeyHandler("up", function()
+        if show_map_selector then
+            local maps = mapSystemMod.getAvailableMaps()
+            selected_map_index = selected_map_index - 1
+            if selected_map_index < 1 then
+                selected_map_index = #maps
+            end
+        end
+    end)
+    
+    api.input.registerKeyHandler("down", function()
+        if show_map_selector then
+            local maps = mapSystemMod.getAvailableMaps()
+            selected_map_index = selected_map_index + 1
+            if selected_map_index > #maps then
+                selected_map_index = 1
+            end
+        end
+    end)
+    
+    api.input.registerKeyHandler("return", function()
+        if show_map_selector then
+            local maps = mapSystemMod.getAvailableMaps()
+            if maps[selected_map_index] then
+                mapSystemMod.loadMap(maps[selected_map_index])
+                show_map_selector = false
+            end
+        end
+    end)
+    
+    api.input.registerKeyHandler("escape", function()
+        if show_map_selector then
+            show_map_selector = false
+        end
+    end)
+    
     -- Register input handlers for testing
     api.input.registerKeyHandler("p", function()
         local player_x, player_y = api.game.getPlayerPosition()
@@ -895,10 +1236,19 @@ function mapSystemMod.init(api)
         api.network.registerMessageHandler("map_system", mapSystemMod.handleNetworkMessage)
     end
     
-    print("[MAP_SYSTEM] Initialization complete! Press 'P' for arch, 'O' for tree")
+    -- Don't auto-load any map - let user choose
+    local maps = mapSystemMod.getAvailableMaps()
+    print("[MAP_SYSTEM] Found " .. #maps .. " maps: " .. table.concat(maps, ", "))
     
-    -- Export functions through mod API instead of global namespace
-    -- _G.map = map (removed - not allowed in sandbox)
+    print("[MAP_SYSTEM] Initialization complete!")
+    print("[MAP_SYSTEM] Press 'M' to toggle map selector UI")
+    print("[MAP_SYSTEM] === CONSOLE COMMANDS ===")
+    print("[MAP_SYSTEM] Press ',' to open console, then:")
+    print("[MAP_SYSTEM] 1. Get the map system: ms = modSystem.getLoadedMod('map_system').instance.exports")
+    print("[MAP_SYSTEM] 2. Use commands:")
+    print("[MAP_SYSTEM]    ms.list() - Show available maps")
+    print("[MAP_SYSTEM]    ms.load(\"starter\") - Load a map")
+    print("[MAP_SYSTEM]    ms.help() - Show all commands")
 end
 
 -- Update map system
@@ -931,6 +1281,51 @@ function mapSystemMod.update(dt)
     end
 end
 
+-- Draw map selector UI
+function mapSystemMod.draw()
+    if not show_map_selector then return end
+    
+    local maps = mapSystemMod.getAvailableMaps()
+    if #maps == 0 then return end
+    
+    -- Draw semi-transparent background
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", 100, 100, 600, 400)
+    
+    -- Draw title
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setFont(love.graphics.newFont(24))
+    love.graphics.printf("MAP SELECTOR", 100, 120, 600, "center")
+    
+    -- Draw instructions
+    love.graphics.setFont(love.graphics.newFont(14))
+    love.graphics.printf("Use UP/DOWN to select, ENTER to load, ESC to cancel", 100, 160, 600, "center")
+    
+    -- Draw map list
+    love.graphics.setFont(love.graphics.newFont(18))
+    local y = 200
+    for i, map_id in ipairs(maps) do
+        if i == selected_map_index then
+            love.graphics.setColor(1, 1, 0, 1) -- Yellow for selected
+            love.graphics.printf("> " .. map_id .. " <", 100, y, 600, "center")
+        else
+            love.graphics.setColor(1, 1, 1, 1) -- White for others
+            love.graphics.printf(map_id, 100, y, 600, "center")
+        end
+        
+        -- Show current map indicator
+        if map_id == current_map_id then
+            love.graphics.setColor(0, 1, 0, 1) -- Green
+            love.graphics.printf("(current)", 500, y, 100, "left")
+        end
+        
+        y = y + 30
+    end
+    
+    -- Reset color
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 -- Handle network messages
 function mapSystemMod.handleNetworkMessage(data)
     local api = mapSystemMod.api
@@ -941,6 +1336,8 @@ function mapSystemMod.handleNetworkMessage(data)
         map.createTree(data.x, data.y, api)
     elseif data.action == "sync_map_data" then
         map.restore(data.map_data, api)
+    elseif data.action == "load_map" then
+        mapSystemMod.loadMap(data.map_id)
     end
 end
 
@@ -951,6 +1348,7 @@ end
 
 -- Cleanup
 function mapSystemMod.cleanup()
+    mapSystemMod.unloadCurrentMap()
     map.clearDynamicObjects()
     print("[MAP_SYSTEM] Cleanup complete")
 end
@@ -965,5 +1363,72 @@ mapSystemMod.createSaveData = map.createSaveData
 mapSystemMod.createSaveDataSmall = map.createSaveDataSmall
 mapSystemMod.restore = function(data) return map.restore(data, mapSystemMod.api) end
 mapSystemMod.addMapToDynamicDrawList = function(...) return map.addMapToDynamicDrawList(..., mapSystemMod.api) end
+
+-- Export map management functions
+mapSystemMod.exports = {
+    loadMap = mapSystemMod.loadMap,
+    unloadCurrentMap = mapSystemMod.unloadCurrentMap,
+    getCurrentMapId = mapSystemMod.getCurrentMapId,
+    getAvailableMaps = mapSystemMod.getAvailableMaps,
+    scanForMaps = mapSystemMod.scanForMaps,
+    -- Export the maps API
+    list = function()
+        local map_list = mapSystemMod.getAvailableMaps()
+        if #map_list > 0 then
+            print("=== Available Maps ===")
+            for _, map_id in ipairs(map_list) do
+                local status = map_id == current_map_id and " (current)" or ""
+                print("  " .. map_id .. status)
+            end
+            print("Use modSystem.getLoadedMod('map_system').exports.load(\"map_id\") to load")
+        else
+            print("No maps found! Create .lua files in mods/map_system/maps/")
+        end
+        return map_list
+    end,
+    load = function(map_id)
+        if not map_id then
+            print("Usage: load(\"map_id\")")
+            return false
+        end
+        if mapSystemMod.loadMap(map_id) then
+            print("Loaded map: " .. map_id)
+            return true
+        else
+            print("Failed to load map: " .. map_id)
+            return false
+        end
+    end,
+    reload = function()
+        if current_map_id then
+            mapSystemMod.loadMap(current_map_id)
+            print("Reloaded map: " .. current_map_id)
+            return true
+        else
+            print("No map currently loaded")
+            return false
+        end
+    end,
+    current = function()
+        if current_map_id then
+            print("Current map: " .. current_map_id)
+            return current_map_id
+        else
+            print("No map currently loaded")
+            return nil
+        end
+    end,
+    help = function()
+        print("=== Map System Commands ===")
+        print("Get the map system first: ms = modSystem.getLoadedMod('map_system').instance.exports")
+        print("ms.list() - Show all available maps")
+        print("ms.load(\"map_id\") - Load a specific map")
+        print("ms.reload() - Reload the current map")
+        print("ms.current() - Show the current map")
+    end
+}
+
+-- Make map selector available
+mapSystemMod.show_map_selector = show_map_selector
 
 return mapSystemMod
