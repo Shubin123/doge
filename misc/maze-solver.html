@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dijkstra's Maze Solver</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .generate-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+        }
+
+        .solve-btn {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+
+        .clear-btn {
+            background: linear-gradient(45deg, #feca57, #ff9ff3);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .maze-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .maze {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .cell {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .cell:hover {
+            transform: scale(1.1);
+        }
+
+        .wall { background-color: #2c3e50; }
+        .path { background-color: #ecf0f1; }
+        .start { background-color: #27ae60; animation: pulse 1.5s infinite; }
+        .end { background-color: #e74c3c; animation: pulse 1.5s infinite; }
+        .visited { background-color: #f39c12; }
+        .solution { background-color: #9b59b6; animation: glow 1s ease-in-out infinite alternate; }
+        .current { background-color: #3498db; animation: spin 1s linear infinite; }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        @keyframes glow {
+            from { box-shadow: 0 0 5px #9b59b6; }
+            to { box-shadow: 0 0 20px #9b59b6, 0 0 30px #9b59b6; }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .instructions {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 15px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #feca57;
+        }
+
+        .row {
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Dijkstra's Maze Solver</h1>
+        
+        <div class="controls">
+            <button class="generate-btn" onclick="generateMaze()">Generate Maze</button>
+            <button class="solve-btn" onclick="solveMaze()" id="solveBtn" disabled>Solve Maze</button>
+            <button class="clear-btn" onclick="clearPath()">Clear Path</button>
+        </div>
+
+        <div class="maze-container">
+            <div id="maze" class="maze"></div>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="visitedCount">0</div>
+                <div>Cells Visited</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="pathLength">0</div>
+                <div>Path Length</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="timeElapsed">0</div>
+                <div>Time (ms)</div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <p><strong>Instructions:</strong></p>
+            <p>🟢 <strong>Green:</strong> Start point | 🔴 <strong>Red:</strong> End point | ⚫ <strong>Black:</strong> Walls | ⚪ <strong>White:</strong> Paths</p>
+            <p>🟠 <strong>Orange:</strong> Visited cells | 🟣 <strong>Purple:</strong> Final solution path | 🔵 <strong>Blue:</strong> Current cell being explored</p>
+            <p>Click on cells to toggle between wall and path. Click "Generate Maze" for a random maze, then "Solve Maze" to watch Dijkstra's algorithm in action!</p>
+        </div>
+    </div>
+
+    <script>
+        const ROWS = 25;
+        const COLS = 35;
+        let maze = [];
+        let startPos = null;
+        let endPos = null;
+        let isGenerating = false;
+        let isSolving = false;
+
+        // Initialize maze
+        function initMaze() {
+            maze = [];
+            for (let i = 0; i < ROWS; i++) {
+                maze[i] = [];
+                for (let j = 0; j < COLS; j++) {
+                    maze[i][j] = Math.random() < 0.3 ? 1 : 0; // 30% walls
+                }
+            }
+            
+            // Set default start and end positions
+            startPos = {row: 1, col: 1};
+            endPos = {row: ROWS-2, col: COLS-2};
+            maze[startPos.row][startPos.col] = 0;
+            maze[endPos.row][endPos.col] = 0;
+            
+            renderMaze();
+            document.getElementById('solveBtn').disabled = false;
+        }
+
+        // Render maze to DOM
+        function renderMaze() {
+            const mazeDiv = document.getElementById('maze');
+            mazeDiv.innerHTML = '';
+            
+            for (let i = 0; i < ROWS; i++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'row';
+                
+                for (let j = 0; j < COLS; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    
+                    if (startPos && i === startPos.row && j === startPos.col) {
+                        cell.classList.add('start');
+                    } else if (endPos && i === endPos.row && j === endPos.col) {
+                        cell.classList.add('end');
+                    } else if (maze[i][j] === 1) {
+                        cell.classList.add('wall');
+                    } else {
+                        cell.classList.add('path');
+                    }
+                    
+                    cell.addEventListener('click', () => toggleCell(i, j));
+                    rowDiv.appendChild(cell);
+                }
+                
+                mazeDiv.appendChild(rowDiv);
+            }
+        }
+
+        // Toggle cell between wall and path
+        function toggleCell(row, col) {
+            if (isSolving || isGenerating) return;
+            
+            // Don't allow toggling start or end positions
+            if ((startPos && row === startPos.row && col === startPos.col) ||
+                (endPos && row === endPos.row && col === endPos.col)) {
+                return;
+            }
+            
+            maze[row][col] = maze[row][col] === 1 ? 0 : 1;
+            renderMaze();
+        }
+
+        // Generate random maze using recursive backtracking
+        function generateMaze() {
+            if (isSolving) return;
+            
+            isGenerating = true;
+            document.getElementById('solveBtn').disabled = true;
+            
+            // Initialize with all walls
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    maze[i][j] = 1;
+                }
+            }
+            
+            // Recursive backtracking maze generation
+            const stack = [];
+            const visited = new Set();
+            
+            function getNeighbors(row, col) {
+                const neighbors = [];
+                const directions = [[-2, 0], [2, 0], [0, -2], [0, 2]];
+                
+                for (const [dr, dc] of directions) {
+                    const newRow = row + dr;
+                    const newCol = col + dc;
+                    
+                    if (newRow >= 0 && newRow < ROWS && newCol >= 0 && newCol < COLS &&
+                        !visited.has(`${newRow},${newCol}`)) {
+                        neighbors.push([newRow, newCol]);
+                    }
+                }
+                
+                return neighbors;
+            }
+            
+            // Start from random position
+            let currentRow = 1;
+            let currentCol = 1;
+            maze[currentRow][currentCol] = 0;
+            visited.add(`${currentRow},${currentCol}`);
+            stack.push([currentRow, currentCol]);
+            
+            function step() {
+                if (stack.length === 0) {
+                    // Ensure start and end are paths
+                    startPos = {row: 1, col: 1};
+                    endPos = {row: ROWS-2, col: COLS-2};
+                    maze[startPos.row][startPos.col] = 0;
+                    maze[endPos.row][endPos.col] = 0;
+                    
+                    // Create some additional paths to make maze solvable
+                    for (let i = 1; i < ROWS-1; i += 2) {
+                        for (let j = 1; j < COLS-1; j += 2) {
+                            if (Math.random() < 0.1) {
+                                maze[i][j] = 0;
+                            }
+                        }
+                    }
+                    
+                    renderMaze();
+                    isGenerating = false;
+                    document.getElementById('solveBtn').disabled = false;
+                    return;
+                }
+                
+                const [row, col] = stack[stack.length - 1];
+                const neighbors = getNeighbors(row, col);
+                
+                if (neighbors.length > 0) {
+                    const [nextRow, nextCol] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    
+                    // Remove wall between current and next cell
+                    const wallRow = row + (nextRow - row) / 2;
+                    const wallCol = col + (nextCol - col) / 2;
+                    
+                    maze[nextRow][nextCol] = 0;
+                    maze[wallRow][wallCol] = 0;
+                    
+                    visited.add(`${nextRow},${nextCol}`);
+                    stack.push([nextRow, nextCol]);
+                } else {
+                    stack.pop();
+                }
+                
+                renderMaze();
+                setTimeout(step, 10);
+            }
+            
+            step();
+        }
+
+        // Dijkstra's algorithm implementation
+        async function solveMaze() {
+            if (!startPos || !endPos || isSolving || isGenerating) return;
+            
+            isSolving = true;
+            document.getElementById('solveBtn').disabled = true;
+            clearPath();
+            
+            const startTime = Date.now();
+            let visitedCount = 0;
+            
+            // Priority queue implementation
+            class PriorityQueue {
+                constructor() {
+                    this.elements = [];
+                }
+                
+                enqueue(element, priority) {
+                    this.elements.push({element, priority});
+                    this.elements.sort((a, b) => a.priority - b.priority);
+                }
+                
+                dequeue() {
+                    return this.elements.shift()?.element;
+                }
+                
+                isEmpty() {
+                    return this.elements.length === 0;
+                }
+            }
+            
+            const distances = {};
+            const previous = {};
+            const visited = new Set();
+            const pq = new PriorityQueue();
+            
+            // Initialize distances
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    const key = `${i},${j}`;
+                    distances[key] = Infinity;
+                }
+            }
+            
+            const startKey = `${startPos.row},${startPos.col}`;
+            const endKey = `${endPos.row},${endPos.col}`;
+            distances[startKey] = 0;
+            pq.enqueue(startKey, 0);
+            
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+            
+            while (!pq.isEmpty()) {
+                const currentKey = pq.dequeue();
+                if (!currentKey || visited.has(currentKey)) continue;
+                
+                visited.add(currentKey);
+                const [currentRow, currentCol] = currentKey.split(',').map(Number);
+                
+                // Visual feedback
+                if (currentKey !== startKey && currentKey !== endKey) {
+                    const cell = document.querySelector(`[data-row="${currentRow}"][data-col="${currentCol}"]`);
+                    if (cell) {
+                        cell.classList.remove('path');
+                        cell.classList.add('current');
+                    }
+                    visitedCount++;
+                    document.getElementById('visitedCount').textContent = visitedCount;
+                }
+                
+                // Found the end
+                if (currentKey === endKey) {
+                    break;
+                }
+                
+                // Check all neighbors
+                for (const [dr, dc] of directions) {
+                    const newRow = currentRow + dr;
+                    const newCol = currentCol + dc;
+                    const neighborKey = `${newRow},${newCol}`;
+                    
+                    if (newRow >= 0 && newRow < ROWS && newCol >= 0 && newCol < COLS &&
+                        maze[newRow][newCol] === 0 && !visited.has(neighborKey)) {
+                        
+                        const newDistance = distances[currentKey] + 1;
+                        
+                        if (newDistance < distances[neighborKey]) {
+                            distances[neighborKey] = newDistance;
+                            previous[neighborKey] = currentKey;
+                            pq.enqueue(neighborKey, newDistance);
+                        }
+                    }
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            
+            // Mark visited cells
+            for (const key of visited) {
+                const [row, col] = key.split(',').map(Number);
+                if (key !== startKey && key !== endKey) {
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (cell) {
+                        cell.classList.remove('current');
+                        cell.classList.add('visited');
+                    }
+                }
+            }
+            
+            // Reconstruct and highlight path
+            const path = [];
+            let current = endKey;
+            
+            while (current && previous[current]) {
+                path.unshift(current);
+                current = previous[current];
+            }
+            
+            if (current === startKey) {
+                path.unshift(startKey);
+                
+                // Animate solution path
+                for (let i = 0; i < path.length; i++) {
+                    const [row, col] = path[i].split(',').map(Number);
+                    if (path[i] !== startKey && path[i] !== endKey) {
+                        setTimeout(() => {
+                            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                            if (cell) {
+                                cell.classList.remove('visited');
+                                cell.classList.add('solution');
+                            }
+                        }, i * 50);
+                    }
+                }
+                
+                document.getElementById('pathLength').textContent = path.length - 1;
+            } else {
+                alert('No path found!');
+            }
+            
+            const endTime = Date.now();
+            document.getElementById('timeElapsed').textContent = endTime - startTime;
+            
+            isSolving = false;
+            document.getElementById('solveBtn').disabled = false;
+        }
+
+        // Clear solution path
+        function clearPath() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.classList.remove('visited', 'solution', 'current');
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                
+                if (startPos && row === startPos.row && col === startPos.col) {
+                    cell.className = 'cell start';
+                } else if (endPos && row === endPos.row && col === endPos.col) {
+                    cell.className = 'cell end';
+                } else if (maze[row][col] === 1) {
+                    cell.className = 'cell wall';
+                } else {
+                    cell.className = 'cell path';
+                }
+            });
+            
+            document.getElementById('visitedCount').textContent = '0';
+            document.getElementById('pathLength').textContent = '0';
+            document.getElementById('timeElapsed').textContent = '0';
+        }
+
+        // Initialize on page load
+        initMaze();
+    </script>
+</body>
+</html>

@@ -13,6 +13,7 @@ local accumulated_game_state = {
     trees = {},
     map_data = {},
     bosses = {},  -- Add boss tracking
+    cars = {},    -- Add car tracking
     accumulated_fires = {}, -- Track fire effects from all clients
     accumulated_bullets = {},
     accumulated_rockets = {},
@@ -38,7 +39,8 @@ function snapshot.create()
             arches = {},
             trees = {},
             map_data = {},
-            bosses = {}  -- Add boss data
+            bosses = {},  -- Add boss data
+            cars = {}     -- Add car data
         }
         
         -- Add host's player data
@@ -71,6 +73,11 @@ function snapshot.create()
         -- Collect boss data
         if boss then
             game_state.bosses = boss.getNetworkData()
+        end
+        
+        -- Collect car data
+        if car then
+            game_state.cars = car.getNetworkData()
         end
         
         -- Collect coin data from physics bodies
@@ -315,6 +322,10 @@ function snapshot.apply(game_state)
         
         if game_state.coins then
             renderer.setNetworkedCoins(game_state.coins)
+        end
+        
+        if game_state.cars then
+            renderer.setNetworkedCars(game_state.cars)
         end
 
         if game_state.map_data then

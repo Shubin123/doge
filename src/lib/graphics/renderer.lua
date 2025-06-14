@@ -11,7 +11,8 @@ renderer.networked_state = {
     bullets = {},
     rockets = {},
     command_blocks = {},
-    bosses = {}        -- { boss_id = { x, y, health, state, ... } }
+    bosses = {},       -- { boss_id = { x, y, health, state, ... } }
+    cars = {}          -- { car_id = { x, y, vx, vy, inUse, ... } }
 }
 
 -- Local player state (for smooth interpolation/prediction)
@@ -101,6 +102,10 @@ end
 
 function renderer.setNetworkedCommandBlocks(command_block_data)
     renderer.networked_state.command_blocks = command_block_data or {}
+end
+
+function renderer.setNetworkedCars(car_data)
+    renderer.networked_state.cars = car_data or {}
 end
 
 -- Update local player state (for host/single player)
@@ -393,6 +398,28 @@ local function addNetworkedEntities()
                 end
             end
         end
+    end
+    
+    -- Networked cars
+    for car_id, car_data in pairs(renderer.networked_state.cars) do
+        local cx, cy = car_data.x, car_data.y
+        local spriteNum = car and car.getSpriteForHeading and car.getSpriteForHeading(car_data.vx, car_data.vy) or 1
+        table.insert(dynamic_draw_list, {
+            sort_y = cy + 130, -- Adjust sorting position as needed
+            image_or_particles = car and car.spriteSheet or nil,
+            quad = car and car.animationTemplate and car.animationTemplate.quads and car.animationTemplate.quads[spriteNum] or nil,
+            x = cx,
+            y = cy,
+            rotation = 0,
+            scale_x = car and car.scale or 1,
+            scale_y = car and car.scale or 1,
+            offset_x = car and car.width and car.width / 10 or 0, -- Center the sprite
+            offset_y = car and car.height and (car.height / (456 / 5)) / 2 or 0,
+            color = { 1, 1, 1, 1 },
+            blend_mode = { "alpha" },
+            source_object_type = "networked_car",
+            car_id = car_id
+        })
     end
     
     -- Networked bosses

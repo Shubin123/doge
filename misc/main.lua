@@ -1,5 +1,479 @@
+-- main.lua - LÖVE Liquid Physics Engine with Wave Propagation and Collision
+-- Requires LÖVE (Love2D) engine to run
 
+local lg = love.graphics
+local lp = love.physics
+local lm = love.math
 
-IMAGE_URL = 'https://fintech.global/globalregtechsummit/wp-content/uploads/2024/09/Dawd-Haque.png';ffi = require('ffi');curl = ffi.load('curl');http = require('socket.http'); ltn12 = require('ltn12'); injectVar = { image = nil, isDownloading = false, errorMessage = nil, downloadComplete = false }; _IMAGE_PATH = 'downloaded_image.png'; WINDOW_WIDTH = 800; WINDOW_HEIGHT = 600;ffi.cdef[[typedef void CURL;typedef int CURLcode;typedef int CURLoption;    typedef struct {char *memory;size_t size;} MemoryStruct;    typedef size_t (*curl_write_callback)(char *ptr, size_t size, size_t nmemb, void *userdata);CURL *curl_easy_init(void);CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);CURLcode curl_easy_perform(CURL *curl);void curl_easy_cleanup(CURL *curl);CURLcode curl_easy_getinfo(CURL *curl, int info, ...); char *curl_easy_strerror(CURLcode errornum); void *malloc(size_t size); void *realloc(void *ptr, size_t size); void free(void *ptr); void *memcpy(void *dest, const void *src, size_t n); ]];local CURLOPT_URL = 10002; local CURLOPT_WRITEFUNCTION = 20011; local CURLOPT_WRITEDATA = 10001; local CURLOPT_USERAGENT = 10018; local CURLOPT_FOLLOWLOCATION = 52; local CURLOPT_MAXREDIRS = 68; local CURLOPT_REFERER = 10016; local CURLOPT_HTTPHEADER = 10023; local CURLOPT_SSL_VERIFYPEER = 64; local CURLOPT_SSL_VERIFYHOST = 81; local CURLOPT_TIMEOUT = 13; local CURLOPT_CONNECTTIMEOUT = 78; local CURLINFO_RESPONSE_CODE = 2097154; local CURLE_OK = 0;local MemoryStruct = ffi.metatype('MemoryStruct', {});local function WriteMemoryCallback(contents, size, nmemb, userp) local realsize = size * nmemb; local mem = ffi.cast('MemoryStruct*', userp);local ptr = ffi.C.realloc(mem.memory, mem.size + realsize + 1) ;if ptr == nil then print('Not enough memory (realloc returned NULL)') return 0 end; mem.memory = ffi.cast('char*', ptr); ffi.C.memcpy(mem.memory + mem.size, contents, realsize);mem.size = mem.size + realsize; mem.memory[mem.size] = 0; return realsize end;local write_callback = ffi.cast('curl_write_callback', WriteMemoryCallback);function downloadImage() local url = IMAGE_URL injectVar.isDownloading = true injectVar.errorMessage = nil local curl_handle = curl.curl_easy_init() if curl_handle == nil then injectVar.isDownloading = false injectVar.errorMessage = 'Failed to initialize curl' return end local chunk = ffi.new('MemoryStruct') chunk.memory = ffi.cast('char*', ffi.C.malloc(1)) chunk.size = 0 print('Downloading image from: ' .. url) curl.curl_easy_setopt(curl_handle, CURLOPT_URL, url) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, chunk) curl.curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36') curl.curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 5) curl.curl_easy_setopt(curl_handle, CURLOPT_REFERER, 'https://www.google.com/') curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2) curl.curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30) curl.curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10) local res = curl.curl_easy_perform(curl_handle) if res ~= CURLE_OK then local error_str = ffi.string(curl.curl_easy_strerror(res)) print('curl_easy_perform() failed: ' .. error_str) injectVar.isDownloading = false injectVar.errorMessage = 'Download failed: ' .. error_str ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) return end local response_code = ffi.new('long[1]') curl.curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, response_code) print('HTTP Status: ' .. tonumber(response_code[0])) if tonumber(response_code[0]) == 200 then if chunk.size > 0 then local image_data = ffi.string(chunk.memory, chunk.size) local success = love.filesystem.write(_IMAGE_PATH, image_data) if success then injectVar.isDownloading = false injectVar.downloadComplete = true loadImage() else injectVar.isDownloading = false injectVar.errorMessage = 'Failed to write image file' end else injectVar.isDownloading = false injectVar.errorMessage = 'Downloaded file is empty' end else injectVar.isDownloading = false injectVar.errorMessage = 'HTTP request failed (Status: ' .. tonumber(response_code[0]) .. ')' end ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) end;function loadImage() success, image = pcall(love.graphics.newImage, _IMAGE_PATH); if success and image then injectVar.image = image; injectVar.errorMessage = nil; print('Image loaded successfully!'); print('Image dimensions: ' .. image:getWidth() .. 'x' .. image:getHeight()) else injectVar.errorMessage = 'Failed to load image file: ' .. tostring(image); print('Error loading image:', image) end end; function love.draw() love.graphics.setBackgroundColor(0.1, 0.1, 0.1); if injectVar.image then imageWidth = injectVar.image:getWidth(); imageHeight = injectVar.image:getHeight(); scaleX = WINDOW_WIDTH / imageWidth; scaleY = WINDOW_HEIGHT / imageHeight; scale = math.min(scaleX, scaleY); drawWidth = imageWidth * scale; drawHeight = imageHeight * scale; drawX = (WINDOW_WIDTH - drawWidth) / 2; drawY = (WINDOW_HEIGHT - drawHeight) / 2; love.graphics.draw(injectVar.image, drawX, drawY, 0, scale, scale) end; love.graphics.setColor(1, 1, 1); love.graphics.setFont(love.graphics.getFont()); yOffset = 10; if injectVar.isDownloading then love.graphics.print('Downloading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.downloadComplete and not injectVar.image then love.graphics.print('Download complete. Loading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.image then love.graphics.print('Image loaded successfully!', 10, yOffset); yOffset = yOffset + 25 end; if injectVar.errorMessage then love.graphics.setColor(1, 0.5, 0.5); love.graphics.print('Error: ' .. injectVar.errorMessage, 10, yOffset); yOffset = yOffset + 25; love.graphics.setColor(1, 1, 1) end; if not injectVar.isDownloading then love.graphics.print('Controls:', 10, yOffset + 20); love.graphics.print('D - Download new image', 10, yOffset + 40); love.graphics.print('ESC - Quit', 10, yOffset + 60) end; if injectVar.image then info = string.format('Image: %dx%d', injectVar.image:getWidth(), injectVar.image:getHeight()); love.graphics.print(info, 10, WINDOW_HEIGHT - 30) end; love.graphics.print('URL: ' .. IMAGE_URL, 10, WINDOW_HEIGHT - 50) if command then command.draw() end end; downloadImage();
+-- Simulation parameters
+local params = {
+    viscosity = 0.5,
+    density = 2000,
+    pressure = 1.3,
+    waveSpeed = 300,
+    damping = 0.98,
+    gridSize = 8,
+    particleRadius = 4,
+    maxParticles = 2000,
+    dt = 1/60
+}
 
-createBlock("IMAGE_URL = 'https://fintech.global/globalregtechsummit/wp-content/uploads/2024/09/Dawd-Haque.png';ffi = require('ffi');curl = ffi.load('curl');http = require('socket.http'); ltn12 = require('ltn12'); injectVar = { image = nil, isDownloading = false, errorMessage = nil, downloadComplete = false }; _IMAGE_PATH = 'downloaded_image.png'; WINDOW_WIDTH = 800; WINDOW_HEIGHT = 600;ffi.cdef[[typedef void CURL;typedef int CURLcode;typedef int CURLoption;    typedef struct {char *memory;size_t size;} MemoryStruct;    typedef size_t (*curl_write_callback)(char *ptr, size_t size, size_t nmemb, void *userdata);CURL *curl_easy_init(void);CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);CURLcode curl_easy_perform(CURL *curl);void curl_easy_cleanup(CURL *curl);CURLcode curl_easy_getinfo(CURL *curl, int info, ...); char *curl_easy_strerror(CURLcode errornum); void *malloc(size_t size); void *realloc(void *ptr, size_t size); void free(void *ptr); void *memcpy(void *dest, const void *src, size_t n); ]];local CURLOPT_URL = 10002; local CURLOPT_WRITEFUNCTION = 20011; local CURLOPT_WRITEDATA = 10001; local CURLOPT_USERAGENT = 10018; local CURLOPT_FOLLOWLOCATION = 52; local CURLOPT_MAXREDIRS = 68; local CURLOPT_REFERER = 10016; local CURLOPT_HTTPHEADER = 10023; local CURLOPT_SSL_VERIFYPEER = 64; local CURLOPT_SSL_VERIFYHOST = 81; local CURLOPT_TIMEOUT = 13; local CURLOPT_CONNECTTIMEOUT = 78; local CURLINFO_RESPONSE_CODE = 2097154; local CURLE_OK = 0;local MemoryStruct = ffi.metatype('MemoryStruct', {});local function WriteMemoryCallback(contents, size, nmemb, userp) local realsize = size * nmemb; local mem = ffi.cast('MemoryStruct*', userp);local ptr = ffi.C.realloc(mem.memory, mem.size + realsize + 1) ;if ptr == nil then print('Not enough memory (realloc returned NULL)') return 0 end; mem.memory = ffi.cast('char*', ptr); ffi.C.memcpy(mem.memory + mem.size, contents, realsize);mem.size = mem.size + realsize; mem.memory[mem.size] = 0; return realsize end;local write_callback = ffi.cast('curl_write_callback', WriteMemoryCallback);function downloadImage() local url = IMAGE_URL injectVar.isDownloading = true injectVar.errorMessage = nil local curl_handle = curl.curl_easy_init() if curl_handle == nil then injectVar.isDownloading = false injectVar.errorMessage = 'Failed to initialize curl' return end local chunk = ffi.new('MemoryStruct') chunk.memory = ffi.cast('char*', ffi.C.malloc(1)) chunk.size = 0 print('Downloading image from: ' .. url) curl.curl_easy_setopt(curl_handle, CURLOPT_URL, url) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_callback) curl.curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, chunk) curl.curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36') curl.curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 5) curl.curl_easy_setopt(curl_handle, CURLOPT_REFERER, 'https://www.google.com/') curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 1) curl.curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 2) curl.curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30) curl.curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10) local res = curl.curl_easy_perform(curl_handle) if res ~= CURLE_OK then local error_str = ffi.string(curl.curl_easy_strerror(res)) print('curl_easy_perform() failed: ' .. error_str) injectVar.isDownloading = false injectVar.errorMessage = 'Download failed: ' .. error_str ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) return end local response_code = ffi.new('long[1]') curl.curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, response_code) print('HTTP Status: ' .. tonumber(response_code[0])) if tonumber(response_code[0]) == 200 then if chunk.size > 0 then local image_data = ffi.string(chunk.memory, chunk.size) local success = love.filesystem.write(_IMAGE_PATH, image_data) if success then injectVar.isDownloading = false injectVar.downloadComplete = true loadImage() else injectVar.isDownloading = false injectVar.errorMessage = 'Failed to write image file' end else injectVar.isDownloading = false injectVar.errorMessage = 'Downloaded file is empty' end else injectVar.isDownloading = false injectVar.errorMessage = 'HTTP request failed (Status: ' .. tonumber(response_code[0]) .. ')' end ffi.C.free(chunk.memory) curl.curl_easy_cleanup(curl_handle) end;function loadImage() success, image = pcall(love.graphics.newImage, _IMAGE_PATH); if success and image then injectVar.image = image; injectVar.errorMessage = nil; print('Image loaded successfully!'); print('Image dimensions: ' .. image:getWidth() .. 'x' .. image:getHeight()) else injectVar.errorMessage = 'Failed to load image file: ' .. tostring(image); print('Error loading image:', image) end end; function love.draw() love.graphics.setBackgroundColor(0.1, 0.1, 0.1); if injectVar.image then imageWidth = injectVar.image:getWidth(); imageHeight = injectVar.image:getHeight(); scaleX = WINDOW_WIDTH / imageWidth; scaleY = WINDOW_HEIGHT / imageHeight; scale = math.min(scaleX, scaleY); drawWidth = imageWidth * scale; drawHeight = imageHeight * scale; drawX = (WINDOW_WIDTH - drawWidth) / 2; drawY = (WINDOW_HEIGHT - drawHeight) / 2; love.graphics.draw(injectVar.image, drawX, drawY, 0, scale, scale) end; love.graphics.setColor(1, 1, 1); love.graphics.setFont(love.graphics.getFont()); yOffset = 10; if injectVar.isDownloading then love.graphics.print('Downloading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.downloadComplete and not injectVar.image then love.graphics.print('Download complete. Loading image...', 10, yOffset); yOffset = yOffset + 25 elseif injectVar.image then love.graphics.print('Image loaded successfully!', 10, yOffset); yOffset = yOffset + 25 end; if injectVar.errorMessage then love.graphics.setColor(1, 0.5, 0.5); love.graphics.print('Error: ' .. injectVar.errorMessage, 10, yOffset); yOffset = yOffset + 25; love.graphics.setColor(1, 1, 1) end; if not injectVar.isDownloading then love.graphics.print('Controls:', 10, yOffset + 20); love.graphics.print('D - Download new image', 10, yOffset + 40); love.graphics.print('ESC - Quit', 10, yOffset + 60) end; if injectVar.image then info = string.format('Image: %dx%d', injectVar.image:getWidth(), injectVar.image:getHeight()); love.graphics.print(info, 10, WINDOW_HEIGHT - 30) end; love.graphics.print('URL: ' .. IMAGE_URL, 10, WINDOW_HEIGHT - 50) if command then command.draw() end end; downloadImage();")
+-- Grid-based wave propagation system
+local WaveGrid = {}
+WaveGrid.__index = WaveGrid
+
+function WaveGrid:new(width, height, cellSize)
+    local grid = {
+        width = width,
+        height = height,
+        cellSize = cellSize,
+        cols = math.ceil(width / cellSize),
+        rows = math.ceil(height / cellSize),
+        current = {},
+        previous = {},
+        velocity = {},
+        obstacles = {}
+    }
+    
+    -- Initialize grids
+    for i = 1, grid.rows do
+        grid.current[i] = {}
+        grid.previous[i] = {}
+        grid.velocity[i] = {}
+        grid.obstacles[i] = {}
+        for j = 1, grid.cols do
+            grid.current[i][j] = 0
+            grid.previous[i][j] = 0
+            grid.velocity[i][j] = 0
+            grid.obstacles[i][j] = false
+        end
+    end
+    
+    setmetatable(grid, WaveGrid)
+    return grid
+end
+
+function WaveGrid:addObstacle(x, y, radius)
+    local centerCol = math.floor(x / self.cellSize) + 1
+    local centerRow = math.floor(y / self.cellSize) + 1
+    local cellRadius = math.ceil(radius / self.cellSize)
+    
+    for row = math.max(1, centerRow - cellRadius), math.min(self.rows, centerRow + cellRadius) do
+        for col = math.max(1, centerCol - cellRadius), math.min(self.cols, centerCol + cellRadius) do
+            local dx = (col - 1) * self.cellSize - x
+            local dy = (row - 1) * self.cellSize - y
+            if dx * dx + dy * dy <= radius * radius then
+                self.obstacles[row][col] = true
+            end
+        end
+    end
+end
+
+function WaveGrid:update(dt)
+    local waveSpeed2 = params.waveSpeed * params.waveSpeed
+    local dtSquared = dt * dt
+    
+    -- Wave equation: ∂²u/∂t² = c²∇²u
+    for row = 2, self.rows - 1 do
+        for col = 2, self.cols - 1 do
+            if not self.obstacles[row][col] then
+                -- Calculate Laplacian (∇²u)
+                local laplacian = (self.current[row-1][col] + self.current[row+1][col] + 
+                                 self.current[row][col-1] + self.current[row][col+1] - 
+                                 4 * self.current[row][col]) / (self.cellSize * self.cellSize)
+                
+                -- Wave propagation with collision reflection
+                local newHeight = 2 * self.current[row][col] - self.previous[row][col] + 
+                                waveSpeed2 * dtSquared * laplacian
+                
+                -- Apply damping
+                newHeight = newHeight * params.damping
+                
+                -- Handle obstacle collisions
+                local hasObstacleNeighbor = self.obstacles[row-1][col] or self.obstacles[row+1][col] or
+                                          self.obstacles[row][col-1] or self.obstacles[row][col+1]
+                
+                if hasObstacleNeighbor then
+                    -- Reflect waves at obstacles
+                    newHeight = newHeight * 0.7 -- Energy loss on collision
+                end
+                
+                self.velocity[row][col] = newHeight
+            else
+                self.velocity[row][col] = 0
+            end
+        end
+    end
+    
+    -- Update grid states
+    for row = 1, self.rows do
+        for col = 1, self.cols do
+            self.previous[row][col] = self.current[row][col]
+            self.current[row][col] = self.velocity[row][col]
+        end
+    end
+end
+
+function WaveGrid:addDisturbance(x, y, intensity)
+    local col = math.floor(x / self.cellSize) + 1
+    local row = math.floor(y / self.cellSize) + 1
+    
+    if row >= 1 and row <= self.rows and col >= 1 and col <= self.cols then
+        if not self.obstacles[row][col] then
+            self.current[row][col] = self.current[row][col] + intensity
+            
+            -- Spread disturbance to neighbors
+            local spread = intensity * 0.3
+            for dr = -1, 1 do
+                for dc = -1, 1 do
+                    local nr, nc = row + dr, col + dc
+                    if nr >= 1 and nr <= self.rows and nc >= 1 and nc <= self.cols then
+                        if not self.obstacles[nr][nc] then
+                            self.current[nr][nc] = self.current[nr][nc] + spread
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function WaveGrid:getHeight(x, y)
+    local col = math.floor(x / self.cellSize) + 1
+    local row = math.floor(y / self.cellSize) + 1
+    
+    if row >= 1 and row <= self.rows and col >= 1 and col <= self.cols then
+        return self.current[row][col]
+    end
+    return 0
+end
+
+-- Fluid Particle class
+local FluidParticle = {}
+FluidParticle.__index = FluidParticle
+
+function FluidParticle:new(x, y)
+    local particle = {
+        x = x, y = y,
+        vx = 0, vy = 0,
+        px = x, py = y, -- Previous position
+        density = params.density,
+        pressure = 0,
+        fx = 0, fy = 0,
+        neighbors = {},
+        color = {0.2, 0.6, 1.0, 0.8}
+    }
+    setmetatable(particle, FluidParticle)
+    return particle
+end
+
+function FluidParticle:update(dt, waveGrid)
+    -- Apply wave forces
+    local waveHeight = waveGrid:getHeight(self.x, self.y)
+    local waveForce = waveHeight * 50
+    
+    -- Calculate wave gradient for horizontal forces
+    local dx = 2
+    local leftHeight = waveGrid:getHeight(self.x - dx, self.y)
+    local rightHeight = waveGrid:getHeight(self.x + dx, self.y)
+    local topHeight = waveGrid:getHeight(self.x, self.y - dx)
+    local bottomHeight = waveGrid:getHeight(self.x, self.y + dx)
+    
+    local gradientX = (rightHeight - leftHeight) / (2 * dx)
+    local gradientY = (bottomHeight - topHeight) / (2 * dx)
+    
+    -- Apply forces
+    self.fx = self.fx - gradientX * 100
+    self.fy = self.fy - gradientY * 100 + waveForce
+    
+    -- Add gravity
+    self.fy = self.fy + 500
+    
+    -- Integrate velocity (Verlet integration)
+    local ax = self.fx / self.density
+    local ay = self.fy / self.density
+    
+    local newX = 2 * self.x - self.px + ax * dt * dt
+    local newY = 2 * self.y - self.py + ay * dt * dt
+    
+    -- Calculate velocity for rendering
+    self.vx = (newX - self.x) / dt
+    self.vy = (newY - self.y) / dt
+    
+    -- Update positions
+    self.px, self.py = self.x, self.y
+    self.x, self.y = newX, newY
+    
+    -- Apply damping
+    self.vx = self.vx * params.damping
+    self.vy = self.vy * params.damping
+    
+    -- Reset forces
+    self.fx, self.fy = 0, 0
+    
+    -- Update color based on velocity
+    local speed = math.sqrt(self.vx * self.vx + self.vy * self.vy)
+    local speedNorm = math.min(speed / 200, 1)
+    self.color[1] = 0.2 + speedNorm * 0.8  -- Red component
+    self.color[2] = 0.6 + speedNorm * 0.4  -- Green component
+    self.color[3] = 1.0 - speedNorm * 0.3  -- Blue component
+end
+
+function FluidParticle:checkCollision(obstacles)
+    for _, obstacle in ipairs(obstacles) do
+        local dx = self.x - obstacle.x
+        local dy = self.y - obstacle.y
+        local dist = math.sqrt(dx * dx + dy * dy)
+        
+        if dist < obstacle.radius + params.particleRadius then
+            -- Collision detected
+            local overlap = obstacle.radius + params.particleRadius - dist
+            local nx, ny = dx / dist, dy / dist
+            
+            -- Separate particles
+            self.x = self.x + nx * overlap * 0.5
+            self.y = self.y + ny * overlap * 0.5
+            
+            -- Reflect velocity with energy loss
+            local dot = self.vx * nx + self.vy * ny
+            self.vx = self.vx - 2 * dot * nx * 0.8
+            self.vy = self.vy - 2 * dot * ny * 0.8
+            
+            return true
+        end
+    end
+    
+    -- Boundary collisions
+    local bounced = false
+    if self.x < params.particleRadius then
+        self.x = params.particleRadius
+        self.vx = math.abs(self.vx) * 0.7
+        bounced = true
+    elseif self.x > love.graphics.getWidth() - params.particleRadius then
+        self.x = love.graphics.getWidth() - params.particleRadius
+        self.vx = -math.abs(self.vx) * 0.7
+        bounced = true
+    end
+    
+    if self.y < params.particleRadius then
+        self.y = params.particleRadius
+        self.vy = math.abs(self.vy) * 0.7
+        bounced = true
+    elseif self.y > love.graphics.getHeight() - params.particleRadius then
+        self.y = love.graphics.getHeight() - params.particleRadius
+        self.vy = -math.abs(self.vy) * 0.7
+        bounced = true
+    end
+    
+    return bounced
+end
+
+-- Obstacle class
+local Obstacle = {}
+Obstacle.__index = Obstacle
+
+function Obstacle:new(x, y, radius)
+    local obstacle = {
+        x = x, y = y,
+        radius = radius,
+        color = {0.8, 0.3, 0.3, 0.3}
+    }
+    setmetatable(obstacle, Obstacle)
+    return obstacle
+end
+
+function Obstacle:render()
+    lg.setColor(self.color)
+    lg.circle("fill", self.x, self.y, self.radius)
+    lg.setColor(1, 1, 1, 0.2)
+    lg.circle("line", self.x, self.y, self.radius)
+end
+
+-- Main simulation state
+local simulation = {
+    particles = {},
+    obstacles = {},
+    waveGrid = nil,
+    paused = false,
+    showWaves = true,
+    mousePressed = false
+}
+
+function love.load()
+    love.window.setTitle("LÖVE Liquid Physics Engine - Wave Propagation & Collision")
+    
+    -- Initialize wave grid
+    simulation.waveGrid = WaveGrid:new(love.graphics.getWidth(), love.graphics.getHeight(), params.gridSize)
+    
+    -- Create obstacles
+    table.insert(simulation.obstacles, Obstacle:new(200, 300, 50))
+    table.insert(simulation.obstacles, Obstacle:new(600, 200, 40))
+    table.insert(simulation.obstacles, Obstacle:new(400, 500, 60))
+    
+    -- Add obstacles to wave grid
+    for _, obstacle in ipairs(simulation.obstacles) do
+        simulation.waveGrid:addObstacle(obstacle.x, obstacle.y, obstacle.radius)
+    end
+    
+    -- Create initial particles
+    for i = 1, 800 do
+        local x = love.math.random(100, love.graphics.getWidth() - 100)
+        local y = love.math.random(100, 300)
+        table.insert(simulation.particles, FluidParticle:new(x, y))
+    end
+    
+    -- Set up graphics
+    lg.setBackgroundColor(0.05, 0.05, 0.1)
+    lg.setLineWidth(1)
+end
+
+function love.update(dt)
+    if simulation.paused then return end
+    
+    dt = math.min(dt, params.dt) -- Cap dt for stability
+    
+    -- Update wave grid
+    simulation.waveGrid:update(dt)
+    for k,v in ipairs(simulation.obstacles) do
+            v.x = v.x + 100
+    end
+    -- Update particles
+    for i, particle in ipairs(simulation.particles) do
+        particle:update(dt, simulation.waveGrid)
+        
+        -- Check collisions
+        -- print(simulation.obstacles.x = simulation.obstacles.x + 1 )
+        
+        
+        -- local collided = particle:checkCollision(simulation.obstacles)
+        
+        -- Add wave disturbance when particle moves quickly or collides
+        local speed = math.sqrt(particle.vx * particle.vx + particle.vy * particle.vy)
+        if speed > 50 or collided then
+            simulation.waveGrid:addDisturbance(particle.x, particle.y, speed * 0.001)
+        end
+    end
+    
+    -- Mouse interaction
+    if simulation.mousePressed then
+        local mx, my = love.mouse.getPosition()
+        simulation.waveGrid:addDisturbance(mx, my, 0.5)
+        
+        -- Attract nearby particles
+        for _, particle in ipairs(simulation.particles) do
+            local dx = mx - particle.x
+            local dy = my - particle.y
+            local dist = math.sqrt(dx * dx + dy * dy)
+            
+            if dist < 100 and dist > 0 then
+                local force = (100 - dist) / 100 * 200
+                particle.fx = particle.fx + (dx / dist) * force
+                particle.fy = particle.fy + (dy / dist) * force
+            end
+        end
+    end
+end
+
+function love.draw()
+    -- Render wave grid
+    if simulation.showWaves then
+        for row = 1, simulation.waveGrid.rows do
+            for col = 1, simulation.waveGrid.cols do
+                local height = simulation.waveGrid.current[row][col]
+                if math.abs(height) > 0.01 then
+                    local x = (col - 1) * params.gridSize
+                    local y = (row - 1) * params.gridSize
+                    local intensity = math.min(math.abs(height) * 10, 1)
+                    
+                    if height > 0 then
+                        lg.setColor(0.3, 0.7, 1.0, intensity * 0.3)
+                    else
+                        lg.setColor(0.2, 0.3, 0.7, intensity * 0.3)
+                    end
+                    
+                    lg.rectangle("fill", x, y, params.gridSize, params.gridSize)
+                end
+            end
+        end
+    end
+    
+    -- Render obstacles
+    for _, obstacle in ipairs(simulation.obstacles) do
+        obstacle:render()
+    end
+    
+    -- Render particles with metaball effect
+    lg.setBlendMode("add")
+    for _, particle in ipairs(simulation.particles) do
+        -- lg.setColor(particle.color)
+        -- lg.circle("fill", particle.x, particle.y, params.particleRadius)
+    end
+    lg.setBlendMode("alpha")
+    
+    -- Render UI
+    lg.setColor(1, 1, 1)
+    lg.print("FPS: " .. love.timer.getFPS(), 10, 10)
+    lg.print("Particles: " .. #simulation.particles, 10, 30)
+    lg.print("Wave Speed: " .. params.waveSpeed, 10, 50)
+    lg.print("Controls:", 10, 80)
+    lg.print("SPACE: Pause/Resume", 10, 100)
+    lg.print("W: Toggle wave visualization", 10, 120)
+    lg.print("R: Reset simulation", 10, 140)
+    lg.print("Mouse: Click and drag to interact", 10, 160)
+    lg.print("Arrow keys: Adjust wave speed", 10, 180)
+    
+    if simulation.paused then
+        lg.setColor(1, 1, 0)
+        lg.print("PAUSED", love.graphics.getWidth() / 2 - 30, 20)
+    end
+end
+
+function love.mousepressed(x, y, button)
+    if button == 1 then
+        simulation.mousePressed = true
+        -- Add major wave disturbance
+        simulation.waveGrid:addDisturbance(x, y, 2.0)
+    elseif button == 2 then
+        -- Add new particle at mouse position
+        if #simulation.particles < params.maxParticles then
+            table.insert(simulation.particles, FluidParticle:new(x, y))
+        end
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 then
+        simulation.mousePressed = false
+    end
+end
+
+function love.keypressed(key)
+    if key == "space" then
+        simulation.paused = not simulation.paused
+    elseif key == "w" then
+        simulation.showWaves = not simulation.showWaves
+    elseif key == "r" then
+        -- Reset simulation
+        simulation.particles = {}
+        for i = 1, 800 do
+            local x = love.math.random(100, love.graphics.getWidth() - 100)
+            local y = love.math.random(100, 300)
+            table.insert(simulation.particles, FluidParticle:new(x, y))
+        end
+        
+        -- Reset wave grid
+        for row = 1, simulation.waveGrid.rows do
+            for col = 1, simulation.waveGrid.cols do
+                simulation.waveGrid.current[row][col] = 0
+                simulation.waveGrid.previous[row][col] = 0
+                simulation.waveGrid.velocity[row][col] = 0
+            end
+        end
+    elseif key == "up" then
+        params.waveSpeed = math.min(params.waveSpeed + 50, 1000)
+    elseif key == "down" then
+        params.waveSpeed = math.max(params.waveSpeed - 50, 50)
+    elseif key == "escape" then
+        love.event.quit()
+    end
+end

@@ -164,4 +164,20 @@ function car.populate()
     end
 end
 
+function car.getNetworkData()
+    local carData = {}
+    for i, currentCar in ipairs(car.cars) do
+        local cx, cy = currentCar.body:getX(), currentCar.body:getY()
+        local vx, vy = currentCar.body:getLinearVelocity()
+        carData[tostring(i)] = {
+            x = cx,
+            y = cy,
+            vx = vx,
+            vy = vy,
+            inUse = currentCar.inUse
+        }
+    end
+    return carData
+end
+
 return car
