@@ -92,59 +92,98 @@ end
 
 function car.update(dt)
     -- Update each car instance
-    -- for _, currentCar in ipairs(car.cars) do
-    --     -- Update animation time (though we'll use heading-based sprite selection)
-    --     currentCar.animation.currentTime = currentCar.animation.currentTime + dt
+    for _, currentCar in ipairs(car.cars) do
+        -- Update animation time (though we'll use heading-based sprite selection)
+        currentCar.animation.currentTime = currentCar.animation.currentTime + dt
         
-    --     if currentCar.animation.currentTime >= currentCar.animation.duration then
-    --         currentCar.animation.currentTime = currentCar.animation.currentTime - currentCar.animation.duration
-    --     end
+        if currentCar.animation.currentTime >= currentCar.animation.duration then
+            currentCar.animation.currentTime = currentCar.animation.currentTime - currentCar.animation.duration
+        end
         
-    --     -- Basic movement for testing (can be replaced with proper controls)
-    --     local maxSpeed = 150
-    --     local acceleration = 2000
-    --     local friction = 0.9
-    --     local vx, vy = currentCar.body:getLinearVelocity()
-    --     local inputX, inputY = 0, 0
-        
-    --     -- Placeholder for movement logic (e.g., AI or player control)
-    --     -- For now, the car will be stationary or move based on simple logic
-    --     -- This can be expanded later as needed
-        
-    --     local newVX = vx * friction
-    --     local newVY = vy * friction
-    --     if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
-    --         newVX, newVY = 0, 0
-    --     end
-    --     currentCar.body:setLinearVelocity(newVX, newVY)
-    -- end
+        -- Check for player interaction to enter/exit vehicle
+        if not currentCar.inUse then
+            local px, py = player.body:getX(), player.body:getY()
+            local cx, cy = currentCar.body:getX(), currentCar.body:getY()
+            local distance = math.sqrt((px - cx)^2 + (py - cy)^2)
+            if distance < 50 and love.keyboard.isDown("e") then
+                -- Player is close and presses 'E' to enter vehicle
+                currentCar.inUse = true
+                currentCar.controllingPlayer = var.multiplayer == 1 and "host" or "client_" .. var.multiplayer
+            end
+        else
+            if love.keyboard.isDown("q") then
+                -- Player presses 'Q' to exit vehicle
+                currentCar.inUse = false
+                currentCar.controllingPlayer = nil
+            else
+                if var.multiplayer == 1 then -- Only host handles physics updates
+                    -- Apply player movement to car if in use
+                    local maxSpeed = 150
+                    local acceleration = 2000
+                    local friction = 0.9
+                    local vx, vy = currentCar.body:getLinearVelocity()
+                    local inputX, inputY = 0, 0
+                    
+                    if love.keyboard.isDown("up") or love.keyboard.isDown("w") then
+                        inputY = inputY - 1
+                    end
+                    if love.keyboard.isDown("down") or love.keyboard.isDown("s") then
+                        inputY = inputY + 1
+                    end
+                    if love.keyboard.isDown("left") or love.keyboard.isDown("a") then
+                        inputX = inputX - 1
+                    end
+                    if love.keyboard.isDown("right") or love.keyboard.isDown("d") then
+                        inputX = inputX + 1
+                    end
+                    
+                    if inputX ~= 0 or inputY ~= 0 then
+                        local forceX = inputX * acceleration
+                        local forceY = inputY * acceleration
+                        currentCar.body:applyForce(forceX, forceY)
+                        local speed = math.sqrt(vx^2 + vy^2)
+                        if speed > maxSpeed then
+                            local scale = maxSpeed / speed
+                            currentCar.body:setLinearVelocity(vx * scale, vy * scale)
+                        end
+                    else
+                        local newVX = vx * friction
+                        local newVY = vy * friction
+                        if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
+                            newVX, newVY = 0, 0
+                        end
+                        currentCar.body:setLinearVelocity(newVX, newVY)
+                    end
+                end
+            end
+        end
+    end
 end
 
 function car.populate()
     -- Add each car to the dynamic draw list for rendering
     for i, currentCar in ipairs(car.cars) do
-        -- 
         local relVel = {}
         local cx, cy
-        if currentCar.inUse then
-            cx, cy = player.body:getX(), player.body:getY()
-            currentCar.body:setPosition(player.body:getPosition())
-             relVel.x,relVel.y = player.body:getLinearVelocity()
-             currentCar.fixture:setGroupIndex(-1)
+        if var.multiplayer == 1 then -- Only host updates physics positions
+            if currentCar.inUse then
+                cx, cy = player.body:getX(), player.body:getY()
+                currentCar.body:setPosition(player.body:getPosition())
+                relVel.x, relVel.y = player.body:getLinearVelocity()
+                currentCar.fixture:setGroupIndex(-1)
+            else
+                cx, cy = currentCar.body:getX(), currentCar.body:getY()
+                relVel.x, relVel.y = currentCar.body:getLinearVelocity()
+                currentCar.fixture:setGroupIndex(-3)
+            end
         else
+            -- Clients use networked data for rendering, no physics updates
             cx, cy = currentCar.body:getX(), currentCar.body:getY()
-            relVel.x,relVel.y = currentCar.body:getLinearVelocity()
+            relVel.x, relVel.y = currentCar.body:getLinearVelocity()
             currentCar.fixture:setGroupIndex(-3)
         end
-        -- Get player's heading angle (assuming player has an angle property or calculate from velocity)
-        -- local playerAngle = 0  -- Replace with actual player angle
-        
-        -- print(relVel.x)
-        
         -- Get the appropriate sprite frame based on player's heading
         local spriteNum = car.getSpriteForHeading(relVel.x, relVel.y)
-        -- local spriteNum =  math.floor(fire.t*100) %450 + 1
-        -- print(spriteNum) 
         table.insert(dynamic_draw_list, {
             sort_y = cy + 130, -- Adjust sorting position as needed
             image_or_particles = currentCar.animation.spriteSheet,
@@ -164,6 +203,22 @@ function car.populate()
     end
 end
 
+-- Update car positions and states from networked data (called by renderer or snapshot)
+function car.updateFromNetwork(networkedCars)
+    if var.multiplayer ~= 1 then -- Only clients update from network data
+        for carId, carData in pairs(networkedCars) do
+            local carIndex = tonumber(carId)
+            if carIndex and car.cars[carIndex] then
+                local currentCar = car.cars[carIndex]
+                currentCar.body:setPosition(carData.x, carData.y)
+                currentCar.body:setLinearVelocity(carData.vx, carData.vy)
+                currentCar.inUse = carData.inUse
+                currentCar.controllingPlayer = carData.controllingPlayer or ""
+            end
+        end
+    end
+end
+
 function car.getNetworkData()
     local carData = {}
     for i, currentCar in ipairs(car.cars) do
@@ -174,7 +229,8 @@ function car.getNetworkData()
             y = cy,
             vx = vx,
             vy = vy,
-            inUse = currentCar.inUse
+            inUse = currentCar.inUse,
+            controllingPlayer = currentCar.controllingPlayer or ""
         }
     end
     return carData

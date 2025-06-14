@@ -75,9 +75,20 @@ function snapshot.create()
             game_state.bosses = boss.getNetworkData()
         end
         
-        -- Collect car data
+        -- Collect car data from host and accumulated client data
+        game_state.cars = {}
         if car then
-            game_state.cars = car.getNetworkData()
+            local hostCarData = car.getNetworkData()
+            for k, v in pairs(hostCarData) do
+                game_state.cars["host_" .. tostring(k)] = v
+            end
+        end
+        for client_id, client_cars in pairs(accumulated_game_state.cars) do
+            if client_cars then
+                for k, v in pairs(client_cars) do
+                    game_state.cars[client_id .. "_" .. tostring(k)] = v
+                end
+            end
         end
         
         -- Collect coin data from physics bodies
@@ -161,7 +172,8 @@ function snapshot.create()
             bullets = bullet.getNetworkData(),
             -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
-            boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil  -- Add boss spawn request field
+            boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
+            cars = car and car.getNetworkData() or {}  -- Clients send their car data
         }
         
 
@@ -186,6 +198,9 @@ function snapshot.apply(game_state)
             end
             if game_state.rockets then
                 accumulated_game_state.accumulated_rockets[game_state.client_id] = game_state.rockets
+            end
+            if game_state.cars then
+                accumulated_game_state.cars[game_state.client_id] = game_state.cars
             end
             if game_state.command_blocks then
                 accumulated_game_state.accumulated_command_blocks[game_state.client_id] = game_state.command_blocks
@@ -251,6 +266,23 @@ function snapshot.apply(game_state)
             
             -- Apply only the client player data (host draws itself locally)
             renderer.setNetworkedPlayers(client_players)
+            
+            -- Apply accumulated car data to host's renderer
+            local all_cars = {}
+            if car then
+                local hostCarData = car.getNetworkData()
+                for k, v in pairs(hostCarData) do
+                    all_cars["host_" .. tostring(k)] = v
+                end
+            end
+            for client_id, client_cars in pairs(accumulated_game_state.cars) do
+                if client_cars then
+                    for k, v in pairs(client_cars) do
+                        all_cars[client_id .. "_" .. tostring(k)] = v
+                    end
+                end
+            end
+            renderer.setNetworkedCars(all_cars)
         else
             -- Handle full game state (shouldn't happen on host)
             if game_state.players then
