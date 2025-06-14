@@ -6,7 +6,7 @@
     "description": "Advanced projectile system with object pooling, sophisticated tracers, speed variation, trail rendering, and performance optimizations migrated from legacy bullet.lua system.",
     "engine_version": "1.0.0",
     "dependencies": [],
-    "optional_dependencies": ["weapons_core_mod", "combat_effects_mod"],
+    "optional_dependencies": ["weapons_core_mod", "combat_effects_mod", "explosion_effects"],
     "assets": [
         "assets/bullet_trail.png",
         "assets/rocket_exhaust.png"

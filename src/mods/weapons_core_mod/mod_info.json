@@ -1,9 +1,9 @@
 {
     "id": "weapons_core_mod",
     "name": "Enhanced Weapons System",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "author": "DogeGame Combat Team",
-    "description": "Sophisticated weapon system with advanced aiming, realistic effects, object pooling, and sophisticated visual features migrated from legacy gun.lua system.",
+    "description": "Complete weapons system with 5 unique weapons (Pistol, SMG, Shotgun, Rifle, Rocket Launcher), client-side aiming circle, perpendicular gun barrel, sophisticated effects (muzzle flash, shell ejection, particles), and full network replication. Fully replaces legacy gun.lua system.",
     "engine_version": "1.0.0",
     "dependencies": [],
     "optional_dependencies": ["projectiles_mod", "combat_effects_mod"],

@@ -1,5 +1,6 @@
 -- GPU-Optimized Grass Rendering Module for LÖVE Engine
 -- Uses instanced rendering and vertex displacement in shaders
+-- needs to be migrated to the new mod system, do not use this in new code. this should be part of the map mod or be toolable usimg the map mod
 
 local GrassRenderer = {}
 GrassRenderer.__index = GrassRenderer

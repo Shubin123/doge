@@ -3,6 +3,7 @@
 -- Migrated from legacy gun.lua with all advanced features preserved
 
 local weaponsCoremod = {}
+-- Weapon loader will be loaded during init when we have access to mod filesystem
 
 -- Mod state
 local loaded_weapons = {}
@@ -90,19 +91,62 @@ function weaponsCoremod.init(mod_api)
     api.input.registerKeyHandler("4", function() weaponsCoremod.switchWeapon("assault_rifle") end)
     api.input.registerKeyHandler("5", function() weaponsCoremod.switchWeapon("rocket_launcher") end)
     
-    -- Register mouse handlers for shooting
-    api.input.registerMouseHandler(1, weaponsCoremod.handleShoot)
+    -- Debug: Register F key to test shooting directly
+    api.input.registerKeyHandler("f", function()
+        api.utils.log("[DEBUG] F key pressed - forcing shoot test", "weapons_core_mod")
+        local mx, my = api.input.getMousePosition()
+        weaponsCoremod.handleShoot(mx, my, 1)
+    end)
     
-    -- Register mouse press/release handlers for full auto
-    if api.input.registerMousePressHandler then
-        api.input.registerMousePressHandler(1, function(x, y) 
-            mouse_pressed = true 
-            weaponsCoremod.handleShoot(x, y, 1)
-        end)
-        api.input.registerMouseReleaseHandler(1, function(x, y) 
-            mouse_pressed = false 
-        end)
-    end
+    -- Debug: Register G key to test projectile spawning directly
+    api.input.registerKeyHandler("g", function()
+        api.utils.log("[DEBUG] G key pressed - testing direct projectile spawn", "weapons_core_mod")
+        local px, py = api.game.getPlayerPosition()
+        
+        -- Try direct access to projectiles mod
+        local projectiles_mod = api.mods.projectiles_mod
+        if projectiles_mod then
+            api.utils.log("[DEBUG] Found projectiles_mod via api.mods", "weapons_core_mod")
+            -- Check for public API first
+            if projectiles_mod.public and projectiles_mod.public.spawnProjectile then
+                api.utils.log("[DEBUG] Using public.spawnProjectile", "weapons_core_mod")
+                local result = projectiles_mod.public.spawnProjectile("bullet", px + 50, py, 1, 0, {
+                    speed = 500,
+                    damage = 10,
+                    owner = "player"
+                })
+                api.utils.log("[DEBUG] spawnProjectile result: " .. tostring(result), "weapons_core_mod")
+            elseif projectiles_mod.spawnProjectile then
+                api.utils.log("[DEBUG] Calling spawnProjectile directly", "weapons_core_mod")
+                local result = projectiles_mod.spawnProjectile("bullet", px + 50, py, 1, 0, {
+                    speed = 500,
+                    damage = 10,
+                    owner = "player"
+                })
+                api.utils.log("[DEBUG] spawnProjectile result: " .. tostring(result), "weapons_core_mod")
+            else
+                api.utils.log("[ERROR] spawnProjectile function not found on projectiles_mod", "weapons_core_mod")
+                -- List what's available
+                for k, v in pairs(projectiles_mod) do
+                    api.utils.log("[DEBUG] projectiles_mod." .. k .. " = " .. type(v), "weapons_core_mod")
+                end
+            end
+        else
+            api.utils.log("[ERROR] projectiles_mod not found via api.mods", "weapons_core_mod")
+        end
+    end)
+    
+    -- Register mouse handlers for shooting
+    api.input.registerMousePressHandler(1, function(x, y, button)
+        api.utils.log("[DEBUG] Mouse press handler triggered - button: " .. tostring(button), "weapons_core_mod")
+        mouse_pressed = true
+        weaponsCoremod.handleShoot(x, y, button)
+    end)
+    
+    api.input.registerMouseReleaseHandler(1, function(x, y, button)
+        api.utils.log("[DEBUG] Mouse release handler triggered - button: " .. tostring(button), "weapons_core_mod")
+        mouse_pressed = false
+    end)
     
     -- Register network handler
     if mod_config.enable_networking then
@@ -112,11 +156,108 @@ function weaponsCoremod.init(mod_api)
     -- Equip default weapon
     weaponsCoremod.equipWeapon(mod_config.default_weapon)
     
+    -- Debug: List all loaded mods
+    api.utils.log("[DEBUG] Checking loaded mods...", "weapons_core_mod")
+    local loaded_mods = api.mod_system.getLoadedMods()
+    for _, mod_id in ipairs(loaded_mods) do
+        api.utils.log("[DEBUG] Loaded mod: " .. mod_id, "weapons_core_mod")
+    end
+    
     print("[WEAPONS_CORE_MOD] Initialization complete! Use number keys 1-5 to switch weapons")
+    
+    -- Set up exports for other mods
+    weaponsCoremod.exports = {
+        getCurrentWeapon = function()
+            return current_weapon
+        end,
+        switchWeapon = weaponsCoremod.switchWeapon,
+        equipWeapon = weaponsCoremod.equipWeapon,
+        getWeaponList = function()
+            local list = {}
+            for id, weapon in pairs(weapon_templates) do
+                table.insert(list, {id = id, name = weapon.name})
+            end
+            return list
+        end
+    }
 end
 
 -- Register built-in weapon templates (enhanced from legacy system)
 function weaponsCoremod.registerBuiltinWeapons()
+    -- Skip file loading in sandboxed environment, use embedded templates only
+    api.utils.log("Loading hardcoded weapon templates", "weapons_core_mod")
+    weaponsCoremod.registerHardcodedWeapons()
+end
+
+-- Process weapon data loaded from file to add missing defaults
+function weaponsCoremod.processWeaponData(weapon_data)
+    local processed = {}
+    
+    -- Basic properties
+    processed.name = weapon_data.name or "Unknown Weapon"
+    processed.fire_rate = 1 / (weapon_data.fire_rate or 0.5)  -- Convert to legacy format
+    processed.projectile_type = weapon_data.projectile_type or "bullet"
+    processed.projectile_speed = weapon_data.projectile_speed or 800
+    processed.projectile_count = weapon_data.projectile_count or 1
+    processed.spread = weapon_data.spread or 0
+    processed.is_full_auto = weapon_data.is_full_auto or false
+    
+    -- Damage handling
+    if type(weapon_data.damage) == "table" then
+        processed.damage = (weapon_data.damage.min + weapon_data.damage.max) / 2
+    else
+        processed.damage = weapon_data.damage or 10
+    end
+    
+    -- Visual properties
+    processed.ring_radius = weapon_data.ring_radius or 25
+    processed.barrel_length = weapon_data.barrel_length or 20
+    processed.barrel_thickness = weapon_data.barrel_thickness or 4
+    
+    -- Physics
+    processed.knockback = weapon_data.knockback or {}
+    if type(processed.knockback) == "number" then
+        processed.knockback = {
+            force = processed.knockback,
+            shake_intensity = processed.knockback / 20,
+            shake_duration = 0.1
+        }
+    end
+    
+    -- Effects
+    processed.muzzle_flash = weapon_data.muzzle_flash or {}
+    processed.shell_type = nil
+    if weapon_data.shell_ejection and weapon_data.shell_ejection.enabled then
+        processed.shell_type = weapon_data.shell_ejection.type
+    end
+    
+    -- Particles
+    processed.particles = weapon_data.particles or {
+        count = 8,
+        colors = {{1, 0.8, 0.3}, {1, 0.5, 0.2}},
+        lifespan = 0.3,
+        speed = {min = 120, max = 250},
+        size = {min = 1, max = 3},
+        spread_angle = 0.44
+    }
+    
+    -- Projectile properties
+    processed.projectile_radius = weapon_data.projectile_radius or 3
+    processed.projectile_lifetime = weapon_data.projectile_lifetime or 5
+    
+    -- Rocket specific
+    if weapon_data.rocket_properties then
+        processed.top_speed = weapon_data.rocket_properties.top_speed
+        processed.accel_time = weapon_data.rocket_properties.accel_time
+        processed.explosion_radius = weapon_data.rocket_properties.explosion_radius
+        processed.explosion_damage = weapon_data.rocket_properties.explosion_damage
+    end
+    
+    return processed
+end
+
+-- Hardcoded weapon templates as fallback
+function weaponsCoremod.registerHardcodedWeapons()
     -- Pistol - Based on legacy gun preset
     weaponsCoremod.registerWeapon("pistol", {
         name = "Pistol",
@@ -366,20 +507,27 @@ end
 
 -- Handle shooting (enhanced from legacy system)
 function weaponsCoremod.handleShoot(x, y, button)
+    api.utils.log("[DEBUG] handleShoot called - button: " .. tostring(button) .. ", x: " .. tostring(x) .. ", y: " .. tostring(y), "weapons_core_mod")
+    
     if button ~= 1 or not current_weapon then
+        api.utils.log("[DEBUG] handleShoot aborted - button not 1 or no current weapon", "weapons_core_mod")
         return
     end
     
     local template = current_weapon.template
     local cooldown = weapon_cooldowns[current_weapon.id] or 0
     
+    api.utils.log("[DEBUG] Weapon: " .. template.name .. ", cooldown: " .. cooldown, "weapons_core_mod")
+    
     -- Check cooldown
     if cooldown > 0 then
+        api.utils.log("[DEBUG] Weapon on cooldown, remaining: " .. cooldown, "weapons_core_mod")
         return
     end
     
     -- Check ammo
     if current_weapon.ammo == 0 then
+        api.utils.log("[DEBUG] Out of ammo!", "weapons_core_mod")
         -- Need to reload
         return
     end
@@ -449,7 +597,7 @@ function weaponsCoremod.handleShoot(x, y, button)
         local projectile_params = {
             speed = speed_variation,
             damage = template.damage,
-            radius = template.projectile_radius or 3,
+            radius = template.projectile_radius or 2,
             lifetime = template.projectile_lifetime or 5.0,
             owner = "player",
             owner_id = "player",  -- Add owner_id for PvP damage filtering
@@ -459,10 +607,22 @@ function weaponsCoremod.handleShoot(x, y, button)
             trail_color = {1, 1, 0.8, 0.8}
         }
         
+        -- Add rocket-specific parameters
+        if template.projectile_type == "rocket" then
+            projectile_params.top_speed = template.top_speed
+            projectile_params.accel_time = template.accel_time
+            projectile_params.acceleration = template.top_speed / template.accel_time
+            projectile_params.explosion_radius = template.explosion_radius
+            projectile_params.explosion_damage = template.explosion_damage or 50
+        end
+        
         -- Spawn projectile from spawn position (ring edge)
+        api.utils.log("[DEBUG] Attempting to spawn projectile - type: " .. template.projectile_type .. ", pos: " .. spawn_x .. "," .. spawn_y, "weapons_core_mod")
         local projectile = weaponsCoremod.spawnProjectile(spawn_x, spawn_y, proj_dx, proj_dy, template, projectile_params)
         if not projectile then
-            api.utils.log("Failed to spawn projectile", "weapons_core_mod")
+            api.utils.log("[ERROR] Failed to spawn projectile!", "weapons_core_mod")
+        else
+            api.utils.log("[DEBUG] Projectile spawned successfully", "weapons_core_mod")
         end
     end
     
@@ -491,20 +651,68 @@ end
 
 -- Spawn a projectile using projectiles_mod (enhanced)
 function weaponsCoremod.spawnProjectile(x, y, dx, dy, template, projectile_params)
-    -- Get projectiles mod from mod system using api
-    local projectiles_mod = api.mod_system and api.mod_system.getMod and api.mod_system.getMod("projectiles_mod")
-    if projectiles_mod and projectiles_mod.instance and projectiles_mod.instance.public and projectiles_mod.instance.public.spawnProjectile then
-        return projectiles_mod.instance.public.spawnProjectile(template.projectile_type, x, y, dx, dy, projectile_params)
-    else
-        api.utils.log("Projectiles mod not available", "weapons_core_mod")
-        return nil
+    api.utils.log("[DEBUG] spawnProjectile called", "weapons_core_mod")
+    
+    -- Try to use projectiles_mod through inter-mod API
+    local projectiles_mod = api.mod_system.getMod("projectiles_mod")
+    api.utils.log("[DEBUG] projectiles_mod from getMod: " .. tostring(projectiles_mod), "weapons_core_mod")
+    
+    if projectiles_mod and projectiles_mod.instance then
+        api.utils.log("[DEBUG] Found projectiles_mod.instance", "weapons_core_mod")
+        -- Access the public API of the projectiles mod
+        if projectiles_mod.instance.public and projectiles_mod.instance.public.spawnProjectile then
+            api.utils.log("[DEBUG] Using projectiles_mod.instance.public.spawnProjectile", "weapons_core_mod")
+            return projectiles_mod.instance.public.spawnProjectile(template.projectile_type, x, y, dx, dy, projectile_params)
+        elseif projectiles_mod.instance.spawnProjectile then
+            api.utils.log("[DEBUG] Using projectiles_mod.instance.spawnProjectile", "weapons_core_mod")
+            -- Fallback to direct access if public API not available
+            return projectiles_mod.instance.spawnProjectile(template.projectile_type, x, y, dx, dy, projectile_params)
+        else
+            api.utils.log("[DEBUG] projectiles_mod.instance exists but no spawnProjectile found", "weapons_core_mod")
+            -- Debug: List available functions
+            for k, v in pairs(projectiles_mod.instance) do
+                if type(v) == "function" then
+                    api.utils.log("[DEBUG] Found function: " .. k, "weapons_core_mod")
+                end
+            end
+        end
     end
+    
+    -- Fallback: Try through mods shorthand
+    if api.mods and api.mods.projectiles_mod then
+        api.utils.log("[DEBUG] Found api.mods.projectiles_mod", "weapons_core_mod")
+        if api.mods.projectiles_mod.public and api.mods.projectiles_mod.public.spawnProjectile then
+            api.utils.log("[DEBUG] Using api.mods.projectiles_mod.public.spawnProjectile", "weapons_core_mod")
+            return api.mods.projectiles_mod.public.spawnProjectile(template.projectile_type, x, y, dx, dy, projectile_params)
+        elseif api.mods.projectiles_mod.spawnProjectile then
+            api.utils.log("[DEBUG] Using api.mods.projectiles_mod.spawnProjectile", "weapons_core_mod")
+            return api.mods.projectiles_mod.spawnProjectile(template.projectile_type, x, y, dx, dy, projectile_params)
+        else
+            api.utils.log("[DEBUG] api.mods.projectiles_mod exists but no spawnProjectile found", "weapons_core_mod")
+            -- Debug: List available functions
+            for k, v in pairs(api.mods.projectiles_mod) do
+                if type(v) == "function" then
+                    api.utils.log("[DEBUG] Found function on api.mods: " .. k, "weapons_core_mod")
+                elseif type(v) == "table" and k == "public" then
+                    api.utils.log("[DEBUG] Found public table", "weapons_core_mod")
+                    for pk, pv in pairs(v) do
+                        if type(pv) == "function" then
+                            api.utils.log("[DEBUG] Found public function: " .. pk, "weapons_core_mod")
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    api.utils.log("[ERROR] Projectiles mod not available or spawnProjectile function not found", "weapons_core_mod")
+    return nil
 end
 
 -- Create sophisticated muzzle flash effect (from legacy system)
 function weaponsCoremod.createMuzzleFlash(x, y, dx, dy, params)
     -- Get combat effects mod from mod system
-    local effects_mod = api.mod_system and api.mod_system.getMod and api.mod_system.getMod("combat_effects_mod")
+    local effects_mod = api.mod_system.getMod("combat_effects_mod")
     if effects_mod and effects_mod.instance and effects_mod.instance.public and effects_mod.instance.public.createMuzzleFlash then
         effects_mod.instance.public.createMuzzleFlash(x, y, {x = dx, y = dy}, {
             duration = params.duration,
@@ -529,7 +737,7 @@ end
 -- Create sophisticated particle effect (gunpowder confetti from legacy system)
 function weaponsCoremod.createParticleEffect(x, y, dx, dy, params)
     -- Get combat effects mod from mod system
-    local effects_mod = api.mod_system and api.mod_system.getMod and api.mod_system.getMod("combat_effects_mod")
+    local effects_mod = api.mod_system.getMod("combat_effects_mod")
     if effects_mod and effects_mod.instance and effects_mod.instance.public and effects_mod.instance.public.createParticleEffect then
         effects_mod.instance.public.createParticleEffect(x, y, {x = dx, y = dy}, params)
     else
@@ -572,11 +780,15 @@ end
 
 -- Create shell ejection effect (from legacy system)
 function weaponsCoremod.createShellEjection(x, y, dx, dy, shell_type)
+    api.utils.log("[DEBUG] createShellEjection called - type: " .. tostring(shell_type), "weapons_core_mod")
+    
     -- Get combat effects mod from mod system
-    local effects_mod = api.mod_system and api.mod_system.getMod and api.mod_system.getMod("combat_effects_mod")
+    local effects_mod = api.mod_system.getMod("combat_effects_mod")
     if effects_mod and effects_mod.instance and effects_mod.instance.public and effects_mod.instance.public.createShellEjection then
+        api.utils.log("[DEBUG] Using combat_effects_mod for shell ejection", "weapons_core_mod")
         effects_mod.instance.public.createShellEjection(x, y, {x = dx, y = dy}, shell_type)
     else
+        api.utils.log("[DEBUG] Using fallback renderer for shell ejection", "weapons_core_mod")
         -- Fallback to direct renderer call
         api.renderer.addParticleEffect("shell_ejection", x, y, "shell", {
             direction = {dx, dy},
@@ -626,15 +838,15 @@ function weaponsCoremod.update(dt)
         local mx, my = api.input.getMousePosition()
         weaponsCoremod.handleShoot(mx, my, 1)
     end
-    
+end
+
+-- Draw function (for rendering weapon and UI elements)
+function weaponsCoremod.draw()
     -- Render current weapon if equipped
     if current_weapon then
         weaponsCoremod.renderWeapon()
     end
-end
-
--- Draw function (for UI elements)
-function weaponsCoremod.draw()
+    
     if not current_weapon then
         return
     end
@@ -657,8 +869,6 @@ function weaponsCoremod.draw()
             color = {1, 1, 1, 1}
         })
     end
-    
-    -- Note: Crosshair/aiming ring not implemented yet - needs mouse position from input system
 end
 
 -- Update aiming direction continuously (enhanced from legacy system)
@@ -720,7 +930,7 @@ function weaponsCoremod.renderWeapon()
     local dy = last_aim_direction.y
     
     -- Debug: Log that weapon is being rendered
-    -- api.utils.log("Rendering weapon: " .. template.name .. " at " .. px .. "," .. py, "weapons_core_mod")
+    api.utils.log("Rendering weapon: " .. template.name .. " at " .. px .. "," .. py .. " aim: " .. dx .. "," .. dy, "weapons_core_mod")
     
     -- Draw aiming ring around player
     local ring_radius = template.ring_radius or 25
@@ -801,7 +1011,15 @@ weaponsCoremod.public = {
     registerWeapon = weaponsCoremod.registerWeapon,
     getWeaponTemplate = function(id) return weapon_templates[id] end,
     getCurrentWeapon = function() return current_weapon end,
-    toggleDebug = weaponsCoremod.toggleDebug
+    toggleDebug = weaponsCoremod.toggleDebug,
+    switchWeapon = weaponsCoremod.switchWeapon,
+    getWeaponList = function() 
+        local list = {}
+        for id, template in pairs(weapon_templates) do
+            table.insert(list, {id = id, name = template.name})
+        end
+        return list
+    end
 }
 
 return weaponsCoremod

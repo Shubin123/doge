@@ -9,7 +9,8 @@ the map and is synced and the fire effects whic think is the broken enemy (jerom
 │   Like the concept of a "local player" and calling stuff like "game.___()" throguh the apis we made, its getting to be a cohesive game      │
 │   system with powerfull multiplayer and custom scripting capabilities. its easier when we can make custom content not through love          │
 │   directly but building off of existing mods/architecture that doesnt break rendering or multiplayer each time and infact can handle those  │
-│   bugs without breaking the base game and still letting players join eachother!
+│   bugs without breaking the base game and still letting players join eachother! We also cant walk around the with the character with keyboard comands, dashing works tho. lets reduce the game to 1 enemy, a simple jerome (do not touch the bosses), just where jerome ie enemy.png is used 
+to ensure that the jerome enemy is being rendered much smaller, at a consistent size, jerome should take damage from the players weapons (ie bullets as of now) and jerome should flash red when close to death and also display damage indicators and shoot fireballs at the players that can damage them!
 
 
 ⏺ Summary of Fixes Implemented

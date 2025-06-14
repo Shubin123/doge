@@ -90,6 +90,7 @@ moonshine = require("lib.graphics.moonshine") -- Moonshine effects
 light = require("systems.light")              -- Lighting system
 blood = require("systems.blood")              -- Blood effects
 wind = require("lib.graphics.wind")           -- Wind effects
+pause = require("systems.pause")              -- Pause system
 
 command = require("ui.command")                 -- Console system
 cmdn = require("ui.cmndX")                     -- Enhanced console
@@ -173,22 +174,33 @@ function love.load()
     blur.load()
     blood.load()
 
+    -- Initialize pause system
+    pause.init(multiplayer, modSystem, var, snapshot)
+    
     -- Initialize mod system with engine components
     local engine_systems = {
         renderer = rendererPlus,
         physics = world,
-        multiplayer = multiplayer
+        multiplayer = multiplayer,
+        pause = pause
     }
     modSystem.init(engine_systems)
     
-    -- Load core system mods first
+    -- Load UI notifications mod first (needed by pause system)
+    modSystem.loadMod("ui_notifications_mod")
+    
+    -- Re-initialize pause system to get notifications API
+    pause.init(multiplayer, modSystem, var, snapshot)
+    
+    -- Load core system mods
     modSystem.loadMod("player_core_mod")      -- Core player system (MIGRATED)
     modSystem.loadMod("map_system")
     
-    -- Load combat mods
-    modSystem.loadMod("weapons_core_mod")
+    -- Load combat mods (dependencies first)
     modSystem.loadMod("projectiles_mod")
     modSystem.loadMod("combat_effects_mod")
+    modSystem.loadMod("explosion_effects_mod")
+    modSystem.loadMod("weapons_core_mod")  -- Load after dependencies
     
     -- Load enemy and boss mods
     modSystem.loadMod("health_damage_mod")
@@ -197,6 +209,85 @@ function love.load()
     modSystem.loadMod("ai_behaviors_mod")
     modSystem.loadMod("basic_enemies_mod")
     modSystem.loadMod("bear_boss_mod")
+    
+    -- Expose game references to console for debugging
+    cmdn.setGameReferences({
+        world = world,
+        modSystem = modSystem,
+        multiplayer = multiplayer,
+        multiplayerMode = multiplayerMode,
+        boss = boss,
+        serial = serial,
+        var = var,
+        -- Create a player proxy that accesses the mod's player
+        player = setmetatable({}, {
+            __index = function(t, k)
+                -- Use getPlayerData which is the proper API
+                local playerData = modSystem.getPlayerData()
+                local playerMod = nil
+                
+                -- Try to get player mod through loaded_mods
+                if modSystem.getLoadedMod then
+                    playerMod = modSystem.getLoadedMod("player_core_mod")
+                    if playerMod and playerMod.instance then
+                        playerMod = {exports = playerMod.instance.exports}
+                    end
+                end
+                if playerData then
+                    if k == "body" then
+                        -- Return a proxy body for teleportation
+                        return {
+                            setPosition = function(self, x, y)
+                                -- Call a teleport function if available
+                                if playerMod.exports and playerMod.exports.teleportPlayer then
+                                    playerMod.exports.teleportPlayer(x, y)
+                                else
+                                    print("Teleport not available in player mod")
+                                end
+                            end,
+                            getX = function()
+                                local px, py = playerMod.exports.getPosition()
+                                return px
+                            end,
+                            getY = function()
+                                local px, py = playerMod.exports.getPosition()
+                                return py
+                            end
+                        }
+                    elseif k == "health" then
+                        local h, _ = playerMod.exports.getHealth()
+                        return h
+                    elseif k == "max_health" then
+                        local _, mh = playerMod.exports.getHealth()
+                        return mh
+                    elseif k == "godmode" then
+                        return cmdn.isGodmodeEnabled("local")
+                    end
+                end
+                return nil
+            end,
+            __newindex = function(t, k, v)
+                -- Use getPlayerData which is the proper API
+                local playerData = modSystem.getPlayerData()
+                local playerMod = nil
+                
+                -- Try to get player mod through loaded_mods
+                if modSystem.getLoadedMod then
+                    playerMod = modSystem.getLoadedMod("player_core_mod")
+                    if playerMod and playerMod.instance then
+                        playerMod = {exports = playerMod.instance.exports}
+                    end
+                end
+                if playerMod then
+                    if k == "health" and playerMod.setHealth then
+                        playerMod.setHealth(v)
+                    elseif k == "godmode" then
+                        -- This is handled by console
+                    end
+                end
+            end
+        })
+    })
 end
 
 
@@ -223,14 +314,11 @@ function love.draw()
     -- Update core systems
     blood.populate()
     
-    -- Update and render mod system
-    modSystem.update(love.timer.getDelta())
+    -- Let mods populate the render queue
+    modSystem.draw()
     
     -- Render everything with new renderer
     rendererPlus.render(love.timer.getDelta())
-    
-    -- Draw mod system UI elements on top
-    modSystem.draw()
 
     love.graphics.pop() -- Return to base world space
 
@@ -247,6 +335,9 @@ function love.draw()
     mydraw.mydraw()
     command.draw()
     cmdn.draw()
+    
+    -- Draw pause overlay on top of everything
+    pause.draw()
 end
 
 local t = 0
@@ -258,6 +349,18 @@ function love.update(dt)
         end
     elseif var.State == "running" then
         var.State = "game"
+    end
+    
+    -- Update pause system
+    pause.update(dt)
+    
+    -- Skip game updates if gameplay is paused
+    if pause.isGameplayPaused() then
+        -- Still update multiplayer to handle pause messages
+        if var.multiplayer then
+            mp:update()
+        end
+        return
     end
     
     -- Update physics world
@@ -286,6 +389,9 @@ function love.update(dt)
     cmdn.update(dt)
     blood.update(dt)
     wind.update(dt)
+    
+    -- Update mod system (critical for player movement and weapons!)
+    modSystem.update(dt)
 end
 
 function love.resize(w, h)
@@ -304,6 +410,22 @@ function love.mousepressed(x, y, button, istouch, presses)
         if nextStateAction == "running" then
             var.State = "running"
             love.event.push("quit", "restart")
+        elseif nextStateAction == "resume" then
+            -- Resume from pause menu
+            pause.toggle()
+            var.State = "game"
+            menu.setPauseMode(false)
+            menu.blur = false
+            blur.blur_enabled = false
+        elseif nextStateAction == "exit_to_menu" then
+            -- Exit to main menu from pause
+            if pause.isPaused() then
+                pause.toggle()
+            end
+            var.State = "menu"
+            menu.setPauseMode(false)
+            menu.currentMenu = "main"
+            -- TODO: Reset game state
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
@@ -361,9 +483,27 @@ function love.keypressed(key)
     end
 
     if key == "escape" then
-        var.State = (var.State == "menu") and "running" or "menu" 
-        menu.blur = not menu.blur
-        blur.blur_enabled = not blur.blur_enabled
+        if var.State == "game" then
+            -- Toggle pause in game
+            pause.toggle()
+            -- Open menu in pause mode
+            var.State = "menu"
+            menu.setPauseMode(true)
+            menu.blur = true
+            blur.blur_enabled = true
+        elseif var.State == "menu" and menu.pauseMenu then
+            -- Resume from pause menu
+            pause.toggle()
+            var.State = "game"
+            menu.setPauseMode(false)
+            menu.blur = false
+            blur.blur_enabled = false
+        else
+            -- Toggle menu when not in game
+            var.State = (var.State == "menu") and "running" or "menu" 
+            menu.blur = not menu.blur
+            blur.blur_enabled = not blur.blur_enabled
+        end
     end
     
     -- Forward input to systems
@@ -383,6 +523,7 @@ function love.mousemoved(x, y, dx, dy, istouch)
 end
 
 function love.keyreleased(key)
+    modSystem.keyreleased(key)
     command.keyreleased(key)
     cmdn.keyreleased(key)
 end

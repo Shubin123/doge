@@ -138,7 +138,7 @@ function projectilesMod.registerBuiltinProjectiles()
         speed = 800,
         damage = 10,
         lifetime = 5.0,
-        radius = 3,
+        radius = 2,  -- Reduced from 3
         trail_enabled = true,
         trail_color = {1, 1, 0.8, 0.8},
         hit_effect = "bullet_impact"
@@ -434,9 +434,6 @@ function projectilesMod.update(dt)
         
         ::continue::
     end
-    
-    -- Populate renderer with all projectile effects
-    projectilesMod.populateRenderer()
 end
 
 -- Update rocket-specific behavior
@@ -476,6 +473,8 @@ function projectilesMod.handleCollision(projectile_fixture, other_fixture, conta
     local other_body = other_fixture:getBody()
     local x, y = other_body:getPosition()
     
+    api.utils.log("Collision detected - group: " .. tostring(other_group) .. ", data: " .. tostring(other_data), "projectiles_mod")
+    
     -- Check if this is a projectile (to determine who fired it)
     local is_projectile = type(proj) == "table" and proj.params and proj.template_id
     if not is_projectile then
@@ -497,7 +496,7 @@ function projectilesMod.handleCollision(projectile_fixture, other_fixture, conta
     
     -- Handle different collision types
     if other_group == COLLISION_GROUPS.ENEMY then
-        projectilesMod.handleEnemyHit(proj, other_body, x, y)
+        projectilesMod.handleEnemyHit(proj, other_body, x, y, other_data)
     elseif other_group == COLLISION_GROUPS.PLAYER then
         -- Check if this is player vs player damage (PvP)
         if other_data and other_data.type == "player" then
@@ -514,7 +513,7 @@ function projectilesMod.handleCollision(projectile_fixture, other_fixture, conta
             end
         end
     elseif other_group == COLLISION_GROUPS.BOSS then
-        projectilesMod.handleBossHit(proj, other_body, x, y)
+        projectilesMod.handleBossHit(proj, other_body, x, y, other_data)
     else
         -- Hit environment
         projectilesMod.handleEnvironmentHit(proj, x, y)
@@ -527,7 +526,13 @@ function projectilesMod.handleCollision(projectile_fixture, other_fixture, conta
     
     -- Handle explosion for rockets
     if proj.params.explosion_radius > 0 then
-        projectilesMod.createExplosion(x, y, proj.params.explosion_radius, proj.params.damage)
+        projectilesMod.createExplosion(
+            x, y, 
+            proj.params.explosion_radius, 
+            proj.params.explosion_damage or proj.params.damage,
+            proj.params.owner_id,
+            proj.params.team
+        )
     end
     
     -- Schedule for removal
@@ -535,7 +540,7 @@ function projectilesMod.handleCollision(projectile_fixture, other_fixture, conta
 end
 
 -- Handle enemy hit
-function projectilesMod.handleEnemyHit(proj, enemy_body, x, y)
+function projectilesMod.handleEnemyHit(proj, enemy_body, x, y, enemy_data)
     -- Apply damage (this would integrate with enemy system)
     local damage = math.random(proj.params.damage - 2, proj.params.damage + 2)
     
@@ -545,6 +550,19 @@ function projectilesMod.handleEnemyHit(proj, enemy_body, x, y)
         local force_y = proj.direction.y * proj.params.knockback
         -- Use safe physics utility when available
         enemy_body:applyLinearImpulse(force_x, force_y)
+    end
+    
+    -- Try to damage enemy through basic_enemies_mod
+    if enemy_data and enemy_data.id and enemy_data.mod == "basic_enemies_mod" then
+        local enemies_mod = api.mod_system.getMod("basic_enemies_mod")
+        if enemies_mod and enemies_mod.instance and enemies_mod.instance.exports and enemies_mod.instance.exports.damageEnemy then
+            -- Get attacker position for directional effects
+            local attacker_x = x - proj.direction.x * 50
+            local attacker_y = y - proj.direction.y * 50
+            enemies_mod.instance.exports.damageEnemy(enemy_data.id, damage, true, attacker_x, attacker_y)
+        else
+            api.utils.log("Could not find basic_enemies_mod damage function", "projectiles_mod")
+        end
     end
     
     -- Create blood effect
@@ -644,15 +662,28 @@ function projectilesMod.createHitEffect(proj, x, y)
 end
 
 -- Create explosion effect
-function projectilesMod.createExplosion(x, y, radius, damage)
-    -- Visual explosion effect
-    api.renderer.addParticleEffect("explosion", x, y, "explosion", {
-        radius = radius,
-        intensity = 1.0
-    })
+function projectilesMod.createExplosion(x, y, radius, damage, owner, team)
+    -- Use explosion_effects_mod if available
+    local explosionAPI = api.game.getModAPI("explosion_effects")
     
-    -- Damage entities in radius (would need integration with game systems)
-    api.utils.log("Explosion at " .. x .. "," .. y .. " radius:" .. radius, "projectiles_mod")
+    if explosionAPI then
+        -- Use the dedicated explosion effects mod
+        explosionAPI.createExplosion(x, y, {
+            radius = radius,
+            damage = damage,
+            owner = owner,
+            team = team,
+            color = {1, 0.8, 0.4},  -- Orange explosion
+            smokeColor = {0.3, 0.3, 0.3}
+        })
+    else
+        -- Fallback to basic explosion effect
+        api.renderer.addParticleEffect("explosion", x, y, "explosion", {
+            radius = radius,
+            intensity = 1.0
+        })
+        api.utils.log("Explosion at " .. x .. "," .. y .. " radius:" .. radius .. " (fallback mode)", "projectiles_mod")
+    end
 end
 
 -- Return projectile to pool for reuse (from legacy system)
@@ -790,10 +821,18 @@ function projectilesMod.populateRenderer()
         
         ::continue::
     end
+    
+    -- Debug log if we have active projectiles
+    if #active_projectiles > 0 then
+        api.utils.log("Rendering " .. #active_projectiles .. " projectiles", "projectiles_mod")
+    end
 end
 
 -- Draw function (legacy compatibility)
 function projectilesMod.draw()
+    -- Populate the renderer queue with all projectile visuals
+    projectilesMod.populateRenderer()
+    
     -- Legacy renderer compatibility - draw effects directly
     projectilesMod.drawMuzzleFlashes()
     projectilesMod.drawParticles()

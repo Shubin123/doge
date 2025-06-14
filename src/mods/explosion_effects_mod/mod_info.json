@@ -1,0 +1,28 @@
+{
+    "id": "explosion_effects",
+    "name": "Explosion Effects",
+    "version": "1.0.0",
+    "author": "DogeGame",
+    "description": "Provides explosion functionality with visual effects, splash damage, and screen shake",
+    "permissions": [
+        "renderer.add_effects",
+        "physics.query",
+        "game.damage",
+        "audio.play",
+        "game.camera",
+        "network.send"
+    ],
+    "dependencies": [],
+    "configuration": {
+        "default_radius": 150,
+        "default_damage": 100,
+        "damage_falloff": 0.5,
+        "screen_shake_intensity": 10,
+        "particle_count": 50,
+        "smoke_duration": 2,
+        "flash_duration": 0.1,
+        "friendly_fire": false,
+        "scorch_marks": true,
+        "max_concurrent_explosions": 10
+    }
+}

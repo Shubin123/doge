@@ -18,6 +18,88 @@ local padding = 10
 local consoleHeight = 350
 local consoleWidth = 500
 
+-- Enhanced command state
+local godmodeEnabled = false
+local playerStates = {} -- Track godmode per player ID for multiplayer
+
+-- Enhanced Live log viewer system with dynamic source detection
+local gameLogsBuffer = {}
+local maxLogLines = 1000
+local originalPrint = print
+local logFilter = ""
+local liveLogsEnabled = false
+local liveLogScrollOffset = 0
+local liveLogHeight = 250
+local liveLogWidth = 450
+local liveLogX = 0  -- Will be set to right side
+local liveLogY = 0  -- Will be set to bottom
+local liveLogFont = nil
+local liveLogLineHeight = 14
+local maxLiveLogLines = 16
+local liveLogPaused = false
+local selectedLogIndex = -1
+local pauseButtonHover = false
+local clearButtonHover = false
+local gameVersionShown = false
+local liveLogLastUpdate = 0  -- Track last update time
+local liveLogUpdateInterval = 0.1  -- Update every 100ms when paused
+
+-- Log source detection and categorization
+local function detectLogSource(message)
+    local info = debug.getinfo(3, "S")
+    local source = "UNKNOWN"
+    local category = "system"
+    
+    if info and info.source then
+        local sourcePath = info.source
+        if sourcePath:find("mod_system") then
+            source = "MOD_SYSTEM"
+            category = "mod_system"
+        elseif sourcePath:find("mods/") then
+            local modName = sourcePath:match("mods/([^/]+)")
+            source = "MOD:" .. (modName or "unknown")
+            category = "mod"
+        elseif sourcePath:find("rendererPlus") or sourcePath:find("new_renderer") then
+            source = "rendererPlus"
+            category = "renderer"
+        elseif sourcePath:find("main%.lua") then
+            source = "ENGINE"
+            category = "core"
+        elseif sourcePath:find("cmnd") then
+            source = "CONSOLE"
+            category = "debug"
+        else
+            source = "SYSTEM"
+            category = "system"
+        end
+    end
+    
+    -- Further categorize based on message content
+    if message:find("%[MOD_SYSTEM%]") then
+        source = "MOD_SYSTEM"
+        category = "mod_system"
+    elseif message:find("%[MOD:([^%]]+)%]") then
+        local modName = message:match("%[MOD:([^%]]+)%]")
+        source = "MOD:" .. modName
+        category = "mod"
+    elseif message:find("%[rendererPlus%]") then
+        source = "rendererPlus"
+        category = "renderer"
+    end
+    
+    return source, category
+end
+
+-- Common log filter patterns for autocomplete
+local commonLogFilters = {
+    "MOD_SYSTEM", "rendererPlus", "Error", "Warning", "Failed", 
+    "player_core_mod", "weapons_core_mod", "combat_effects_mod",
+    "projectiles_mod", "basic_enemies_mod", "bear_boss_mod",
+    "health_damage_mod", "blood_effects_mod", "map_system",
+    "GC collected", "World queue", "Loaded texture", "Success",
+    "Initialization", "Complete", "Loading", "Spawned"
+}
+
 -- Window state
 local windowX = 100
 local windowY = 100
@@ -32,10 +114,26 @@ local autocompleteIndex = 0
 local autocompleteOptions = {}
 local showingAutocomplete = false
 
+-- Common log filter patterns for autocomplete
+local commonLogFilters = {
+    "MOD_SYSTEM", "rendererPlus", "player_core_mod", "weapons_core_mod", 
+    "combat_effects_mod", "projectiles_mod", "health_damage_mod", "basic_enemies_mod",
+    "bear_boss_mod", "blood_effects_mod", "ai_behaviors_mod", "damage_indicators_mod",
+    "Error", "Warning", "Failed", "Success", "loaded", "initialized", "GC", "queue"
+}
+
 -- Command index for autocomplete (all available commands)
 local commandIndex = {
     -- Console commands
     "help", "clear", "exit", "reload", "tp", "save", "load", "boss", "weapon",
+    "godmode", "god", "invincible", -- Add godmode aliases
+    "teleport", "tp player", "tp to", -- Enhanced teleport
+    "logs", "logs off", "logs clear", "logs count", "logs filter", "logs remove filters", "logs gameStart",
+    
+    -- Log filter autocomplete
+    "logs filter MOD_SYSTEM", "logs filter rendererPlus", "logs filter player_core_mod",
+    "logs filter weapons_core_mod", "logs filter combat_effects_mod", "logs filter Error",
+    "logs filter Warning", "logs filter GC", "logs filter queue",
     
     -- Lua built-ins
     "print", "type", "pairs", "ipairs", "math", "string", "table", "io", "os", "debug",
@@ -163,6 +261,17 @@ local function findAutocompleteOptions(input)
         return options 
     end
     
+    -- Special handling for log filter commands
+    if input:find("^logs filter ") then
+        local filterPrefix = input:match("^logs filter (.*)") or ""
+        for _, filter in ipairs(commonLogFilters) do
+            if filter:lower():find(filterPrefix:lower(), 1, true) then
+                table.insert(options, "logs filter " .. filter)
+            end
+        end
+        return options
+    end
+    
     -- Check for dot notation (object.property)
     local dotPos = input:find("%.")
     if dotPos then
@@ -256,6 +365,11 @@ end
 
 -- Handle mouse press
 function cmdn.mousepressed(x, y, button)
+    -- First check live log viewer interactions (even if console is closed)
+    if cmdn.handleLiveLogMouse(x, y, button) then
+        return  -- Live log viewer handled the click
+    end
+    
     if not isActive then return end
     
     if button == 1 then
@@ -307,6 +421,16 @@ local keyRepeatRate = 0.05  -- Time between repeats
 
 -- Initialize the cmdn module
 function cmdn.load()
+    -- Initialize log capture system first
+    cmdn.initializeLogCapture()
+    
+    -- Auto-enable live log viewer for startup logs if flag file exists
+    if love.filesystem.getInfo("cmdn_startup_logs.flag") then
+        liveLogsEnabled = true
+        cmdn.addOutput("Live log viewer auto-enabled for startup logs", outputColor)
+        love.filesystem.remove("cmdn_startup_logs.flag")
+    end
+    
     -- Try to load the desired font, fallback to default if it fails
     local success, loadedFont = pcall(love.graphics.newFont, "gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     if success then
@@ -315,13 +439,37 @@ function cmdn.load()
         font = love.graphics.getFont() or love.graphics.newFont(16)
     end
     lineHeight = font:getHeight() + 2
+    
+    -- Initialize live log viewer font (smaller)
+    local liveLogSuccess, liveLogLoadedFont = pcall(love.graphics.newFont, "gfx/menu/Px437_IBM_VGA_8x16.ttf", 10)
+    if liveLogSuccess then
+        liveLogFont = liveLogLoadedFont
+    else
+        liveLogFont = love.graphics.newFont(10)
+    end
+    liveLogLineHeight = liveLogFont:getHeight() + 1
+    
+    -- Set live log viewer position (bottom-right corner)
+    liveLogX = love.graphics.getWidth() - liveLogWidth - 20
+    liveLogY = love.graphics.getHeight() - liveLogHeight - 20
+    
     -- consoleWidth is now fixed, not screen-dependent
     cmdn.addOutput("{green}=== {yellow}LUA DEBUG CONSOLE{/yellow} ==={/green}", promptColor)
+    
+    -- Show game version from var.game_version
+    if var and var.game_version then
+        cmdn.addOutput("{cyan}Game Version: {yellow}" .. var.game_version .. "{/yellow}{/cyan}", outputColor)
+    end
+    
     cmdn.addOutput("Type {yellow}help{/yellow} for available commands", outputColor)
     cmdn.addOutput("Press {cyan},{/cyan} to toggle console", outputColor)
     cmdn.addOutput("Autocomplete: {cyan}Tab{/cyan} to cycle/accept suggestions", outputColor)
     cmdn.addOutput("Try: {cyan}player.{/cyan} or {cyan}love.{/cyan} for object inspection", outputColor)
+    cmdn.addOutput("Use {yellow}logs{/yellow} command to enable live log viewer!", outputColor)
     cmdn.addOutput("", outputColor)
+    
+    -- Initialize log capture
+    cmdn.initializeLogCapture()
 end
 
 -- Wrap text to fit within console width
@@ -387,23 +535,193 @@ function cmdn.execute(cmd)
     end
     historyIndex = #history + 1
     cmdn.addOutput("{green}> {/green}" .. cmd, promptColor)
-    if cmd == "help" then
-        cmdn.showHelp()
+    if string.find(cmd, "^help") then
+        -- Enhanced help system with categories and specific command help
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        if tokens[2] then
+            -- Show help for specific command
+            cmdn.showCommandHelp(tokens[2])
+        else
+            -- Show general help with categories
+            cmdn.showHelp()
+        end
     elseif cmd == "clear" then
         output = {}
     elseif cmd == "exit" then
         love.event.quit()
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
-    elseif string.find(cmd, "tp") then
+    elseif string.find(cmd, "logs") or string.find(cmd, "log ") then
+        -- Handle live log viewer commands
         local tokens = {}
         for token in cmd:gmatch("%S+") do
             table.insert(tokens, token)
         end
-        local tp_x = tonumber(tokens[2]) or 0
-        local tp_y = tonumber(tokens[3]) or 0
-        if player and player.body then
-            player.body:setPosition(tp_x, tp_y)
+        
+        if (tokens[1] == "log" or tokens[1] == "logs") and tokens[2] == "gameStart" then
+            -- Persist startup log flag for next run and clear buffer
+            love.filesystem.write("cmdn_startup_logs.flag", "1")
+            gameLogsBuffer = {}  -- Clear current buffer for fresh start
+            cmdn.addOutput("Startup log capture enabled - reloading game with log capture from start...", outputColor)
+            -- Trigger game reload with log capture enabled
+            love.event.push("quit", "restart")
+        elseif tokens[2] == "clear" then
+            gameLogsBuffer = {}
+            cmdn.addOutput("Game logs cleared", outputColor)
+        elseif tokens[2] == "count" then
+            cmdn.addOutput("Total logs in buffer: " .. #gameLogsBuffer, outputColor)
+        elseif tokens[2] == "filter" then
+            local filterPattern = tokens[3] or ""
+            if filterPattern == "" then
+                logFilter = ""
+                cmdn.addOutput("Log filter cleared", outputColor)
+            else
+                logFilter = filterPattern
+                local filtered = cmdn.filterLogs(filterPattern)
+                cmdn.addOutput("Log filter set to: '" .. filterPattern .. "' (" .. #filtered .. " matches)", outputColor)
+            end
+        elseif tokens[2] == "remove" and tokens[3] == "filters" then
+            logFilter = ""
+            cmdn.addOutput("All log filters removed", outputColor)
+        elseif tokens[2] == "export" then
+            -- Export logs to a file (optional feature)
+            cmdn.addOutput("Log export feature not yet implemented", outputColor)
+        elseif tokens[2] == "off" then
+            liveLogsEnabled = false
+            cmdn.addOutput("Live log viewer disabled", outputColor)
+        else
+            -- Toggle live log viewer
+            liveLogsEnabled = not liveLogsEnabled
+            if liveLogsEnabled then
+                cmdn.addOutput("Live log viewer enabled (bottom-right corner, semi-transparent)", outputColor)
+                cmdn.addOutput("Use 'logs off' to disable, 'logs filter <pattern>' to filter", outputColor)
+                cmdn.addOutput("Click pause button to freeze scrolling, click logs to copy to console", outputColor)
+            else
+                cmdn.addOutput("Live log viewer disabled", outputColor)
+            end
+        end
+    elseif string.find(cmd, "^godmode") or string.find(cmd, "^god") or string.find(cmd, "^invincible") then
+        -- Handle godmode command
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        local target = tokens[2] -- Optional player ID or "all"
+        if target == "all" then
+            -- Toggle godmode for all players
+            godmodeEnabled = not godmodeEnabled
+            cmdn.addOutput("{yellow}Godmode {/yellow}" .. (godmodeEnabled and "{green}ENABLED{/green}" or "{red}DISABLED{/red}") .. " for all players", outputColor)
+            
+            -- Store state for all players
+            if multiplayerMode and multiplayer and multiplayer.players then
+                for id, _ in pairs(multiplayer.players) do
+                    playerStates[id] = {godmode = godmodeEnabled}
+                end
+            end
+            playerStates["local"] = {godmode = godmodeEnabled}
+        elseif target then
+            -- Toggle godmode for specific player
+            local playerId = target
+            if not playerStates[playerId] then
+                playerStates[playerId] = {}
+            end
+            playerStates[playerId].godmode = not (playerStates[playerId].godmode or false)
+            cmdn.addOutput("{yellow}Godmode {/yellow}" .. (playerStates[playerId].godmode and "{green}ENABLED{/green}" or "{red}DISABLED{/red}") .. " for player " .. playerId, outputColor)
+        else
+            -- Toggle godmode for local player
+            if not playerStates["local"] then
+                playerStates["local"] = {}
+            end
+            playerStates["local"].godmode = not (playerStates["local"].godmode or false)
+            godmodeEnabled = playerStates["local"].godmode
+            cmdn.addOutput("{yellow}Godmode {/yellow}" .. (godmodeEnabled and "{green}ENABLED{/green}" or "{red}DISABLED{/red}") .. " for local player", outputColor)
+        end
+        
+        -- Apply godmode effect
+        if player then
+            player.godmode = godmodeEnabled
+            if godmodeEnabled and player.health then
+                player.health = player.max_health or 100
+            end
+        end
+    elseif string.find(cmd, "^tp") or string.find(cmd, "^teleport") then
+        -- Enhanced teleport command
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        
+        if tokens[2] == "player" or tokens[2] == "to" then
+            -- Teleport to player ID
+            local targetId = tokens[3]
+            if targetId and multiplayerMode and multiplayer and multiplayer.players and multiplayer.players[targetId] then
+                local targetPlayer = multiplayer.players[targetId]
+                if targetPlayer.body then
+                    local tx, ty = targetPlayer.body:getX(), targetPlayer.body:getY()
+                    if player and player.body then
+                        player.body:setPosition(tx + 20, ty) -- Offset slightly to avoid overlap
+                        cmdn.addOutput("Teleported to player " .. targetId .. " at (" .. math.floor(tx) .. ", " .. math.floor(ty) .. ")", outputColor)
+                    end
+                else
+                    cmdn.addOutput("{red}Error:{/red} Target player has no valid position", errorColor)
+                end
+            else
+                cmdn.addOutput("{red}Error:{/red} Player '" .. (targetId or "nil") .. "' not found", errorColor)
+                -- List available players
+                if multiplayerMode and multiplayer and multiplayer.players then
+                    local playerList = {}
+                    for id, _ in pairs(multiplayer.players) do
+                        table.insert(playerList, id)
+                    end
+                    if #playerList > 0 then
+                        cmdn.addOutput("Available players: " .. table.concat(playerList, ", "), outputColor)
+                    end
+                end
+            end
+        else
+            -- Teleport to coordinates
+            local tp_x = tonumber(tokens[2])
+            local tp_y = tonumber(tokens[3])
+            
+            if tp_x and tp_y then
+                -- Try to teleport using mod API
+                local success = false
+                
+                -- First try through mod system
+                if modSystem and modSystem.getLoadedMod then
+                    local playerMod = modSystem.getLoadedMod("player_core_mod")
+                    if playerMod and playerMod.instance and playerMod.instance.exports then
+                        if playerMod.instance.exports.teleportPlayer then
+                            playerMod.instance.exports.teleportPlayer(tp_x, tp_y)
+                            success = true
+                        end
+                    end
+                end
+                
+                -- Fallback to player proxy if available
+                if not success and player and player.body then
+                    local ok = pcall(function()
+                        player.body:setPosition(tp_x, tp_y)
+                        success = true
+                    end)
+                    if not ok then
+                        success = false
+                    end
+                end
+                
+                if success then
+                    cmdn.addOutput("Teleported to (" .. tp_x .. ", " .. tp_y .. ")", outputColor)
+                else
+                    cmdn.addOutput("{red}Error:{/red} Could not teleport - player not found", errorColor)
+                end
+            else
+                cmdn.addOutput("{red}Error:{/red} Invalid teleport syntax. Use: tp <x> <y> or tp player <id>", errorColor)
+            end
         end
     elseif cmd == "save" then
         if serial and serial.quickSave then
@@ -543,35 +861,222 @@ function cmdn.tableToString(t, indent, visited)
     return str
 end
 
+-- Command help documentation
+local commandHelp = {
+    -- Admin Commands
+    godmode = {
+        category = "admin",
+        usage = "godmode [player_id|all]",
+        description = "Toggle invincibility for you or specified players",
+        examples = {
+            "godmode" .. " - Toggle godmode for yourself",
+            "godmode all" .. " - Toggle godmode for all players",
+            "godmode player_2" .. " - Toggle godmode for player_2"
+        },
+        aliases = {"god", "invincible"}
+    },
+    
+    -- Gameplay Commands
+    tp = {
+        category = "gameplay",
+        usage = "tp <x> <y> | tp player <id>",
+        description = "Teleport to coordinates or another player",
+        examples = {
+            "tp 100 200" .. " - Teleport to coordinates (100, 200)",
+            "tp player host" .. " - Teleport to the host player",
+            "tp to player_2" .. " - Teleport to player_2"
+        },
+        aliases = {"teleport"}
+    },
+    
+    save = {
+        category = "gameplay",
+        usage = "save",
+        description = "Quick save the current game state",
+        examples = {"save" .. " - Save current game"}
+    },
+    
+    load = {
+        category = "gameplay",
+        usage = "load",
+        description = "Quick load the last saved game state",
+        examples = {"load" .. " - Load last saved game"}
+    },
+    
+    boss = {
+        category = "gameplay",
+        usage = "boss spawn [x] [y] | boss despawn <id|all> | boss list | boss damage <id> [amount]",
+        description = "Boss management commands",
+        examples = {
+            "boss spawn" .. " - Spawn boss at player location",
+            "boss spawn 200 300" .. " - Spawn boss at specific location",
+            "boss list" .. " - List all active bosses",
+            "boss despawn all" .. " - Remove all bosses",
+            "boss damage 1 500" .. " - Deal 500 damage to boss ID 1"
+        }
+    },
+    
+    weapon = {
+        category = "gameplay",
+        usage = "weapon debug",
+        description = "Toggle weapon debug visualization",
+        examples = {"weapon debug" .. " - Toggle weapon debug mode"}
+    },
+    
+    -- Debug Commands
+    logs = {
+        category = "debug",
+        usage = "logs [off|filter|clear|count|gameStart]",
+        description = "Control the live log viewer overlay",
+        examples = {
+            "logs" .. " - Toggle log viewer",
+            "logs filter error" .. " - Show only error logs",
+            "logs filter MOD_SYSTEM" .. " - Show mod system logs",
+            "logs clear" .. " - Clear log buffer",
+            "logs gameStart" .. " - Enable startup log capture"
+        }
+    },
+    
+    clear = {
+        category = "debug",
+        usage = "clear",
+        description = "Clear the console output",
+        examples = {"clear" .. " - Clear all console text"}
+    },
+    
+    reload = {
+        category = "debug",
+        usage = "reload",
+        description = "Restart the game",
+        examples = {"reload" .. " - Restart game immediately"}
+    },
+    
+    -- System Commands
+    help = {
+        category = "system",
+        usage = "help [command]",
+        description = "Show help for all commands or a specific command",
+        examples = {
+            "help" .. " - Show all commands by category",
+            "help godmode" .. " - Show detailed help for godmode",
+            "help tp" .. " - Show detailed help for teleport"
+        }
+    },
+    
+    exit = {
+        category = "system",
+        usage = "exit",
+        description = "Exit the game",
+        examples = {"exit" .. " - Quit game immediately"}
+    }
+}
+
+-- Command categories
+local commandCategories = {
+    admin = {"godmode"},
+    gameplay = {"tp", "save", "load", "boss", "weapon"},
+    debug = {"logs", "clear", "reload"},
+    system = {"help", "exit"},
+    mod = {} -- Will be populated by mods
+}
+
 -- Show help information
 function cmdn.showHelp()
-    cmdn.addOutput("{green}Available cmdns:{/green}", promptColor)
-    cmdn.addOutput("  {yellow}help{/yellow}          - Show this help", outputColor)
-    cmdn.addOutput("  {yellow}clear{/yellow}         - Clear console output", outputColor)
-    cmdn.addOutput("  {yellow}exit{/yellow}          - Quit game", outputColor)
-    cmdn.addOutput("  {yellow}reload{/yellow}        - Restart game", outputColor)
-    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
-    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
-    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
-    cmdn.addOutput("  {yellow}boss spawn [x] [y]{/yellow} - Spawn a boss", outputColor)
-    cmdn.addOutput("  {yellow}boss despawn <id|all>{/yellow} - Despawn boss(es)", outputColor)
-    cmdn.addOutput("  {yellow}boss list{/yellow}      - List active bosses", outputColor)
-    cmdn.addOutput("  {yellow}boss damage <id> [amt]{/yellow} - Damage a boss", outputColor)
+    cmdn.addOutput("{green}=== COMMAND HELP ==={/green}", promptColor)
+    cmdn.addOutput("Type {yellow}help <command>{/yellow} for detailed information about a specific command", outputColor)
     cmdn.addOutput("", outputColor)
-    cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
-    cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)
-    cmdn.addOutput("  {cyan}player.x = 100{/cyan}         - Set variables", outputColor)
-    cmdn.addOutput("  {cyan}love.graphics.getWidth(){/cyan} - Call functions", outputColor)
+    
+    -- Show commands by category
+    local categoryOrder = {"admin", "gameplay", "debug", "system", "mod"}
+    local categoryNames = {
+        admin = "Admin Commands",
+        gameplay = "Gameplay Commands",
+        debug = "Debug Commands",
+        system = "System Commands",
+        mod = "Mod Commands"
+    }
+    
+    for _, category in ipairs(categoryOrder) do
+        local commands = commandCategories[category]
+        if commands and #commands > 0 then
+            cmdn.addOutput("{cyan}" .. categoryNames[category] .. ":{/cyan}", promptColor)
+            
+            for _, cmdName in ipairs(commands) do
+                local cmdInfo = commandHelp[cmdName]
+                if cmdInfo then
+                    local aliasText = ""
+                    if cmdInfo.aliases and #cmdInfo.aliases > 0 then
+                        aliasText = " {blue}(" .. table.concat(cmdInfo.aliases, ", ") .. "){/blue}"
+                    end
+                    cmdn.addOutput(string.format("  {yellow}%-12s{/yellow} - %s%s", cmdName, cmdInfo.description, aliasText), outputColor)
+                end
+            end
+            cmdn.addOutput("", outputColor)
+        end
+    end
+    -- Keyboard shortcuts
+    cmdn.addOutput("{green}Keyboard Shortcuts:{/green}", promptColor)
+    cmdn.addOutput("  {blue},{/blue}              - Toggle console", outputColor)
+    cmdn.addOutput("  {blue}Tab{/blue}            - Cycle/accept autocomplete", outputColor)
+    cmdn.addOutput("  {blue}Up/Down{/blue}        - Navigate command history", outputColor)
+    cmdn.addOutput("  {blue}Ctrl+C{/blue}         - Copy last output", outputColor)
+    cmdn.addOutput("  {blue}PageUp/Down{/blue}    - Scroll output", outputColor)
     cmdn.addOutput("", outputColor)
-    cmdn.addOutput("{green}Keyboard shortcuts:{/green}", promptColor)
-    cmdn.addOutput("  {blue},{/blue} - Toggle console", outputColor)
-    cmdn.addOutput("  {blue}Tab{/blue} - Cycle/accept autocomplete suggestions", outputColor)
-    cmdn.addOutput("  {blue}Up/Down{/blue} - Navigate command history", outputColor)
-    cmdn.addOutput("  {blue}Enter{/blue} - Accept autocomplete or execute command", outputColor)
-    cmdn.addOutput("  {blue}Ctrl+C/Cmd+C{/blue} - Copy last output", outputColor)
-    cmdn.addOutput("  {blue}Ctrl+V/Cmd+V{/blue} - Paste from clipboard", outputColor)
-    cmdn.addOutput("  {blue}PageUp/PageDown{/blue} - Scroll output", outputColor)
-    cmdn.addOutput("  {blue}Mouse wheel{/blue} - Scroll output", outputColor)
+    
+    -- Quick tips
+    cmdn.addOutput("{green}Tips:{/green}", promptColor)
+    cmdn.addOutput("  • Commands support autocomplete - start typing and press Tab", outputColor)
+    cmdn.addOutput("  • Use {cyan}player.{/cyan} or {cyan}love.{/cyan} to explore object properties", outputColor)
+    cmdn.addOutput("  • Execute any Lua code directly in the console", outputColor)
+    cmdn.addOutput("  • {yellow}Note:{/yellow} All players currently have access to all commands", outputColor)
+    cmdn.addOutput("", outputColor)
+end
+
+-- Show detailed help for a specific command
+function cmdn.showCommandHelp(cmdName)
+    -- Check for aliases
+    local actualCmd = cmdName
+    for cmd, info in pairs(commandHelp) do
+        if info.aliases then
+            for _, alias in ipairs(info.aliases) do
+                if alias == cmdName then
+                    actualCmd = cmd
+                    break
+                end
+            end
+        end
+    end
+    
+    local cmdInfo = commandHelp[actualCmd]
+    if not cmdInfo then
+        cmdn.addOutput("{red}Error:{/red} Unknown command '" .. cmdName .. "'. Type 'help' to see all commands.", errorColor)
+        return
+    end
+    
+    -- Show detailed help
+    cmdn.addOutput("{green}=== HELP: " .. string.upper(actualCmd) .. " ==={/green}", promptColor)
+    cmdn.addOutput("", outputColor)
+    
+    cmdn.addOutput("{cyan}Description:{/cyan} " .. cmdInfo.description, outputColor)
+    cmdn.addOutput("", outputColor)
+    
+    cmdn.addOutput("{cyan}Usage:{/cyan} {yellow}" .. cmdInfo.usage .. "{/yellow}", outputColor)
+    cmdn.addOutput("", outputColor)
+    
+    if cmdInfo.aliases and #cmdInfo.aliases > 0 then
+        cmdn.addOutput("{cyan}Aliases:{/cyan} " .. table.concat(cmdInfo.aliases, ", "), outputColor)
+        cmdn.addOutput("", outputColor)
+    end
+    
+    if cmdInfo.examples and #cmdInfo.examples > 0 then
+        cmdn.addOutput("{cyan}Examples:{/cyan}", outputColor)
+        for _, example in ipairs(cmdInfo.examples) do
+            cmdn.addOutput("  {yellow}" .. example .. "{/yellow}", outputColor)
+        end
+        cmdn.addOutput("", outputColor)
+    end
+    
+    cmdn.addOutput("{cyan}Category:{/cyan} " .. cmdInfo.category, outputColor)
     cmdn.addOutput("", outputColor)
 end
 
@@ -632,6 +1137,30 @@ function cmdn.update(dt)
     local visibleLines = math.floor(contentHeight / lineHeight)
     local maxScroll = math.max(0, #output - visibleLines)
     scrollOffset = math.min(maxScroll, math.max(0, scrollOffset))
+    
+    -- Update live log viewer
+    if liveLogsEnabled then
+        liveLogLastUpdate = liveLogLastUpdate + dt
+        
+        -- When paused, only update every interval to prevent constant redraws
+        if not liveLogPaused or liveLogLastUpdate >= liveLogUpdateInterval then
+            liveLogLastUpdate = 0
+            
+            -- Calculate visible lines and scroll position
+            local filteredLogs = cmdn.filterLogs(logFilter)
+            local logAreaHeight = liveLogHeight - 30
+            local visibleLines = math.floor(logAreaHeight / liveLogLineHeight)
+            
+            -- When not paused, always show latest logs
+            if not liveLogPaused then
+                liveLogScrollOffset = 0
+            end
+            
+            -- Ensure scroll offset stays within bounds
+            local maxScroll = math.max(0, #filteredLogs - visibleLines)
+            liveLogScrollOffset = math.min(maxScroll, math.max(0, liveLogScrollOffset))
+        end
+    end
 end
 
 -- Handle text input
@@ -757,6 +1286,9 @@ end
 
 -- Draw the console
 function cmdn.draw()
+    -- Always draw live log viewer if enabled (separate from main console)
+    cmdn.drawLiveLogViewer()
+    
     if not isActive then return end
     
     local r, g, b, a = love.graphics.getColor()
@@ -899,8 +1431,222 @@ function cmdn.draw()
         love.graphics.rectangle("fill", windowX + consoleWidth - 8, scrollBarY, 4, scrollBarHeight, 2)
     end
     
+    -- Draw live log viewer (separate from main console)
+    cmdn.drawLiveLogViewer()
+    
     love.graphics.setColor(r, g, b, a)
     love.graphics.setFont(currentFont)
+end
+
+-- Draw live log viewer (bottom-right, semi-transparent)
+function cmdn.drawLiveLogViewer()
+    if not liveLogsEnabled then return end
+    
+    -- Update position if screen size changed
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    liveLogX = screenW - liveLogWidth - 20
+    liveLogY = screenH - liveLogHeight - 20
+    
+    -- Get filtered logs
+    local filteredLogs = cmdn.filterLogs(logFilter)
+    local r, g, b, a = love.graphics.getColor()
+    local currentFont = love.graphics.getFont()
+    if liveLogFont then
+        love.graphics.setFont(liveLogFont)
+    end
+    
+    -- Draw background with semi-transparency (more transparent to not interfere with game)
+    love.graphics.setColor(0.05, 0.05, 0.05, 0.6)
+    love.graphics.rectangle("fill", liveLogX, liveLogY, liveLogWidth, liveLogHeight, 5)
+    
+    -- Draw border
+    love.graphics.setColor(0.2, 0.6, 0.9, 0.6)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", liveLogX, liveLogY, liveLogWidth, liveLogHeight, 5)
+    
+    -- Draw title bar with pause button
+    love.graphics.setColor(0.1, 0.1, 0.1, 0.9)
+    love.graphics.rectangle("fill", liveLogX, liveLogY, liveLogWidth, 20, 5)
+    
+    -- Title text
+    love.graphics.setColor(0.8, 0.8, 0.8, 0.9)
+    love.graphics.print("Live Logs" .. (logFilter ~= "" and " [" .. logFilter .. "]" or ""), liveLogX + 5, liveLogY + 2)
+    
+    -- Pause button (wider with text)
+    local pauseButtonWidth = 50
+    local pauseButtonX = liveLogX + liveLogWidth - pauseButtonWidth - 5
+    local pauseButtonY = liveLogY + 2
+    local pauseColor = liveLogPaused and {0.9, 0.3, 0.3, 0.8} or {0.3, 0.7, 0.3, 0.8}
+    if pauseButtonHover then
+        pauseColor[4] = 1.0  -- Full opacity when hovering
+    end
+    love.graphics.setColor(pauseColor)
+    love.graphics.rectangle("fill", pauseButtonX, pauseButtonY, pauseButtonWidth, 16, 2)
+    love.graphics.setColor(1, 1, 1, 0.9)
+    local buttonText = liveLogPaused and "Resume" or "Pause"
+    love.graphics.print(buttonText, pauseButtonX + 8, pauseButtonY + 1)
+    
+    -- Clear button
+    local clearButtonWidth = 60
+    local clearButtonX = pauseButtonX - clearButtonWidth - 5
+    local clearButtonY = pauseButtonY
+    local clearColor = clearButtonHover and {0.9, 0.6, 0.2, 0.8} or {0.7, 0.4, 0.1, 0.8}
+    if clearButtonHover then clearColor[4] = 1.0 end
+    love.graphics.setColor(clearColor)
+    love.graphics.rectangle("fill", clearButtonX, clearButtonY, clearButtonWidth, 16, 2)
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.print("Clear", clearButtonX + 10, clearButtonY + 1)
+    
+    -- Draw logs (latest at bottom, scrolling upward)
+    local logStartY = liveLogY + 25
+    local logAreaHeight = liveLogHeight - 30
+    local visibleLines = math.floor(logAreaHeight / liveLogLineHeight)
+    
+    -- Calculate which logs to show (latest at bottom)
+    -- When not paused, automatically scroll to bottom (latest logs)
+    if not liveLogPaused then
+        liveLogScrollOffset = 0
+    end
+    
+    local startIndex = math.max(1, #filteredLogs - visibleLines + 1 - liveLogScrollOffset)
+    local endIndex = math.min(#filteredLogs - liveLogScrollOffset, startIndex + visibleLines - 1)
+    
+    -- Draw logs
+    for i = startIndex, endIndex do
+        if i > 0 and i <= #filteredLogs then
+            local log = filteredLogs[i]
+            local lineY = logStartY + (i - startIndex) * liveLogLineHeight
+            
+            -- Highlight selected log
+            if selectedLogIndex == i then
+                love.graphics.setColor(0.3, 0.3, 0.6, 0.6)
+                love.graphics.rectangle("fill", liveLogX + 2, lineY - 1, liveLogWidth - 4, liveLogLineHeight)
+            end
+            
+            -- Get log color based on source/content
+            local logColor = cmdn.getLogColor(log.source, log.category, log.message)
+            love.graphics.setColor(logColor)
+            
+            -- Truncate message if too long
+            local displayMessage = log.timestamp .. " " .. log.source .. ": " .. log.message
+            if liveLogFont and liveLogFont:getWidth(displayMessage) > liveLogWidth - 10 then
+                local maxChars = math.floor((liveLogWidth - 10) / liveLogFont:getWidth("W"))
+                displayMessage = displayMessage:sub(1, maxChars - 3) .. "..."
+            end
+            
+            love.graphics.print(displayMessage, liveLogX + 5, lineY)
+        end
+    end
+    
+    -- Draw scroll indicator if needed
+    if #filteredLogs > visibleLines then
+        local scrollBarHeight = math.max(5, (visibleLines / #filteredLogs) * logAreaHeight)
+        local scrollBarY = logStartY + ((liveLogScrollOffset / (#filteredLogs - visibleLines)) * (logAreaHeight - scrollBarHeight))
+        love.graphics.setColor(0.6, 0.6, 0.6, 0.7)
+        love.graphics.rectangle("fill", liveLogX + liveLogWidth - 5, scrollBarY, 3, scrollBarHeight, 1)
+    end
+    
+    love.graphics.setColor(r, g, b, a)
+    love.graphics.setFont(currentFont)
+end
+
+-- Handle mouse interaction with live log viewer
+function cmdn.handleLiveLogMouse(x, y, button)
+    if not liveLogsEnabled then return false end
+    
+    -- Check if mouse is over live log viewer
+    if x >= liveLogX and x <= liveLogX + liveLogWidth and 
+       y >= liveLogY and y <= liveLogY + liveLogHeight then
+        
+        -- Check pause button (updated coordinates)
+        local pauseButtonWidth = 50
+        local pauseButtonX = liveLogX + liveLogWidth - pauseButtonWidth - 5
+        local pauseButtonY = liveLogY + 2
+        if x >= pauseButtonX and x <= pauseButtonX + pauseButtonWidth and 
+           y >= pauseButtonY and y <= pauseButtonY + 16 then
+            if button == 1 then  -- Left click
+                liveLogPaused = not liveLogPaused
+                -- When resuming, reset scroll to show latest logs
+                if not liveLogPaused then
+                    liveLogScrollOffset = 0
+                end
+                cmdn.addOutput("Live log viewer " .. (liveLogPaused and "paused" or "resumed"), outputColor)
+            end
+            return true
+        end
+        
+        -- Check log selection
+        local logStartY = liveLogY + 25
+        if y >= logStartY then
+            local filteredLogs = cmdn.filterLogs(logFilter)
+            local logAreaHeight = liveLogHeight - 30
+            local visibleLines = math.floor(logAreaHeight / liveLogLineHeight)
+            local startIndex = math.max(1, #filteredLogs - visibleLines + 1 - liveLogScrollOffset)
+            
+            local clickedLine = math.floor((y - logStartY) / liveLogLineHeight)
+            local logIndex = startIndex + clickedLine
+            
+            if logIndex > 0 and logIndex <= #filteredLogs then
+                if button == 1 then  -- Left click
+                    selectedLogIndex = logIndex
+                    local selectedLog = filteredLogs[logIndex]
+                    -- Print selected log to console for easy copying
+                    originalPrint("COPIED LOG: " .. selectedLog.fullMessage)
+                    cmdn.addOutput("Log copied to terminal: " .. selectedLog.timestamp .. " " .. selectedLog.source, outputColor)
+                end
+            end
+        end
+        
+        -- Check clear button
+        local clearButtonWidth = 60
+        local clearButtonX = pauseButtonX - clearButtonWidth - 5
+        local clearButtonY = pauseButtonY
+        if x >= clearButtonX and x <= clearButtonX + clearButtonWidth and 
+           y >= clearButtonY and y <= clearButtonY + 16 then
+            if button == 1 then
+                gameLogsBuffer = {}
+                liveLogScrollOffset = 0
+                selectedLogIndex = -1
+                cmdn.addOutput("Live logs cleared", outputColor)
+            end
+            return true
+        end
+        
+        return true
+    end
+    
+    -- Check if hovering over pause button (updated coordinates)
+    local pauseButtonWidth = 50
+    local pauseButtonX = liveLogX + liveLogWidth - pauseButtonWidth - 5
+    local pauseButtonY = liveLogY + 2
+    pauseButtonHover = (x >= pauseButtonX and x <= pauseButtonX + pauseButtonWidth and 
+                       y >= pauseButtonY and y <= pauseButtonY + 16)
+    
+    local clearButtonWidth = 60
+    local clearButtonX = pauseButtonX - clearButtonWidth - 5
+    clearButtonHover = (x >= clearButtonX and x <= clearButtonX + clearButtonWidth and 
+                        y >= pauseButtonY and y <= pauseButtonY + 16)
+    
+    return false
+end
+
+-- Get color for live log entry based on category and source
+function cmdn.getLiveLogColor(log)
+    if log.category == "error" then
+        return {0.9, 0.3, 0.3, 1}  -- Red for errors
+    elseif log.category == "system" then
+        return {0.3, 0.6, 1.0, 1}  -- Blue for system
+    elseif log.category == "mod" then
+        return {0.2, 0.8, 0.2, 1}  -- Green for mods
+    elseif log.category == "renderer" then
+        return {0.2, 0.9, 0.9, 1}  -- Cyan for renderer
+    elseif log.category == "gc" then
+        return {0.9, 0.9, 0.2, 1}  -- Yellow for GC
+    elseif log.category == "dev" then
+        return {0.8, 0.6, 0.2, 1}  -- Orange for dev tools
+    else
+        return {0.8, 0.8, 0.8, 1}  -- White/gray for others
+    end
 end
 
 -- Check if console is active
@@ -917,6 +1663,190 @@ end
 function cmdn.setGameReferences(refs)
     for name, value in pairs(refs) do
         _G[name] = value
+    end
+end
+
+-- Check if a player has godmode enabled
+function cmdn.isGodmodeEnabled(playerId)
+    if playerId then
+        return playerStates[playerId] and playerStates[playerId].godmode or false
+    else
+        return godmodeEnabled
+    end
+end
+
+-- Register a mod command (for mod integration)
+function cmdn.registerModCommand(cmdName, cmdInfo)
+    if not cmdName or not cmdInfo then return end
+    
+    -- Add to command help
+    commandHelp[cmdName] = cmdInfo
+    
+    -- Add to mod category
+    if not commandCategories.mod then
+        commandCategories.mod = {}
+    end
+    table.insert(commandCategories.mod, cmdName)
+    
+    -- Add to autocomplete index
+    table.insert(commandIndex, cmdName)
+    if cmdInfo.aliases then
+        for _, alias in ipairs(cmdInfo.aliases) do
+            table.insert(commandIndex, alias)
+        end
+    end
+end
+
+-- Enhanced log capture functionality with dynamic source detection
+function cmdn.initializeLogCapture()
+    -- Override the global print function to capture all logs with source detection
+    print = function(...)
+        -- If paused, skip capturing and just call original print
+        if liveLogPaused and liveLogsEnabled then
+            return originalPrint(...)
+        end
+        local args = {...}
+        local logMessage = ""
+        for i, arg in ipairs(args) do
+            if i > 1 then logMessage = logMessage .. "\t" end
+            logMessage = logMessage .. tostring(arg)
+        end
+        
+        -- Detect source and category dynamically
+        local source, category = detectLogSource(logMessage)
+        
+        -- Add timestamp
+        local timestamp = os.date("[%H:%M:%S]")
+        local fullLogMessage = timestamp .. " " .. logMessage
+        
+        -- Store the current number of logs before adding new one
+        local prevLogCount = #gameLogsBuffer
+        
+        -- Store in our buffer with enhanced metadata
+        table.insert(gameLogsBuffer, {
+            timestamp = timestamp,
+            message = logMessage,
+            fullMessage = fullLogMessage,
+            source = source,
+            category = category,
+            rawMessage = logMessage,
+            time = love.timer.getTime()  -- Add timestamp for sorting
+        })
+        
+        -- Limit buffer size
+        if #gameLogsBuffer > maxLogLines then
+            table.remove(gameLogsBuffer, 1)
+        end
+        
+        -- When paused, adjust scroll offset to maintain view position as new logs come in
+        if liveLogPaused and liveLogsEnabled then
+            -- Only adjust if we weren't at the bottom already
+            if liveLogScrollOffset > 0 then
+                -- Calculate how many visible lines we have
+                local filteredLogs = cmdn.filterLogs(logFilter)
+                local logAreaHeight = liveLogHeight - 30
+                local visibleLines = math.floor(logAreaHeight / liveLogLineHeight)
+                
+                -- If new logs were added and we have room to scroll, maintain position
+                if #filteredLogs > prevLogCount then
+                    liveLogScrollOffset = liveLogScrollOffset + (#filteredLogs - prevLogCount)
+                end
+            end
+        end
+        
+        -- Call original print so logs still appear in terminal
+        originalPrint(...)
+    end
+end
+
+-- Initialize live log viewer positioning
+function cmdn.initializeLiveLogViewer()
+    liveLogX = love.graphics.getWidth() - liveLogWidth - 10
+    liveLogY = love.graphics.getHeight() - liveLogHeight - 10
+end
+
+-- Get color for log source/category
+function cmdn.getLogColor(source, category, message)
+    if source == "MOD_SYSTEM" then
+        return {0.3, 0.6, 1.0, 0.7}  -- Blue, semi-transparent
+    elseif source:find("MOD:") then
+        return {0.2, 0.8, 0.2, 0.7}  -- Green, semi-transparent
+    elseif source == "rendererPlus" then
+        return {0.2, 0.9, 0.9, 0.7}  -- Cyan, semi-transparent
+    elseif message:find("Error") or message:find("Failed") or message:find("Warning") then
+        return {0.9, 0.3, 0.3, 0.8}  -- Red, more opaque for errors
+    elseif message:find("GC collected") then
+        return {0.9, 0.9, 0.2, 0.6}  -- Yellow, semi-transparent
+    elseif message:find("Success") or message:find("complete") or message:find("loaded") then
+        return {0.2, 0.8, 0.2, 0.7}  -- Green, semi-transparent
+    else
+        return {0.9, 0.9, 0.9, 0.6}  -- White, semi-transparent
+    end
+end
+
+-- Filter logs based on pattern
+function cmdn.filterLogs(pattern)
+    if not pattern or pattern == "" then
+        return gameLogsBuffer
+    end
+    
+    local filtered = {}
+    local lowerPattern = pattern:lower()
+    
+    for _, log in ipairs(gameLogsBuffer) do
+        -- Check message, source, and category for matches
+        if log.message:lower():find(lowerPattern, 1, true) or 
+           log.source:lower():find(lowerPattern, 1, true) or
+           log.category:lower():find(lowerPattern, 1, true) then
+            table.insert(filtered, log)
+        end
+    end
+    
+    -- Sort by timestamp to ensure consistent order
+    table.sort(filtered, function(a, b) return a.time < b.time end)
+    
+    return filtered
+end
+
+-- Display logs in console
+function cmdn.displayLogs(count, filter)
+    count = count or 50  -- Default to last 50 logs
+    local logs = cmdn.filterLogs(filter)
+    
+    if #logs == 0 then
+        cmdn.addOutput("{yellow}No logs found" .. (filter and " matching '" .. filter .. "'" or "") .. "{/yellow}", outputColor)
+        return
+    end
+    
+    local startIndex = math.max(1, #logs - count + 1)
+    cmdn.addOutput("{cyan}=== GAME LOGS" .. (filter and " (filtered: '" .. filter .. "')" or "") .. " ==={/cyan}", promptColor)
+    
+    for i = startIndex, #logs do
+        local log = logs[i]
+        local coloredMessage = cmdn.colorizeLogMessage(log.fullMessage)
+        cmdn.addOutput(coloredMessage, outputColor)
+    end
+    
+    cmdn.addOutput("{cyan}=== END LOGS (showing " .. (#logs - startIndex + 1) .. " of " .. #logs .. ") ==={/cyan}", promptColor)
+end
+
+-- Colorize log messages based on content
+function cmdn.colorizeLogMessage(message)
+    -- Color based on log prefixes and keywords
+    if message:find("%[MOD_SYSTEM%]") then
+        return "{blue}" .. message .. "{/blue}"
+    elseif message:find("%[MOD:") then
+        return "{green}" .. message .. "{/green}"
+    elseif message:find("%[rendererPlus%]") then
+        return "{cyan}" .. message .. "{/cyan}"
+    elseif message:find("Error") or message:find("Failed") or message:find("Warning") then
+        return "{red}" .. message .. "{/red}"
+    elseif message:find("Success") or message:find("complete") or message:find("loaded") then
+        return "{green}" .. message .. "{/green}"
+    elseif message:find("GC collected") then
+        return "{yellow}" .. message .. "{/yellow}"
+    else
+        return message
     end
 end
 

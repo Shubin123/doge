@@ -1,3 +1,5 @@
+-- needs to be migrated to the new mod system, do not use this in new code.
+
 local fire = {}
 local physSafe = require("util.physics_safe")
 fire.scale = 0.8

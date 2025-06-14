@@ -213,6 +213,15 @@ function multiplayer:_handleMessage(data, peer, role)
         return
     end
     
+    -- Check if this is a pause command message
+    if message.type == "pause_command" then
+        -- Call registered pause handlers
+        if self.message_handlers["pause_command"] then
+            self.message_handlers["pause_command"](message, peer, role)
+        end
+        return
+    end
+    
     -- Otherwise treat as game state (legacy handling)
     local game_state = message
     

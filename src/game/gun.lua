@@ -1,3 +1,4 @@
+-- to be migrateed to the new mod system!
 local vec2 = require("lib.math.vec2")
 local player = require("game.player")
 local camera = require("lib.graphics.camera")
@@ -506,3 +507,5 @@ function GunTool.collision(fixture_a, fixture_b, contact)
 end
 
 return GunTool
+
+-- to be migrateed to the new mod system!

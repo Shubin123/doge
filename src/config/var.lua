@@ -1,6 +1,7 @@
 local var = {}
 var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
 -- globals
+var.game_version = "beta 0.1"
 var.screen_height = 600
 var.screen_width = 800
 var.screen_flags = {

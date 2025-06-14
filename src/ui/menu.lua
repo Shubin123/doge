@@ -3,15 +3,18 @@
 local menu = {}
 menu.blur = false
 menu.currentMenu = "main" -- "main", "settings", or "saves"
+menu.pauseMenu = false -- Whether menu was opened from pause
 
 local font
 local ps
 
 -- Main menu buttons
 local startButton = { y = 250, text = "[ Start Game ]" }
+local resumeButton = { y = 250, text = "[ Resume Game ]" } -- For pause menu
 local settingsButton = { y = 280, text = "[ Settings ]" }
 local savesButton = { y = 310, text = "[ Saves ]" }
 local exitButton = { y = 340, text = "[ Exit ]" }
+local exitToMenuButton = { y = 340, text = "[ Exit to Menu ]" } -- For pause menu
 
 -- Settings menu buttons and options
 local resolutionButton = { y = 220, text = "Resolution: " }
@@ -35,9 +38,11 @@ local graphicsSettings = {
         {width = 1920, height = 1080, text = "1920x1080"}
     },
     currentResolution = 1,
-    fullscreen = false,
+    fullscreen = false,  -- fullscreen and windowed modes
     vsync = true,
     particles = true
+    -- global illumination
+    -- enable blood
 }
 
 local function getButtonBounds(buttonInfo, screenInfo)
@@ -93,11 +98,24 @@ function menu.draw()
 
     if menu.currentMenu == "main" then
         love.graphics.printf("Doge.", 0, 90, var.screen_width/2, "center", 0, 2, 2)
-        love.graphics.printf("Game Version = alpha 0.0.2", 0, 125, var.screen_width/0.8, "center", 0, 0.8, 0.8)
-        love.graphics.printf(startButton.text, 0, startButton.y, var.screen_width, "center")
+        love.graphics.printf("Game Version = " .. var.game_version, 0, 125, var.screen_width/0.8, "center", 0, 0.8, 0.8)
+        
+        -- Show resume button if we're in pause menu, otherwise start button
+        if menu.pauseMenu then
+            love.graphics.printf(resumeButton.text, 0, resumeButton.y, var.screen_width, "center")
+        else
+            love.graphics.printf(startButton.text, 0, startButton.y, var.screen_width, "center")
+        end
+        
         love.graphics.printf(settingsButton.text, 0, settingsButton.y, var.screen_width, "center")
         love.graphics.printf(savesButton.text, 0, savesButton.y, var.screen_width, "center")
-        love.graphics.printf(exitButton.text, 0, exitButton.y, var.screen_width, "center")
+        
+        -- Show different exit button if we're in pause menu
+        if menu.pauseMenu then
+            love.graphics.printf(exitToMenuButton.text, 0, exitToMenuButton.y, var.screen_width, "center")
+        else
+            love.graphics.printf(exitButton.text, 0, exitButton.y, var.screen_width, "center")
+        end
 
     elseif menu.currentMenu == "settings" then
         love.graphics.printf("Graphics Settings", 0, 180, var.screen_width, "center")
@@ -135,10 +153,25 @@ function menu.mousepressed(x, y, button, screenInfo)
     end
 
     if menu.currentMenu == "main" then
-        if inBounds(startButton) then return "running" end
+        -- Check resume/start button
+        if menu.pauseMenu then
+            if inBounds(resumeButton) then return "resume" end
+        else
+            if inBounds(startButton) then return "running" end
+        end
+        
         if inBounds(settingsButton) then menu.currentMenu = "settings" return nil end
         if inBounds(savesButton) then menu.currentMenu = "saves" return nil end
-        if inBounds(exitButton) then return "exit" end
+        
+        -- Check exit button
+        if menu.pauseMenu then
+            if inBounds(exitToMenuButton) then 
+                menu.pauseMenu = false
+                return "exit_to_menu" 
+            end
+        else
+            if inBounds(exitButton) then return "exit" end
+        end
 
     elseif menu.currentMenu == "settings" then
         local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
@@ -214,19 +247,26 @@ end
 
 function menu.saveGame()
     print("Save game triggered.")
-    serial.quickSave()
-    
+    if serial then
+        serial.quickSave()
+    end
 end
 
 function menu.loadGame()
     print("Load game triggered.")
-    serial.quickLoad()
-
+    if serial then
+        serial.quickLoad()
+    end
 end
 
 function menu.deleteSave()
     print("Delete save triggered.")
-    
+    -- TODO: Implement save deletion
+end
+
+-- Set whether menu is opened from pause
+function menu.setPauseMode(isPause)
+    menu.pauseMenu = isPause
 end
 
 return menu

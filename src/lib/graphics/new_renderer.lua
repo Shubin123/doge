@@ -2,13 +2,14 @@ local rendererPlus = {}
 
 rendererPlus.debug_mode = true
 
--- Asset Management System
+-- Asset Management System (exposed for mod API access)
 local assets = {
     textures = {},
     shaders = {},
     particle_systems = {},
     fonts = {}
 }
+rendererPlus.assets = assets  -- Expose assets for mod system
 
 -- Effect System
 local effects = {
@@ -40,15 +41,24 @@ function rendererPlus.preloadAssets()
     local missing_textures = {}
     -- Define all assets to preload from gfx folder
     local asset_paths = {
-        -- Character sprites
-        ["player_idle"] = "src/gfx/testCharacter/idle.png",
-        ["player_walk"] = "src/gfx/testCharacter/walk.png",
-        ["player_run"] = "src/gfx/testCharacter/run.png",
-        ["player_jump"] = "src/gfx/testCharacter/jump.png",
-        ["player_combat"] = "src/gfx/testCharacter/combat_idle.png",
-        ["player_slash"] = "src/gfx/testCharacter/slash.png",
-        ["player_shoot"] = "src/gfx/testCharacter/shoot.png",
-        ["player_hurt"] = "src/gfx/testCharacter/hurt.png",
+        -- Character sprites (updated to use new_game_assets)
+        ["player_idle"] = "src/ new_game_assets/default_character_assets/standard/idle.png",
+        ["player_walk"] = "src/ new_game_assets/default_character_assets/standard/walk.png",
+        ["player_run"] = "src/ new_game_assets/default_character_assets/standard/run.png",
+        ["player_jump"] = "src/ new_game_assets/default_character_assets/standard/jump.png",
+        ["player_combat"] = "src/ new_game_assets/default_character_assets/standard/combat_idle.png",
+        ["player_slash"] = "src/ new_game_assets/default_character_assets/standard/slash.png",
+        ["player_shoot"] = "src/ new_game_assets/default_character_assets/standard/shoot.png",
+        ["player_hurt"] = "src/ new_game_assets/default_character_assets/standard/hurt.png",
+        
+        -- Additional character animations from new assets
+        ["player_backslash"] = "src/ new_game_assets/default_character_assets/standard/backslash.png",
+        ["player_climb"] = "src/ new_game_assets/default_character_assets/standard/climb.png",
+        ["player_emote"] = "src/ new_game_assets/default_character_assets/standard/emote.png",
+        ["player_halfslash"] = "src/ new_game_assets/default_character_assets/standard/halfslash.png",
+        ["player_sit"] = "src/ new_game_assets/default_character_assets/standard/sit.png",
+        ["player_spellcast"] = "src/ new_game_assets/default_character_assets/standard/spellcast.png",
+        ["player_thrust"] = "src/ new_game_assets/default_character_assets/standard/thrust.png",
         
         -- Enemy sprites
         ["Jerome_Enemy"] = "src/gfx/enemy.png",
@@ -351,6 +361,9 @@ function rendererPlus.render(dt)
     local original_blend = love.graphics.getBlendMode()
     local original_shader = love.graphics.getShader()
     
+    -- Reset to default white color for drawing
+    love.graphics.setColor(1, 1, 1, 1)
+    
     -- Render background layer
     for _, draw_data in ipairs(render_queue.background) do
         rendererPlus.processDrawData(draw_data)
@@ -370,7 +383,12 @@ function rendererPlus.render(dt)
         rendererPlus.processDrawData(draw_data)
     end
     
-    -- Render effects
+    -- Render effects layer
+    for _, draw_data in ipairs(render_queue.effects) do
+        rendererPlus.processDrawData(draw_data)
+    end
+    
+    -- Render particle effects
     rendererPlus.renderEffects(dt)
     
     -- Render UI layer
@@ -488,24 +506,55 @@ function rendererPlus.processDrawData(draw_data)
         -- Draw bullet tracer effect
         if draw_data.bullet_data then
             local bullet = draw_data.bullet_data
-            local x, y = bullet.body:getPosition()
-            
-            -- Draw tracer line from previous position to current
-            if bullet.prev_pos then
-                love.graphics.setLineWidth(3)
-                love.graphics.setColor(1, 1, 0.8, 0.8)  -- Yellow tracer
-                love.graphics.line(bullet.prev_pos.x, bullet.prev_pos.y, x, y)
+            -- Check if body exists and is not destroyed
+            if bullet.body and not bullet.body:isDestroyed() then
+                local x, y = bullet.body:getPosition()
                 
-                -- Add glow effect
-                love.graphics.setLineWidth(6)
-                love.graphics.setColor(1, 1, 0.5, 0.3)
-                love.graphics.line(bullet.prev_pos.x, bullet.prev_pos.y, x, y)
+                -- Draw tracer trail FIRST (behind the bullet)
+                if bullet.trail and #bullet.trail > 1 then
+                    love.graphics.setBlendMode("add")
+                    
+                    -- Draw multiple trail segments with fading
+                    for i = 1, #bullet.trail - 1 do
+                        local segment = bullet.trail[i]
+                        local next_segment = bullet.trail[i + 1]
+                        local age = (mod_time or 0) - segment.time
+                        local alpha = math.max(0, 1 - (age * 5)) -- Fade over 0.2 seconds
+                        
+                        if alpha > 0 then
+                            -- Thin glowing line
+                            love.graphics.setLineWidth(2)
+                            love.graphics.setColor(1, 0.9, 0.4, alpha * 0.6)
+                            love.graphics.line(segment.x, segment.y, next_segment.x, next_segment.y)
+                            
+                            -- Wider glow
+                            love.graphics.setLineWidth(4)
+                            love.graphics.setColor(1, 0.8, 0.2, alpha * 0.3)
+                            love.graphics.line(segment.x, segment.y, next_segment.x, next_segment.y)
+                        end
+                    end
+                    
+                    love.graphics.setBlendMode("alpha")
+                end
+                
+                -- Draw the bullet itself - very small with glow
+                love.graphics.setBlendMode("add")
+                
+                -- Outer glow
+                love.graphics.setColor(1, 0.9, 0.4, 0.3)
+                love.graphics.circle("fill", x, y, 4)
+                
+                -- Middle glow
+                love.graphics.setColor(1, 0.95, 0.6, 0.6)
+                love.graphics.circle("fill", x, y, 2)
+                
+                -- Bright core - actual bullet size
+                love.graphics.setColor(1, 1, 0.8, 1)
+                love.graphics.circle("fill", x, y, bullet.params.radius or 1) -- Use actual bullet radius
+                
+                love.graphics.setBlendMode("alpha")
                 love.graphics.setLineWidth(1)
             end
-            
-            -- Draw bullet point
-            love.graphics.setColor(1, 1, 0.9, 1)
-            love.graphics.circle("fill", x, y, 3)
         end
     elseif draw_data.type == "muzzle_flash" then
         -- Draw muzzle flash effect

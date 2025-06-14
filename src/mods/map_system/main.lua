@@ -897,8 +897,8 @@ function mapSystemMod.init(api)
     
     print("[MAP_SYSTEM] Initialization complete! Press 'P' for arch, 'O' for tree")
     
-    -- Export functions to global namespace for compatibility
-    _G.map = map
+    -- Export functions through mod API instead of global namespace
+    -- _G.map = map (removed - not allowed in sandbox)
 end
 
 -- Update map system

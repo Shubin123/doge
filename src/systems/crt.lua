@@ -1,3 +1,4 @@
+-- needs to be migrated to the new mod system, do not use this in new code.
 local crt = {}
 
 function crt.load()

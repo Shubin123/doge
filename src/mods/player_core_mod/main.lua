@@ -2,6 +2,8 @@
 -- Provides the core player system migrated from hardcoded main.lua implementation
 -- Handles movement, physics, health, dodge mechanics, animations, and collision responses
 
+-- represents the "local player" when lodaded in the engine
+
 local playerCoreMod = {}
 
 -- Mod state
@@ -78,7 +80,7 @@ end
 
 -- Initialize the mod
 function playerCoreMod.init(mod_api)
-    print("[PLAYER_CORE_MOD] Initializing Player Core System v1.0.0")
+    print(" * [PLAYER_CORE_MOD] Initializing Player Core System")
     
     api = mod_api
     
@@ -99,7 +101,7 @@ function playerCoreMod.init(mod_api)
         enable_networking = true
     }
     
-    -- Register input handlers for movement (key presses only)
+    -- Handle Player Movement Register input handlers for movement
     api.input.registerKeyHandler("w", function() playerCoreMod.handleKeyPress("w") end)
     api.input.registerKeyHandler("a", function() playerCoreMod.handleKeyPress("a") end)
     api.input.registerKeyHandler("s", function() playerCoreMod.handleKeyPress("s") end)
@@ -128,8 +130,13 @@ function playerCoreMod.handleKeyPress(key)
         playerCoreMod.applyMovementImpulse(key)
     end
     
-    -- Set key as currently down (we'll assume it's held for a short duration)
-    input_state.keys_down[key] = api.utils.getTime() + 0.2  -- Hold for 200ms for better responsiveness
+    -- Set key as currently down
+    input_state.keys_down[key] = true
+end
+
+-- Handle key release events
+function playerCoreMod.handleKeyRelease(key)
+    input_state.keys_down[key] = nil
 end
 
 -- Apply movement impulse (called immediately on key press)
@@ -308,16 +315,7 @@ function playerCoreMod.update(dt)
         playerCoreMod.updateNetworkSync(dt)
     end
     
-    -- Add player to render queue
-    playerCoreMod.renderPlayer()
-    
-    -- Update input state - expire old key presses
-    local current_time = api.utils.getTime()
-    for key, expire_time in pairs(input_state.keys_down) do
-        if current_time > expire_time then
-            input_state.keys_down[key] = nil
-        end
-    end
+    -- Don't render here - do it in draw function instead
     
     -- Clear this frame's input flags
     input_state.key_pressed_this_frame = {}
@@ -385,19 +383,68 @@ function playerCoreMod.updateMovement(dt)
     -- Get current velocity
     local vx, vy = player_data.body:getLinearVelocity()
     
-    -- Apply friction to gradually slow down
-    local friction_factor = math.pow(player_data.friction, dt * 60) -- Frame-rate independent friction
-    local newVX = vx * friction_factor
-    local newVY = vy * friction_factor
+    -- Check for continuous movement input
+    local moveX, moveY = 0, 0
+    local isMoving = false
     
-    -- Stop completely if moving very slowly
-    if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
-        newVX, newVY = 0, 0
-        player_data.current_animation = "idle"
+    -- Check which keys are currently held down using Love2D's isDown
+    if api.input.isKeyDown("w") then
+        moveY = moveY - 1
+        isMoving = true
+        player_data.current_animation = "walkUp"
+        player_data.direction = -math.pi/2
+    end
+    if api.input.isKeyDown("s") then
+        moveY = moveY + 1
+        isMoving = true
+        player_data.current_animation = "walkDown"
+        player_data.direction = math.pi/2
+    end
+    if api.input.isKeyDown("a") then
+        moveX = moveX - 1
+        isMoving = true
+        player_data.current_animation = "walkLeft"
+        player_data.direction = math.pi
+    end
+    if api.input.isKeyDown("d") then
+        moveX = moveX + 1
+        isMoving = true
+        player_data.current_animation = "walkRight"
+        player_data.direction = 0
     end
     
-    -- Apply the calculated velocity
-    player_data.body:setLinearVelocity(newVX, newVY)
+    -- Normalize diagonal movement
+    if moveX ~= 0 and moveY ~= 0 then
+        moveX = moveX * 0.707
+        moveY = moveY * 0.707
+    end
+    
+    if isMoving then
+        -- Apply movement force
+        local force = 300
+        player_data.body:applyForce(moveX * force, moveY * force)
+        
+        -- Limit maximum speed
+        vx, vy = player_data.body:getLinearVelocity()
+        local speed = math.sqrt(vx * vx + vy * vy)
+        if speed > player_data.max_speed then
+            local scale = player_data.max_speed / speed
+            player_data.body:setLinearVelocity(vx * scale, vy * scale)
+        end
+    else
+        -- Apply friction when not moving
+        local friction_factor = math.pow(player_data.friction, dt * 60)
+        local newVX = vx * friction_factor
+        local newVY = vy * friction_factor
+        
+        -- Stop completely if moving very slowly
+        if math.abs(newVX) < 5 and math.abs(newVY) < 5 then
+            newVX, newVY = 0, 0
+            player_data.current_animation = "idle"
+        end
+        
+        player_data.body:setLinearVelocity(newVX, newVY)
+    end
 end
 
 -- Render player
@@ -405,11 +452,11 @@ function playerCoreMod.renderPlayer()
     if not player_data.active then return end
     
     -- Debug: log player position every 60 frames
-    if not player_data.debug_counter then player_data.debug_counter = 0 end
-    player_data.debug_counter = player_data.debug_counter + 1
-    if player_data.debug_counter % 60 == 0 then
-        print("[PLAYER_CORE_MOD] Player rendering at: " .. player_data.x .. ", " .. player_data.y)
-    end
+    -- if not player_data.debug_counter then player_data.debug_counter = 0 end
+    -- player_data.debug_counter = player_data.debug_counter + 1
+    -- if player_data.debug_counter % 60 == 0 then
+    --     print("[PLAYER_CORE_MOD] Player rendering at: " .. player_data.x .. ", " .. player_data.y)
+    -- end
     
     -- Add player to render queue
     if player_data.animation and player_data.animation.spriteSheet then
@@ -511,6 +558,12 @@ end
 function playerCoreMod.damagePlayer(damage, source)
     if not player_data.active then return end
     
+    -- Check godmode from console
+    if cmdn and cmdn.isGodmodeEnabled and cmdn.isGodmodeEnabled("local") then
+        print("[PLAYER_CORE_MOD] Godmode active - damage blocked: " .. damage)
+        return
+    end
+    
     player_data.health = math.max(0, player_data.health - damage)
     
     print("[PLAYER_CORE_MOD] Player took " .. damage .. " damage. Health: " .. player_data.health)
@@ -600,6 +653,25 @@ function playerCoreMod.getAnimation()
     return player_data.animation
 end
 
+-- Teleport player to specific coordinates
+function playerCoreMod.teleportPlayer(x, y)
+    if player_data.body and not player_data.body:isDestroyed() then
+        player_data.body:setPosition(x, y)
+        player_data.x = x
+        player_data.y = y
+        print("[PLAYER_CORE_MOD] Teleported player to (" .. x .. ", " .. y .. ")")
+        
+        -- Sync teleport over network
+        if mod_config.enable_networking then
+            api.network.sendToAll({
+                action = "player_teleport",
+                x = x,
+                y = y
+            }, "player_core_mod")
+        end
+    end
+end
+
 -- Network synchronization
 function playerCoreMod.updateNetworkSync(dt)
     player_data.last_sync_time = player_data.last_sync_time + dt
@@ -634,6 +706,14 @@ function playerCoreMod.handleNetworkMessage(data)
     end
 end
 
+-- Draw function
+function playerCoreMod.draw()
+    -- Add player to render queue during draw phase
+    if player_data.active then
+        playerCoreMod.renderPlayer()
+    end
+end
+
 -- Cleanup
 function playerCoreMod.cleanup()
     if player_data.body and not player_data.body:isDestroyed() then
@@ -643,17 +723,18 @@ function playerCoreMod.cleanup()
     player_data = {}
     input_state = {keys_down = {}, mouse_pressed = false, mouse_x = 0, mouse_y = 0}
     
-    print("[PLAYER_CORE_MOD] Cleanup complete")
+    print("[PLAYER_CORE_MOD] Cleanup complete * * *")
 end
 
--- Export functions for other mods to use
+-- Export PlayerCore Function
 playerCoreMod.exports = {
     getPosition = playerCoreMod.getPosition,
     getHealth = playerCoreMod.getHealth,
     getAnimation = playerCoreMod.getAnimation,
     damagePlayer = playerCoreMod.damagePlayer,
     applyKnockback = playerCoreMod.applyKnockback,
-    handleCollision = playerCoreMod.handleCollision
+    handleCollision = playerCoreMod.handleCollision,
+    teleportPlayer = playerCoreMod.teleportPlayer
 }
 
 return playerCoreMod

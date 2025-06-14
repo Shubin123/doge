@@ -224,6 +224,12 @@ function modSystem.createModAPI(engine_systems, mod_id)
                     return love.graphics.getWidth() / 2, love.graphics.getHeight() / 2
                 end
                 return 400, 300  -- fallback
+            end,
+            isKeyDown = function(key)
+                if love.keyboard then
+                    return love.keyboard.isDown(key)
+                end
+                return false
             end
         },
         
@@ -844,6 +850,30 @@ function modSystem.keypressed(key)
     end
 end
 
+function modSystem.keyreleased(key)
+    -- Currently no mods use key release, but it's here for completeness
+end
+
+-- Notify all mods about pause state changes
+function modSystem.notifyPause(isPaused)
+    for mod_id, mod in pairs(loaded_mods) do
+        if mod.enabled and mod.instance then
+            -- Check for onPause/onResume handlers
+            if isPaused and mod.instance.onPause then
+                local success, error_msg = pcall(mod.instance.onPause)
+                if not success then
+                    print("[MOD_SYSTEM] Error in mod onPause (" .. mod_id .. "): " .. error_msg)
+                end
+            elseif not isPaused and mod.instance.onResume then
+                local success, error_msg = pcall(mod.instance.onResume)
+                if not success then
+                    print("[MOD_SYSTEM] Error in mod onResume (" .. mod_id .. "): " .. error_msg)
+                end
+            end
+        end
+    end
+end
+
 -- Network message handling
 function modSystem.handleNetworkMessage(message)
     if message.type == "mod_data" and message.mod_id then
@@ -994,6 +1024,18 @@ function modSystem.handleModShareRequest(message)
         }
         multiplayer.sendToPlayer(message.from_player, response)
     end
+end
+
+-- Get global API access (for notifications)
+function modSystem.getGlobalAPI()
+    -- Check if UI notifications mod is loaded
+    local notifications_mod = loaded_mods["ui_notifications_mod"]
+    if notifications_mod and notifications_mod.instance and notifications_mod.instance.exports then
+        return {
+            notifications = notifications_mod.instance.exports
+        }
+    end
+    return {}
 end
 
 -- Get list of loaded mods
@@ -1304,6 +1346,16 @@ function modSystem.getPlayerHealth()
         return player.health
     end
     return 100
+end
+
+-- Get a loaded mod by ID
+function modSystem.getLoadedMod(mod_id)
+    return loaded_mods[mod_id]
+end
+
+-- Check if a mod is loaded
+function modSystem.isModLoaded(mod_id)
+    return loaded_mods[mod_id] ~= nil
 end
 
 return modSystem

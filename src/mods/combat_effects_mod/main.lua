@@ -551,14 +551,24 @@ function combatEffectsMod.updateShellCasings(dt)
             end
             
             local props = shell.properties
+            -- For now, use a simple circle to represent the shell since rectangle rotation isn't handled
             api.renderer.addToQueue("world", {
-                type = "rectangle",
+                type = "circle",
                 x = shell.pos.x,
                 y = shell.pos.y,
-                width = props.size.width,
-                height = props.size.height,
-                rotation = shell.rotation,
+                radius = math.max(props.size.width, props.size.height) / 2,
                 color = {props.color[1], props.color[2], props.color[3], alpha},
+                mode = "fill",
+                active = true
+            })
+            
+            -- Add a smaller dark circle for depth
+            api.renderer.addToQueue("world", {
+                type = "circle",
+                x = shell.pos.x,
+                y = shell.pos.y,
+                radius = math.max(props.size.width, props.size.height) / 3,
+                color = {props.color[1] * 0.6, props.color[2] * 0.6, props.color[3] * 0.6, alpha},
                 mode = "fill",
                 active = true
             })

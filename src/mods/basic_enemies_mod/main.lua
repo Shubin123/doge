@@ -21,7 +21,7 @@ local ENEMY_TYPES = {
         fire_range = 250,
         detection_range = 300,
         sprite = "Jerome_Enemy",
-        scale = 0.8,
+        scale = 0.2,
         mass = 1.0,
         drop_chance = 0.3,
         projectile_speed = 300,
@@ -94,11 +94,11 @@ end
 -- Spawn initial enemies in the world
 function basicEnemiesMod.spawnInitialEnemies()
     local spawn_positions = {
-        {x = 400, y = 300, type = "grunt"},
-        {x = 600, y = 200, type = "soldier"},
-        {x = 300, y = 500, type = "sniper"},
-        {x = 700, y = 400, type = "grunt"},
-        {x = 500, y = 600, type = "soldier"}
+        {x = 400, y = 300, type = "grunt"}
+        -- {x = 600, y = 200, type = "soldier"},
+        -- {x = 300, y = 500, type = "sniper"},
+        -- {x = 700, y = 400, type = "grunt"},
+        -- {x = 500, y = 600, type = "soldier"}
     }
     
     for _, pos in ipairs(spawn_positions) do
@@ -220,8 +220,7 @@ function basicEnemiesMod.update(dt)
                 end
             end
             
-            -- Add to render queue
-            basicEnemiesMod.renderEnemy(enemy)
+            -- Don't render in update - will do in draw function
         else
             -- Remove dead enemy
             if enemy.body and not enemy.body:isDestroyed() then
@@ -241,9 +240,8 @@ function basicEnemiesMod.update(dt)
             
             if proj.lifetime <= 0 then
                 proj.active = false
-            else
-                basicEnemiesMod.renderProjectile(proj)
             end
+            -- Don't render in update - will do in draw function
         else
             if proj.body and not proj.body:isDestroyed() then
                 proj.body:destroy()
@@ -720,6 +718,23 @@ function basicEnemiesMod.getStats()
     return stats
 end
 
+-- Draw function to populate render queue
+function basicEnemiesMod.draw()
+    -- Render all active enemies
+    for _, enemy in ipairs(enemies) do
+        if enemy.active and enemy.body and not enemy.body:isDestroyed() then
+            basicEnemiesMod.renderEnemy(enemy)
+        end
+    end
+    
+    -- Render all active projectiles
+    for _, proj in ipairs(projectiles) do
+        if proj.active and proj.body and not proj.body:isDestroyed() then
+            basicEnemiesMod.renderProjectile(proj)
+        end
+    end
+end
+
 -- Cleanup
 function basicEnemiesMod.cleanup()
     -- Destroy all physics bodies
@@ -742,6 +757,13 @@ function basicEnemiesMod.cleanup()
     
     print("[BASIC_ENEMIES_MOD] Cleanup complete")
 end
+
+-- Export public API
+basicEnemiesMod.exports = {
+    damageEnemy = basicEnemiesMod.damageEnemy,
+    createEnemy = basicEnemiesMod.createEnemy,
+    getStats = basicEnemiesMod.getStats
+}
 
 -- Mod interface
 return basicEnemiesMod

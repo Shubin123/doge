@@ -1,3 +1,4 @@
+-- needs to be migrated to the new mod system, do not use this in new code. this should be part of the map mod or be toolable usimg the map mod
 water = {}
 
 -- print(vec4)

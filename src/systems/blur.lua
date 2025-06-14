@@ -1,3 +1,4 @@
+-- should be moved to effects mod
 local blur = {}
 
 function blur.load()

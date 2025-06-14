@@ -1,0 +1,27 @@
+{
+    "name": "UI Notifications System",
+    "id": "ui_notifications_mod",
+    "version": "1.0.0",
+    "author": "System",
+    "description": "Comprehensive notification system with stacking, animations, and network support",
+    "permissions": [
+        "renderer.draw_ui",
+        "renderer.add_effects",
+        "input.register_handlers",
+        "network.send",
+        "network.receive",
+        "game.get_player_info",
+        "utils.log"
+    ],
+    "dependencies": [],
+    "configuration": {
+        "max_visible": 3,
+        "default_duration": 5000,
+        "animation_duration": 300,
+        "notification_width": 300,
+        "notification_height": 80,
+        "notification_spacing": 10,
+        "position_x_offset": 20,
+        "position_y_offset": 20
+    }
+}
