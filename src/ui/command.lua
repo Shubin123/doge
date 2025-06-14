@@ -22,8 +22,10 @@ local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
 local next_block_id = 1
-local command_block_img = love.graphics.newImage('gfx/Color_Blocks.png')
+local command_block_img = love.graphics.newImage('gfx/commodore64.png')
 local command_block_font = nil
+local command_block_animation = nil
+local command_block_scale = 10
 -- Console dimensions
 local consoleHeight = 300
 local consoleWidth = 0 -- Will be set to screen width
@@ -43,6 +45,11 @@ function command.load()
     command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
 
+    -- Setup command block animation
+    local frameWidth = command_block_img:getWidth() / 5  -- Assuming 5 columns
+    local frameHeight = command_block_img:getHeight() / (100 / 5)  -- Calculate rows for 100 frames
+    command_block_animation = sprite:constructsprite(command_block_img, 5,25)
+    
 
     -- Add initial help message
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
@@ -50,6 +57,7 @@ function command.load()
     command.addOutput("Press '/' to toggle console", outputColor)
     command.addOutput("Ctrl+C/Cmd+C to copy, Ctrl+V/Cmd+V to paste", outputColor)
     command.addOutput("", outputColor)
+    createBlock("wow")
 end
 
 -- Wrap text to fit within console width
@@ -99,6 +107,48 @@ local function wrapText(text, maxWidth)
     end
 
     return wrappedLines
+end
+
+-- Function to create a new animation
+function newAnimation(image, width, height, duration, numFrames)
+    local animation = {}
+    animation.spriteSheet = image
+    animation.quads = {}
+    local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
+    local framesToUse = numFrames or totalPossibleFrames
+    framesToUse = math.min(framesToUse, totalPossibleFrames)
+    
+    local frameCount = 0
+    for y = 0, image:getHeight() - height, height do
+        for x = 0, image:getWidth() - width, width do
+            table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
+            frameCount = frameCount + 1
+            if frameCount >= framesToUse then
+                break
+            end
+        end
+        if frameCount >= framesToUse then
+            break
+        end
+    end
+    
+    animation.duration = duration or 1
+    animation.currentTime = 0
+    return animation
+end
+
+-- Function to calculate sprite frame based on heading
+function command.getSpriteForHeading(vx, vy)
+    local angle = 0
+    if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
+        angle = math.atan2(vy, -vx)
+    end
+    local normalizedAngle = (angle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
+    local degrees = math.deg(normalizedAngle) + 1
+    local adjustedDegrees = (degrees + 155) % 400 
+    local spriteFrame = math.floor(adjustedDegrees) + 1
+    spriteFrame = math.max(1, math.min(100, spriteFrame))
+    return spriteFrame
 end
 
 -- Add text to output buffer
@@ -658,14 +708,22 @@ function command.populate()
             createCommandBlockPhysics(block)
         end
 
+        -- Get sprite frame based on some heading logic (for now, using a placeholder velocity)
+        local spriteNum = command.getSpriteForHeading(0, 0) -- Placeholder, adjust as needed
+        local quad = command_block_animation and command_block_animation.quads and command_block_animation.quads[spriteNum] or nil
+        if not quad then
+            quad = nil -- Fallback if animation isn't set up correctly
+        end
+
         table.insert(dynamic_draw_list, {
             sort_y = block.y + block.h + 100,
             image_or_particles = command_block_img,
+            quad = quad,
             x = block.x,
             y = block.y,
             rotation = 0,
-            scale_x = 1,
-            scale_y = 1,
+            scale_x = command_block_scale,
+            scale_y = command_block_scale,
             offset_x = block.w / 2,
             offset_y = block.h / 2,
             color = { 1, 1, 1, 1 },

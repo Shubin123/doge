@@ -308,7 +308,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     command.update(dt)
     cmdn.update(dt)
     blood.update(dt)
-    car.update(dt)
+    
 
     
     if var.multiplayer == 1 or not var.multiplayer  then

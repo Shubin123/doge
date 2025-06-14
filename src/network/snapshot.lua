@@ -83,13 +83,7 @@ function snapshot.create()
                 game_state.cars["host_" .. tostring(k)] = v
             end
         end
-        for client_id, client_cars in pairs(accumulated_game_state.cars) do
-            if client_cars then
-                for k, v in pairs(client_cars) do
-                    game_state.cars[client_id .. "_" .. tostring(k)] = v
-                end
-            end
-        end
+        
         
         -- Collect coin data from physics bodies
         for i = 1, #coin_bods do
@@ -156,8 +150,7 @@ function snapshot.create()
         -- print(game_state.players)
         -- game_state.map_data = map.createSaveData()
         game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
-
-
+        
         
         -- Collect host's command blocks (which now includes accumulated client blocks)
         game_state.command_blocks = command.getCommandBlocks()
@@ -173,7 +166,7 @@ function snapshot.create()
             -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
-            cars = car and car.getNetworkData() or {}  -- Clients send their car data
+            -- cars = car and car.getNetworkData() or {}  -- Clients send their car data
         }
         
 
