@@ -65,7 +65,7 @@ end
 
 function car.load(world)
     -- Load the sprite sheet for all cars to use
-    car.spriteSheet = love.graphics.newImage("gfx/vehicles/bike.png")
+    car.spriteSheet = love.graphics.newImage("gfx/vehicles/car.png")
     car.width, car.height = car.spriteSheet:getDimensions()
     -- With 456 frames, calculate frame dimensions
     local frameWidth = car.width / 5  -- Assuming 5 columns
@@ -87,7 +87,10 @@ function car.load(world)
     }
     newCar.fixture = love.physics.newFixture(newCar.body, newCar.shape)
     newCar.fixture:setGroupIndex(-2) -- Different group from player to avoid collision initially
+    if not  var.multiplayer or var.multiplayer == 1  then
     table.insert(car.cars, newCar)
+    end
+    
 end
 
 function car.update(dt)
