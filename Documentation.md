@@ -14,8 +14,9 @@
 
 # This game engine gives users special apis in order to create custom games!
 -- Maps
--- Mods (such as weapons)
+-- Mods (such as weapons, or cars, or whatever you can desire) --> Mods are explained in: 'info/how2mod.md'
 -- Mobs and Enemies
+-- Particles & Effects
 
 # Below is documentation on how to use the custom API to create custom content:
 
