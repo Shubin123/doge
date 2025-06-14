@@ -48,7 +48,7 @@ function command.load()
     -- Setup command block animation
     local frameWidth = command_block_img:getWidth() / 5  -- Assuming 5 columns
     local frameHeight = command_block_img:getHeight() / (100 / 5)  -- Calculate rows for 100 frames
-    command_block_animation = newAnimation(command_block_img, 128,128,100)
+    command_block_animation = newAnimation(command_block_img, 128,128,120)
     
 
     -- Add initial help message
@@ -57,7 +57,8 @@ function command.load()
     command.addOutput("Press '/' to toggle console", outputColor)
     command.addOutput("Ctrl+C/Cmd+C to copy, Ctrl+V/Cmd+V to paste", outputColor)
     command.addOutput("", outputColor)
-    createBlock("wow")
+
+    createBlock("welcome_to_the_game")
 end
 
 -- Wrap text to fit within console width
@@ -300,7 +301,7 @@ function createCommandBlockPhysics(block)
         end
 
         block.body = love.physics.newBody(world, block.x, block.y, "static")
-        block.shape = love.physics.newRectangleShape(block.w, block.h)
+        block.shape = love.physics.newRectangleShape(10,10)
         block.fixture = love.physics.newFixture(block.body, block.shape, 1)
         block.fixture:setSensor(true)
     end
@@ -663,8 +664,8 @@ function command.getCommandBlocks()
             cmd = block.cmd,
             x = block.x,
             y = block.y,
-            w = block.w,
-            h = block.h,
+            w = 0,
+            h = 0,
             active = block.active
         })
     end
@@ -714,23 +715,40 @@ function command.populate()
         if not quad then
             quad = nil -- Fallback if animation isn't set up correctly
         end
-        -- print(command_block_img.animation.quads[spriteNum])
+
+        -- print(math.min(90,math.floor(fire.t*100)%80))
+        -- print(block.y , block.h)
         table.insert(dynamic_draw_list, {
-            sort_y = block.y + block.h + 100,
+            sort_y = block.y,
             image_or_particles = command_block_img,
             quad = command_block_animation.quads[1] ,
             x = block.x,
             y = block.y,
             rotation = 0,
-            scale_x = 100,
-            scale_y = 100,
-            offset_x = block.w / 2,
-            offset_y = block.h / 2,
+            scale_x = 1,
+            scale_y = 1,
+            offset_x = 0,
+            offset_y = 0,
             color = { 1, 1, 1, 1 },
             blend_mode = { "alpha" },
-            source_object_type = "command_block",
+            source_object_type = "command",
             command = block.cmd
         })
+        -- table.insert(dynamic_draw_list, {
+        --     sort_y = block.y + block.h + 100,
+        --     image_or_particles = command_block_img,
+        --     x = block.x,
+        --     y = block.y,
+        --     rotation = 0,
+        --     scale_x = 1,
+        --     scale_y = 1,
+        --     offset_x = block.w / 2,
+        --     offset_y = block.h / 2,
+        --     color = { 1, 1, 1, 1 },
+        --     blend_mode = { "alpha" },
+        --     source_object_type = "command_block",
+        --     command = block.cmd
+        -- })
 
         local dist = math.sqrt((player_x - block.x) ^ 2 + (player_y - block.y) ^ 2)
         if dist < 100 then
@@ -738,8 +756,8 @@ function command.populate()
                 sort_y = block.y + block.h + 101, -- a bit higher than the block
                 draw_type = "text",
                 text = block.cmd,
-                x = block.x - block.w / 2,
-                y = block.y - 20,
+                x = block.x, 
+                y = block.y -20,
                 color = { 1, 1, 1, 1 },
                 blend_mode = { "alpha" }
             })
@@ -768,10 +786,10 @@ function command.mousepressed(x, y, button)
         if not clicked_block and renderer and renderer.networked_state then
             for _, block in pairs(renderer.networked_state.command_blocks) do
                 if block.active then
-                    local dx = world_x - block.x
-                    local dy = world_y - block.y
-                    local half_w = block.w / 2
-                    local half_h = block.h / 2
+                    local dx = world_x
+                    local dy = world_y
+                    local half_w = 0
+                    local half_h = 0
 
                     if dx >= -half_w and dx <= half_w and dy >= -half_h and dy <= half_h then
                         clicked_block = block
