@@ -166,7 +166,7 @@ function snapshot.create()
             -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
-            -- cars = car and car.getNetworkData() or {}  -- Clients send their car data
+            cars = car and car.getNetworkData() or {}  -- Clients send their car data
         }
         
 

@@ -64,6 +64,8 @@ function car.getSpriteForHeading(vx,vy)
 end
 
 function car.load(world)
+    -- Clear existing cars to prevent duplicates on reload
+    car.cars = {}
     -- Load the sprite sheet for all cars to use
     car.spriteSheet = love.graphics.newImage("gfx/vehicles/car.png")
     car.width, car.height = car.spriteSheet:getDimensions()

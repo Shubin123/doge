@@ -48,7 +48,7 @@ function command.load()
     -- Setup command block animation
     local frameWidth = command_block_img:getWidth() / 5  -- Assuming 5 columns
     local frameHeight = command_block_img:getHeight() / (100 / 5)  -- Calculate rows for 100 frames
-    command_block_animation = sprite:constructsprite(command_block_img, 5,25)
+    command_block_animation = newAnimation(command_block_img, 128,128,100)
     
 
     -- Add initial help message
@@ -714,16 +714,16 @@ function command.populate()
         if not quad then
             quad = nil -- Fallback if animation isn't set up correctly
         end
-
+        -- print(command_block_img.animation.quads[spriteNum])
         table.insert(dynamic_draw_list, {
             sort_y = block.y + block.h + 100,
             image_or_particles = command_block_img,
-            quad = quad,
+            quad = command_block_animation.quads[1] ,
             x = block.x,
             y = block.y,
             rotation = 0,
-            scale_x = command_block_scale,
-            scale_y = command_block_scale,
+            scale_x = 100,
+            scale_y = 100,
             offset_x = block.w / 2,
             offset_y = block.h / 2,
             color = { 1, 1, 1, 1 },
