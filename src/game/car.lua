@@ -85,7 +85,7 @@ function car.load(world)
             currentTime = 0,
         
         },
-        inUse = false,
+        inUse = true,
     }
     newCar.fixture = love.physics.newFixture(newCar.body, newCar.shape)
     newCar.fixture:setGroupIndex(-2) -- Different group from player to avoid collision initially
@@ -100,7 +100,7 @@ function car.populate()
     for i, currentCar in ipairs(car.cars) do
         local relVel = {}
         local cx, cy
-        if var.multiplayer == 1 then -- Only host updates physics positions
+        if var.multiplayer == 1 or not var.multiplayer then -- Only host updates physics positions
             if currentCar.inUse then
                 cx, cy = player.body:getX(), player.body:getY()
                 currentCar.body:setPosition(player.body:getPosition())

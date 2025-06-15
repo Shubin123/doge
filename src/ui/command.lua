@@ -22,7 +22,7 @@ local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
 local next_block_id = 1
-local command_block_img = love.graphics.newImage('gfx/commodore64.png')
+local command_block_img = love.graphics.newImage('gfx/gun.png')
 local command_block_font = nil
 local command_block_animation = nil
 local command_block_scale = 10
@@ -48,7 +48,7 @@ function command.load()
     -- Setup command block animation
     local frameWidth = command_block_img:getWidth() / 5  -- Assuming 5 columns
     local frameHeight = command_block_img:getHeight() / (100 / 5)  -- Calculate rows for 100 frames
-    command_block_animation = newAnimation(command_block_img, 128,128,120)
+    command_block_animation = newAnimation(command_block_img, 128,128,400)
     
 
     -- Add initial help message
@@ -139,16 +139,33 @@ function newAnimation(image, width, height, duration, numFrames)
 end
 
 -- Function to calculate sprite frame based on heading
-function command.getSpriteForHeading(vx, vy)
-    local angle = 0
-    if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
-        angle = math.atan2(vy, -vx)
-    end
+function command.getSpriteForHeading(vx,vy)
+    -- If player doesn't have angle property, calculate from velocity
+        local angle = 0
+    
+        -- local vx, vy = carBody:getLinearVelocity()--when off vehicle
+        
+
+        if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
+            angle = math.atan2(-vy, vx)
+        end
+    
+    
     local normalizedAngle = (angle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
+    
+    -- Convert to degrees (0-360)
     local degrees = math.deg(normalizedAngle) + 1
+    
+    -- frames: North=1, west=91, South=181, east=271
     local adjustedDegrees = (degrees + 155) % 400 
+    
+    
+    
     local spriteFrame = math.floor(adjustedDegrees) + 1
-    spriteFrame = math.max(1, math.min(100, spriteFrame))
+    
+    -- Ensure we stay within bounds (1 to 360)
+    spriteFrame = math.max(1, math.min(380, spriteFrame))
+    
     return spriteFrame
 end
 
@@ -703,6 +720,7 @@ end
 
 function command.populate()
     local player_x, player_y = player.body:getPosition()
+    local player_vx, player_vy = player.body:getLinearVelocity()
     for i, block in ipairs(command_blocks) do
         -- Only create physics bodies on server/single player
         if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
@@ -710,7 +728,7 @@ function command.populate()
         end
 
         -- Get sprite frame based on some heading logic (for now, using a placeholder velocity)
-        local spriteNum = command.getSpriteForHeading(0, 0) -- Placeholder, adjust as needed
+        local spriteNum = command.getSpriteForHeading(player_vx,player_vy) -- Placeholder, adjust as needed
         local quad = command_block_animation and command_block_animation.quads and command_block_animation.quads[spriteNum] or nil
         if not quad then
             quad = nil -- Fallback if animation isn't set up correctly
@@ -718,10 +736,11 @@ function command.populate()
 
         -- print(math.min(90,math.floor(fire.t*100)%80))
         -- print(block.y , block.h)
+        
         table.insert(dynamic_draw_list, {
-            sort_y = block.y,
+            sort_y = block.y + 180,
             image_or_particles = command_block_img,
-            quad = command_block_animation.quads[1] ,
+            quad = command_block_animation.quads[spriteNum] ,
             x = block.x,
             y = block.y,
             rotation = 0,
