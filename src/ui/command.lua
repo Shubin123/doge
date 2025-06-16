@@ -22,9 +22,10 @@ local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
 local next_block_id = 1
-local command_block_img = love.graphics.newImage('gfx/gun.png')
+local command_block_img = love.graphics.newImage('gfx/3d/apple_2.png')
 local command_block_font = nil
-local command_block_animation = nil
+local command_block_instance = nil
+local command_block_instance2 = nil
 local command_block_scale = 10
 -- Console dimensions
 local consoleHeight = 300
@@ -34,6 +35,8 @@ local consoleWidth = 0 -- Will be set to screen width
 local keyRepeatState = {}
 local keyRepeatDelay = 0.5 -- Initial delay before repeat starts
 local keyRepeatRate = 0.05 -- Time between repeats
+
+local block = require("game.block")
 
 -- Initialize the command module
 function command.load()
@@ -45,10 +48,9 @@ function command.load()
     command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
 
-    -- Setup command block animation
-    local frameWidth = command_block_img:getWidth() / 5  -- Assuming 5 columns
-    local frameHeight = command_block_img:getHeight() / (100 / 5)  -- Calculate rows for 100 frames
-    command_block_animation = newAnimation(command_block_img, 128,128,400)
+    -- Setup command block animation using superclass
+    -- command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
+    command_block_instance = block.new("gfx/3d/gun.png", 128, 128, 100, 400, 1)
     
 
     -- Add initial help message
@@ -108,65 +110,6 @@ local function wrapText(text, maxWidth)
     end
 
     return wrappedLines
-end
-
--- Function to create a new animation
-function newAnimation(image, width, height, duration, numFrames)
-    local animation = {}
-    animation.spriteSheet = image
-    animation.quads = {}
-    local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
-    local framesToUse = numFrames or totalPossibleFrames
-    framesToUse = math.min(framesToUse, totalPossibleFrames)
-    
-    local frameCount = 0
-    for y = 0, image:getHeight() - height, height do
-        for x = 0, image:getWidth() - width, width do
-            table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
-            frameCount = frameCount + 1
-            if frameCount >= framesToUse then
-                break
-            end
-        end
-        if frameCount >= framesToUse then
-            break
-        end
-    end
-    
-    animation.duration = duration or 1
-    animation.currentTime = 0
-    return animation
-end
-
--- Function to calculate sprite frame based on heading
-function command.getSpriteForHeading(vx,vy)
-    -- If player doesn't have angle property, calculate from velocity
-        local angle = 0
-    
-        -- local vx, vy = carBody:getLinearVelocity()--when off vehicle
-        
-
-        if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
-            angle = math.atan2(-vy, vx)
-        end
-    
-    
-    local normalizedAngle = (angle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
-    
-    -- Convert to degrees (0-360)
-    local degrees = math.deg(normalizedAngle) + 1
-    
-    -- frames: North=1, west=91, South=181, east=271
-    local adjustedDegrees = (degrees + 155) % 400 
-    
-    
-    
-    local spriteFrame = math.floor(adjustedDegrees) + 1
-    
-    -- Ensure we stay within bounds (1 to 360)
-    spriteFrame = math.max(1, math.min(380, spriteFrame))
-    
-    return spriteFrame
 end
 
 -- Add text to output buffer
@@ -272,7 +215,7 @@ function command.execute(cmd)
     else
         -- On success, create a command block message
         if player.god then
-        createBlock(cmd)
+            createBlock(cmd)
         end
     end
 end
@@ -727,48 +670,11 @@ function command.populate()
             createCommandBlockPhysics(block)
         end
 
-        -- Get sprite frame based on some heading logic (for now, using a placeholder velocity)
-        local spriteNum = command.getSpriteForHeading(player_vx,player_vy) -- Placeholder, adjust as needed
-        local quad = command_block_animation and command_block_animation.quads and command_block_animation.quads[spriteNum] or nil
-        if not quad then
-            quad = nil -- Fallback if animation isn't set up correctly
-        end
-
-        -- print(math.min(90,math.floor(fire.t*100)%80))
-        -- print(block.y , block.h)
+        -- Use superclass to add to draw list with original offset values
+        command_block_instance:addToDrawList(dynamic_draw_list, block.x, block.y, player_vx, player_vy, 180, 0, 0)
+        dynamic_draw_list[#dynamic_draw_list].source_object_type = "command"
+        dynamic_draw_list[#dynamic_draw_list].command = block.cmd
         
-        table.insert(dynamic_draw_list, {
-            sort_y = block.y + 180,
-            image_or_particles = command_block_img,
-            quad = command_block_animation.quads[spriteNum] ,
-            x = block.x,
-            y = block.y,
-            rotation = 0,
-            scale_x = 1,
-            scale_y = 1,
-            offset_x = 0,
-            offset_y = 0,
-            color = { 1, 1, 1, 1 },
-            blend_mode = { "alpha" },
-            source_object_type = "command",
-            command = block.cmd
-        })
-        -- table.insert(dynamic_draw_list, {
-        --     sort_y = block.y + block.h + 100,
-        --     image_or_particles = command_block_img,
-        --     x = block.x,
-        --     y = block.y,
-        --     rotation = 0,
-        --     scale_x = 1,
-        --     scale_y = 1,
-        --     offset_x = block.w / 2,
-        --     offset_y = block.h / 2,
-        --     color = { 1, 1, 1, 1 },
-        --     blend_mode = { "alpha" },
-        --     source_object_type = "command_block",
-        --     command = block.cmd
-        -- })
-
         local dist = math.sqrt((player_x - block.x) ^ 2 + (player_y - block.y) ^ 2)
         if dist < 100 then
             table.insert(dynamic_draw_list, {
