@@ -17,6 +17,10 @@ function Gun.new(params)
     gun.cooldown = 0
     gun.lastAimDirection = vec2.new(1, 0) -- default facing right
     
+    -- Initialize block instance for gun sprite
+    local block = require("game.block")
+    gun.blockInstance = block.new("gfx/3d/gun.png", 128, 128, 2, 450, 1)
+    
     -- Rocket-specific parameters
     gun.topSpeed = params.topSpeed or 300
     gun.accelTime = params.accelTime or 1.0
@@ -188,33 +192,22 @@ end
 function Gun:drawBarrel()
     local playerX, playerY = player.getPosition()
     
-
-    
-
     -- Draw ring around player (semi-transparent)
     love.graphics.setColor(1, 1, 1, 0.3)
     love.graphics.circle("line", playerX, playerY, self.ringRadius)
-
-  
     
     -- Calculate barrel position on the ring (start from ring edge)
     local barrelStartX = playerX + self.lastAimDirection.x * self.ringRadius
     local barrelStartY = playerY + self.lastAimDirection.y * self.ringRadius
     
-    -- Draw barrel as a rotated rectangle extending outward from ring
-    love.graphics.push()
-    love.graphics.translate(barrelStartX, barrelStartY)
-    love.graphics.rotate(math.atan2(self.lastAimDirection.y, self.lastAimDirection.x))
+    -- Use the block instance to draw the gun sprite with rotation based on aiming direction
+    if self.blockInstance then
+        local vx = self.lastAimDirection.x
+        local vy = self.lastAimDirection.y
+        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 130, self.barrelLength / 2, self.barrelThickness / 2)
+        dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
+    end
     
-    -- Draw barrel extending outward from the ring
-    love.graphics.setColor(0.6, 0.6, 0.6, 1)
-    love.graphics.rectangle("fill", 0, -self.barrelThickness/2, self.barrelLength, self.barrelThickness)
-    
-    -- Draw a small circle at the barrel base to show connection to ring
-    love.graphics.setColor(0.8, 0.8, 0.8, 1)
-    love.graphics.circle("fill", 0, 0, self.barrelThickness/2)
-    
-    love.graphics.pop()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
