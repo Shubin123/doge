@@ -50,7 +50,7 @@ function command.load()
 
     -- Setup command block animation using superclass
     -- command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
-    command_block_instance = block.new("gfx/3d/gun.png", 128, 128, 100, 400, 1)
+    command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
     
 
     -- Add initial help message

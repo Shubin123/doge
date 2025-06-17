@@ -1,4 +1,3 @@
-
 -- Gun prototype
 local Gun = {}
 Gun.__index = Gun
@@ -19,7 +18,7 @@ function Gun.new(params)
     
     -- Initialize block instance for gun sprite
     local block = require("game.block")
-    gun.blockInstance = block.new("gfx/3d/gun.png", 128, 128, 2, 450, 1)
+    gun.blockInstance = block.new("gfx/3d/portalGun.png", 128, 128, 2, 450, 1)
     
     -- Rocket-specific parameters
     gun.topSpeed = params.topSpeed or 300
@@ -114,7 +113,7 @@ function Gun:shoot(mouseX, mouseY)
     
     -- Get player position
     local playerX, playerY = player.getPosition()
-    local spawnPos = vec2.new(playerX, playerY) + dir * self.ringRadius
+    local spawnPos = vec2.new(playerX, playerY) + dir * (self.ringRadius + 20)
     
     -- Calculate barrel tip position (where particles should spawn from)
     local barrelTipPos = spawnPos + dir * self.barrelLength
@@ -204,7 +203,8 @@ function Gun:drawBarrel()
     if self.blockInstance then
         local vx = self.lastAimDirection.x
         local vy = self.lastAimDirection.y
-        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 130, self.barrelLength / 2, self.barrelThickness / 2)
+        -- Adjust angle offset to align with aiming direction, compensating for the negated x-component in getSpriteForHeading
+        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, -vx, -vy, 160,60,60)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
     end
     
