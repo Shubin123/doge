@@ -75,12 +75,12 @@ function snapshot.create()
             game_state.bosses = boss.getNetworkData()
         end
         
-        -- Collect car data from host and accumulated client data
+        -- Collect car data from host
         game_state.cars = {}
         if car then
             local hostCarData = car.getNetworkData()
             for k, v in pairs(hostCarData) do
-                game_state.cars["host_" .. tostring(k)] = v
+                game_state.cars[tostring(k)] = v
             end
         end
         
@@ -166,7 +166,7 @@ function snapshot.create()
             -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
-            cars = car and car.getNetworkData() or {}  -- Clients send their car data
+            cars =  {}  -- Clients send their car data
         }
         
 
@@ -260,19 +260,12 @@ function snapshot.apply(game_state)
             -- Apply only the client player data (host draws itself locally)
             renderer.setNetworkedPlayers(client_players)
             
-            -- Apply accumulated car data to host's renderer
+            -- Apply car data to host's renderer
             local all_cars = {}
             if car then
                 local hostCarData = car.getNetworkData()
                 for k, v in pairs(hostCarData) do
-                    all_cars["host_" .. tostring(k)] = v
-                end
-            end
-            for client_id, client_cars in pairs(accumulated_game_state.cars) do
-                if client_cars then
-                    for k, v in pairs(client_cars) do
-                        all_cars[client_id .. "_" .. tostring(k)] = v
-                    end
+                    all_cars[tostring(k)] = v
                 end
             end
             renderer.setNetworkedCars(all_cars)

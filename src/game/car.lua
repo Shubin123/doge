@@ -9,26 +9,63 @@ function car.load(world)
     -- Create a block instance for car using the superclass
     car.blockInstance = block.new("gfx/vehicles/car.png", 128, 128, 2, 450, car.scale, world, var.game_width / 2 + 100, var.game_height / 2 + 100)
     
-    -- Create an initial car instance for testing
-    if not var.multiplayer or var.multiplayer == 1 then
-        table.insert(car.cars, car.blockInstance)
-        car.blockInstance:setInUse(true)
+    -- Create an initial car instance for all players
+    table.insert(car.cars, car.blockInstance)
+    car.blockInstance:setInUse(false)
+    -- Disable physics on clients, only host handles physics and collisions
+    if var.multiplayer and var.multiplayer > 1 then
+        car.blockInstance.body:setActive(false)
     end
 end
 
 function car.populate()
-    -- Add each car to the dynamic draw list for rendering
+    -- Add cars to the dynamic draw list for rendering
     for i, currentCar in ipairs(car.cars) do
-        local cx, cy, relVel = currentCar:updatePhysics(player.body, var.multiplayer)
-        if not cx or not cy then
-            cx, cy = currentCar.body:getX(), currentCar.body:getY()
-            relVel = {x = 0, y = 0}
+        -- Only draw host's car if multiplayer > 2
+        if var.multiplayer > 2 and i > 1 then
+            -- Skip drawing non-host cars in this mode
+            goto continue
         end
+        
+        local cx, cy = 0, 0
+        local vx, vy = 0, 0
+        if currentCar.body then
+            cx, cy = currentCar.body:getX(), currentCar.body:getY()
+            vx, vy = currentCar.body:getLinearVelocity()
+        end
+        
+        -- On clients, use networked position directly since physics is disabled
+        if var.multiplayer > 1 and renderer.networked_state and renderer.networked_state.cars and renderer.networked_state.cars[tostring(i)] then
+            local netCar = renderer.networked_state.cars[tostring(i)]
+            cx, cy = netCar.x, netCar.y
+            vx, vy = netCar.vx or 0, netCar.vy or 0
+        end
+        
         -- Add to draw list using superclass method
-        currentCar:addToDrawList(dynamic_draw_list, cx, cy, relVel.x, relVel.y, 160, currentCar.width / 10, (currentCar.height / (456 / 5)) / 2)
+        currentCar:addToDrawList(dynamic_draw_list, cx, cy, vx, vy, 160, currentCar.width / 10, (currentCar.height / (456 / 5)) / 2)
         -- Update the source_object_type and car_id for identification
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "car"
         dynamic_draw_list[#dynamic_draw_list].car_id = i
+        
+        ::continue::
+    end
+end
+
+function car.updateFromNetwork(networkedCars)
+    if var.multiplayer and var.multiplayer > 1 then -- Only clients update from network data
+        for carId, carData in pairs(networkedCars) do
+            local carIndex = tonumber(carId)
+            if carIndex and car.cars[carIndex] then
+                local currentCar = car.cars[carIndex]
+                currentCar.body:setX(carData.x)
+                currentCar.body:setY(carData.y)
+                if carData.vx and carData.vy then
+                    currentCar.body:setLinearVelocity(carData.vx, carData.vy)
+                end
+                currentCar.inUse = carData.inUse
+                currentCar.controllingPlayer = carData.controllingPlayer or ""
+            end
+        end
     end
 end
 
