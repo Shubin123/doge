@@ -25,7 +25,7 @@ function car.populate()
             relVel = {x = 0, y = 0}
         end
         -- Add to draw list using superclass method
-        currentCar:addToDrawList(dynamic_draw_list, cx, cy, relVel.x, relVel.y, 130, currentCar.width / 10, (currentCar.height / (456 / 5)) / 2)
+        currentCar:addToDrawList(dynamic_draw_list, cx, cy, relVel.x, relVel.y, 160, currentCar.width / 10, (currentCar.height / (456 / 5)) / 2)
         -- Update the source_object_type and car_id for identification
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "car"
         dynamic_draw_list[#dynamic_draw_list].car_id = i
