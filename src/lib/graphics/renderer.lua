@@ -365,39 +365,39 @@ local function addNetworkedEntities()
     -- Networked command blocks
     for _, command_block_data in pairs(renderer.networked_state.command_blocks) do
         if command_block_data.active then
-            table.insert(dynamic_draw_list, {
-                sort_y = command_block_data.y + command_block_data.h + 100,
-                image_or_particles = command_block_img,
-                x = command_block_data.x,
-                y = command_block_data.y,
-                rotation = 0,
-                scale_x = 1,
-                scale_y = 1,
-                offset_x = command_block_data.w / 2,
-                offset_y = command_block_data.h / 2,
-                color = { 1, 1, 1, 1 },
-                blend_mode = { "alpha" },
-                source_object_type = "networked_command_block",
-                command = command_block_data.cmd
-            })
+            -- table.insert(dynamic_draw_list, {
+            --     sort_y = command_block_data.y + 100,
+            --     image_or_particles = command_block_img,
+            --     x = command_block_data.x,
+            --     y = command_block_data.y,
+            --     rotation = 0,
+            --     scale_x = 1,
+            --     scale_y = 1,
+            --     offset_x = command_block_data.w / 2,
+            --     offset_y = command_block_data.h / 2,
+            --     color = { 1, 1, 1, 1 },
+            --     blend_mode = { "alpha" },
+            --     source_object_type = "networked_command_block",
+            --     command = command_block_data.cmd
+            -- })
             
             -- Add text for networked command blocks (if player is close enough)
-            if player and player.body then
-                local player_x, player_y = player.body:getPosition()
-                local dist = math.sqrt((player_x - command_block_data.x) ^ 2 + (player_y - command_block_data.y) ^ 2)
-                if dist < 100 then
-                    table.insert(dynamic_draw_list, {
-                        sort_y = command_block_data.y + command_block_data.h + 101,
-                        draw_type = "text",
-                        text = command_block_data.cmd,
-                        x = command_block_data.x - command_block_data.w / 2,
-                        y = command_block_data.y - 20,
-                        font = command and command.getCommandBlockFont and command.getCommandBlockFont(),
-                        color = { 1, 1, 1, 1 },
-                        blend_mode = { "alpha" }
-                    })
-                end
-            end
+            -- if player and player.body then
+            --     local player_x, player_y = player.body:getPosition()
+            --     local dist = math.sqrt((player_x - command_block_data.x) ^ 2 + (player_y - command_block_data.y) ^ 2)
+            --     if dist < 100 then
+            --         table.insert(dynamic_draw_list, {
+            --             sort_y = command_block_data.y + command_block_data.h + 101,
+            --             draw_type = "text",
+            --             text = command_block_data.cmd,
+            --             x = command_block_data.x - command_block_data.w / 2,
+            --             y = command_block_data.y - 20,
+            --             font = command and command.getCommandBlockFont and command.getCommandBlockFont(),
+            --             color = { 1, 1, 1, 1 },
+            --             blend_mode = { "alpha" }
+            --         })
+            --     end
+            -- end
         end
     end
     

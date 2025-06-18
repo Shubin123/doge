@@ -60,7 +60,7 @@ function command.load()
     command.addOutput("Ctrl+C/Cmd+C to copy, Ctrl+V/Cmd+V to paste", outputColor)
     command.addOutput("", outputColor)
 
-    createBlock("welcome_to_the_game")
+    -- createBlock("welcome_to_the_game")
 end
 
 -- Wrap text to fit within console width
@@ -229,8 +229,8 @@ function createBlock(cmd)
     local new_block = {
         id = block_id,
         cmd = cmd,
-        x = 0,
-        y = 0,
+        x = px,
+        y = py,
         w = command_block_img:getWidth(),
         h = command_block_img:getHeight(),
         active = true,
@@ -248,24 +248,19 @@ function createBlock(cmd)
 end
 
 function createCommandBlockPhysics(block)
-    -- Only create physics bodies on server (like fire effects)
-    if var.multiplayer == 1 or not var.multiplayer then
-        if not world then
-            error("Physics world not initialized!")
-        end
-        if not block.x or not block.y then
-            error("Block position not set: x=" .. tostring(block.x) .. ", y=" .. tostring(block.y))
-        end
-        if not block.w or not block.h then
-            error("Block dimensions not set: w=" .. tostring(block.w) .. ", h=" .. tostring(block.h))
-        end
-
-        block.body = love.physics.newBody(world, block.x, block.y, "dynamic")
-        block.shape = love.physics.newRectangleShape(30,40)
-        block.fixture = love.physics.newFixture(block.body, block.shape, 1)
-        -- block.fixture:setSensor(true)
+    -- Create physics bodies on all clients for consistent behavior
+    if not world then
+        error("Physics world not initialized!")
     end
-    -- Clients don't create physics bodies, just store the block data for networking
+    if not block.x or not block.y then
+        error("Block position not set: x=" .. tostring(block.x) .. ", y=" .. tostring(block.y))
+    end
+
+    block.body = love.physics.newBody(world, block.x, block.y, "dynamic")
+    block.shape = love.physics.newRectangleShape(30,40)
+    block.fixture = love.physics.newFixture(block.body, block.shape)
+    
+    
 end
 
 -- Convert table to string representation
@@ -619,13 +614,19 @@ end
 function command.getCommandBlocks()
     local serializable_blocks = {}
     for _, block in ipairs(command_blocks) do
+        local bx, by = block.x, block.y
+        local vx,vy = 0,0
+        if block.body then
+            bx, by = block.body:getPosition()
+            vx, vy = block.body:getLinearVelocity()
+        end
         table.insert(serializable_blocks, {
             id = block.id,
             cmd = block.cmd,
-            x = block.x,
-            y = block.y,
-            w = block.w,
-            h = block.h,
+            x = bx,
+            y = by,
+            vx = vx,
+            vy = vy,
             active = block.active
         })
     end
@@ -665,14 +666,33 @@ function command.populate()
     local player_x, player_y = player.body:getPosition()
     local player_vx, player_vy = player.body:getLinearVelocity()
     for i, block in ipairs(command_blocks) do
-        -- Only create physics bodies on server/single player
-        -- if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
-        --     createCommandBlockPhysics(block)
-        -- end
+        local vx, vy, bx, by = 0, 0, 0, 0
+        if block.body then
+            
+            bx, by = block.body:getPosition()
+            if not var.multiplayer or var.multiplayer == 1 then
+                vx,vy = block.body:getLinearVelocity()
+            else
+                if block.vx then
+                vx,vy = block.vx, block.vy
+                end
+
+                -- print(block.vx,block.vy)
+                -- vx,vy = 0,0
+            end
+
+        -- elseif renderer and renderer.networked_state and renderer.networked_state.command_blocks then
+        --     -- For clients, try to get position from networked data if physics body isn't available or updated
+        --     for _, net_block in pairs(renderer.networked_state.command_blocks) do
+        --         if net_block.id == block.id then
+        --             bx, by = net_block.x, net_block.y
+        --             vx, vy = net_block.x, net_block.y
+        --             print(vx,vy)
+        --         end
+        --     end
+        end
 
         -- Use superclass to add to draw list with original offset values
-        local vx,vy = block.body:getLinearVelocity()
-        local bx,by = block.body:getPosition()
         command_block_instance:addToDrawList(dynamic_draw_list, bx - 60, by - 60, vx, vy, 180, 0, 0)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "command"
         dynamic_draw_list[#dynamic_draw_list].command = block.cmd
@@ -680,10 +700,10 @@ function command.populate()
         local dist = math.sqrt((player_x - bx) ^ 2 + (player_y - by) ^ 2)
         if dist < 100 then
             table.insert(dynamic_draw_list, {
-                sort_y = block.y + block.h + 101, -- a bit higher than the block
+                sort_y = block.y + 101, -- a bit higher than the block
                 draw_type = "text",
                 text = block.cmd,
-                x = bx - 60, 
+                x = bx,
                 y = by - 60,
                 color = { 1, 1, 1, 1 },
                 blend_mode = { "alpha" }

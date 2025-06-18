@@ -203,7 +203,6 @@ end
 -- Handle keyboard input for mode switching
 function editor.keypressed(key)
     if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
-        print('wow')
         if key == "1" then
             editor.setMode("select")
         elseif key == "2" then
