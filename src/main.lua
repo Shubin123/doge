@@ -36,6 +36,7 @@ blood = require("systems.blood")
 wind = require("lib.graphics.wind")
 car = require("game.car")
 
+
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
 -- hotreloader / helpers
@@ -180,33 +181,12 @@ function love.draw()
     end
 
     -- if moonshine then 
-         
-      blueNeon(function()
-    love.graphics.setColor(0.17, 0.46, 1)
-        -- print( -camera.pos.x)
-        -- print( -player.body:getX())
-        -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
-    --   love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
-      love.graphics.circle("fill",(camera.pos.x + player.body:getX()*camera.zoom - 2), (camera.pos.y + player.body:getY()*camera.zoom  + 6), 20*camera.zoom)
         
-    love.graphics.setColor(1,1,1,1)
-    end)
-
-    yellowNeon(function()
-    love.graphics.setColor(1, 0.46, 0.3)
-    local mx = player.body:getX() + 20*math.sin(fire.t)
-    local my = player.body:getY() + 20*math.cos(fire.t)
-    
-
-      love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 10*camera.zoom)
-        
-    love.graphics.setColor(1,1,1,1)
-    end)
+     light.draw()
     -- end 
-    
-   
+
+
     love.graphics.push() --push all camera transforms (move everything when player moves)
-   
 
     camera.apply()
 
@@ -219,8 +199,6 @@ function love.draw()
     end
     love.graphics.setColor(1, 1, 1, 1)
 
-
-    
 
     -- Populate and sort dynamic draw list if neccessary    
     grass.public.draw()
@@ -253,9 +231,7 @@ function love.draw()
     love.graphics.pop() -- pop back into base world space
     -- order is IMPORTANT HERE shader-> smoke -> water
 
-    
-    
-  
+
 
     if var.graphics_high then
     shader.pass()
@@ -273,11 +249,20 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
+    if var.multiplayer then
+            mp:update()
+            multiplayer.sendMovementMessage()
+    end
+    
     editor.update(dt)
 
     if var.State == "menu" then
         menu.update(dt)
-        if not var.multiplayer then return end -- cannot pause the game in multiplayer.lua:92 Error during service. otherwise game physics pauses nicely
+        -- if not var.multiplayer then
+            
+            return 
+                
+            -- end -- 
 
         -- return
     elseif State == "running" then
@@ -286,20 +271,17 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     world:update(dt)
     -- t = t + dt
     -- if t > 0.05 then  -- 20 updates per second for smoother multiplayer
-        if var.multiplayer then
-            mp:update()
-            multiplayer.sendMovementMessage()
-        end
+
         -- t = 0
     -- end
-    
+
     player.update(dt)
-    
+
     -- Update player interpolation for smooth multiplayer movement
     if var.multiplayer then
         renderer.updateInterpolation(dt)
     end
-    
+
     camera.update(dt, player)
     water.update(dt)
     smoke.update(dt)
@@ -310,21 +292,17 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     command.update(dt)
     cmdn.update(dt)
     blood.update(dt)
-    
 
-    
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)
         boss.update(dt)
     end
-    
+
     gun.update(dt)
     bullet.update(dt)
     rocket.update(dt)
 
     wind.update(dt)
-
-
 
 end
 

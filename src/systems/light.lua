@@ -25,6 +25,28 @@ function light.load()
   yellowNeon.fastgaussianblur.taps = 9
 end
 
+function light.draw()
+  blueNeon(function()
+    love.graphics.setColor(0.17, 0.46, 1)
+        -- print( -camera.pos.x)
+        -- print( -player.body:getX())
+        -- neon light bar right next to player with all transforms applied correctly, such that after the pop it still works.
+    --   love.graphics.rectangle("fill",(camera.pos.x + player.body:getX()*camera.zoom), (camera.pos.y + player.body:getY()*camera.zoom), 100*camera.zoom, 3*camera.zoom, 5, 5, 20)
+      love.graphics.circle("fill",(camera.pos.x + player.body:getX()*camera.zoom - 2), (camera.pos.y + player.body:getY()*camera.zoom  + 6), 20*camera.zoom)
+        
+    love.graphics.setColor(1,1,1,1)
+    end)
 
+    yellowNeon(function()
+    love.graphics.setColor(1, 0.46, 0.3)
+    local mx = player.body:getX() + 20*math.sin(fire.t)
+    local my = player.body:getY() + 20*math.cos(fire.t)
+    
+
+      love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 10*camera.zoom)
+        
+    love.graphics.setColor(1,1,1,1)
+    end)
+end
 
 return light
