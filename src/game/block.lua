@@ -15,7 +15,7 @@ function block.new(spriteSheetPath, frameWidth, frameHeight, duration, numFrames
         self.body = love.physics.newBody(world, x or 0, y or 0, "dynamic")
         self.shape = love.physics.newRectangleShape(frameWidth * self.scale * 0.5, frameHeight * self.scale * 0.5)
         self.fixture = love.physics.newFixture(self.body, self.shape)
-        self.fixture:setGroupIndex(-3) -- Default group to avoid initial collisions
+        self.fixture:setGroupIndex(-2) -- Default group to avoid initial collisions
     end
     return self
 end
@@ -116,7 +116,7 @@ function block:updatePhysics(playerBody, multiplayer)
             self.fixture:setGroupIndex(-1) -- Adjust collision group when in use
         else
             relVel.x, relVel.y = self.body:getLinearVelocity()
-            self.fixture:setGroupIndex(-3) -- Different group when not in use
+            self.fixture:setGroupIndex(-2) -- Different group when not in use
         end
     end
     return cx, cy, relVel

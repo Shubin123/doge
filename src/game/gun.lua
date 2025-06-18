@@ -18,7 +18,7 @@ function Gun.new(params)
     
     -- Initialize block instance for gun sprite
     local block = require("game.block")
-    gun.blockInstance = block.new("gfx/3d/portalGun.png", 128, 128, 2, 450, 1)
+    gun.blockInstance = block.new("gfx/3d/lauchergun.png", 128, 128, 2, 450, 1)
     
     -- Rocket-specific parameters
     gun.topSpeed = params.topSpeed or 300
@@ -204,7 +204,7 @@ function Gun:drawBarrel()
         local vx = self.lastAimDirection.x
         local vy = self.lastAimDirection.y
         -- Adjust angle offset to align with aiming direction, compensating for the negated x-component in getSpriteForHeading
-        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, -vx, -vy, 160,60,60)
+        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 160,60,60)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
     end
     

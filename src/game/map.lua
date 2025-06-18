@@ -31,6 +31,7 @@ local objectPools = {
 -- Store object instances
 map.archInstances = {}
 map.treeInstances = {}
+map.houseInstances = {}
 map.dynamicObjects = {}  -- Generic dynamic objects
 map.chunks = {}  -- Spatial chunks for optimization
 map.layers = {}  -- Multiple map layers
@@ -561,6 +562,61 @@ function map.createTree(x, y)
     return tree
 end
 
+-- House creation
+function map.createHouse(x, y)
+    local house = map.createDynamicObject({
+        type = "house",
+        x = x,
+        y = y,
+        width = 0,
+        height = 0,
+        physics = {
+            type = "static",
+            shape = love.physics.newRectangleShape(0, 0, 125, 120),
+        },
+    })
+
+    house:addComponent("visual", {
+        offset_x = -70,
+        offset_y = -130,
+        tilesetIndex = 5,
+        tileId = 1,
+        scale = 2.0,
+    })
+
+    -- house:addComponent("shadow", {
+    --     init = function(self, owner)
+    --         self.radius = 40
+    --         self.opacity = 0.4
+    --     end,
+    --     getDynamicDrawItem = function(self, owner)
+    --         return {
+    --             sort_y = owner.y - 1,
+    --             draw_type = "circle",
+    --             x = owner.x,
+    --             y = owner.y + 30,
+    --             radius = self.radius,
+    --             color = {0, 0, 0, self.opacity},
+    --             blend_mode = {"alpha"},
+    --             source_object_type = "house_shadow",
+    --         }
+    --     end,
+    -- })
+
+    house.x = x
+    house.y = y
+    
+    local originalMove = house.move
+    house.move = function(self, new_x, new_y)
+        self.x = new_x
+        self.y = new_y
+        originalMove(self, new_x, new_y)
+    end
+
+    table.insert(map.houseInstances, house)
+    return house
+end
+
 -- Find arch by any of its fixture
 function map.findArchByFixture(fixture)
     local userData = fixture:getUserData()
@@ -588,6 +644,7 @@ function map.findTreeByFixture(fixture)
 end
 
 function map.load()
+
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
@@ -609,6 +666,20 @@ function map.load()
     map.tiles4 = newTiles(tilesetImage4, 156, 156)
     map.tree = createMap(map.tiles4, 1, 1) -- Just for tileset storage
     map.tree:setTile(1, 1, 1) -- Default tree tile
+
+    
+
+    local tilesetImage5 = love.graphics.newImage("gfx/TileSet/house.png")
+    map.tiles5 = newTiles(tilesetImage5, 100, 100)
+    map.house = createMap(map.tiles5, var.map_display_w, var.map_display_h)
+    for x = 1, 70 do 
+        for y = 1, 50 do
+            map.house:setTile(x, y, math.random(1,200))
+        end
+    end
+
+
+    
 end
 
 -- Optimized dynamic draw list generation
@@ -722,6 +793,36 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                 end
             end
         end
+    elseif mapData == map.house then
+        for _, house in ipairs(map.houseInstances) do
+            if house.active then
+                local visual = house:getComponent("visual")
+                if visual then
+                    local shadow = house:getComponent("shadow")
+                    if shadow and shadow.getDynamicDrawItem then
+                        table.insert(drawItems, shadow:getDynamicDrawItem(house))
+                    end
+
+                    table.insert(drawItems, {
+                        sort_y = base_sort_y + house.y,
+                        image_or_particles = map.tiles5.tilesetImage,
+                        quad = map.tiles5.quads[visual.tileId],
+                        x = house.x + visual.offset_x,
+                        y = house.y + visual.offset_y,
+                        rotation = house.rotation,
+                        scale_x = map_scale * visual.scale * house.scale,
+                        scale_y = map_scale * visual.scale * house.scale,
+                        offset_x = 0,
+                        offset_y = 0,
+                        color = house.color,
+                        blend_mode = {"alpha"},
+                        source_object_type = "house",
+                        object_id = house.id,
+                    })
+                    performance.objectsRendered = performance.objectsRendered + 1
+                end
+            end
+        end
     
     elseif mapData.draw then
         local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
@@ -801,6 +902,16 @@ function map.createSaveData()
             id = tree.id
         }
     end
+
+    -- Capture house instances
+    map_data.houses = {}
+    for i, house in ipairs(map.houseInstances) do
+        map_data.houses[i] = {
+            x = house.x,
+            y = house.y,
+            id = house.id
+        }
+    end
     
     return map_data
 end
@@ -844,6 +955,16 @@ function map.createSaveDataSmall()
             x = tree.x,
             y = tree.y,
             id = tree.id
+        }
+    end
+
+    -- Capture house instances
+    map_data.houses = {}
+    for i, house in ipairs(map.houseInstances) do
+        map_data.houses[i] = {
+            x = house.x,
+            y = house.y,
+            id = house.id
         }
     end
     
@@ -909,6 +1030,14 @@ function map.restore(map_data)
             map.createTree(tree_data.x, tree_data.y)
         end
         map_b = map.addMapToDynamicDrawList(map.tree, 0,0,0.8,240)
+    end
+    
+    -- Restore houses
+    if map_data.houses then
+        for _, house_data in ipairs(map_data.houses) do
+            map.createHouse(house_data.x, house_data.y)
+        end
+        map_c = map.addMapToDynamicDrawList(map.house, 0,0,0.8,240)
     end
     
     return true

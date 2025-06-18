@@ -54,7 +54,7 @@ var.sprite_width = 100
 
 
 
-var.graphics_high = false -- for now just a high settings for all the shaders or nothing
+var.graphics_high = true -- for now just a high settings for all the shaders or nothing
 
 function love.conf(t)
     

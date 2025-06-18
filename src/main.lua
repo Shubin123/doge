@@ -88,13 +88,15 @@ function love.load()
 
     map.createArches(300,200)
     map.createTree(400,100)
+    map.createHouse(300,0)
     -- map.createTreeWithWind(500,100)
-    -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:getY()  < 140 then
+    -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:nthY()  < 140 then
 
     -- Load map and player
     map.load()
     map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
     map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
+    map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
 
     multiplayer.load()
     player.load(world)
@@ -105,7 +107,7 @@ function love.load()
     bullet.load(world)
     rocket.load(world)
 
-        command.load()
+    command.load()
     cmdn.load()
     -- Coins and enemies 
     
@@ -339,6 +341,7 @@ function love.mousepressed(x, y, button, istouch, presses)
     
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
+        print(nextStateAction)
         if nextStateAction == "running" then
             var.State = "running"
             -- player.health = 100
@@ -379,7 +382,7 @@ function love.mousepressed(x, y, button, istouch, presses)
     end
 
     editor.mousepressed(x, y, button)
-
+    
     lurker.scan()
 end
 

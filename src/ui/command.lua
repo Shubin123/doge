@@ -229,8 +229,8 @@ function createBlock(cmd)
     local new_block = {
         id = block_id,
         cmd = cmd,
-        x = px + math.random(-50, 50),
-        y = py + math.random(-50, 50),
+        x = 0,
+        y = 0,
         w = command_block_img:getWidth(),
         h = command_block_img:getHeight(),
         active = true,
@@ -260,10 +260,10 @@ function createCommandBlockPhysics(block)
             error("Block dimensions not set: w=" .. tostring(block.w) .. ", h=" .. tostring(block.h))
         end
 
-        block.body = love.physics.newBody(world, block.x, block.y, "static")
-        block.shape = love.physics.newRectangleShape(10,10)
+        block.body = love.physics.newBody(world, block.x, block.y, "dynamic")
+        block.shape = love.physics.newRectangleShape(30,40)
         block.fixture = love.physics.newFixture(block.body, block.shape, 1)
-        block.fixture:setSensor(true)
+        -- block.fixture:setSensor(true)
     end
     -- Clients don't create physics bodies, just store the block data for networking
 end
@@ -666,23 +666,25 @@ function command.populate()
     local player_vx, player_vy = player.body:getLinearVelocity()
     for i, block in ipairs(command_blocks) do
         -- Only create physics bodies on server/single player
-        if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
-            createCommandBlockPhysics(block)
-        end
+        -- if not block.body and (var.multiplayer == 1 or not var.multiplayer) then
+        --     createCommandBlockPhysics(block)
+        -- end
 
         -- Use superclass to add to draw list with original offset values
-        command_block_instance:addToDrawList(dynamic_draw_list, block.x, block.y, player_vx, player_vy, 180, 0, 0)
+        local vx,vy = block.body:getLinearVelocity()
+        local bx,by = block.body:getPosition()
+        command_block_instance:addToDrawList(dynamic_draw_list, bx - 60, by - 60, vx, vy, 180, 0, 0)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "command"
         dynamic_draw_list[#dynamic_draw_list].command = block.cmd
         
-        local dist = math.sqrt((player_x - block.x) ^ 2 + (player_y - block.y) ^ 2)
+        local dist = math.sqrt((player_x - bx) ^ 2 + (player_y - by) ^ 2)
         if dist < 100 then
             table.insert(dynamic_draw_list, {
                 sort_y = block.y + block.h + 101, -- a bit higher than the block
                 draw_type = "text",
                 text = block.cmd,
-                x = block.x, 
-                y = block.y -50,
+                x = bx - 60, 
+                y = by - 60,
                 color = { 1, 1, 1, 1 },
                 blend_mode = { "alpha" }
             })

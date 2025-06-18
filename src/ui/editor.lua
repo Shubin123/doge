@@ -24,41 +24,49 @@ end
 
 -- Handle mouse press events
 function editor.mousepressed(x, y, button)
-    editor.selectedObject = editor.findObjectAtPosition(x - camera.pos.x, y - camera.pos.y)
-    if button == 1 then -- Left mouse button
-        editor.mouseX = x
-        editor.mouseY = y
-        editor.isPressed = true
-        
-        if editor.mode == "select" then
-            -- Find object at mouse position
+    if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
+        editor.selectedObject = editor.findObjectAtPosition(x - camera.pos.x, y - camera.pos.y)
+        if button == 1 then -- Left mouse button
+            editor.mouseX = x
+            editor.mouseY = y
+            editor.isPressed = true
             
-
-            if editor.selectedObject then
-                -- Calculate drag offset
-                if editor.selectedObject.type == "arch" then
-                    editor.dragOffset.x = x - editor.selectedObject.pivot_x
-                    editor.dragOffset.y = y - editor.selectedObject.pivot_y
-                elseif editor.selectedObject.type == "tree" then
-                    editor.dragOffset.x = x - editor.selectedObject.x
-                    editor.dragOffset.y = y - editor.selectedObject.y
+            if editor.mode == "select" then
+                -- Find object at mouse position
+                
+                if editor.selectedObject then
+                    -- Calculate drag offset
+                    if editor.selectedObject.type == "arch" then
+                        editor.dragOffset.x = x - editor.selectedObject.pivot_x
+                        editor.dragOffset.y = y - editor.selectedObject.pivot_y
+                    elseif editor.selectedObject.type == "tree" then
+                        editor.dragOffset.x = x - editor.selectedObject.x
+                        editor.dragOffset.y = y - editor.selectedObject.y
+                    elseif editor.selectedObject.type == "house" then
+                        editor.dragOffset.x = x - editor.selectedObject.x
+                        editor.dragOffset.y = y - editor.selectedObject.y
+                    end
                 end
+            elseif editor.mode == "create_arch" then
+                -- Create new arch at mouse position
+                -- print(x,y)
+                map.createArches((x - camera.pos.x) / camera.zoom, (y - camera.pos.y) / camera.zoom)
+                map_a = map.addMapToDynamicDrawList(map.arches, 0, 0, 1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+            elseif editor.mode == "create_tree" then
+                -- Create new tree at mouse position
+                map.createTree((x - camera.pos.x) / camera.zoom, (y - camera.pos.y) / camera.zoom)
+                map_b = map.addMapToDynamicDrawList(map.tree, 0, 0, 0.8, 240) -- since the editor can modify this live this needs to be called again when redrawn at different position
+            elseif editor.mode == "create_house" then
+                -- Create new house at mouse position
+                map.createHouse((x - camera.pos.x) / camera.zoom, (y - camera.pos.y) / camera.zoom)
+                map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 240) -- since the editor can modify this live this needs to be called again when redrawn at different position
             end
-        elseif editor.mode == "create_arch" then
-            -- Create new arch at mouse position
-            -- print(x,y)
-            map.createArches((x - camera.pos.x) / camera.zoom, (y - camera.pos.y) / camera.zoom)
-            map_a = map.addMapToDynamicDrawList(map.arches, 0, 0, 1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
-        elseif editor.mode == "create_tree" then
-            -- Create new tree at mouse position
-            map.createTree((x - camera.pos.x) / camera.zoom, (y - camera.pos.y) / camera.zoom)
-            map_b = map.addMapToDynamicDrawList(map.tree, 0, 0, 0.8, 240) -- since the editor can modify this live this needs to be called again when redrawn at different position
-        end
-    elseif button == 2 then                                               -- Right mouse button
-        -- Delete object at position
-        -- local objectToDelete = editor.findObjectAtPosition(x - camera.pos.x, y - camera.pos.y)
-        if editor.selectedObject then
-            editor.deleteObject(editor.selectedObject)
+        elseif button == 2 then                                               -- Right mouse button
+            -- Delete object at position
+            -- local objectToDelete = editor.findObjectAtPosition(x - camera.pos.x, y - camera.pos.y)
+            if editor.selectedObject then
+                editor.deleteObject(editor.selectedObject)
+            end
         end
     end
 end
@@ -154,8 +162,14 @@ function editor.deleteObject(obj)
                 table.remove(map.treeInstances, k)
             end
         end
+        for k, house in pairs(map.houseInstances) do
+            if house == editor.selectedObject then
+                table.remove(map.houseInstances, k)
+            end
+        end
         map_b = map.addMapToDynamicDrawList(map.tree, 0, 0, 0.8, 240)     -- this reloads trees draw
         map_a = map.addMapToDynamicDrawList(map.arches, 0, 0, 1, 200)     -- this reloads map that draws all arches
+        map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 240)     -- this reloads map that draws all houses
         editor.selectedObject.markedDestory = true
     end
 end
@@ -188,16 +202,24 @@ end
 
 -- Handle keyboard input for mode switching
 function editor.keypressed(key)
-    if key == "1" then
-        editor.setMode("select")
-    elseif key == "2" then
-        editor.setMode("create_arch")
-    elseif key == "3" then
-        editor.setMode("create_tree")
-    elseif key == "escape" then
-        editor.setMode("select")
-        editor.selectedObject = nil
+    if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
+        print('wow')
+        if key == "1" then
+            editor.setMode("select")
+        elseif key == "2" then
+            editor.setMode("create_arch")
+        elseif key == "3" then
+            editor.setMode("create_tree")
+        elseif key == "4" then
+            editor.setMode("create_house")
+        elseif key == "escape" then
+            editor.setMode("select")
+            editor.selectedObject = nil
+        end
+    else 
+        editor.setMode(nil)
     end
+
 end
 
 -- Debug drawing function
@@ -206,8 +228,8 @@ function editor.debugDraw()
 
     -- Draw mode indicator
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("Mode: " .. editor.mode, 10, 10)
-    love.graphics.print("1: Select | 2: Create Arch | 3: Create Tree | RMB: Delete", 10, 30)
+    love.graphics.print("Mode: " .. (editor.mode or "none"), 10, 10)
+    love.graphics.print("Shift+1: Select | Shift+2: Create Arch | Shift+3: Create Tree | Shift+4: Create House | Shift+Esc: Deselect | Shift+RMB: Delete", 10, 30)
 
     -- Draw mouse cursor based on mode
     if editor.mode == "select" then
@@ -221,6 +243,10 @@ function editor.debugDraw()
         love.graphics.setColor(0, 0, 1, 0.7) -- Blue
         love.graphics.circle("fill", editor.mouseX, editor.mouseY, 5)
         love.graphics.print("Tree", editor.mouseX + 10, editor.mouseY - 5)
+    elseif editor.mode == "create_house" then
+        love.graphics.setColor(1, 0, 1, 0.7) -- Magenta
+        love.graphics.circle("fill", editor.mouseX, editor.mouseY, 5)
+        love.graphics.print("House", editor.mouseX + 10, editor.mouseY - 5)
     end
 
     -- Draw selected object highlight
@@ -232,6 +258,9 @@ function editor.debugDraw()
         elseif editor.selectedObject.type == "tree" then
             love.graphics.circle("line", editor.selectedObject.x + 78, editor.selectedObject.y + 78, 15)
             love.graphics.print("Selected Tree " .. editor.selectedObject.id, 10, 60)
+        elseif editor.selectedObject.type == "house" then
+            love.graphics.circle("line", editor.selectedObject.x, editor.selectedObject.y, 15)
+            love.graphics.print("Selected House " .. editor.selectedObject.id, 10, 60)
         end
     end
 
@@ -239,6 +268,7 @@ function editor.debugDraw()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print("Arches: " .. #editor.map.archInstances, 10, 80)
     love.graphics.print("Trees: " .. #editor.map.treeInstances, 10, 100)
+    love.graphics.print("Houses: " .. #editor.map.houseInstances, 10, 120)
 
     love.graphics.setColor(1, 1, 1, 1) -- Reset color
 end

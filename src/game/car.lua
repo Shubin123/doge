@@ -22,32 +22,40 @@ function car.populate()
     -- Add cars to the dynamic draw list for rendering
     for i, currentCar in ipairs(car.cars) do
         -- Only draw host's car if multiplayer > 2
-        if var.multiplayer > 2 and i > 1 then
-            -- Skip drawing non-host cars in this mode
-            goto continue
-        end
+        -- if var.multiplayer > 2 and i > 1 then
+        --     -- Skip drawing non-host cars in this mode
+        --     goto continue
+        -- end
         
         local cx, cy = 0, 0
+        local v =0
         local vx, vy = 0, 0
-        if currentCar.body then
+        if currentCar.inUse then 
+            
+            cx,cy,v = currentCar:updatePhysics(player.body)
+            vx = v.x
+            vy = v.y
+        else
             cx, cy = currentCar.body:getX(), currentCar.body:getY()
             vx, vy = currentCar.body:getLinearVelocity()
+            currentCar.body:getFixtures()[1]:setGroupIndex(-2)
         end
         
         -- On clients, use networked position directly since physics is disabled
+        if var.multiplayer then
         if var.multiplayer > 1 and renderer.networked_state and renderer.networked_state.cars and renderer.networked_state.cars[tostring(i)] then
             local netCar = renderer.networked_state.cars[tostring(i)]
             cx, cy = netCar.x, netCar.y
             vx, vy = netCar.vx or 0, netCar.vy or 0
         end
-        
+    end
         -- Add to draw list using superclass method
         currentCar:addToDrawList(dynamic_draw_list, cx, cy, vx, vy, 160, currentCar.width / 10, (currentCar.height / (456 / 5)) / 2)
         -- Update the source_object_type and car_id for identification
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "car"
         dynamic_draw_list[#dynamic_draw_list].car_id = i
         
-        ::continue::
+        -- ::continue::
     end
 end
 

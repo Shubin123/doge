@@ -140,6 +140,7 @@ end
 local function initDrawList()
     dynamic_draw_list = { unpack(map_a, 1, #map_a) }
     rebuildArray(dynamic_draw_list, map_b)
+    rebuildArray(dynamic_draw_list, map_c)
 end
 
 local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
