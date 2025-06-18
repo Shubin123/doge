@@ -302,7 +302,7 @@ local function addNetworkedEntities()
     -- Networked fire effects
     for _, fire_data in pairs(renderer.networked_state.fire_effects) do
         table.insert(dynamic_draw_list, {
-            sort_y = fire_data.y + 100,
+            sort_y = fire_data.y + 75,
             image_or_particles = fire.particleSystem,
             x = fire_data.x,
             y = fire_data.y,
@@ -363,8 +363,8 @@ local function addNetworkedEntities()
     end
 
     -- Networked command blocks
-    for _, command_block_data in pairs(renderer.networked_state.command_blocks) do
-        if command_block_data.active then
+    -- for _, command_block_data in pairs(renderer.networked_state.command_blocks) do
+        -- if command_block_data.active then
             -- table.insert(dynamic_draw_list, {
             --     sort_y = command_block_data.y + 100,
             --     image_or_particles = command_block_img,
@@ -398,8 +398,8 @@ local function addNetworkedEntities()
             --         })
             --     end
             -- end
-        end
-    end
+        -- end
+    -- end
     
     -- Networked cars
     -- for car_id, car_data in pairs(renderer.networked_state.cars) do

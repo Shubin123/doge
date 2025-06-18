@@ -150,11 +150,11 @@ function snapshot.create()
         -- print(game_state.players)
         -- game_state.map_data = map.createSaveData()
         game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
-        
-        
+
+
         -- Collect host's command blocks (which now includes accumulated client blocks)
         game_state.command_blocks = command.getCommandBlocks()
-        
+
     else
         -- CLIENT: Create minimal update with player data and fire effects
         game_state = {
@@ -168,10 +168,9 @@ function snapshot.create()
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
             cars =  {}  -- Clients send their car data
         }
-        
 
     end
-    
+
     return game_state
 end
 

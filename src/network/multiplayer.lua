@@ -235,9 +235,6 @@ function multiplayer:_handleMessage(data, peer, role)
             player.online.fixture:setGroupIndex(-1)
             player.online.health[player_id] = 100
         end
-        
-        
-
 
         player.online.bodies[player_id]:setPosition(game_state.player_data.x,game_state.player_data.y)
 
@@ -318,44 +315,12 @@ function multiplayer:createMessage(msg_type, data)
     }
 end
 
--- Utility: Send JSON message
--- function multiplayer:sendJSON(target, message, channel)
---     local json_str = tostring(message)
---     if type(message) == "table" then
---         -- Simple JSON encoding (you might want to use a proper JSON library)
---         local success, json_lib = pcall(function() return require("lib.utils.json") end)
---         if success and json_lib then
---             json_str = json_lib.encode(message)
---         else
---             -- Fallback: simple table serialization for basic cases
---             if message.type and message.data then
---                 json_str = string.format('{"type":"%s","data":"%s"}',
---                     tostring(message.type), tostring(message.data))
---             else
---                 json_str = tostring(message)
---             end
---         end
---     end
-
---     if target == "server" then
---         return self:sendToServer(json_str, channel)
---     elseif target == "broadcast" then
---         return self:broadcast(json_str, channel)
---     elseif type(target) == "userdata" then -- peer object
---         return self:sendToPeer(target, json_str, channel)
---     end
-
---     return false
--- end
-
 function multiplayer.load()
     mp = multiplayer.new({
         port = 6750,
         max_peers = 8,
         timeout = 200 --IMPORANT !!!
     })
-
-
 
     mp:onMessage("player_move", function(message, peer, role)
         print("Player moved:", message, "from", peer)
@@ -386,15 +351,9 @@ function multiplayer.load()
     else
         mp:connectToHost(ip)
     end
-    
+
     end
-    
-    
+
 end
-
-
-
-
-
 
 return multiplayer

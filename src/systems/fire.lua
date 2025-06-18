@@ -124,7 +124,7 @@ function fire.update(dt)
             
             -- Cache draw data for fireables
             table.insert(fire_draw_data, {
-                sort_y = fireable[1].y + 100,
+                sort_y = fireable[1].y + 130,
                 image_or_particles = fire.particleSystem,
                 quad = nil,
                 x = fireable[1].x,
