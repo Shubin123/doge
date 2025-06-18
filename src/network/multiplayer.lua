@@ -184,7 +184,7 @@ end
 
 
 function multiplayer.sendMovementMessage()
-    game_state = snapshot.create()
+    local game_state = snapshot.create()
     
     -- Convert to JSON first, then compress with maximum compression
     local json_string = json.encode(game_state)

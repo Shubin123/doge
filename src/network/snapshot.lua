@@ -1,4 +1,13 @@
 local snapshot = {}
+local json = require("util/json")
+
+-- Store last created snapshot for delta comparison
+local last_created_snapshot = nil
+-- Store last full game state for client to merge with delta updates
+local last_full_game_state = nil
+-- Counter for forcing full updates periodically for host
+local frame_counter = 0
+local full_update_interval = 5 -- Send full update every 5 frames to prevent flashing of stationary objects
 
 -- Host maintains accumulated game state
 local accumulated_game_state = {
@@ -21,14 +30,14 @@ local accumulated_game_state = {
 }
 
 function snapshot.create()
-    local game_state = {}
+    local full_game_state = {}
     
     -- Update local player first
     renderer.updateLocalPlayerFromPhysics()
     
     if var.multiplayer == 1 then
         -- HOST: Create full game state snapshot
-        game_state = {
+        full_game_state = {
             players = {},
             enemies = {},
             coins = {},
@@ -44,26 +53,21 @@ function snapshot.create()
         }
         
         -- Add host's player data
-        game_state.players["client_1"] = renderer.local_player_state
+        full_game_state.players["client_1"] = renderer.local_player_state
         
         -- Add all accumulated client player data
         for client_id, player_data in pairs(accumulated_game_state.players) do
-            -- print(client_id, player_data)
             if client_id ~= "client_1" then -- Don't overwrite host data
-                game_state.players[client_id] = player_data
+                full_game_state.players[client_id] = player_data
                 local client_idNum = tonumber(string.sub(client_id,#client_id))
-                -- print(client_idNum)
-                
-                game_state.players[client_id].health = player.online.health[client_idNum]
-                -- game_state.players[client_id].health = 69
-                
+                full_game_state.players[client_id].health = player.online.health[client_idNum]
             end
         end
         
         -- Collect enemy data from physics bodies
         for i = 1, #enemies_bods do
             local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
-            game_state.enemies[tostring(i)] = {
+            full_game_state.enemies[tostring(i)] = {
                 x = ex,
                 y = ey,
                 active = true
@@ -72,23 +76,22 @@ function snapshot.create()
         
         -- Collect boss data
         if boss then
-            game_state.bosses = boss.getNetworkData()
+            full_game_state.bosses = boss.getNetworkData()
         end
         
         -- Collect car data from host
-        game_state.cars = {}
+        full_game_state.cars = {}
         if car then
             local hostCarData = car.getNetworkData()
             for k, v in pairs(hostCarData) do
-                game_state.cars[tostring(k)] = v
+                full_game_state.cars[tostring(k)] = v
             end
         end
-        
         
         -- Collect coin data from physics bodies
         for i = 1, #coin_bods do
             local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-            game_state.coins[tostring(i)] = {
+            full_game_state.coins[tostring(i)] = {
                 x = cx,
                 y = cy,
                 active = true
@@ -97,12 +100,12 @@ function snapshot.create()
         
         -- Add host's fire effects
         local host_fires = fire.getNetworkData()
-        game_state.fire_effects = {}
+        full_game_state.fire_effects = {}
         
         -- Convert host fires to string keys and add them
         if host_fires then
             for k, v in pairs(host_fires) do
-                game_state.fire_effects["host_" .. tostring(k)] = v
+                full_game_state.fire_effects["host_" .. tostring(k)] = v
             end
         end
         
@@ -110,7 +113,7 @@ function snapshot.create()
         for client_id, client_fires in pairs(accumulated_game_state.accumulated_fires) do
             if client_fires then
                 for k, v in pairs(client_fires) do
-                    game_state.fire_effects[client_id .. "_" .. tostring(k)] = v
+                    full_game_state.fire_effects[client_id .. "_" .. tostring(k)] = v
                 end
             end
         end
@@ -119,22 +122,15 @@ function snapshot.create()
         local host_bullets = bullet.getNetworkData()
         if host_bullets then
             for k, v in pairs(host_bullets) do
-                game_state.bullets["host_" .. tostring(k)] = v
+                full_game_state.bullets["host_" .. tostring(k)] = v
             end
         end
-
-        -- local host_rockets = rocket.getNetworkData()
-        -- if host_rockets then
-        --     for k, v in pairs(host_rockets) do
-        --         game_state.rockets["host_" .. tostring(k)] = v
-        --     end
-        -- end
 
         -- Add accumulated client bullets and rockets
         for client_id, client_bullets in pairs(accumulated_game_state.accumulated_bullets) do
             if client_bullets then
                 for k, v in pairs(client_bullets) do
-                    game_state.bullets[client_id .. "_" .. tostring(k)] = v
+                    full_game_state.bullets[client_id .. "_" .. tostring(k)] = v
                 end
             end
         end
@@ -142,36 +138,60 @@ function snapshot.create()
         for client_id, client_rockets in pairs(accumulated_game_state.accumulated_rockets) do
             if client_rockets then
                 for k, v in pairs(client_rockets) do
-                    game_state.rockets[client_id .. "_" .. tostring(k)] = v
+                    full_game_state.rockets[client_id .. "_" .. tostring(k)] = v
                 end
             end
         end
 
-        -- print(game_state.players)
-        -- game_state.map_data = map.createSaveData()
-        game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer we can move that later
-
+        full_game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer
 
         -- Collect host's command blocks (which now includes accumulated client blocks)
-        game_state.command_blocks = command.getCommandBlocks()
+        full_game_state.command_blocks = command.getCommandBlocks()
 
     else
         -- CLIENT: Create minimal update with player data and fire effects
-        game_state = {
+        full_game_state = {
             type = "player_update",
             client_id = "client_" .. var.multiplayer,
             player_data = renderer.local_player_state,
             fire_effects = fire.getNetworkData(), -- Clients send their fire effects
             bullets = bullet.getNetworkData(),
-            -- rockets = rocket.getNetworkData(),
             command_blocks = command.getCommandBlocks(),
             boss_spawn_request = boss and boss.getPendingSpawnRequest() or nil,  -- Add boss spawn request field
             cars =  {}  -- Clients send their car data
         }
-
     end
 
-    return game_state
+    -- Always send full state for host to prevent flashing issues on client
+    local delta_game_state = full_game_state
+    if var.multiplayer ~= 1 then
+        -- For client, create minimal update
+        delta_game_state = {
+            type = "player_update",
+            client_id = full_game_state.client_id,
+            player_data = full_game_state.player_data
+        }
+        if full_game_state.fire_effects and (not last_created_snapshot or json.encode(full_game_state.fire_effects) ~= json.encode(last_created_snapshot.fire_effects or {})) then
+            delta_game_state.fire_effects = full_game_state.fire_effects
+        end
+        if full_game_state.bullets and (not last_created_snapshot or json.encode(full_game_state.bullets) ~= json.encode(last_created_snapshot.bullets or {})) then
+            delta_game_state.bullets = full_game_state.bullets
+        end
+        if full_game_state.command_blocks and (not last_created_snapshot or json.encode(full_game_state.command_blocks) ~= json.encode(last_created_snapshot.command_blocks or {})) then
+            delta_game_state.command_blocks = full_game_state.command_blocks
+        end
+        if full_game_state.boss_spawn_request and (not last_created_snapshot or json.encode(full_game_state.boss_spawn_request or {}) ~= json.encode(last_created_snapshot.boss_spawn_request or {})) then
+            delta_game_state.boss_spawn_request = full_game_state.boss_spawn_request
+        end
+        if full_game_state.cars and (not last_created_snapshot or json.encode(full_game_state.cars) ~= json.encode(last_created_snapshot.cars or {})) then
+            delta_game_state.cars = full_game_state.cars
+        end
+    end
+
+    -- Store the full game state as the last created snapshot for next comparison
+    last_created_snapshot = full_game_state
+    
+    return delta_game_state
 end
 
 function snapshot.apply(game_state)
@@ -179,7 +199,9 @@ function snapshot.apply(game_state)
         -- HOST: Handle incoming client updates
         if game_state.type == "player_update" then
             -- Accumulate client player data and fire effects
-            accumulated_game_state.players[game_state.client_id] = game_state.player_data
+            if game_state.player_data then
+                accumulated_game_state.players[game_state.client_id] = game_state.player_data
+            end
             
             -- Accumulate client fire effects
             if game_state.fire_effects then
@@ -269,23 +291,48 @@ function snapshot.apply(game_state)
             end
             renderer.setNetworkedCars(all_cars)
         else
-            -- Handle full game state (shouldn't happen on host)
+            -- Handle full game state or delta updates
             if game_state.players then
                 renderer.setNetworkedPlayers(game_state.players)
             end
         end
     else
-        -- CLIENT: Apply full game state from host
-        if game_state.players then
+        -- CLIENT: Apply full game state or delta updates from host
+        -- If this is a full update, store it as the last full state
+        if game_state.type == "full_update" or not last_full_game_state then
+            last_full_game_state = game_state
+        else
+            -- Merge delta update with last full state
+            for category, data in pairs(game_state) do
+                if category ~= "type" then
+                    if last_full_game_state[category] then
+                        -- Update existing entries and add new ones
+                        for key, value in pairs(data) do
+                            if value == nil then
+                                -- Handle removal of elements
+                                last_full_game_state[category][key] = nil
+                            else
+                                last_full_game_state[category][key] = value
+                            end
+                        end
+                    else
+                        -- If category doesn't exist in full state, add it
+                        last_full_game_state[category] = data
+                    end
+                end
+            end
+        end
+
+        -- Now apply the merged full state to the renderer
+        if last_full_game_state.players then
             -- Filter out own player data to avoid drawing self twice
             local other_players = {}
             local own_client_id = "client_" .. var.multiplayer
             
-            for client_id, player_data in pairs(game_state.players) do
+            for client_id, player_data in pairs(last_full_game_state.players) do
                 if client_id ~= own_client_id then
                     other_players[client_id] = player_data
                 else
-                    -- print(player_data.health)
                     player.health = player_data.health
                 end
             end
@@ -293,12 +340,12 @@ function snapshot.apply(game_state)
             renderer.setNetworkedPlayers(other_players)
         end
 
-         if game_state.fire_effects then
+        if last_full_game_state.fire_effects then
             -- Filter out own fire effects to avoid duplication
             local other_fires = {}
             local own_client_prefix = "client_" .. var.multiplayer .. "_"
             
-            for fire_id, fire_data in pairs(game_state.fire_effects) do
+            for fire_id, fire_data in pairs(last_full_game_state.fire_effects) do
                 if not string.match(fire_id, "^" .. own_client_prefix) then
                     other_fires[fire_id] = fire_data
                 end
@@ -307,10 +354,10 @@ function snapshot.apply(game_state)
             renderer.setNetworkedFireEffects(other_fires)
         end
 
-        if game_state.bullets then
+        if last_full_game_state.bullets then
             local other_bullets = {}
             local own_client_prefix = "client_" .. var.multiplayer .. "_"
-            for bullet_id, bullet_data in pairs(game_state.bullets) do
+            for bullet_id, bullet_data in pairs(last_full_game_state.bullets) do
                 if not string.match(bullet_id, "^" .. own_client_prefix) then
                     other_bullets[bullet_id] = bullet_data
                 end
@@ -318,10 +365,10 @@ function snapshot.apply(game_state)
             renderer.setNetworkedBullets(other_bullets)
         end
 
-        if game_state.rockets then
+        if last_full_game_state.rockets then
             local other_rockets = {}
             local own_client_prefix = "client_" .. var.multiplayer .. "_"
-            for rocket_id, rocket_data in pairs(game_state.rockets) do
+            for rocket_id, rocket_data in pairs(last_full_game_state.rockets) do
                 if not string.match(rocket_id, "^" .. own_client_prefix) then
                     other_rockets[rocket_id] = rocket_data
                 end
@@ -329,29 +376,29 @@ function snapshot.apply(game_state)
             renderer.setNetworkedRockets(other_rockets)
         end
         
-        if game_state.enemies then
-            renderer.setNetworkedEnemies(game_state.enemies)
+        if last_full_game_state.enemies then
+            renderer.setNetworkedEnemies(last_full_game_state.enemies)
         end
         
-        if game_state.bosses then
-            renderer.setNetworkedBosses(game_state.bosses)
+        if last_full_game_state.bosses then
+            renderer.setNetworkedBosses(last_full_game_state.bosses)
         end
         
-        if game_state.coins then
-            renderer.setNetworkedCoins(game_state.coins)
+        if last_full_game_state.coins then
+            renderer.setNetworkedCoins(last_full_game_state.coins)
         end
         
-        if game_state.cars then
-            renderer.setNetworkedCars(game_state.cars)
+        if last_full_game_state.cars then
+            renderer.setNetworkedCars(last_full_game_state.cars)
         end
 
-        if game_state.map_data then
-            map.restore(game_state.map_data)
+        if last_full_game_state.map_data then
+            map.restore(last_full_game_state.map_data)
         end
 
-        if game_state.command_blocks then
-            command.setCommandBlocks(game_state.command_blocks)
-            renderer.setNetworkedCommandBlocks(game_state.command_blocks)
+        if last_full_game_state.command_blocks then
+            command.setCommandBlocks(last_full_game_state.command_blocks)
+            renderer.setNetworkedCommandBlocks(last_full_game_state.command_blocks)
         end
     end
 end
