@@ -1,4 +1,4 @@
-uniform float time;
+uniform highp float time;
 uniform vec2 bullet_start;
 uniform vec2 bullet_end;
 uniform float trail_length;

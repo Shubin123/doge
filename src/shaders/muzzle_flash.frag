@@ -4,7 +4,7 @@ uniform float flash_intensity; // Intensity/brightness of the flash (0-1)
 uniform float cone_angle;    // Half angle of the cone in radians (e.g., 0.5 for ~30 degrees)
 uniform float cone_length;   // Maximum length of the light cone
 uniform vec3 flash_color;    // Color of the muzzle flash
-uniform float time;          // Time since flash started for animation
+uniform highp float time;          // Time since flash started for animation
 
 vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
     // Get the original pixel color

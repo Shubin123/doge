@@ -3,7 +3,7 @@ local wind = {}
 
 -- Shader code (GLSL)
 local windCode = [[
-uniform float time;
+uniform highp float time;
 const float amplitude = 0.01;
 uniform float time_scale = 0.04;
 uniform float noise_scale = 0.001;

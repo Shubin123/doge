@@ -164,18 +164,18 @@ local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
 end
 
 local function addPortal(x, y, sort_y)
-    table.insert(dynamic_draw_list, {
-        sort_y = sort_y,
-        shader = portal.SHADERS["portal"],
-        shader_params = portal.params,
-        x = x,
-        y = y,
-        width = 35,
-        height = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "alpha" },
-        source_object_type = "portal_shader"
-    })
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = sort_y,
+    --     shader = portal.SHADERS["portal"],
+    --     shader_params = portal.params,
+    --     x = x,
+    --     y = y,
+    --     width = 35,
+    --     height = 50,
+    --     color = { 1, 1, 1, 1 },
+    --     blend_mode = { "alpha" },
+    --     source_object_type = "portal_shader"
+    -- })
 end
 
 local function addLightEffect(light_shader, x, y, width, height, sort_y, color, light_type)

@@ -1,6 +1,6 @@
 
 
--- math.randomseed(os.time())
+math.randomseed(os.time())
 
 menu = require("ui.menu")
 mymath = require("lib.math.myMath")
@@ -25,7 +25,7 @@ crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
 snapshot = require("network.snapshot")
 blur = require ("systems.blur")
-serial = require("src.util.serial")
+serial = require("util.serial")
 editor = require("ui.editor")
 multiplayer = require("network.multiplayer")
 bullet = require("game.bullet")
@@ -40,8 +40,8 @@ car = require("game.car")
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX") -- improved console - always active
 -- hotreloader / helpers
-local lurker = require("src.util.lurker")
-json = require("src.util.json")
+local lurker = require("util.lurker")
+json = require("util.json")
 
 -- Game variables
 world = 0
@@ -140,19 +140,19 @@ function love.load()
 
     -- Shaders
     grass.public.load()
-    wind.load()
+    -- wind.load()
 
-    --  grass:setGrassArea(320, 398, 165, 37, 2000)
-    fire.load()
+    -- --  grass:setGrassArea(320, 398, 165, 37, 2000)
+    -- fire.load()
 
     shader.load()
-    water.load()
-    smoke.load()
-    portal.load()
-    crt.load()
-    blur.load()
-    light.load()
-    blood.load()
+    -- water.load()
+    -- smoke.load()
+    -- portal.load()
+    -- crt.load()
+    -- blur.load()
+    -- light.load()
+    -- blood.load()
     car.load(world)
 
     water.setWaterArea(320, 238, 165, 67)
@@ -182,7 +182,7 @@ function love.draw()
 
     -- if moonshine then 
         
-     light.draw()
+    --  light.draw()
     -- end 
 
 
@@ -216,7 +216,7 @@ function love.draw()
     
     bullet.populate()
     rocket.populate()  
-    blood.populate()
+    -- blood.populate()
     car.populate()
 
     gun.drawWorld()
@@ -235,10 +235,10 @@ function love.draw()
 
     if var.graphics_high then
     shader.pass()
-    smoke.pass()
-    water.pass()
-    crtShader.endCapture()
-    blur.pass()
+    -- smoke.pass()
+    -- water.pass()
+    -- crtShader.endCapture()
+    -- blur.pass()
     end
 
     mydraw.mydraw() -- ui last
@@ -283,15 +283,16 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     camera.update(dt, player)
-    water.update(dt)
-    smoke.update(dt)
-    fire.update(dt)
-    grass.public.update(dt)
-    portal.update(dt)
-    blur.update(dt)
+    -- water.update(dt)
+    -- smoke.update(dt)
+    -- fire.update(dt)
+    -- grass.public.update(dt)
+    -- portal.update(dt)
+    -- blur.update(dt)
+    -- blood.update(dt)
     command.update(dt)
     cmdn.update(dt)
-    blood.update(dt)
+    
 
     if var.multiplayer == 1 or not var.multiplayer  then
         enemy.update(dt)

@@ -5,7 +5,7 @@ uniform float fade_distance;
 uniform vec3 space_color;
 uniform float space_intensity;
 uniform vec2 screen_size;
-uniform float time;
+uniform highp float time;
 
 // Simple noise function for stars
 float random(vec2 st) {

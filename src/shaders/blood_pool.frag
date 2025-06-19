@@ -12,7 +12,7 @@ uniform vec2 drop_pos4;
 uniform float drop_scale4;
 uniform vec2 drop_pos5;
 uniform float drop_scale5;
-uniform float time;
+uniform highp float time;
 
 const float BLOOD_BLENDING = 0.15;
 

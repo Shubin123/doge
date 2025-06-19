@@ -79,7 +79,7 @@ function rocket.update(dt)
         
         -- skip destroyed rockets
         if r.destroyed then
-            goto continue
+            -- goto continue
         end
         
         -- accelerate
@@ -130,7 +130,7 @@ function rocket.update(dt)
             rocket.destroyRocket(r, i)
         end
         
-        ::continue::
+        -- ::continue::
     end
     -- update explosions
     for i = #explosions, 1, -1 do

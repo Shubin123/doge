@@ -7,14 +7,14 @@ shader.radiance = 0
 function shader.load()
     -- Create canvases with specific formats
     -- print("shader width", width)
-    scene_canvas = love.graphics.newCanvas(W, H, { format = "rgba8" })
+    scene_canvas = love.graphics.newCanvas(W, H, { format = "hdr" }) -- rgba8
 
     -- JFA needs two canvases for ping-pong, RG for UV
-    jfa_canvas1 = love.graphics.newCanvas(W, H, { format = "rg16f" })
-    jfa_canvas2 = love.graphics.newCanvas(W, H, { format = "rg16f" })
+    jfa_canvas1 = love.graphics.newCanvas(W, H, { format = "hdr" }) --rg16f
+    jfa_canvas2 = love.graphics.newCanvas(W, H, { format = "hdr" })
 
     -- Distance field canvas, R for distance
-    df_canvas = love.graphics.newCanvas(W, H, { format = "r16f" })
+    df_canvas = love.graphics.newCanvas(W, H, { format = "hdr" })
 
     -- Return all visible surface as their UV coords
     seed_shader = love.graphics.newShader([[
@@ -83,15 +83,15 @@ function shader.load()
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
             vec3 radiance = vec3(baseRadiance); //shift down (-) for night or up (+) for day
             float noise = rand(tc);
-            for(int i = 0; i < sampleCount; i ++) { // can not stride more here
+
+            for(int i = 0; i < 50; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
                 vec2 rayDirection = vec2(cos(angle), sin(angle));
                 vec2 sampleTC = tc;
-                for (int step = 0; step < maxDistance; step += 1) {
+                for (int step = 0; step < 30; step += 1) {
                   float df = Texel(tex, sampleTC).r;
                   sampleTC += rayDirection * df * ratio;
-                  if(sampleTC.x < 0.0 || sampleTC.x > 1.0 ||
-                    sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
+                  if(sampleTC.x < 0.0 || sampleTC.x > 1.0 || sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
                   if (df <= minStepSize) {
                     //vec3 hitColor = pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2)); // FROM SRGB
                     // Clamp brightness to prevent spazzing from muzzle flashes/tracers
@@ -108,34 +108,27 @@ function shader.load()
 end
 
 function render(in_canvas, shader, target_canvas)
-    
     love.graphics.setCanvas(target_canvas)
     love.graphics.clear(0, 0, 0, 0)
     -- love.graphics.clear(255,255,255,0.1,1,1)
     love.graphics.setShader(shader)
-    
+
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(in_canvas)
-    
 end
 
 function shader.prepass()
-    
     love.graphics.setCanvas(scene_canvas)
     love.graphics.clear(0, 0, 0, 0)
     -- love.graphics.clear(255,255,255,0.1,1,1)
-
-
 end
 
 function shader.pass()
-        
-
     -- Seed pass
     render(scene_canvas, seed_shader, jfa_canvas1)
-    
+
     gi_shader:send("surfaceTexture", scene_canvas)
-    gi_shader:send("maxDistance", shader.distance)
+    -- gi_shader:send("maxDistance", shader.distance)
     gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("baseRadiance", shader.radiance)
     -- JFA passes
@@ -152,17 +145,16 @@ function shader.pass()
         jfa_canvas1, jfa_canvas2 = jfa_canvas2, jfa_canvas1
     end
 
-    
+
     -- Distance field pass
     render(jfa_canvas1, df_shader, df_canvas)
 
     -- Global illumination pass
     render(df_canvas, gi_shader)
-    
-    --if water / smoke doesnt get drawn then these last two calls are necessary
-    -- love.graphics.setShader() 
-    -- love.graphics.draw(scene_canvas)
 
+    --if water / smoke doesnt get drawn then these last two calls are necessary
+    love.graphics.setShader()
+    love.graphics.draw(scene_canvas)
 end
 
 return shader

@@ -23,7 +23,7 @@ end
 function GrassRenderer:initShaders()
     -- Vertex shader that handles wind displacement
     local vertexShader = [[
-        uniform float time;
+        uniform highp float time;
         uniform vec2 windDirection;
         uniform float windStrength;
         uniform float windSpeed;
@@ -88,7 +88,7 @@ function GrassRenderer:initShaders()
     -- Fragment shader for grass appearance  
     local fragmentShader = [[
         uniform Image noiseTexture;
-        uniform float time;
+        uniform highp float time;
         uniform vec3 lightColor;
         uniform vec3 ambientColor;
         uniform vec2 screenSize;

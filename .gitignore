@@ -9,3 +9,5 @@ game.love
 /misc/love-11.5-win64
 /misc/moonshine-demo
 *.sav
+/js
+/js-test

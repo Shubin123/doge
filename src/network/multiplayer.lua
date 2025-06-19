@@ -341,8 +341,9 @@ function multiplayer.load()
     end)
 
 
-
-    if var.multiplayer ~= 0 then
+    -- var.multiplayer = math.random(2)
+    
+    if var.multiplayer then
         -- print(arg[3])
     local ip = arg[3] and arg[3] or "localhost"
 

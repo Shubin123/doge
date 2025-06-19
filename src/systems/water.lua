@@ -82,7 +82,7 @@ function water.load()
         uniform float distortionStrength = 0.015;
         uniform float reflectionStrength = 0.1;
         uniform vec4 waterBounds; // x, y, width, height (screen space)
-        uniform float time;
+        uniform highp float time;
         uniform Image reflectionTexture;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {

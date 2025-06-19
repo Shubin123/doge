@@ -81,7 +81,7 @@ function smoke.load()
         uniform float distortionStrength = 0.015;
         uniform float reflectionStrength = 0.1;
         uniform vec4 smokeBounds; // x, y, width, height
-        uniform float time;
+        uniform highp float time;
         uniform Image reflectionTexture;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
