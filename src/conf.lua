@@ -13,7 +13,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 100
+var.num_coins = 0
 var.coin_bods = {}
 var.num_enemies = 1
 var.enemies_bods = {}
@@ -57,7 +57,12 @@ var.graphics_high = true -- for now just a high settings for all the shaders or 
 
 function love.conf(t)
     
-print(t)
+-- print(t)
+for key, value in pairs(t) do
+    -- print(key,value)
+        
+
+end
 
 end
 

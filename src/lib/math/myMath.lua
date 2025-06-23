@@ -32,7 +32,9 @@ function myMath.tokens(cmd)
         return token_array
 end
 
-
-    return myMath
+function myMath.retList(t)
+  return t[1], t[2]
+end
+  return myMath
 
 

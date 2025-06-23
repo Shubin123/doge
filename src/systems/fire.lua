@@ -4,7 +4,7 @@ fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 1  -- Start with 6 fireballs
+fire.count = 3  -- Start with 6 fireballs
 fire.max_fireballs = 1  -- Maximum fireballs allowed
 fire.pierce = true
 fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
@@ -12,10 +12,33 @@ fire_instances = {} -- Active fireballs in the ring - no collision on these for 
 fire_draw_data = {} -- cached draw data updated only in fire.update()
 -- local sprite = require('lib.graphics.sprite')
 
-fireSpriteImg = love.graphics.newImage('gfx/firelowres.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/firelowres.png') -- 8,8 (not always the right sprite number but a working one)
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png') --5,6
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Blood Splat.png') -- 5,2
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Eletric A-Sheet.png') -- 3,3
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Eletric Aura.png') -- 5,2
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Fire+Sparks-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Flamethrower-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Gravity-Sheet.png') -- 4,5
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Holy Light Aura.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Leaves-Sheet.png') -- 5,3
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Poison Cloud-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Regen.png')
+-- rocketfireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Sakuras.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke2-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Spark1-Sheet.png')
+fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Sparks-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Splatter-Sheet.png')
+-- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png')
+
+ 
 -- myMath = require("lib.math.myMath")
 function fire.load()
-    Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
+    -- Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
+    Quads = sprite:constructsprite(fireSpriteImg, 5, 8)
     fire.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 500)
     particleSystem = fire.particleSystem
 

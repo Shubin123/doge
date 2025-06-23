@@ -106,71 +106,73 @@ end
 
 
 function lurker.onerror(e, nostacktrace)
-  lurker.print("An error occurred; switching to error state")
-  lurker.state = "error"
+  print("error: "..e)
+  print("BEHAVIOUR IS UNDEFINED BEYOND THIS POINT")
+  -- lurker.print("An error occurred; switching to error state")
+  -- lurker.state = "error"
 
-  -- Release mouse
-  local setgrab = love.mouse.setGrab or love.mouse.setGrabbed
-  setgrab(false)
+  -- -- Release mouse
+  -- local setgrab = love.mouse.setGrab or love.mouse.setGrabbed
+  -- setgrab(false)
 
-  -- Set up callbacks
-  for _, v in pairs(lovecallbacknames) do
-    love[v] = function() end
-  end
+  -- -- Set up callbacks
+  -- for _, v in pairs(lovecallbacknames) do
+  --   love[v] = function() end
+  -- end
 
-  love.update = lurker.update
+  -- love.update = lurker.update
 
-  love.keypressed = function(k)
-    if k == "escape" then
-      lurker.print("Exiting...")
-      love.event.quit()
-    end
-  end
+  -- love.keypressed = function(k)
+  --   if k == "escape" then
+  --     lurker.print("Exiting...")
+  --     love.event.quit()
+  --   end
+  -- end
 
-  local stacktrace = nostacktrace and "" or
-                     lume.trim((debug.traceback("", 2):gsub("\t", "")))
-  local msg = lume.format("{1}\n\n{2}", {e, stacktrace})
-  local colors = {
-    { lume.color("#1e1e2c", 256) },
-    { lume.color("#f0a3a3", 256) },
-    { lume.color("#92b5b0", 256) },
-    { lume.color("#66666a", 256) },
-    { lume.color("#cdcdcd", 256) },
-  }
-  love.graphics.reset()
-  love.graphics.setFont(love.graphics.newFont(12))
+  -- local stacktrace = nostacktrace and "" or
+  --                    lume.trim((debug.traceback("", 2):gsub("\t", "")))
+  -- local msg = lume.format("{1}\n\n{2}", {e, stacktrace})
+  -- local colors = {
+  --   { lume.color("#1e1e2c", 256) },
+  --   { lume.color("#f0a3a3", 256) },
+  --   { lume.color("#92b5b0", 256) },
+  --   { lume.color("#66666a", 256) },
+  --   { lume.color("#cdcdcd", 256) },
+  -- }
+  -- love.graphics.reset()
+  -- love.graphics.setFont(love.graphics.newFont(12))
 
-  love.draw = function()
-    local pad = 25
-    local width = love.graphics.getWidth()
+  -- love.draw = function()
+  --   local pad = 25
+  --   local width = love.graphics.getWidth()
 
-    local function drawhr(pos, color1, color2)
-      local animpos = lume.smooth(pad, width - pad - 8, lume.pingpong(time()))
-      if color1 then love.graphics.setColor(color1) end
-      love.graphics.rectangle("fill", pad, pos, width - pad*2, 1)
-      if color2 then love.graphics.setColor(color2) end
-      love.graphics.rectangle("fill", animpos, pos, 8, 1)
-    end
+  --   local function drawhr(pos, color1, color2)
+  --     local animpos = lume.smooth(pad, width - pad - 8, lume.pingpong(time()))
+  --     if color1 then love.graphics.setColor(color1) end
+  --     love.graphics.rectangle("fill", pad, pos, width - pad*2, 1)
+  --     if color2 then love.graphics.setColor(color2) end
+  --     love.graphics.rectangle("fill", animpos, pos, 8, 1)
+  --   end
 
-    local function drawtext(str, x, y, color, limit)
-      love.graphics.setColor(color)
-      love.graphics[limit and "printf" or "print"](str, x, y, limit)
-    end
+  --   local function drawtext(str, x, y, color, limit)
+  --     love.graphics.setColor(color)
+  --     love.graphics[limit and "printf" or "print"](str, x, y, limit)
+  --   end
 
-    love.graphics.setBackgroundColor(colors[1])
-    love.graphics.clear()
+  --   love.graphics.setBackgroundColor(colors[1])
+  --   love.graphics.clear()
 
-    drawtext("An error has occurred", pad, pad, colors[2])
-    drawtext("lurker", width - love.graphics.getFont():getWidth("lurker") -
-             pad, pad, colors[4])
-    drawhr(pad + 32, colors[4], colors[5])
-    drawtext("If you fix the problem and update the file the program will " ..
-             "resume", pad, pad + 46, colors[3])
-    drawhr(pad + 72, colors[4], colors[5])
-    drawtext(msg, pad, pad + 90, colors[5], width - pad * 2)
+  --   drawtext("An error has occurred", pad, pad, colors[2])
+  --   drawtext("lurker", width - love.graphics.getFont():getWidth("lurker") -
+  --            pad, pad, colors[4])
+  --   drawhr(pad + 32, colors[4], colors[5])
+  --   drawtext("If you fix the problem and update the file the program will " ..
+  --            "resume", pad, pad + 46, colors[3])
+  --   drawhr(pad + 72, colors[4], colors[5])
+  --   drawtext(msg, pad, pad + 90, colors[5], width - pad * 2)
 
-    love.graphics.reset()
-  end
+  --   love.graphics.reset()
+  -- end
 end
 
 

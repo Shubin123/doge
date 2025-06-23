@@ -45,7 +45,7 @@ moonshine.chain = function(w,h,effect)
     effect, w,h = w, love.window.getMode()
   end
   assert(effect ~= nil, "No effect")
-
+-- print(w,h)
   local front, back = love.graphics.newCanvas(w,h), love.graphics.newCanvas(w,h)
   local buffer = function()
     back, front = front, back
@@ -75,7 +75,7 @@ moonshine.chain = function(w,h,effect)
 
     -- process all shaders
     love.graphics.setColor(fg_r, fg_g, fg_b, fg_a)
-    love.graphics.setBlendMode("alpha", "premultiplied")
+    -- love.graphics.setBlendMode("lighten", "premultiplied")
     for _,e in ipairs(chain) do
       if not disabled[e.name] then
         (e.draw or moonshine.draw_shader)(buffer, e.shader)
@@ -84,11 +84,17 @@ moonshine.chain = function(w,h,effect)
 
     -- present result
     love.graphics.setShader()
-    love.graphics.setCanvas(canvas)
+    love.graphics.setCanvas(scene_canvas)
     love.graphics.draw(front,0,0)
 
     -- restore state
-    love.graphics.setBlendMode(blendmode)
+    -- print(blendmode)
+    if (blendmode == "lighten") then
+      love.graphics.setBlendMode("lighten","premultiplied")
+    else
+      love.graphics.setBlendMode(blendmode)
+    end
+    
     love.graphics.setShader(shader)
   end
 

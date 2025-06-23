@@ -164,18 +164,22 @@ local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
 end
 
 local function addPortal(x, y, sort_y)
-    -- table.insert(dynamic_draw_list, {
-    --     sort_y = sort_y,
-    --     shader = portal.SHADERS["portal"],
-    --     shader_params = portal.params,
-    --     x = x,
-    --     y = y,
-    --     width = 35,
-    --     height = 50,
-    --     color = { 1, 1, 1, 1 },
-    --     blend_mode = { "alpha" },
-    --     source_object_type = "portal_shader"
-    -- })
+    table.insert(dynamic_draw_list, {
+        sort_y = sort_y,
+        shader = portal.SHADERS["portal"],
+        shader_params = portal.params,
+        x = x,
+        y = y,
+        width = 35,
+        height = 50,
+        color = { 1, 1, 1, 1 },
+        blend_mode = { "alpha" },
+        source_object_type = "portal_shader"
+    })
+
+
+    
+
 end
 
 local function addLightEffect(light_shader, x, y, width, height, sort_y, color, light_type)
@@ -776,7 +780,11 @@ local function renderDrawType(drawable)
         love.graphics.rectangle("line", -d.width / 2, -d.height / 2, d.width, d.height)
         love.graphics.pop()
     elseif d.draw_type == "bullet_point" then
+        
+        
         love.graphics.circle("fill", d.x, d.y, d.radius)
+
+
     elseif d.draw_type == "rocket_exhaust" then
         renderRocketExhaust(d)
     elseif d.draw_type == "rocket_thrust" then
@@ -797,6 +805,80 @@ local function renderDrawType(drawable)
     end
 end
 
+local function renderLights(drawable)
+    if drawable.draw_type == "light" then
+
+        love.graphics.push()
+
+        love.graphics.reset()
+          blueNeon(function()
+    love.graphics.setColor(0.17, 0.46, 1,0.5)
+    
+    -- Get car position and velocity
+    local carX = player.body:getX()
+    local carY = player.body:getY()
+    local velX, velY = player.body:getLinearVelocity()
+    
+    -- Calculate car's heading angle using the same logic as getSpriteForHeading
+    local angle = 0
+    if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
+        angle = math.atan2(velY, velX)
+    end
+    
+    -- Convert angle to direction vector for cone positioning
+    local dirX = math.cos(angle)
+    local dirY = math.sin(angle)
+    
+    -- Distance to place cone in front of car
+    local lightDistance = 25
+    
+    -- Calculate cone tip position in front of car based on heading
+    local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
+    local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
+        
+    -- Cone dimensions
+    local coneLength = 100 * camera.zoom
+    local coneWidth = 50 * camera.zoom
+    
+    -- Calculate perpendicular vector for cone base
+    local perpX = -dirY
+    local perpY = dirX
+    
+    -- Base of cone extends further in heading direction from tip
+    local baseX = tipX + dirX * coneLength
+    local baseY = tipY + dirY * coneLength
+    
+    -- Cone tip width (small rectangle at the tip)
+    local tipWidth = 20 * camera.zoom
+    
+    -- Tip corners (small rectangle at car end)
+    local tipCorner1X = tipX + perpX * tipWidth / 2
+    local tipCorner1Y = tipY + perpY * tipWidth / 2
+    local tipCorner2X = tipX - perpX * tipWidth / 2
+    local tipCorner2Y = tipY - perpY * tipWidth / 2
+    
+    -- Base corners (wide end of trapezoid)
+    local baseCorner1X = baseX + perpX * coneWidth / 2
+    local baseCorner1Y = baseY + perpY * coneWidth / 2
+    local baseCorner2X = baseX - perpX * coneWidth / 2
+    local baseCorner2Y = baseY - perpY * coneWidth / 2
+    
+    -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
+    love.graphics.polygon("fill", 
+        tipCorner1X, tipCorner1Y,    -- tip corner 1
+        baseCorner1X, baseCorner1Y,  -- base corner 1
+        baseCorner2X, baseCorner2Y,  -- base corner 2
+        tipCorner2X, tipCorner2Y)    -- tip corner 2
+    
+    love.graphics.setColor(1, 1, 1, 1)
+end)
+
+love.graphics.pop()
+    end
+end
+
+
+
 function renderer.renderSortedDrawList()
     -- Store current graphics state
     local current_color = { love.graphics.getColor() }
@@ -805,6 +887,8 @@ function renderer.renderSortedDrawList()
 
     local last_color = { 1, 1, 1, 1 }
     local last_blend_mode = { "alpha" }
+
+     
 
     for _, drawable in ipairs(dynamic_draw_list) do
         -- Set color if different from last
@@ -847,12 +931,16 @@ function renderer.renderSortedDrawList()
             -- Reset shader
             love.graphics.setShader()
 
+
+
+
         -- Handle bullet effects drawing
         elseif drawable.source_object_type == "muzzle_flash" then
                    
         local current_color = { love.graphics.getColor() } 
         local current_blend_mode = love.graphics.getBlendMode()
         local current_shader = love.graphics.getShader()
+        
             bullet.drawSingleMuzzleFlash(drawable.flash_data)
             
         love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
@@ -885,8 +973,16 @@ function renderer.renderSortedDrawList()
                     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
         love.graphics.setBlendMode(current_blend_mode)
         love.graphics.setShader(current_shader)
+
+
         elseif drawable.source_object_type == "bullet_tracer" then
+            
+            
             bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
+            
+               
+               
+            
             
         elseif drawable.source_object_type == "networked_bullet_tracer" then
             bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
@@ -899,7 +995,12 @@ function renderer.renderSortedDrawList()
                drawable.draw_type == "rocket_thrust" or 
                drawable.draw_type == "rocket_exhaust" or 
                drawable.draw_type == "rocket_explosion" then
+
+            
             renderDrawType(drawable)
+
+
+
         elseif drawable.source_object_type == "tree_with_wind" and drawable.shader then
             
             love.graphics.setShader(drawable.shader)
@@ -961,6 +1062,9 @@ function renderer.renderSortedDrawList()
         if drawable.font then
             love.graphics.setFont(love.graphics.getFont())
         end
+
+
+        
         
         -- Handle damage indicators (text without draw_type)
         elseif drawable.text and drawable.source_object_type == "damage_indicator" then
@@ -1008,19 +1112,18 @@ function renderer.renderSortedDrawList()
 
 
 
-        --  if drawable.draw_type then
-        --     renderDrawType(drawable)
-        -- -- elseif drawable.light_shader then
-        -- --     renderLightEffect(drawable)
+         if drawable.draw_type == "light" then
+            renderLights(drawable)
+        -- elseif drawable.light_shader then
+        --     renderLightEffect(drawable)
         -- elseif drawable.shader then
         --     renderShader(drawable)
         -- elseif drawable.image_or_particles then
         --     renderImage(drawable)
-        -- end
+        end
     end
 
 
-    
 
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])

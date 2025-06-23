@@ -7,14 +7,14 @@ shader.radiance = 0
 function shader.load()
     -- Create canvases with specific formats
     -- print("shader width", width)
-    scene_canvas = love.graphics.newCanvas(W, H, { format = "hdr" }) -- rgba8
+    scene_canvas = love.graphics.newCanvas(W, H) -- rgba8
 
     -- JFA needs two canvases for ping-pong, RG for UV
-    jfa_canvas1 = love.graphics.newCanvas(W, H, { format = "hdr" }) --rg16f
-    jfa_canvas2 = love.graphics.newCanvas(W, H, { format = "hdr" })
+    jfa_canvas1 = love.graphics.newCanvas(W, H) --rg16f 
+    jfa_canvas2 = love.graphics.newCanvas(W, H )
 
     -- Distance field canvas, R for distance
-    df_canvas = love.graphics.newCanvas(W, H, { format = "hdr" })
+    df_canvas = love.graphics.newCanvas(W, H)
 
     -- Return all visible surface as their UV coords
     seed_shader = love.graphics.newShader([[
@@ -65,13 +65,16 @@ function shader.load()
         //#pragma language glsl3
         uniform sampler2D surfaceTexture;
         const float PI = 3.14159265359;
-        //const int NUM_SAMPLES = 16;
-        //const int NUM_SAMPLES = 64;
-        //const float MAX_DISTANCE = 40; // Should break out of the loop way before this
-         uniform float maxDistance;
+
+        const int MAX_DISTANCE = 60; // Should break out of the loop way before this
+        const int MAX_SAMPLES = 40; // Should break out of the loop way before this
+
+        uniform float maxDistance;
         uniform int sampleCount;
         uniform float baseRadiance;
-        //const float MAX_DISTANCE = 80; // Should break out of the loop way before this
+        
+
+        
         float rand(vec2 co) {
           return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
         }
@@ -83,12 +86,12 @@ function shader.load()
             float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.5;
             vec3 radiance = vec3(baseRadiance); //shift down (-) for night or up (+) for day
             float noise = rand(tc);
-
-            for(int i = 0; i < 50; i ++) { // can not stride more here
+            
+            for(int i = 0; i < MAX_SAMPLES; i ++) { // can not stride more here
                 float angle = (0.5 + float(i) + noise) * tauOverRays; // Jitter the angle
                 vec2 rayDirection = vec2(cos(angle), sin(angle));
                 vec2 sampleTC = tc;
-                for (int step = 0; step < 30; step += 1) {
+                for (int step = 0; step < MAX_DISTANCE; step += 1) {
                   float df = Texel(tex, sampleTC).r;
                   sampleTC += rayDirection * df * ratio;
                   if(sampleTC.x < 0.0 || sampleTC.x > 1.0 || sampleTC.y < 0.0 || sampleTC.y > 1.0) break;
@@ -106,6 +109,7 @@ function shader.load()
         }
     ]])
 end
+
 
 function render(in_canvas, shader, target_canvas)
     love.graphics.setCanvas(target_canvas)
@@ -131,6 +135,7 @@ function shader.pass()
     -- gi_shader:send("maxDistance", shader.distance)
     gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("baseRadiance", shader.radiance)
+    
     -- JFA passes
     local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
 
@@ -153,8 +158,8 @@ function shader.pass()
     render(df_canvas, gi_shader)
 
     --if water / smoke doesnt get drawn then these last two calls are necessary
-    love.graphics.setShader()
-    love.graphics.draw(scene_canvas)
+    -- love.graphics.setShader()
+    -- love.graphics.draw(scene_canvas)
 end
 
 return shader

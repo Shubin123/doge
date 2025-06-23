@@ -43,7 +43,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     // Get original pixel for glow calculation
     vec4 originalPixel = Texel(surfaceTexture, tc);
     
-    for(int i = 0; i < 50; i++) {
+    for(int i = 0; i < sampleCount; i++) {
         float angle = (0.5 + float(i) + noise) * tauOverRays;
         vec2 rayDirection = vec2(cos(angle), sin(angle));
         vec2 sampleTC = tc;

@@ -292,6 +292,8 @@ function crt.endCapture()
     
     -- Restore previous graphics state
     love.graphics.setShader()
+
+    
     -- love.graphics.setBlendMode(currentBlendMode)
 end
 

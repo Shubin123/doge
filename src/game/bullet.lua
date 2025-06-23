@@ -714,6 +714,8 @@ function bullet.drawSingleShell(shell)
 end
 
 function bullet.drawSingleTracer(inst, x, y, distance)
+
+
     -- Use alpha blending to prevent map interference
     love.graphics.setBlendMode("alpha")
     
@@ -738,14 +740,14 @@ function bullet.drawSingleTracer(inst, x, y, distance)
     end
     
     -- Draw bright tracer core (with distance fade)
-    love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
-    love.graphics.setLineWidth(3)
-    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    -- love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
+    -- love.graphics.setLineWidth(3)
+    -- love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Draw glowing outer tracer (with distance fade)
-    love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
-    love.graphics.setLineWidth(6)
-    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    -- love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
+    -- love.graphics.setLineWidth(6)
+    -- love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Draw fading trail (with distance fade)
     if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
@@ -763,6 +765,8 @@ function bullet.drawSingleTracer(inst, x, y, distance)
     love.graphics.setColor(1, 1, 1, fade_factor)
     love.graphics.circle("fill", x, y, 2)
     love.graphics.setLineWidth(1)
+    
+    
 end
 
 

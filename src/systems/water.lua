@@ -20,8 +20,8 @@ function water.load()
     -- Create canvases for different stages of the effect
     -- scene_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
     
-    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
-    water_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
+    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" }) --rgba8
+    water_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" })
     
     -- Load noise texture for water distortion
     noise_texture = love.graphics.newImage("gfx/noise.png")
@@ -77,10 +77,10 @@ function water.load()
         //#pragma language glsl3
         
         uniform Image noiseTexture;
-        uniform vec2 noiseScale = vec2(2.5, 2.5);
+        uniform vec2 noiseScale;
         uniform vec2 noiseOffset;
-        uniform float distortionStrength = 0.015;
-        uniform float reflectionStrength = 0.1;
+        uniform float distortionStrength;
+        uniform float reflectionStrength;
         uniform vec4 waterBounds; // x, y, width, height (screen space)
         uniform highp float time;
         uniform Image reflectionTexture;
@@ -109,9 +109,11 @@ function water.load()
                 vec4 texColor = Texel(tex, distortedTC);
                 
                 // Calculate reflection coordinates
+                // float screensizeY = float(love_ScreenSize.y);
+                float wow = -distortedTC.y + 2.0 * (waterBounds.y + waterBounds.w/2.0) / float(love_ScreenSize.y);
                 vec2 reflectionTC = vec2(
                     distortedTC.x,
-                    -distortedTC.y + 2.0 * (waterBounds.y + waterBounds.w/2) / love_ScreenSize.y
+                    wow + 1.0
                 );
                 
                 // Get reflection color with distortion
@@ -132,6 +134,9 @@ function water.load()
             }
         }
     ]])
+
+    -- water_final_shader:send("distortionStrength", 0.015)
+    -- water_final_shader:send("reflectionStrength", 0.1)
 end
 
 -- Set the water area coordinates in world space

@@ -19,8 +19,8 @@ function smoke.load()
     -- Create canvases for different stages of the effect
     -- scene_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
     
-    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
-    smoke_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
+    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" }) --rgba8
+    smoke_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" })
     
     -- Load noise texture for smoke distortion
     noise_texture = love.graphics.newImage("gfx/noise.png")

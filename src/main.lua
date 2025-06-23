@@ -1,6 +1,6 @@
 
 
-math.randomseed(os.time())
+-- math.randomseed(os.time())
 
 menu = require("ui.menu")
 mymath = require("lib.math.myMath")
@@ -64,6 +64,12 @@ game_area_y = var.header_height
 -- local ldist = 30 -- 5-80
 -- local lsample = 40 -- 10-64
 
+-- function love.errhand(msg)
+--     print("error:" ..msg)
+--     print("BEHAVIOUR IS UNDEFINED BEYOND THIS POINT")
+-- end
+
+
 function love.load()
     -- love.mouse.setVisible(false)
 
@@ -89,7 +95,7 @@ function love.load()
 
     map.createArches(300,200)
     map.createTree(400,100)
-    map.createHouse(300,0)
+    map.createHouse(500,300)
     -- map.createTreeWithWind(500,100)
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:nthY()  < 140 then
 
@@ -97,7 +103,16 @@ function love.load()
     map.load()
     map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
     map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
+    map.houseInstances[1].color = {1,1,1,0.2}
+    -- print(map.houseInstances)
+    -- for index, value in pairs(map.houseInstances) do
+    --     print(index,value)
+    -- end
     map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
+    
+                    -- for key, value in pairs(map.house.color) do
+                    --     print(key,value)
+                    -- end
 
     multiplayer.load()
     player.load(world)
@@ -142,17 +157,17 @@ function love.load()
     grass.public.load()
     -- wind.load()
 
-    -- --  grass:setGrassArea(320, 398, 165, 37, 2000)
-    -- fire.load()
+    -- grass:setGrassArea(320, 398, 165, 37, 2000)
+    fire.load()
 
     shader.load()
-    -- water.load()
+    water.load()
     -- smoke.load()
-    -- portal.load()
-    -- crt.load()
-    -- blur.load()
-    -- light.load()
-    -- blood.load()
+    portal.load()
+    crt.load()
+    blur.load()
+    light.load()
+    blood.load()
     car.load(world)
 
     water.setWaterArea(320, 238, 165, 67)
@@ -184,9 +199,10 @@ function love.draw()
         
     --  light.draw()
     -- end 
-
+    
 
     love.graphics.push() --push all camera transforms (move everything when player moves)
+
 
     camera.apply()
 
@@ -216,28 +232,35 @@ function love.draw()
     
     bullet.populate()
     rocket.populate()  
-    -- blood.populate()
+    blood.populate()
     car.populate()
-
+    light.populate()
     gun.drawWorld()
 
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
-    renderer.renderSortedDrawList()
-
     
+    
+
+    renderer.renderSortedDrawList()
+    
+    
+    
+
 
 
     love.graphics.pop() -- pop back into base world space
     -- order is IMPORTANT HERE shader-> smoke -> water
-
+    
+    
+     light.draw()
 
 
     if var.graphics_high then
     shader.pass()
     -- smoke.pass()
-    -- water.pass()
-    -- crtShader.endCapture()
+    water.pass()
+    crtShader.endCapture()
     -- blur.pass()
     end
 
@@ -249,6 +272,11 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
+    map.houseInstances[1].color = {1,1,1,1*math.sin(fire.t)}
+    map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
+
+
+
     if var.multiplayer then
             mp:update()
             multiplayer.sendMovementMessage()
@@ -283,13 +311,13 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     camera.update(dt, player)
-    -- water.update(dt)
+    water.update(dt)
     -- smoke.update(dt)
-    -- fire.update(dt)
-    -- grass.public.update(dt)
-    -- portal.update(dt)
+    fire.update(dt)
+    grass.public.update(dt)
+    portal.update(dt)
     -- blur.update(dt)
-    -- blood.update(dt)
+    blood.update(dt)
     command.update(dt)
     cmdn.update(dt)
     
@@ -303,7 +331,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     bullet.update(dt)
     rocket.update(dt)
 
-    wind.update(dt)
+    -- wind.update(dt)
 
 end
 

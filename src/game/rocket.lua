@@ -151,20 +151,20 @@ function rocket.populate()
             local sort_y = y + 140 -- Base sorting value
 
             -- Exhaust trail particles
-            for _, particle in ipairs(r.exhaustTrail) do
-                local alpha = particle.life / particle.maxLife
-                local size = particle.size * alpha
-                table.insert(dynamic_draw_list, {
-                    draw_type = "rocket_exhaust",
-                    sort_y = particle.pos.y + 140,
-                    x = particle.pos.x,
-                    y = particle.pos.y,
-                    size = size,
-                    alpha = alpha,
-                    color = {1, 1, 0.8, alpha * 0.8}, -- Hot core
-                    blend_mode = {"alpha"}
-                })
-            end
+            -- for _, particle in ipairs(r.exhaustTrail) do
+            --     local alpha = particle.life / particle.maxLife
+            --     local size = particle.size * alpha
+            --     table.insert(dynamic_draw_list, {
+            --         draw_type = "rocket_exhaust",
+            --         sort_y = particle.pos.y + 140,
+            --         x = particle.pos.x,
+            --         y = particle.pos.y,
+            --         size = size,
+            --         alpha = alpha,
+            --         color = {1, 1, 0.8, alpha * 0.8}, -- Hot core
+            --         blend_mode = {"alpha"}
+            --     })
+            -- end
 
             -- Main rocket thrust
             if r.thrustIntensity > 0 then

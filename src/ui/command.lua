@@ -43,7 +43,7 @@ function command.load()
     font = love.graphics.getFont() or love.graphics.newFont(12)
     lineHeight = font:getHeight() + 2
     consoleWidth = love.graphics.getWidth()
-    
+
     -- Load command block font
     command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
@@ -51,7 +51,7 @@ function command.load()
     -- Setup command block animation using superclass
     -- command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
     command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
-    
+
 
     -- Add initial help message
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
@@ -153,7 +153,7 @@ function command.execute(cmd)
     -- Show command in output
     command.addOutput("< " .. cmd, promptColor)
 
-    -- Handle special commands
+    -- -- Handle special commands
     if cmd == "help" then
         command.showHelp()
         return
@@ -182,16 +182,17 @@ function command.execute(cmd)
         -- we extract second and third index for x,y if they dont exist tp to 0
         serial.quickLoad()
         return
+    elseif cmd =="boss" then
+        boss.requestSpawn(0, 0)
     end
 
     -- Try to execute as Lua code
     local success, result = pcall(function()
-        -- First try as expression (for print-like behavior)
         local func, err = load("return " .. cmd)
         if func then
             local results = { func() }
             if #results > 0 then
-                for i, v in ipairs(results) do
+                for _, v in ipairs(results) do
                     if type(v) == "table" then
                         command.addOutput(command.tableToString(v), outputColor)
                     else
@@ -200,7 +201,6 @@ function command.execute(cmd)
                 end
             end
         else
-            -- Try as statement
             func, err = load(cmd)
             if func then
                 func()
@@ -223,7 +223,7 @@ end
 function createBlock(cmd)
     local px, py = player.body:getPosition()
     local block_id = "client_" ..
-    tostring(var.multiplayer or 0) .. "_" .. tostring(next_block_id) .. "_" .. tostring(love.timer.getTime())
+        tostring(var.multiplayer or 0) .. "_" .. tostring(next_block_id) .. "_" .. tostring(love.timer.getTime())
     next_block_id = next_block_id + 1
 
     local new_block = {
@@ -234,7 +234,7 @@ function createBlock(cmd)
         w = command_block_img:getWidth(),
         h = command_block_img:getHeight(),
         active = true,
-        creator = var.multiplayer or 0     -- who created this block
+        creator = var.multiplayer or 0 -- who created this block
     }
 
     -- Add to local list immediately (like sending a message)
@@ -257,10 +257,8 @@ function createCommandBlockPhysics(block)
     end
 
     block.body = love.physics.newBody(world, block.x, block.y, "dynamic")
-    block.shape = love.physics.newRectangleShape(30,40)
+    block.shape = love.physics.newRectangleShape(30, 40)
     block.fixture = love.physics.newFixture(block.body, block.shape)
-    
-    
 end
 
 -- Convert table to string representation
@@ -615,7 +613,7 @@ function command.getCommandBlocks()
     local serializable_blocks = {}
     for _, block in ipairs(command_blocks) do
         local bx, by = block.x, block.y
-        local vx,vy = 0,0
+        local vx, vy = 0, 0
         if block.body then
             bx, by = block.body:getPosition()
             vx, vy = block.body:getLinearVelocity()
@@ -668,35 +666,34 @@ function command.populate()
     for i, block in ipairs(command_blocks) do
         local vx, vy, bx, by = 0, 0, 0, 0
         if block.body then
-            
             bx, by = block.body:getPosition()
             if not var.multiplayer or var.multiplayer == 1 then
-                vx,vy = block.body:getLinearVelocity()
+                vx, vy = block.body:getLinearVelocity()
             else
                 if block.vx then
-                vx,vy = block.vx, block.vy
+                    vx, vy = block.vx, block.vy
                 end
 
                 -- print(block.vx,block.vy)
                 -- vx,vy = 0,0
             end
 
-        -- elseif renderer and renderer.networked_state and renderer.networked_state.command_blocks then
-        --     -- For clients, try to get position from networked data if physics body isn't available or updated
-        --     for _, net_block in pairs(renderer.networked_state.command_blocks) do
-        --         if net_block.id == block.id then
-        --             bx, by = net_block.x, net_block.y
-        --             vx, vy = net_block.x, net_block.y
-        --             print(vx,vy)
-        --         end
-        --     end
+            -- elseif renderer and renderer.networked_state and renderer.networked_state.command_blocks then
+            --     -- For clients, try to get position from networked data if physics body isn't available or updated
+            --     for _, net_block in pairs(renderer.networked_state.command_blocks) do
+            --         if net_block.id == block.id then
+            --             bx, by = net_block.x, net_block.y
+            --             vx, vy = net_block.x, net_block.y
+            --             print(vx,vy)
+            --         end
+            --     end
         end
 
         -- Use superclass to add to draw list with original offset values
         command_block_instance:addToDrawList(dynamic_draw_list, bx - 60, by - 60, vx, vy, 180, 0, 0)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "command"
         dynamic_draw_list[#dynamic_draw_list].command = block.cmd
-        
+
         local dist = math.sqrt((player_x - bx) ^ 2 + (player_y - by) ^ 2)
         if dist < 100 then
             table.insert(dynamic_draw_list, {
@@ -721,15 +718,16 @@ function command.mousepressed(x, y, button)
         if var.multiplayer == 1 or not var.multiplayer then
             -- Expand the query area slightly to ensure detection
             local query_size = 10
-            world:queryBoundingBox(world_x - query_size, world_y - query_size, world_x + query_size, world_y + query_size, function(fixture)
-                for i, block in ipairs(command_blocks) do
-                    if block.fixture == fixture then
-                        clicked_block = block
-                        return false -- stop querying
+            world:queryBoundingBox(world_x - query_size, world_y - query_size, world_x + query_size, world_y + query_size,
+                function(fixture)
+                    for i, block in ipairs(command_blocks) do
+                        if block.fixture == fixture then
+                            clicked_block = block
+                            return false -- stop querying
+                        end
                     end
-                end
-                return true -- continue querying
-            end)
+                    return true -- continue querying
+                end)
         end
 
         -- If no local block found, check networked command blocks (for clients)

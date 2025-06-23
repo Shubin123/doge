@@ -896,7 +896,9 @@ function boss.registerCommands()
                 local x = tonumber(args[3]) or (player and player.body and player.body:getX() or 0)
                 local y = tonumber(args[4]) or (player and player.body and player.body:getY() or 0)
                 local id = boss.spawn(x, y)
-                return "Boss spawned with ID: " .. id
+                -- return "Boss spawned with ID: " .. id
+
+            
             elseif args[2] == "despawn" then
                 if args[3] == "all" then
                     boss.despawnAll()

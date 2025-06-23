@@ -424,11 +424,13 @@ function map.createDynamicObject(config)
 
         if config.physics.shape then
             local fixture = love.physics.newFixture(obj.body, config.physics.shape)
+            
             fixture:setUserData({
                 type = config.type,
                 id = obj.id,
                 object = obj,
             })
+            
             table.insert(obj.fixtures, fixture)
         end
     end
@@ -571,8 +573,8 @@ function map.createHouse(x, y)
         width = 0,
         height = 0,
         physics = {
-            type = "static",
-            shape = love.physics.newRectangleShape(0, 0, 125, 120),
+            -- type = "static",
+            -- shape = love.physics.newRectangleShape(0, 0, 0, 0),
         },
     })
 
@@ -583,6 +585,53 @@ function map.createHouse(x, y)
         tileId = 1,
         scale = 2.0,
     })
+house:addComponent("collision", {
+    -- Configurable parameters
+    width = 128,      -- Total house width
+    height = 128,     -- Total house height  
+    wall_thickness = 6,  -- Wall thickness
+    door_gap = 30,   -- Width of door opening
+    
+    init = function(self, owner)
+        local half_width = self.width / 2
+        local half_height = self.height / 2
+        local half_door_gap = self.door_gap / 2
+        
+        -- Left wall
+        local left_shape = love.physics.newRectangleShape(-half_width, 0, self.wall_thickness, self.height)
+        local left_fixture = love.physics.newFixture(owner.body, left_shape)
+        left_fixture:setUserData({type = "house", id = owner.id, side = "left", object = owner})
+        table.insert(owner.fixtures, left_fixture)
+        
+        -- Right wall
+        local right_shape = love.physics.newRectangleShape(half_width, 0, self.wall_thickness, self.height)
+        local right_fixture = love.physics.newFixture(owner.body, right_shape)
+        right_fixture:setUserData({type = "house", id = owner.id, side = "right", object = owner})
+        table.insert(owner.fixtures, right_fixture)
+        
+        -- Back wall
+        local back_shape = love.physics.newRectangleShape(0, -half_height, self.width, self.wall_thickness)
+        local back_fixture = love.physics.newFixture(owner.body, back_shape)
+        back_fixture:setUserData({type = "house", id = owner.id, side = "back", object = owner})
+        table.insert(owner.fixtures, back_fixture)
+        
+        -- Front walls (with door opening in the middle)
+        local front_wall_width = (self.width - self.door_gap) / 2
+        local front_wall_offset = half_door_gap + front_wall_width / 2
+        
+        -- Left side of front wall
+        local front_left_shape = love.physics.newRectangleShape(-front_wall_offset, half_height, front_wall_width, self.wall_thickness)
+        local front_left_fixture = love.physics.newFixture(owner.body, front_left_shape)
+        front_left_fixture:setUserData({type = "house", id = owner.id, side = "front_left", object = owner})
+        table.insert(owner.fixtures, front_left_fixture)
+        
+        -- Right side of front wall
+        local front_right_shape = love.physics.newRectangleShape(front_wall_offset, half_height, front_wall_width, self.wall_thickness)
+        local front_right_fixture = love.physics.newFixture(owner.body, front_right_shape)
+        front_right_fixture:setUserData({type = "house", id = owner.id, side = "front_right", object = owner})
+        table.insert(owner.fixtures, front_right_fixture)
+    end,
+})
 
     -- house:addComponent("shadow", {
     --     init = function(self, owner)
@@ -802,9 +851,12 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     if shadow and shadow.getDynamicDrawItem then
                         table.insert(drawItems, shadow:getDynamicDrawItem(house))
                     end
-
+                    -- for key, value in pairs(house.color) do
+                    --     print(key,value)
+                    -- end
+                    
                     table.insert(drawItems, {
-                        sort_y = base_sort_y + house.y,
+                        sort_y = base_sort_y + house.y +100,
                         image_or_particles = map.tiles5.tilesetImage,
                         quad = map.tiles5.quads[visual.tileId],
                         x = house.x + visual.offset_x,

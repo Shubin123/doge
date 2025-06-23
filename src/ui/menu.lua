@@ -18,7 +18,8 @@ local resolutionButton = { y = 220, text = "Resolution: " }
 local fullscreenButton = { y = 250, text = "Fullscreen: " }
 local vsyncButton = { y = 280, text = "V-Sync: " }
 local particlesButton = { y = 310, text = "Particles: " }
-local backSettingsButton = { y = 350, text = "[ Back ]" }
+local highqualityButton = { y = 350, text = "Toggle Quality: " }
+local backSettingsButton = { y = 390, text = "[ Back ]" }
 
 -- Saves menu buttons
 local saveGameButton = { y = 220, text = "[ Save Game ]" }
@@ -37,7 +38,8 @@ local graphicsSettings = {
     currentResolution = 1,
     fullscreen = false,
     vsync = true,
-    particles = true
+    particles = true,
+    highquality = var.graphics_high
 }
 
 local function getButtonBounds(buttonInfo, screenInfo)
@@ -114,6 +116,9 @@ function menu.draw()
         local particlesText = graphicsSettings.particles and "ON" or "OFF"
         love.graphics.printf(particlesButton.text .. particlesText, 0, particlesButton.y, var.screen_width, "center")
 
+        local highqualtyText = graphicsSettings.highquality and "ON" or "OFF"
+        love.graphics.printf(highqualityButton.text .. highqualtyText, 0, highqualityButton.y, var.screen_width, "center")
+
         love.graphics.printf(backSettingsButton.text, 0, backSettingsButton.y, var.screen_width, "center")
 
     elseif menu.currentMenu == "saves" then
@@ -165,6 +170,13 @@ function menu.mousepressed(x, y, button, screenInfo)
         local pt = graphicsSettings.particles and "ON" or "OFF"
         if inBounds({y = particlesButton.y, text = particlesButton.text .. pt}) then
             graphicsSettings.particles = not graphicsSettings.particles
+            return nil
+        end
+
+        local ht = graphicsSettings.highquality and "ON" or "OFF"
+        if inBounds({y = highqualityButton.y, text = highqualityButton.text .. ht}) then
+            graphicsSettings.particles = not graphicsSettings.particles
+            var.graphics_high = not var.graphics_high
             return nil
         end
 
