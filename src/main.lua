@@ -92,6 +92,7 @@ function love.load()
         var.game_height + 50, 200,
         var.game_height + 50)
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    fence_fixture:setGroupIndex(4)
 
     map.createArches(300,200)
     map.createTree(400,100)
@@ -272,7 +273,7 @@ end
 
 local t = 0
 function love.update(dt) --assume online cannot pause right now. debugger still works
-    map.houseInstances[1].color = {1,1,1,1*math.sin(fire.t)}
+    map.houseInstances[1].color = {1,1,1,var.indoors and 0 or 1}
     map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
 
 
@@ -564,7 +565,7 @@ function beginContact(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     boss.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
-    
+    map.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

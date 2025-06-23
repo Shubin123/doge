@@ -1,94 +1,76 @@
--- Image Compressor for game assets
-local compress = {}
-
--- Function to ensure directory exists (Note: This is limited with io, may need manual creation)
-local function ensureDirectoryExists(dir)
-    -- With io, we can't create directories directly in a cross-platform way
-    -- This function is a placeholder; directories may need to be created manually
-    print("Please ensure the directory " .. dir .. " exists, as io cannot create directories.")
-end
-
--- Function to compress images from source to destination folder
-function compress.compressFolder(sourceDir, destDir)
-    ensureDirectoryExists(destDir)
+-- main.lua
+function love.load()
+    -- Define a global function in main thread
+    globalTestFunction = function()
+        return "Hello from global function"
+    end
     
-    local count = 0
-    local totalSizeBefore = 0
-    local totalSizeAfter = 0
+    -- Print main thread function address
+    print("Main thread - globalTestFunction address:", globalTestFunction)
+    print("Main thread - globalTestFunction type:", type(globalTestFunction))
     
-    -- Hardcoded list of files since io doesn't provide directory listing
-    local files = {
-        "apple_2.png",
-        "commodore64.png",
-        "gun.png",
-        "portalGun.png",
-        "skybox.png"
-    }
-    
-    for _, file in ipairs(files) do
-        local sourcePath = sourceDir .. "/" .. file
-        local destPath = destDir .. "/" .. file
+    -- Create worker thread code as a string (inline)
+    local workerCode = [[
+        -- Worker thread code
+        print("Worker thread started")
+        print("Worker thread - globalTestFunction:", globalTestFunction)
+        print("Worker thread - globalTestFunction type:", type(globalTestFunction))
         
-        -- Read the original image data
-        local f = io.open(sourcePath, "rb")
-        if f then
-            local imageData = f:read("*all")
-            f:close()
-            
-            totalSizeBefore = totalSizeBefore + #imageData
-            
-            -- Compress the image data using zlib
-            local compressedData = love.data.compress("string", "zlib", imageData, 9)
-            
-            totalSizeAfter = totalSizeAfter + #compressedData
-            
-            -- Write compressed data to destination
-            f = io.open(destPath, "wb")
-            if f then
-                f:write(compressedData)
-                f:close()
-                count = count + 1
-                print("Compressed: " .. file .. " (Original: " .. #imageData .. " bytes, Compressed: " .. #compressedData .. " bytes)")
+        if globalTestFunction then
+            print("Worker thread - Function address:", globalTestFunction)
+            -- Try to call it
+            local success, result = pcall(globalTestFunction)
+            if success then
+                print("Worker thread - Function call result:", result)
             else
-                print("Failed to write compressed file: " .. destPath)
+                print("Worker thread - Function call failed:", result)
             end
         else
-            print("Failed to read file: " .. sourcePath)
+            print("Worker thread - globalTestFunction is nil")
         end
-    end
+        
+        -- Check if we can access _G
+        print("Worker thread - _G available:", _G ~= nil)
+        
+        -- Try to access some other globals
+        print("Worker thread - print function:", print)
+        print("Worker thread - type function:", type)
+        
+        -- Try to access love module
+        print("Worker thread - love module:", love)
+        if love then
+            print("Worker thread - love.thread:", love.thread)
+        end
+        
+        print("Worker thread finished")
+    ]]
     
-    print("Compression complete. Processed " .. count .. " files.")
-    print("Total size before: " .. totalSizeBefore .. " bytes")
-    print("Total size after: " .. totalSizeAfter .. " bytes")
-    print("Reduction: " .. string.format("%.2f", (totalSizeBefore - totalSizeAfter) / totalSizeBefore * 100) .. "%")
+    -- Create thread from string
+    thread = love.thread.newThread(workerCode)
     
-    return count
+    -- Start the thread
+    print("Starting worker thread...")
+    thread:start()
 end
 
--- Function to decompress a single file (for testing or integration)
-function compress.decompressFile(compressedPath)
-    local f = io.open(compressedPath, "rb")
-    if not f then
-        print("Failed to read compressed file: " .. compressedPath)
-        return nil
+function love.update(dt)
+    -- Check if thread is still running
+    if thread and not thread:isRunning() then
+        local error = thread:getError()
+        if error then
+            print("Thread error:", error)
+        else
+            print("Thread completed successfully")
+        end
+        thread = nil -- Clean up
     end
-    
-    local compressedData = f:read("*all")
-    f:close()
-    
-    local success, decompressedData = pcall(love.data.decompress, "string", "zlib", compressedData)
-    if not success then
-        print("Failed to decompress file: " .. compressedPath)
-        return nil
-    end
-    
-    return decompressedData
 end
 
--- Main execution for compressing gfx/3d to gfx/3dC
-local sourceDir = "src/gfx/3d"
-local destDir = "src/gfx/3dC"
-print("Starting compression of images from " .. sourceDir .. " to " .. destDir)
-compress.compressFolder(sourceDir, destDir)
-
-return compress
+function love.draw()
+    love.graphics.print("Check console for thread global access test results", 10, 10)
+    if thread and thread:isRunning() then
+        love.graphics.print("Thread is running...", 10, 30)
+    else
+        love.graphics.print("Thread finished", 10, 30)
+    end
+end

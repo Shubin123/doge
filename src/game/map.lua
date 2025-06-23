@@ -344,6 +344,39 @@ function map.createAdvancedMap(config)
     return advancedMap
 end
 
+function map.collision(fixture_a, fixture_b, contact)
+    -- local not_map 
+    -- if (fixture_a:getGroupIndex() == 4) then
+    --     not_map = fixture_b
+    -- elseif fixture_b:getGroupIndex() == 4 then
+    --     not_map = fixture_a
+    -- end
+    -- if not_map then
+    --     -- print("friction", contact:getFriction())
+    --     -- print("normal", contact:getNormal())
+        
+    --     -- launch the player and online players back
+    --     local nx,ny  = contact:getNormal()
+    --     -- print(norm)
+    --     local hit = vec2.new(nx,ny)
+    --     hit = 200*hit
+    --     -- print(hit)
+    --     not_map:getBody():applyLinearImpulse(hit.x,hit.y)
+
+    --     if not_map:getGroupIndex() == -1 then
+    --         var.indoors = not var.indoors
+    --     end
+
+
+    --     -- if hit == vec2.new(0,0) then
+    --     --     not_map:getBody():applyLinearImpulse(math.random(-200,200),math.random(-200,200))
+    --     -- end
+    -- end
+
+    -- --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
+
+end
+
 -- Enhanced object system with components
 function map.createDynamicObject(config)
     local obj = {
@@ -630,6 +663,13 @@ house:addComponent("collision", {
         local front_right_fixture = love.physics.newFixture(owner.body, front_right_shape)
         front_right_fixture:setUserData({type = "house", id = owner.id, side = "front_right", object = owner})
         table.insert(owner.fixtures, front_right_fixture)
+        for _ ,_fixture in pairs(owner.fixtures) do
+            _fixture:setGroupIndex(4)
+        end
+        -- print(_G)
+        -- for key, value in pairs(_G) do
+        --     print(key,value)
+        -- end
     end,
 })
 

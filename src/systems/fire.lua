@@ -6,12 +6,16 @@ fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 30
+fire.count = 1
 fire.max_fireballs = 1
 fire.pierce = true
+fire.loaded_effects = {}
+fire.current_effect_index = 1
+
 fire_bodies = {}
 fire_instances = {}
 fire_draw_data = {}
+
 
 -- =============================================================================
 -- ALL FX LOADED - Random selection available!
@@ -19,28 +23,38 @@ fire_draw_data = {}
 
 fire.effects = {
     {path = 'gfx/firelowres.png', grid = {8, 8}},
-    {path = 'gfx/fx/Spritesheets/Smoke-Sheet.png', grid = {5, 4}},
+    {path = 'gfx/fx/Spritesheets/Smoke-Sheet.png', grid = {4, 5}},
     {path = 'gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png', grid = {5, 6}},
     {path = 'gfx/fx/Spritesheets/Blood Splat.png', grid = {5, 2}},
     {path = 'gfx/fx/Spritesheets/Eletric A-Sheet.png', grid = {3, 3}},
     {path = 'gfx/fx/Spritesheets/Eletric Aura.png', grid = {5, 2}},
-    {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {6, 4}},
-    {path = 'gfx/fx/Spritesheets/Flamethrower-Sheet.png', grid = {4, 3}},
-    {path = 'gfx/fx/Spritesheets/Gravity-Sheet.png', grid = {4, 5}},
-    {path = 'gfx/fx/Spritesheets/Holy Light Aura.png', grid = {4, 3}},
-    {path = 'gfx/fx/Spritesheets/Leaves-Sheet.png', grid = {5, 3}},
+    {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {5, 5}},
+    
+    
+
+    -- {path = 'gfx/fx/Spritesheets/Gravity-Sheet.png', grid = {4, 5}},
+    
+    
+    
+
     {path = 'gfx/fx/Spritesheets/Poison Cloud-Sheet.png', grid = {4, 4}},
-    {path = 'gfx/fx/Spritesheets/Regen.png', grid = {4, 4}},
-    {path = 'gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png', grid = {6, 3}},
-    {path = 'gfx/fx/Spritesheets/Sakuras.png', grid = {5, 4}},
-    {path = 'gfx/fx/Spritesheets/Smoke2-Sheet.png', grid = {4, 4}},
+    {path = 'gfx/fx/Spritesheets/Regen.png', grid = {5, 3}},
+
+
+    {path = 'gfx/fx/Spritesheets/Leaves-Sheet.png', grid = {5, 3}},
+
+    {path = 'gfx/fx/Spritesheets/Sakuras.png', grid = {5, 2}},
+    
+    -- {path = 'gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png', grid = {6, 3}},
+    -- {path = 'gfx/fx/Spritesheets/Flamethrower-Sheet.png', grid = {4, 3}},
+    -- {path = 'gfx/fx/Spritesheets/Smoke2-Sheet.png', grid = {5, 8}},
+    -- {path = 'gfx/fx/Spritesheets/Holy Light Aura.png', grid = {4, 3}},
+
     {path = 'gfx/fx/Spritesheets/Spark1-Sheet.png', grid = {4, 3}},
     {path = 'gfx/fx/Spritesheets/Sparks-Sheet.png', grid = {5, 8}},
     {path = 'gfx/fx/Spritesheets/Splatter-Sheet.png', grid = {4, 4}}
 }
 
-fire.loaded_effects = {}
-fire.current_effect_index = 1
 
 -- =============================================================================
 
@@ -69,7 +83,7 @@ function fire.load()
     end
     
     -- Set initial effect
-    fire.setCurrentEffect(fire.current_effect_index)
+    fire.setCurrentEffect(7)
 
     -- Initialize the fireball ring with starting count
     fire_instances = {}
@@ -204,23 +218,23 @@ function fire.update(dt)
     end
 end
 
-function fire.draw()
-    love.graphics.setBlendMode("lighten", "premultiplied")
-    love.graphics.setColor(.13, .37, 1, 1)
+-- function fire.draw()
+--     love.graphics.setBlendMode("lighten", "premultiplied")
+--     love.graphics.setColor(.13, .37, 1, 1)
 
-    fire.fires(fire.count)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.draw(fire.particleSystem, 500, 200, 0, fire.scale, fire.scale)
+--     fire.fires(fire.count)
+--     love.graphics.setColor(1, 1, 1)
+--     love.graphics.draw(fire.particleSystem, 500, 200, 0, fire.scale, fire.scale)
 
-    love.graphics.setBlendMode("alpha") -- Default blend mode.
-end
+--     love.graphics.setBlendMode("alpha") -- Default blend mode.
+-- end
 
-function fire.fires(n)
-    for i = 1, n do
-        love.graphics.draw(fire.particleSystem, player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20,
-            player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45, 0, fire.scale, fire.scale)
-    end
-end
+-- function fire.fires(n)
+--     for i = 1, n do
+--         love.graphics.draw(fire.particleSystem, player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20,
+--             player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45, 0, fire.scale, fire.scale)
+--     end
+-- end
 
 function fire.populate()
     -- Add all cached draw data to dynamic_draw_list

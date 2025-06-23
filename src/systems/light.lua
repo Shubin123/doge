@@ -92,7 +92,7 @@ function light.draw()
 -- end)
 
     yellowNeon(function()
-    love.graphics.setColor(1, 0.46, 0.3)
+    love.graphics.setColor(1, 0.46, 0.3, var.indoors and 1 or 0)
     -- local mx = player.body:getX() + 20*math.sin(fire.t)
     -- local my = player.body:getY() + 20*math.cos(fire.t)
 
@@ -100,10 +100,11 @@ function light.draw()
     local my = 300 - 25
 
     
+    
 
       love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 8*camera.zoom)
         
-    love.graphics.setColor(1,1,1,1)
+    -- love.graphics.setColor(1,1,1,1)
     end)
 end
 
