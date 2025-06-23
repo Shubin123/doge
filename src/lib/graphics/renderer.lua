@@ -837,8 +837,8 @@ local function renderLights(drawable)
     local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
         
     -- Cone dimensions
-    local coneLength = 100 * camera.zoom
-    local coneWidth = 50 * camera.zoom
+    local coneLength = 30 * camera.zoom
+    local coneWidth = 55 * camera.zoom
     
     -- Calculate perpendicular vector for cone base
     local perpX = -dirY

@@ -113,8 +113,9 @@ function enemy.load()
     -- local fireImg = getFireSprite()
     
     -- Create particle system for enemy projectiles (different color/settings
-    Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
-    enemy.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 200)
+    local fire_image  = love.graphics.newImage("gfx/firelowres.png")
+    Quads = sprite:constructsprite(fire_image, 8, 8)
+    enemy.particleSystem = love.graphics.newParticleSystem(fire_image, 200)
     
     -- ENEMY PROJECTILE CONFIGURATION (different from player fire)
     enemy.particleSystem:setParticleLifetime(0.8, 1.5)

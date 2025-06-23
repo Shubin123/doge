@@ -1,61 +1,75 @@
 local fire = {}
 local physSafe = require("util.physics_safe")
+
+-- Core system properties
 fire.scale = 0.8
 fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
-fire.count = 3  -- Start with 6 fireballs
-fire.max_fireballs = 1  -- Maximum fireballs allowed
+fire.count = 30
+fire.max_fireballs = 1
 fire.pierce = true
-fire_bodies = {}    -- only have collision when they are shot, not spinning (maybe change?)
-fire_instances = {} -- Active fireballs in the ring - no collision on these for now
-fire_draw_data = {} -- cached draw data updated only in fire.update()
--- local sprite = require('lib.graphics.sprite')
+fire_bodies = {}
+fire_instances = {}
+fire_draw_data = {}
 
--- fireSpriteImg = love.graphics.newImage('gfx/firelowres.png') -- 8,8 (not always the right sprite number but a working one)
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png') --5,6
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Blood Splat.png') -- 5,2
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Eletric A-Sheet.png') -- 3,3
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Eletric Aura.png') -- 5,2
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Fire+Sparks-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Flamethrower-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Gravity-Sheet.png') -- 4,5
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Holy Light Aura.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Leaves-Sheet.png') -- 5,3
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Poison Cloud-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Regen.png')
--- rocketfireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Sakuras.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Smoke2-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Spark1-Sheet.png')
-fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Sparks-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Splatter-Sheet.png')
--- fireSpriteImg = love.graphics.newImage('gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png')
+-- =============================================================================
+-- ALL FX LOADED - Random selection available!
+-- =============================================================================
 
- 
--- myMath = require("lib.math.myMath")
+fire.effects = {
+    {path = 'gfx/firelowres.png', grid = {8, 8}},
+    {path = 'gfx/fx/Spritesheets/Smoke-Sheet.png', grid = {5, 4}},
+    {path = 'gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png', grid = {5, 6}},
+    {path = 'gfx/fx/Spritesheets/Blood Splat.png', grid = {5, 2}},
+    {path = 'gfx/fx/Spritesheets/Eletric A-Sheet.png', grid = {3, 3}},
+    {path = 'gfx/fx/Spritesheets/Eletric Aura.png', grid = {5, 2}},
+    {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {6, 4}},
+    {path = 'gfx/fx/Spritesheets/Flamethrower-Sheet.png', grid = {4, 3}},
+    {path = 'gfx/fx/Spritesheets/Gravity-Sheet.png', grid = {4, 5}},
+    {path = 'gfx/fx/Spritesheets/Holy Light Aura.png', grid = {4, 3}},
+    {path = 'gfx/fx/Spritesheets/Leaves-Sheet.png', grid = {5, 3}},
+    {path = 'gfx/fx/Spritesheets/Poison Cloud-Sheet.png', grid = {4, 4}},
+    {path = 'gfx/fx/Spritesheets/Regen.png', grid = {4, 4}},
+    {path = 'gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png', grid = {6, 3}},
+    {path = 'gfx/fx/Spritesheets/Sakuras.png', grid = {5, 4}},
+    {path = 'gfx/fx/Spritesheets/Smoke2-Sheet.png', grid = {4, 4}},
+    {path = 'gfx/fx/Spritesheets/Spark1-Sheet.png', grid = {4, 3}},
+    {path = 'gfx/fx/Spritesheets/Sparks-Sheet.png', grid = {5, 8}},
+    {path = 'gfx/fx/Spritesheets/Splatter-Sheet.png', grid = {4, 4}}
+}
+
+fire.loaded_effects = {}
+fire.current_effect_index = 1
+
+-- =============================================================================
+
 function fire.load()
-    -- Quads = sprite:constructsprite(fireSpriteImg, 8, 8)
-    Quads = sprite:constructsprite(fireSpriteImg, 5, 8)
-    fire.particleSystem = love.graphics.newParticleSystem(fireSpriteImg, 500)
-    particleSystem = fire.particleSystem
-
-    -- PARTICLE SYSTEM CONFIGURATION
-    -- fire.particleSystem:setParticleLifetime(3, 3)
-    fire.particleSystem:setParticleLifetime(1, 2)
-    fire.particleSystem:setEmissionRate(8)
-    fire.particleSystem:setSizeVariation(1)
-    fire.particleSystem:setDirection(1.5 * 3.14)
-    fire.particleSystem:setSpeed(0, 50)
-    fire.particleSystem:setLinearDamping(0.33)
-    fire.particleSystem:setSpin(-0.25, 0.95)
-    fire.particleSystem:setColors(255, 255, 255, 255, 255, 255, 255, 0.1)
-    fire.particleSystem:setQuads(Quads)
-    fire.particleSystem:setRotation(0, 2 * 3.14)
-    fire.particleSystem:setOffset(sprite:getTileSize())
-    fire.particleSystem:setInsertMode('bottom')
+    -- Load all effects
+    for i, effect in ipairs(fire.effects) do
+        fire.loaded_effects[i] = {}
+        fire.loaded_effects[i].image = love.graphics.newImage(effect.path)
+        fire.loaded_effects[i].quads = sprite:constructsprite(fire.loaded_effects[i].image, effect.grid[1], effect.grid[2])
+        fire.loaded_effects[i].particleSystem = love.graphics.newParticleSystem(fire.loaded_effects[i].image, 500)
+        
+        -- Configure particle system
+        local ps = fire.loaded_effects[i].particleSystem
+        ps:setParticleLifetime(1, 2)
+        ps:setEmissionRate(8)
+        ps:setSizeVariation(1)
+        ps:setDirection(1.5 * 3.14)
+        ps:setSpeed(0, 50)
+        ps:setLinearDamping(0.33)
+        ps:setSpin(-0.25, 0.95)
+        ps:setColors(255, 255, 255, 255, 255, 255, 255, 0.1)
+        ps:setQuads(fire.loaded_effects[i].quads)
+        ps:setRotation(0, 2 * 3.14)
+        ps:setOffset(sprite:getTileSize())
+        ps:setInsertMode('bottom')
+    end
+    
+    -- Set initial effect
+    fire.setCurrentEffect(fire.current_effect_index)
 
     -- Initialize the fireball ring with starting count
     fire_instances = {}
@@ -63,7 +77,8 @@ function fire.load()
         table.insert(fire_instances, {
             pos = vec2.new(0, 0),
             ring_index = i,  -- Position in the ring
-            active = true
+            active = true,
+            effect_index = fire.current_effect_index  -- Each fireball can have its own effect
         })
     end
     
@@ -71,8 +86,33 @@ function fire.load()
     fire_draw_data = {}
 end
 
+function fire.setCurrentEffect(index)
+    if fire.loaded_effects[index] then
+        fire.current_effect_index = index
+        fire.particleSystem = fire.loaded_effects[index].particleSystem
+        particleSystem = fire.particleSystem
+        Quads = fire.loaded_effects[index].quads
+    end
+end
+
+function fire.randomizeEffect()
+    -- local random_index = math.random(1, #fire.effects)
+    -- fire.setCurrentEffect(random_index)
+    -- return random_index
+end
+
+function fire.randomizeAllFireballs()
+    -- Give each fireball in the ring a random effect
+    for i, fire_instance in ipairs(fire_instances) do
+        fire_instance.effect_index = math.random(1, #fire.effects)
+    end
+end
+
 function fire.update(dt)
-    fire.particleSystem:update(dt)
+    -- Update all particle systems
+    for i = 1, #fire.loaded_effects do
+        fire.loaded_effects[i].particleSystem:update(dt)
+    end
     fire.t = fire.t + dt
     
     -- Clear previous draw data
@@ -92,10 +132,13 @@ function fire.update(dt)
             fire_instance.pos.x = player_x + math.cos(angle) * radius
             fire_instance.pos.y = player_y + math.sin(angle) * radius
             
+            -- Use the specific effect for this fireball
+            local effect_ps = fire.loaded_effects[fire_instance.effect_index].particleSystem
+            
             -- Cache draw data for fire instances
             table.insert(fire_draw_data, {
                 sort_y = fire_instance.pos.y + 130,
-                image_or_particles = fire.particleSystem,
+                image_or_particles = effect_ps,
                 quad = nil,
                 x = fire_instance.pos.x,
                 y = fire_instance.pos.y,
@@ -115,26 +158,19 @@ function fire.update(dt)
     for i, fireable in pairs(fire.fireables) do
         if fireable[1] then
             if not fireable[3] then
-                -- Set starting position
-                -- fireable[1] = vec2.new(fire_instances[i].x, fire_instances[i].y)
+                -- Set starting position and assign random effect to new fireball
+                if not fireable[4] then -- effect_index not set yet
+                    fireable[4] = math.random(1, #fire.effects)
+                end
                 
-                -- Only create physics bodies on host (var.multiplayer == 1)
-                -- Clients still initialize fireballs for visual purposes but no physics
-                -- if (var.multiplayer == 1) then
-                    -- print(vec2.norm(fireable[1]))
-                    local _bod = love.physics.newBody(world, fireable[1].x, fireable[1].y, "dynamic")
-                    table.insert(fire_bodies, i, _bod)
-                    local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
-                    _fixture:setGroupIndex(-1)
-                    -- _fixture:setFilterData(500,1, -1)
-                    -- _bod:applyForce(fireable[2].x *fire.t,fireable[2].y*fire.t)
-                -- end
-                fireable[3] = 1 -- initialized (both host and client mark as initialized)
-                -- direction is already stored in [2]
+                local _bod = love.physics.newBody(world, fireable[1].x, fireable[1].y, "dynamic")
+                table.insert(fire_bodies, i, _bod)
+                local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
+                _fixture:setGroupIndex(-1)
+                fireable[3] = 1 -- initialized
 
             else
                 -- Move fireball using the pre-calculated direction
-                -- This happens on both host and clients for local prediction/rendering
                 fireable[1] = fireable[1] + fireable[2] * 2
                 
                 -- Only update physics body position on host
@@ -145,10 +181,13 @@ function fire.update(dt)
                 end
             end
             
+            -- Use the specific effect for this fireable
+            local effect_ps = fire.loaded_effects[fireable[4] or 1].particleSystem
+            
             -- Cache draw data for fireables
             table.insert(fire_draw_data, {
                 sort_y = fireable[1].y + 130,
-                image_or_particles = fire.particleSystem,
+                image_or_particles = effect_ps,
                 quad = nil,
                 x = fireable[1].x,
                 y = fireable[1].y,
@@ -166,55 +205,24 @@ function fire.update(dt)
 end
 
 function fire.draw()
-    -- love.graphics.setBlendMode("add")
     love.graphics.setBlendMode("lighten", "premultiplied")
-
-    -- love.graphics.setColor(.90, .17, .48, 1)
     love.graphics.setColor(.13, .37, 1, 1)
 
     fire.fires(fire.count)
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(fire.particleSystem, 500, 200, 0, fire.scale, fire.scale)
 
-    --  'alpha', 'add', 'subtract', 'multiply', 'lighten', 'darken', 'screen', 'replace', 'none'
-
-    -- love.graphics.circle("fill", 300, 300, 50, 5)   -- Draw red circle with five segments.
-
     love.graphics.setBlendMode("alpha") -- Default blend mode.
-
-    -- love.graphics.setColor(.04, .39, .90)
-    -- love.graphics.setBlendMode("multiply", "premultiplied")
-    -- love.graphics.rectangle("fill", 75,75, 125,125)
 end
 
 function fire.fires(n)
     for i = 1, n do
-        -- love.graphics.setColor(1,1,1, 1)
-        -- love.graphics.draw(fire.particleSystem, player.body:getX() + math.sin(fire.t * 5 + 30 + 10 * i) * 20 - 35, player.body:getY() + math.cos(fire.t * 5 + 30 + 10 * i) * 20 - 30, 0, fire.scale, fire.scale, -2348, -808)
         love.graphics.draw(fire.particleSystem, player.body:getX() + 200 + math.sin(fire.t * 5 + i) * 20,
             player.body:getY() + math.cos(fire.t * 5 + i) * 20 + 45, 0, fire.scale, fire.scale)
     end
 end
 
 function fire.populate()
-    -- Main static fire
-    -- local fire_main_x, fire_main_y = 500, 200
-    -- table.insert(dynamic_draw_list, {
-    --     sort_y = fire_main_y,
-    --     image_or_particles = fire.particleSystem,
-    --     quad = nil,
-    --     x = fire_main_x,
-    --     y = fire_main_y,
-    --     rotation = 0,
-    --     scale_x = fire.scale,
-    --     scale_y = fire.scale,
-    --     offset_x = 0,
-    --     offset_y = 0,
-    --     color = { 0.13, 0.37, 1, 1 },
-    --     blend_mode = { "lighten", "premultiplied" },
-    --     source_object_type = "fire_effect"
-    -- })
-
     -- Add all cached draw data to dynamic_draw_list
     for _, draw_item in pairs(fire_draw_data) do
         table.insert(dynamic_draw_list, draw_item)
@@ -235,10 +243,7 @@ function fire.collision(fixture_a, fixture_b, contact)
         firef = fixture_b
     end
 
-    -- print(fixture_a:getGroupIndex() == -1 , fixture_b:getGroupIndex() == -1)
-    -- print(math.random() < 0.01 and 1 or 0)
     if not_fire ~= nil then
-        -- print(not_fire:getGroupIndex())
         -- Check if hit an enemy  
         for i = 1, #enemies_bods do
             if enemies_bods[i] and enemies_bods[i] == not_fire:getBody() then
@@ -290,19 +295,16 @@ function fire.collision(fixture_a, fixture_b, contact)
         if not fire.pierce then
             table.remove(fire.fireables, checkDestroy(fire_bodies, firef:getBody()) or 0) -- remove line for piercing !!
         end
-        -- checkDestroy(fire_bodies, firef:getBody())
-        -- print()
     end
-
 end
 
--- Add a fireball to the ring (when collecting coins)
 function fire.addFireball()
     if #fire_instances < fire.max_fireballs then
         table.insert(fire_instances, {
             pos = vec2.new(0, 0),
             ring_index = #fire_instances + 1,
-            active = true
+            active = true,
+            effect_index = math.random(1, #fire.effects)  -- Random effect for new fireball
         })
         fire.count = #fire_instances
     end
@@ -327,31 +329,19 @@ end
 function fire.getNetworkData()
     local network_data = {}
 
-    -- Include main fire system state
-    -- -- network_data.main_fire = {
-    --     t = fire.t,
-    --     count = fire.count,
-    --     scale = fire.scale,
-    --     active = true
-    -- }
-
     -- Include fireball projectiles data
-    -- network_data.fireables = {}
     for i = 1, #fire.fireables do
         if fire.fireables[i] and fire.fireables[i][3] ~= nil then -- initialized fireball
-        -- print(fire.fireables[i][1].x)
-        if (fire.fireables[i][1]) then
-            table.insert(network_data, {
-                x = fire.fireables[i][1].x + 200,
-                y = fire.fireables[i][1].y + 45,
-                active = true,
-                id = i
-            })
-        end
+            if (fire.fireables[i][1]) then
+                table.insert(network_data, {
+                    x = fire.fireables[i][1].x + 200,
+                    y = fire.fireables[i][1].y + 45,
+                    active = true,
+                    id = i
+                })
+            end
         end
     end
-
-    
 
     -- Include fire bodies physics data (for collision sync)
     for i = 1, #fire_instances do
@@ -364,9 +354,5 @@ function fire.getNetworkData()
 
     return network_data
 end
-
-
-
-
 
 return fire
