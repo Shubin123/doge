@@ -42,6 +42,7 @@ function love.update(dt)
         thread = nil -- Clean up
     end
 end
+
 olddraw = love.draw
 function love.draw()
     olddraw()
@@ -51,4 +52,10 @@ function love.draw()
     else
         love.graphics.print("Thread finished", 10, 30)
     end
+end
+
+oldContact = beginContact
+function beginContact(fixture_a, fixture_b, contact)
+    -- oldContact(fixture_a, fixture_b, contact)
+    -- map.collision(fixture_a, fixture_b, contact)
 end

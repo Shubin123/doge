@@ -565,7 +565,7 @@ function beginContact(fixture_a, fixture_b, contact)
     enemy.collision(fixture_a, fixture_b, contact)
     boss.collision(fixture_a, fixture_b, contact)
     gun.collision(fixture_a, fixture_b, contact)
-    map.collision(fixture_a, fixture_b, contact)
+    -- map.collision(fixture_a, fixture_b, contact)
     -- editor.collision(fixture_a, fixture_b, contact)
 
 

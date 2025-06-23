@@ -345,35 +345,33 @@ function map.createAdvancedMap(config)
 end
 
 function map.collision(fixture_a, fixture_b, contact)
-    -- local not_map 
-    -- if (fixture_a:getGroupIndex() == 4) then
-    --     not_map = fixture_b
-    -- elseif fixture_b:getGroupIndex() == 4 then
-    --     not_map = fixture_a
-    -- end
-    -- if not_map then
-    --     -- print("friction", contact:getFriction())
-    --     -- print("normal", contact:getNormal())
-        
-    --     -- launch the player and online players back
-    --     local nx,ny  = contact:getNormal()
-    --     -- print(norm)
-    --     local hit = vec2.new(nx,ny)
-    --     hit = 200*hit
-    --     -- print(hit)
-    --     not_map:getBody():applyLinearImpulse(hit.x,hit.y)
+    local not_map 
+    if (fixture_a:getGroupIndex() == 4) then
+        not_map = fixture_b
+    elseif fixture_b:getGroupIndex() == 4 then
+        not_map = fixture_a
+    end
+    if not_map then
+        -- print("friction", contact:getFriction())
+        -- print("normal", contact:getNormal())
+        local nx,ny  = contact:getNormal()
+        -- print(norm)
+        local hit = vec2.new(nx,ny)
+        hit = 200*hit
+        -- print(hit)
+        not_map:getBody():applyLinearImpulse(hit.x,hit.y)
 
-    --     if not_map:getGroupIndex() == -1 then
-    --         var.indoors = not var.indoors
-    --     end
+        if not_map:getGroupIndex() == -1 then
+            var.indoors = not var.indoors
+        end
 
 
-    --     -- if hit == vec2.new(0,0) then
-    --     --     not_map:getBody():applyLinearImpulse(math.random(-200,200),math.random(-200,200))
-    --     -- end
-    -- end
+        -- if hit == vec2.new(0,0) then
+        --     not_map:getBody():applyLinearImpulse(math.random(-200,200),math.random(-200,200))
+        -- end
+    end
 
-    -- --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
+    --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
 
 end
 
