@@ -35,6 +35,7 @@ light = require("systems.light")
 blood = require("systems.blood")
 wind = require("lib.graphics.wind")
 car = require("game.car")
+collision = require("util.collision")
 
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -170,6 +171,7 @@ function love.load()
     light.load()
     blood.load()
     car.load(world)
+    collision.init()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -559,14 +561,7 @@ function createAnimation(image, width, height, duration, numFrames)
 end
 
 function beginContact(fixture_a, fixture_b, contact)
-    
-    player.collision(fixture_a, fixture_b, contact)
-    fire.collision(fixture_a, fixture_b, contact)
-    enemy.collision(fixture_a, fixture_b, contact)
-    boss.collision(fixture_a, fixture_b, contact)
-    gun.collision(fixture_a, fixture_b, contact)
-    -- map.collision(fixture_a, fixture_b, contact)
-    -- editor.collision(fixture_a, fixture_b, contact)
+    collision.handle(fixture_a, fixture_b, contact)
 
 
 end

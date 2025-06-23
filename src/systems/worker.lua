@@ -3,8 +3,6 @@
 
 -- Function to process collision data
 local function processCollision(fixtureDataA, fixtureDataB, contactData)
-    -- Placeholder for collision logic
-    -- In a real implementation, this would replicate the collision logic from the main thread
     local result = {
         handled = false,
         action = "none"
@@ -27,17 +25,25 @@ end
 -- Main worker loop
 while true do
     -- Wait for data from the main thread
-    local data = love.thread.getChannel("collision_data"):demand()
+    local dataBatch = love.thread.getChannel("collision_data"):demand()
     
-    if data then
-        local fixtureDataA = data.fixtureA
-        local fixtureDataB = data.fixtureB
-        local contactData = data.contact
-        
-        -- Process collision
-        local result = processCollision(fixtureDataA, fixtureDataB, contactData)
-        
-        -- Send result back to main thread
-        love.thread.getChannel("collision_result"):push(result)
+    if dataBatch then
+        -- Process each collision event in the batch
+        for _, event in ipairs(dataBatch) do
+            local fixtureDataA = event.data.fixtureA
+            local fixtureDataB = event.data.fixtureB
+            local contactData = event.data.contact
+            
+            -- Process collision
+            local result = processCollision(fixtureDataA, fixtureDataB, contactData)
+            
+            -- Attach original fixtures and contact for callback in main thread
+            result.fixture_a = event.fixture_a
+            result.fixture_b = event.fixture_b
+            result.contact = event.contact
+            
+            -- Send result back to main thread
+            love.thread.getChannel("collision_result"):push(result)
+        end
     end
 end
