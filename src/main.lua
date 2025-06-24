@@ -237,7 +237,11 @@ function love.draw()
     rocket.populate()  
     blood.populate()
     car.populate()
+    
+    if var.graphics_high then
     light.populate()
+    end
+    
     gun.drawWorld()
 
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
@@ -256,15 +260,17 @@ function love.draw()
     -- order is IMPORTANT HERE shader-> smoke -> water
     
     
-     light.draw()
+     
 
 
     if var.graphics_high then
+        light.draw()
     shader.pass()
     -- smoke.pass()
     water.pass()
     crtShader.endCapture()
     -- blur.pass()
+    
     end
 
     mydraw.mydraw() -- ui last

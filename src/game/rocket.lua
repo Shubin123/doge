@@ -71,7 +71,7 @@ function rocket.update(dt)
     local now = love.timer.getTime()
     
     -- Process deferred destructions first (world is not locked during update)
-    rocket.processDeferredDestructions()
+    -- rocket.processDeferredDestructions()
     
     -- update rockets
     for i = #rocket.rockets, 1, -1 do
@@ -127,7 +127,8 @@ function rocket.update(dt)
         end
         -- lifetime check
         if now - r.birthTime > 10 then
-            rocket.destroyRocket(r, i)
+            -- rocket.destroyRocket(r, i)
+            
         end
         
         -- ::continue::

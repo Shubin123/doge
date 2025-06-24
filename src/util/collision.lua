@@ -8,6 +8,7 @@ collision.groups = {
     enemy = -777,
     coin = 69,
     map = 4,
+    rocket = -3,
     -- Add other groups as needed
 }
 
@@ -37,6 +38,8 @@ function collision.getType(fixture)
         return "coin"
     elseif groupIndex == collision.groups.map then
         return "map"
+    elseif groupIndex == collision.groups.rocket then
+        return "rocket"
     end
     
     local userData = fixture:getUserData()
@@ -111,7 +114,7 @@ function collision.init()
         end
     end)
     
-    -- Projectile vs Enemy: Damage enemy and destroy projectile
+    -- Projectile vs Enemy: Damage enemy and destroy projectile (specific to bullets)
     collision.registerResponse("projectile", "enemy", function(fixtureA, fixtureB, contact)
         local userData = fixtureA:getUserData()
         if userData then
@@ -135,13 +138,84 @@ function collision.init()
             end
             if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
                 table.insert(bullet.toReturn, userData)
-            elseif rocket and rocket.toReturn and userData.topSpeed then
-                table.insert(rocket.toReturn, userData)
             end
         end
     end)
     
-    -- Projectile vs Player: Damage player and destroy projectile
+    -- Rocket vs Enemy: Area damage with explosion and destroy rocket
+    collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)
+        local userData = fixtureA:getUserData()
+        if userData and not userData.destroyed then
+            userData.destroyed = true
+            local rocketBody = fixtureA:getBody()
+            local x, y = rocketBody:getPosition()
+            if enemies_bods then
+                local splash_enemies = {}
+                for i, eb in ipairs(enemies_bods) do
+                    if eb then
+                        local ex, ey = eb:getPosition()
+                        local distance = ((ex - x)^2 + (ey - y)^2)^0.5
+                        local damageRadius = userData.radius * 5
+                        if distance <= damageRadius then
+                            local damageFactor = 1 - (distance / damageRadius)
+                            damageFactor = damageFactor * damageFactor
+                            local baseDamage = 45
+                            local actualDamage = math.floor(baseDamage * damageFactor)
+                            if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                                actualDamage = 5
+                            end
+                            if blood and blood.onEnemyDamage and actualDamage > 0 then
+                                local direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                blood.onEnemyDamage(ex, ey, actualDamage, direction)
+                            end
+                            if enemy and enemy.damageEnemy and actualDamage > 0 then
+                                enemy.damageEnemy(i, actualDamage)
+                                local knockback_direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
+                                local final_force = 150 * distance_factor
+                                if distance <= userData.radius then
+                                    final_force = final_force * 1.5
+                                end
+                                local knockback_x = knockback_direction.x * final_force
+                                local knockback_y = knockback_direction.y * final_force
+                                eb:applyLinearImpulse(knockback_x, knockback_y)
+                                table.insert(splash_enemies, {
+                                    index = i,
+                                    x = ex,
+                                    y = ey,
+                                    distance = distance,
+                                    damage = actualDamage,
+                                    is_direct_hit = distance <= userData.radius,
+                                    knockback_force = final_force
+                                })
+                            end
+                        end
+                    end
+                end
+                if #splash_enemies > 1 and enemy and enemy.damage_indicators then
+                    table.insert(enemy.damage_indicators, {
+                        x = x,
+                        y = y - 30,
+                        damage = "SPLASH!",
+                        time = 0,
+                        duration = 1.5,
+                        velocity_y = -60,
+                        velocity_x = 0,
+                        alpha = 1,
+                        scale = 1.5,
+                        bounce_factor = 0.95,
+                        nearby_count = 0,
+                        is_splash_indicator = true
+                    })
+                end
+            end
+            if rocket and rocket.toDestroy then
+                table.insert(rocket.toDestroy, userData)
+            end
+        end
+    end)
+    
+    -- Projectile vs Player: Damage player and destroy projectile (specific to bullets)
     collision.registerResponse("projectile", "player", function(fixtureA, fixtureB, contact)
         local userData = fixtureA:getUserData()
         if userData then
@@ -166,8 +240,48 @@ function collision.init()
             end
             if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
                 table.insert(bullet.toReturn, userData)
-            elseif rocket and rocket.toReturn and userData.topSpeed then
-                table.insert(rocket.toReturn, userData)
+            end
+        end
+    end)
+    
+    -- Rocket vs Player: Area damage with explosion and destroy rocket
+    collision.registerResponse("rocket", "player", function(fixtureA, fixtureB, contact)
+        local userData = fixtureA:getUserData()
+        if userData and not userData.destroyed then
+            userData.destroyed = true
+            local rocketBody = fixtureA:getBody()
+            local playerBody = fixtureB:getBody()
+            local x, y = rocketBody:getPosition()
+            local px, py = playerBody:getPosition()
+            local distance = ((px - x)^2 + (py - y)^2)^0.5
+            local damageRadius = userData.radius * 5
+            if distance <= damageRadius then
+                local damageFactor = 1 - (distance / damageRadius)
+                damageFactor = damageFactor * damageFactor
+                local baseDamage = 45
+                local actualDamage = math.floor(baseDamage * damageFactor)
+                if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                    actualDamage = 5
+                end
+                local hit_client = false
+                for k, body in pairs(player.online.bodies) do
+                    if body == playerBody then
+                        player.online.health[k] = player.online.health[k] - actualDamage
+                        hit_client = true
+                        if blood and blood.onEnemyDamage then
+                            blood.onEnemyDamage(px, py, actualDamage)
+                        end
+                    end
+                end
+                if not hit_client then
+                    player.health = player.health - actualDamage
+                    if blood and blood.onEnemyDamage then
+                        blood.onEnemyDamage(px, py, actualDamage)
+                    end
+                end
+            end
+            if rocket and rocket.toDestroy then
+                table.insert(rocket.toDestroy, userData)
             end
         end
     end)
@@ -181,18 +295,121 @@ function collision.init()
         var.indoors = not var.indoors
     end)
     
-    -- Map vs Projectile: Apply impulse and destroy projectile
+    -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)
     collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local hit = {x = nx * 200, y = ny * 200}
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
-        if userData then
-            if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
-                table.insert(bullet.toReturn, userData)
-            elseif rocket and rocket.toReturn and userData.topSpeed then
-                table.insert(rocket.toReturn, userData)
+        if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
+            table.insert(bullet.toReturn, userData)
+        end
+    end)
+    
+    -- Map vs Rocket: Apply impulse, trigger explosion, and destroy rocket
+    collision.registerResponse("map", "rocket", function(fixtureA, fixtureB, contact)
+        local otherBody = fixtureB:getBody()
+        local nx, ny = contact:getNormal()
+        local hit = {x = nx * 200, y = ny * 200}
+        otherBody:applyLinearImpulse(hit.x, hit.y)
+        local userData = fixtureB:getUserData()
+        if userData and not userData.destroyed then
+            userData.destroyed = true
+            local x, y = otherBody:getPosition()
+            if enemies_bods then
+                local splash_enemies = {}
+                for i, eb in ipairs(enemies_bods) do
+                    if eb then
+                        local ex, ey = eb:getPosition()
+                        local distance = ((ex - x)^2 + (ey - y)^2)^0.5
+                        local damageRadius = userData.radius * 5
+                        if distance <= damageRadius then
+                            local damageFactor = 1 - (distance / damageRadius)
+                            damageFactor = damageFactor * damageFactor
+                            local baseDamage = 45
+                            local actualDamage = math.floor(baseDamage * damageFactor)
+                            if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                                actualDamage = 5
+                            end
+                            if blood and blood.onEnemyDamage and actualDamage > 0 then
+                                local direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                blood.onEnemyDamage(ex, ey, actualDamage, direction)
+                            end
+                            if enemy and enemy.damageEnemy and actualDamage > 0 then
+                                enemy.damageEnemy(i, actualDamage)
+                                local knockback_direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
+                                local final_force = 150 * distance_factor
+                                if distance <= userData.radius then
+                                    final_force = final_force * 1.5
+                                end
+                                local knockback_x = knockback_direction.x * final_force
+                                local knockback_y = knockback_direction.y * final_force
+                                eb:applyLinearImpulse(knockback_x, knockback_y)
+                                table.insert(splash_enemies, {
+                                    index = i,
+                                    x = ex,
+                                    y = ey,
+                                    distance = distance,
+                                    damage = actualDamage,
+                                    is_direct_hit = distance <= userData.radius,
+                                    knockback_force = final_force
+                                })
+                            end
+                        end
+                    end
+                end
+                if #splash_enemies > 1 and enemy and enemy.damage_indicators then
+                    table.insert(enemy.damage_indicators, {
+                        x = x,
+                        y = y - 30,
+                        damage = "SPLASH!",
+                        time = 0,
+                        duration = 1.5,
+                        velocity_y = -60,
+                        velocity_x = 0,
+                        alpha = 1,
+                        scale = 1.5,
+                        bounce_factor = 0.95,
+                        nearby_count = 0,
+                        is_splash_indicator = true
+                    })
+                end
+            end
+            -- Check for player damage
+            if player and player.body then
+                local px, py = player.body:getPosition()
+                local distance = ((px - x)^2 + (py - y)^2)^0.5
+                local damageRadius = userData.radius * 5
+                if distance <= damageRadius then
+                    local damageFactor = 1 - (distance / damageRadius)
+                    damageFactor = damageFactor * damageFactor
+                    local baseDamage = 45
+                    local actualDamage = math.floor(baseDamage * damageFactor)
+                    if actualDamage < 5 and distance <= damageRadius * 0.8 then
+                        actualDamage = 5
+                    end
+                    local hit_client = false
+                    for k, body in pairs(player.online.bodies) do
+                        if body == player.body then
+                            player.online.health[k] = player.online.health[k] - actualDamage
+                            hit_client = true
+                            if blood and blood.onEnemyDamage then
+                                blood.onEnemyDamage(px, py, actualDamage)
+                            end
+                        end
+                    end
+                    if not hit_client then
+                        player.health = player.health - actualDamage
+                        if blood and blood.onEnemyDamage then
+                            blood.onEnemyDamage(px, py, actualDamage)
+                        end
+                    end
+                end
+            end
+            if rocket and rocket.toDestroy then
+                table.insert(rocket.toDestroy, userData)
             end
         end
     end)

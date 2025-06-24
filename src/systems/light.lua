@@ -110,14 +110,11 @@ end
 
 function light.populate()
   table.insert(dynamic_draw_list, {
-    sort_y =player.body:getY()+180,
+    sort_y =player.body:getY()+100,
     x = 0,
     y = 0,
     draw_type = "light"
   })
 end
-
-
-
 
 return light

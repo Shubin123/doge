@@ -13,9 +13,9 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 2000
+var.num_coins = 10
 var.coin_bods = {}
-var.num_enemies = 10
+var.num_enemies = 1
 var.enemies_bods = {}
 
 

@@ -83,7 +83,7 @@ function fire.load()
     end
     
     -- Set initial effect
-    fire.setCurrentEffect(7)
+    fire.setCurrentEffect(1)
 
     -- Initialize the fireball ring with starting count
     fire_instances = {}
