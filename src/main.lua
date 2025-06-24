@@ -6,6 +6,7 @@ menu = require("ui.menu")
 mymath = require("lib.math.myMath")
 effects = require("lib.graphics.effects")
 map = require("game.map")
+audio = require("systems.audio")
 player = require("game.player")
 mydraw = require("lib.graphics.draw")
 shader = require("lib.graphics.shader")
@@ -172,6 +173,7 @@ function love.load()
     blood.load()
     car.load(world)
     collision.init()
+    audio.loadSounds()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
@@ -237,7 +239,7 @@ function love.draw()
     rocket.populate()  
     blood.populate()
     car.populate()
-    
+
     if var.graphics_high then
     light.populate()
     end
@@ -284,6 +286,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     map.houseInstances[1].color = {1,1,1,var.indoors and 0 or 1}
     map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
 
+    love.audio.update()
 
 
     if var.multiplayer then

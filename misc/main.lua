@@ -1,76 +1,109 @@
 -- main.lua
 function love.load()
-    -- Define a global function in main thread
-    globalTestFunction = function()
-        return "Hello from global function"
+    -- Create a positional audio source
+    audioFile = love.audio.newSource("monotest (1).mp3", "static")
+    
+    -- Check if the source is mono before setting position
+    if audioFile:getChannelCount() == 1 then
+        -- Set the source to use positional audio (only works with mono sources)
+        audioFile:setPosition(100, 200, 0) -- x, y, z coordinates
+    else
+        print("Warning: Audio file is not mono. Positional audio disabled.")
+        print("Channels detected: " .. audioFile:getChannelCount())
+        -- For stereo files, you can still play them but without positional effects
     end
     
-    -- Print main thread function address
-    print("Main thread - globalTestFunction address:", globalTestFunction)
-    print("Main thread - globalTestFunction type:", type(globalTestFunction))
+    -- Optional: Set volume rolloff for distance-based volume (only for mono)
+    if audioFile:getChannelCount() == 1 then
+        audioFile:setAttenuationDistances(50, 200) -- reference distance, max distance
+        audioFile:setRolloff(1.0) -- rolloff factor (how quickly volume decreases)
+    end
     
-    -- Create worker thread code as a string (inline)
-    local workerCode = [[
-        -- Worker thread code
-        print("Worker thread started")
-        print("Worker thread - globalTestFunction:", globalTestFunction)
-        print("Worker thread - globalTestFunction type:", type(globalTestFunction))
-        
-        if globalTestFunction then
-            print("Worker thread - Function address:", globalTestFunction)
-            -- Try to call it
-            local success, result = pcall(globalTestFunction)
-            if success then
-                print("Worker thread - Function call result:", result)
-            else
-                print("Worker thread - Function call failed:", result)
-            end
-        else
-            print("Worker thread - globalTestFunction is nil")
-        end
-        
-        -- Check if we can access _G
-        print("Worker thread - _G available:", _G ~= nil)
-        
-        -- Try to access some other globals
-        print("Worker thread - print function:", print)
-        print("Worker thread - type function:", type)
-        
-        -- Try to access love module
-        print("Worker thread - love module:", love)
-        if love then
-            print("Worker thread - love.thread:", love.thread)
-        end
-        
-        print("Worker thread finished")
-    ]]
+    -- Set listener position (usually the player/camera position)
+    love.audio.setPosition(0, 0, 0)
     
-    -- Create thread from string
-    thread = love.thread.newThread(workerCode)
+    -- Optional: Set listener orientation
+    love.audio.setOrientation(0, 0, -1, 0, 1, 0) -- forward vector, up vector
+    print(love.audio.getDistanceModel( ))
+    -- Player position for demonstration
+    playerX, playerY = 0, 0
     
-    -- Start the thread
-    print("Starting worker thread...")
-    thread:start()
+    -- Sound source position
+    soundX, soundY = 100, 200
+    
+    -- Start playing the sound
+    audioFile:setLooping(true)
+    audioFile:play()
 end
 
 function love.update(dt)
-    -- Check if thread is still running
-    if thread and not thread:isRunning() then
-        local error = thread:getError()
-        if error then
-            print("Thread error:", error)
-        else
-            print("Thread completed successfully")
-        end
-        thread = nil -- Clean up
+    -- Update listener position based on player movement
+    love.audio.setPosition(playerX, playerY, 0)
+    
+    -- Example: Move player with arrow keys
+    if love.keyboard.isDown("left") then
+        playerX = playerX - 100 * dt
+    elseif love.keyboard.isDown("right") then
+        playerX = playerX + 100 * dt
+    end
+    
+    if love.keyboard.isDown("up") then
+        playerY = playerY - 100 * dt
+    elseif love.keyboard.isDown("down") then
+        playerY = playerY + 100 * dt
     end
 end
 
 function love.draw()
-    love.graphics.print("Check console for thread global access test results", 10, 10)
-    if thread and thread:isRunning() then
-        love.graphics.print("Thread is running...", 10, 30)
+    -- Draw player
+    love.graphics.setColor(0, 1, 0) -- green
+    love.graphics.circle("fill", playerX, playerY, 10)
+    
+    -- Draw sound source
+    love.graphics.setColor(1, 0, 0) -- red
+    love.graphics.circle("fill", soundX, soundY, 15)
+    
+    -- Reset color
+    love.graphics.setColor(1, 1, 1)
+    
+    -- Display instructions
+    love.graphics.print("Use arrow keys to move. Notice how the sound changes with distance!", 10, 10)
+    love.graphics.print("Player position: " .. math.floor(playerX) .. ", " .. math.floor(playerY), 10, 30)
+end
+
+-- Alternative approach: Create multiple positioned sources with error checking
+function createPositionalSource(x, y, soundFile)
+    local source = love.audio.newSource(soundFile, "static")
+    
+    -- Only apply positional audio if the source is mono
+    if source:getChannelCount() == 1 then
+        source:setPosition(x, y, 0)
+        source:setAttenuationDistances(30, 150)
+        source:setRolloff(1.5)
+        print("Created positional source at: " .. x .. ", " .. y)
     else
-        love.graphics.print("Thread finished", 10, 30)
+        print("Warning: " .. soundFile .. " is not mono. Playing as regular audio.")
+    end
+    
+    return source
+end
+
+-- To convert stereo to mono in code (creates a new mono source):
+function createMonoSource(stereoFile)
+    -- This is a workaround - load the file and create a mono version
+    local stereoSource = love.audio.newSource(stereoFile, "static")
+    
+    if stereoSource:getChannelCount() == 1 then
+        return stereoSource -- Already mono
+    else
+        -- For stereo files, you'll need to use external tools to convert to mono
+        -- or use separate mono audio files for positional audio
+        print("File is stereo. Use audio editing software to convert to mono for positional audio.")
+        return stereoSource -- Return as-is, but won't support positional audio
     end
 end
+
+-- Example usage:
+-- local ambientSource = createPositionalSource(300, 400, "ambient.ogg")
+-- ambientSource:setLooping(true)
+-- ambientSource:play()

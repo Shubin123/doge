@@ -127,6 +127,15 @@ function Gun:shoot(mouseX, mouseY)
         color = self.muzzleFlash.color
     })
     
+    -- Play gun sound based on weapon type with offset synced to fire rate
+    local soundType = "gun1" -- default to pistol sound
+    if self.fireRate > 5 then
+        soundType = "gun2" -- higher fire rate weapons like SMG or rifle
+    elseif self.projectileType == "rocket" then
+        soundType = "fire" -- rocket launcher uses fire sound
+    end
+    audio.playSound(soundType, 1 / self.fireRate)
+    
     -- Create particle effects (gunpowder confetti) from barrel tip
     bullet.createParticleEffect(barrelTipPos, dir, self.particles)
     

@@ -108,6 +108,7 @@ function collision.init()
                     if fire and fire.addFireball then
                         fire.addFireball()
                     end
+                    audio.playSound("coin", 0.1)
                     break
                 end
             end
