@@ -1,5 +1,5 @@
 var = {}
-var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
+var.multiplayer = tonumber(arg[2]) or 2--temp logic -- set to nil for offline
 -- globals
 var.screen_height = 600
 var.screen_width = 800

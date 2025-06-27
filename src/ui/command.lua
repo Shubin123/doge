@@ -187,8 +187,62 @@ function command.execute(cmd)
     end
 
     -- Try to execute as Lua code
+   exe(cmd)
+
+    if not success then
+        command.addOutput("Error: " .. tostring(result), errorColor)
+    else
+        -- On success, create a command block message
+        if player.god then
+            createBlock(cmd)
+        end
+    end
+end
+
+-- function exe(cmd)
+--      local success, result = pcall(function()
+--         local func, err = load("return " .. cmd)
+--         if func then
+--             local results = { func() }
+--             if #results > 0 then
+--                 for _, v in ipairs(results) do
+--                     if type(v) == "table" then
+--                         command.addOutput(command.tableToString(v), outputColor)
+--                     else
+--                         command.addOutput(tostring(v), outputColor)
+--                     end
+--                 end
+--             end
+--         else
+--             func, err = load(cmd)
+--             if func then
+--                 func()
+--             else
+--                 error(err)
+--             end
+--         end
+--     end)
+-- end
+
+
+
+
+function exe(cmd)
     local success, result = pcall(function()
-        local func, err = load("return " .. cmd)
+        -- Helper function to create a reader function from string
+        local function stringReader(str)
+            local sent = false
+            return function()
+                if not sent then
+                    sent = true
+                    return str
+                end
+                return nil
+            end
+        end
+        
+        -- Try as expression first (with "return " prefix)
+        local func, err = load(stringReader("return " .. cmd))
         if func then
             local results = { func() }
             if #results > 0 then
@@ -201,7 +255,8 @@ function command.execute(cmd)
                 end
             end
         else
-            func, err = load(cmd)
+            -- Try as statement (without "return " prefix)
+            func, err = load(stringReader(cmd))
             if func then
                 func()
             else
@@ -209,15 +264,6 @@ function command.execute(cmd)
             end
         end
     end)
-
-    if not success then
-        command.addOutput("Error: " .. tostring(result), errorColor)
-    else
-        -- On success, create a command block message
-        if player.god then
-            createBlock(cmd)
-        end
-    end
 end
 
 function createBlock(cmd)
