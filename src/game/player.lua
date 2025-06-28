@@ -5,6 +5,10 @@ player.online.bodies = {}
 player.online.health = {}
 player.scale = 0.8
 
+    player.maxSpeed = 100
+    player.acceleration = 2000
+    player.friction = 0.85
+
 function newAnimation(image, width, height, duration, numFrames)
     local animation = {}
     animation.spriteSheet = image
@@ -127,9 +131,7 @@ function player.update(dt)
     end
     
     -- Normal movement (only when not dodging)
-    local maxSpeed = 100
-    local acceleration = 2000
-    local friction = 0.85
+
     
     -- Get current velocity
     local vx, vy = player.body:getLinearVelocity()
@@ -167,21 +169,21 @@ function player.update(dt)
         inputY = inputY / length
     end
     
-    -- Apply acceleration in the input direction
-    local targetVX = inputX * maxSpeed
-    local targetVY = inputY * maxSpeed
+    -- Apply player.acceleration in the input direction
+    local targetVX = inputX * player.maxSpeed
+    local targetVY = inputY * player.maxSpeed
     
     -- Smoothly interpolate toward target velocity
     local newVX, newVY
     
     if keyPressed then
         -- When keys are pressed, accelerate toward target velocity
-        newVX = vx + (targetVX - vx) * math.min(dt * acceleration / maxSpeed, 1)
-        newVY = vy + (targetVY - vy) * math.min(dt * acceleration / maxSpeed, 1)
+        newVX = vx + (targetVX - vx) * math.min(dt * player.acceleration / player.maxSpeed, 1)
+        newVY = vy + (targetVY - vy) * math.min(dt * player.acceleration / player.maxSpeed, 1)
     else
-        -- When no keys are pressed, apply friction
-        newVX = vx * friction
-        newVY = vy * friction
+        -- When no keys are pressed, apply player.friction
+        newVX = vx * player.friction
+        newVY = vy * player.friction
         
         -- Stop completely if moving very slowly
         if math.abs(newVX) < 5 and math.abs(newVY) < 5 then

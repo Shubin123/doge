@@ -20,8 +20,8 @@ function water.load()
     -- Create canvases for different stages of the effect
     -- scene_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba8" })
     
-    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" }) --rgba8
-    water_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "hdr" })
+    reflection_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba4" }) --rgba8
+    water_canvas = love.graphics.newCanvas(var.game_width, var.game_height, { format = "rgba4" })
     
     -- Load noise texture for water distortion
     noise_texture = love.graphics.newImage("gfx/noise.png")

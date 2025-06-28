@@ -3,18 +3,18 @@ local map = {}
 -- Configuration
 local MAP_CONFIG = {
     -- Chunk system for performance
-    CHUNK_SIZE = 16,  -- tiles per chunk
-    VISIBLE_CHUNKS_RADIUS = 3,  -- chunks to render around camera
-    
+    CHUNK_SIZE = 16,           -- tiles per chunk
+    VISIBLE_CHUNKS_RADIUS = 3, -- chunks to render around camera
+
     -- Object pooling
     MAX_POOL_SIZE = 100,
-    
+
     -- Layers
     LAYER_GROUND = 1,
     LAYER_DECORATION = 2,
     LAYER_COLLISION = 3,
     LAYER_OVERLAY = 4,
-    
+
     -- Z-sorting offsets
     Z_OFFSET_TILE = 0,
     Z_OFFSET_DECORATION = 100,
@@ -32,9 +32,9 @@ local objectPools = {
 map.archInstances = {}
 map.treeInstances = {}
 map.houseInstances = {}
-map.dynamicObjects = {}  -- Generic dynamic objects
-map.chunks = {}  -- Spatial chunks for optimization
-map.layers = {}  -- Multiple map layers
+map.dynamicObjects = {} -- Generic dynamic objects
+map.chunks = {}         -- Spatial chunks for optimization
+map.layers = {}         -- Multiple map layers
 
 -- Performance monitoring
 local performance = {
@@ -110,10 +110,10 @@ function newTiles(tilesetImage, tileWidth, tileHeight)
     tiles.tileWidth = tileWidth
     tiles.tileHeight = tileHeight
     tiles.quads = {}
-    
+
     local tilesWide = math.floor(tilesetImage:getWidth() / tileWidth)
     local tilesHigh = math.floor(tilesetImage:getHeight() / tileHeight)
-    
+
     local tileCount = 0
     for y = 0, tilesetImage:getHeight() - tileHeight, tileHeight do
         for x = 0, tilesetImage:getWidth() - tileWidth, tileWidth do
@@ -179,7 +179,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
     map.width = mapWidth
     map.height = mapHeight
     map.tileData = tileData or {}
-    
+
     if not tileData then
         for y = 1, mapHeight do
             map.tileData[y] = {}
@@ -188,13 +188,12 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
             end
         end
     end
-    
+
     map.draw = function(self, x, y, scale)
-        x = x or 0
-        y = y or 0
+        -- print("x"..x)
         scale = scale or 1
         local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
-        local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale))
+        local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
         for row = 1, max_tiles_y do
             for col = 1, max_tiles_x do
                 local tileId = self.tileData[row] and self.tileData[row][col]
@@ -202,23 +201,25 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
                     love.graphics.draw(
                         self.tiles.tilesetImage,
                         self.tiles.quads[tileId],
-                        x + (col-1) * self.tiles.tileWidth * scale,
-                        y + (row-1) * self.tiles.tileHeight * scale,
+                        x + (col - 1) * self.tiles.tileWidth * scale,
+                        y + (row - 1) * self.tiles.tileHeight * scale,
                         0,
                         scale,
-                        scale
+                        scale,
+                        -9800,
+                        y + 2000 
                     )
                 end
             end
         end
     end
-    
+
     map.setTile = function(self, x, y, tileId)
         if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
             self.tileData[y][x] = tileId
         end
     end
-    
+
     map.getTile = function(self, x, y)
         if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
             return self.tileData[y][x]
@@ -241,7 +242,7 @@ function map.createAdvancedMap(config)
         camera = config.camera,
     }
 
-    for i, layerConfig in ipairs(config.layers or {{name = "default"}}) do
+    for i, layerConfig in ipairs(config.layers or { { name = "default" } }) do
         advancedMap.layers[i] = {
             name = layerConfig.name,
             visible = layerConfig.visible ~= false,
@@ -345,7 +346,7 @@ function map.createAdvancedMap(config)
 end
 
 function map.collision(fixture_a, fixture_b, contact)
-    local not_map 
+    local not_map
     if (fixture_a:getGroupIndex() == 4) then
         not_map = fixture_b
     elseif fixture_b:getGroupIndex() == 4 then
@@ -354,12 +355,12 @@ function map.collision(fixture_a, fixture_b, contact)
     if not_map then
         -- print("friction", contact:getFriction())
         -- print("normal", contact:getNormal())
-        local nx,ny  = contact:getNormal()
+        local nx, ny = contact:getNormal()
         -- print(norm)
-        local hit = vec2.new(nx,ny)
-        hit = 200*hit
+        local hit   = vec2.new(nx, ny)
+        hit         = 200 * hit
         -- print(hit)
-        not_map:getBody():applyLinearImpulse(hit.x,hit.y)
+        not_map:getBody():applyLinearImpulse(hit.x, hit.y)
 
         if not_map:getGroupIndex() == -1 then
             var.indoors = not var.indoors
@@ -372,7 +373,6 @@ function map.collision(fixture_a, fixture_b, contact)
     end
 
     --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
-
 end
 
 -- Enhanced object system with components
@@ -390,7 +390,7 @@ function map.createDynamicObject(config)
         sprite = config.sprite,
         scale = config.scale or 1,
         rotation = config.rotation or 0,
-        color = config.color or {1, 1, 1, 1},
+        color = config.color or { 1, 1, 1, 1 },
 
         body = nil,
         fixtures = {},
@@ -455,13 +455,13 @@ function map.createDynamicObject(config)
 
         if config.physics.shape then
             local fixture = love.physics.newFixture(obj.body, config.physics.shape)
-            
+
             fixture:setUserData({
                 type = config.type,
                 id = obj.id,
                 object = obj,
             })
-            
+
             table.insert(obj.fixtures, fixture)
         end
     end
@@ -491,8 +491,8 @@ function map.createArches(pivot_x, pivot_y)
             local left_fixture = love.physics.newFixture(owner.body, left_shape)
             local right_fixture = love.physics.newFixture(owner.body, right_shape)
 
-            left_fixture:setUserData({type = "arch", id = owner.id, side = "left", object = owner})
-            right_fixture:setUserData({type = "arch", id = owner.id, side = "right", object = owner})
+            left_fixture:setUserData({ type = "arch", id = owner.id, side = "left", object = owner })
+            right_fixture:setUserData({ type = "arch", id = owner.id, side = "right", object = owner })
 
             table.insert(owner.fixtures, left_fixture)
             table.insert(owner.fixtures, right_fixture)
@@ -513,7 +513,7 @@ function map.createArches(pivot_x, pivot_y)
 
     arch.left_body = arch.body
     arch.right_body = arch.body
-    
+
     local originalMove = arch.move
     arch.move = function(self, new_pivot_x, new_pivot_y)
         self.pivot_x = new_pivot_x
@@ -535,7 +535,7 @@ function map.createTree(x, y)
         height = 156,
         physics = {
             type = "static",
-            shape = love.physics.newCircleShape(-27, 15,3),
+            shape = love.physics.newCircleShape(-27, 15, 3),
         },
     })
 
@@ -549,14 +549,14 @@ function map.createTree(x, y)
 
     -- tree:addComponent("collision", {
     --     init = function(self, owner)
-            
-            
+
+
 
     --         local left_fixture = love.physics.newFixture(owner.body,love.physics.newCircleShape(20))
-            
+
 
     --         left_fixture:setUserData({type = "arch", id = owner.id, side = "left", object = owner})
-            
+
 
     --         table.insert(owner.fixtures, left_fixture)
     --     end,
@@ -574,8 +574,8 @@ function map.createTree(x, y)
                 x = owner.x,
                 y = owner.y + 40,
                 radius = self.radius,
-                color = {0, 0, 0, self.opacity},
-                blend_mode = {"alpha"},
+                color = { 0, 0, 0, self.opacity },
+                blend_mode = { "alpha" },
                 source_object_type = "tree_shadow",
             }
         end,
@@ -583,7 +583,7 @@ function map.createTree(x, y)
 
     -- tree.x = x
     -- tree.y = y
-    
+
     local originalMove = tree.move
     tree.move = function(self, new_x, new_y)
         self.x = new_x
@@ -616,60 +616,62 @@ function map.createHouse(x, y)
         tileId = 1,
         scale = 2.0,
     })
-house:addComponent("collision", {
-    -- Configurable parameters
-    width = 128,      -- Total house width
-    height = 128,     -- Total house height  
-    wall_thickness = 6,  -- Wall thickness
-    door_gap = 30,   -- Width of door opening
-    
-    init = function(self, owner)
-        local half_width = self.width / 2
-        local half_height = self.height / 2
-        local half_door_gap = self.door_gap / 2
-        
-        -- Left wall
-        local left_shape = love.physics.newRectangleShape(-half_width, 0, self.wall_thickness, self.height)
-        local left_fixture = love.physics.newFixture(owner.body, left_shape)
-        left_fixture:setUserData({type = "house", id = owner.id, side = "left", object = owner})
-        table.insert(owner.fixtures, left_fixture)
-        
-        -- Right wall
-        local right_shape = love.physics.newRectangleShape(half_width, 0, self.wall_thickness, self.height)
-        local right_fixture = love.physics.newFixture(owner.body, right_shape)
-        right_fixture:setUserData({type = "house", id = owner.id, side = "right", object = owner})
-        table.insert(owner.fixtures, right_fixture)
-        
-        -- Back wall
-        local back_shape = love.physics.newRectangleShape(0, -half_height, self.width, self.wall_thickness)
-        local back_fixture = love.physics.newFixture(owner.body, back_shape)
-        back_fixture:setUserData({type = "house", id = owner.id, side = "back", object = owner})
-        table.insert(owner.fixtures, back_fixture)
-        
-        -- Front walls (with door opening in the middle)
-        local front_wall_width = (self.width - self.door_gap) / 2
-        local front_wall_offset = half_door_gap + front_wall_width / 2
-        
-        -- Left side of front wall
-        local front_left_shape = love.physics.newRectangleShape(-front_wall_offset, half_height, front_wall_width, self.wall_thickness)
-        local front_left_fixture = love.physics.newFixture(owner.body, front_left_shape)
-        front_left_fixture:setUserData({type = "house", id = owner.id, side = "front_left", object = owner})
-        table.insert(owner.fixtures, front_left_fixture)
-        
-        -- Right side of front wall
-        local front_right_shape = love.physics.newRectangleShape(front_wall_offset, half_height, front_wall_width, self.wall_thickness)
-        local front_right_fixture = love.physics.newFixture(owner.body, front_right_shape)
-        front_right_fixture:setUserData({type = "house", id = owner.id, side = "front_right", object = owner})
-        table.insert(owner.fixtures, front_right_fixture)
-        for _ ,_fixture in pairs(owner.fixtures) do
-            _fixture:setGroupIndex(4)
-        end
-        -- print(_G)
-        -- for key, value in pairs(_G) do
-        --     print(key,value)
-        -- end
-    end,
-})
+    house:addComponent("collision", {
+        -- Configurable parameters
+        width = 128,    -- Total house width
+        height = 128,   -- Total house height
+        wall_thickness = 6, -- Wall thickness
+        door_gap = 30,  -- Width of door opening
+
+        init = function(self, owner)
+            local half_width = self.width / 2
+            local half_height = self.height / 2
+            local half_door_gap = self.door_gap / 2
+
+            -- Left wall
+            local left_shape = love.physics.newRectangleShape(-half_width, 0, self.wall_thickness, self.height)
+            local left_fixture = love.physics.newFixture(owner.body, left_shape)
+            left_fixture:setUserData({ type = "house", id = owner.id, side = "left", object = owner })
+            table.insert(owner.fixtures, left_fixture)
+
+            -- Right wall
+            local right_shape = love.physics.newRectangleShape(half_width, 0, self.wall_thickness, self.height)
+            local right_fixture = love.physics.newFixture(owner.body, right_shape)
+            right_fixture:setUserData({ type = "house", id = owner.id, side = "right", object = owner })
+            table.insert(owner.fixtures, right_fixture)
+
+            -- Back wall
+            local back_shape = love.physics.newRectangleShape(0, -half_height, self.width, self.wall_thickness)
+            local back_fixture = love.physics.newFixture(owner.body, back_shape)
+            back_fixture:setUserData({ type = "house", id = owner.id, side = "back", object = owner })
+            table.insert(owner.fixtures, back_fixture)
+
+            -- Front walls (with door opening in the middle)
+            local front_wall_width = (self.width - self.door_gap) / 2
+            local front_wall_offset = half_door_gap + front_wall_width / 2
+
+            -- Left side of front wall
+            local front_left_shape = love.physics.newRectangleShape(-front_wall_offset, half_height, front_wall_width,
+                self.wall_thickness)
+            local front_left_fixture = love.physics.newFixture(owner.body, front_left_shape)
+            front_left_fixture:setUserData({ type = "house", id = owner.id, side = "front_left", object = owner })
+            table.insert(owner.fixtures, front_left_fixture)
+
+            -- Right side of front wall
+            local front_right_shape = love.physics.newRectangleShape(front_wall_offset, half_height, front_wall_width,
+                self.wall_thickness)
+            local front_right_fixture = love.physics.newFixture(owner.body, front_right_shape)
+            front_right_fixture:setUserData({ type = "house", id = owner.id, side = "front_right", object = owner })
+            table.insert(owner.fixtures, front_right_fixture)
+            for _, _fixture in pairs(owner.fixtures) do
+                _fixture:setGroupIndex(4)
+            end
+            -- print(_G)
+            -- for key, value in pairs(_G) do
+            --     print(key,value)
+            -- end
+        end,
+    })
 
     -- house:addComponent("shadow", {
     --     init = function(self, owner)
@@ -692,7 +694,7 @@ house:addComponent("collision", {
 
     house.x = x
     house.y = y
-    
+
     local originalMove = house.move
     house.move = function(self, new_x, new_y)
         self.x = new_x
@@ -731,14 +733,13 @@ function map.findTreeByFixture(fixture)
 end
 
 function map.load()
-
     local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-    
-    for x = 1, 70 do 
-        for y = 1, 50 do
-            map.map:setTile(x, y, math.random(1,200))
+
+    for x = 1, 700 do
+        for y = 1, 900 do
+            map.map:setTile(x, y, math.random(1, 200))
         end
     end
 
@@ -746,27 +747,24 @@ function map.load()
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
     map.tiles3 = newTiles(tilesetImage3, 98, 128)
     map.arches = createMap(map.tiles3, 1, 1) -- Just for tileset storage
-    map.arches:setTile(1, 1, 10) -- Default arch tile
+    map.arches:setTile(1, 1, 10)             -- Default arch tile
 
     -- Load tree tileset
     local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
     map.tiles4 = newTiles(tilesetImage4, 156, 156)
     map.tree = createMap(map.tiles4, 1, 1) -- Just for tileset storage
-    map.tree:setTile(1, 1, 1) -- Default tree tile
+    map.tree:setTile(1, 1, 1)              -- Default tree tile
 
-    
+
 
     local tilesetImage5 = love.graphics.newImage("gfx/TileSet/house.png")
     map.tiles5 = newTiles(tilesetImage5, 100, 100)
     map.house = createMap(map.tiles5, var.map_display_w, var.map_display_h)
-    for x = 1, 70 do 
+    for x = 1, 70 do
         for y = 1, 50 do
-            map.house:setTile(x, y, math.random(1,200))
+            map.house:setTile(x, y, math.random(1, 200))
         end
     end
-
-
-    
 end
 
 -- Optimized dynamic draw list generation
@@ -797,7 +795,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_x = 0,
                         offset_y = 0,
                         color = arch.color,
-                        blend_mode = {"alpha"},
+                        blend_mode = { "alpha" },
                         source_object_type = "arch",
                         object_id = arch.id,
                     })
@@ -805,38 +803,36 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                 end
             end
         end
-    -- elseif mapData == map.tree then
-    --     for _, tree in ipairs(map.treeInstances) do
-    --         if tree.active then
-    --             local visual = tree:getComponent("visual")
-    --             if visual then
-    --                 local shadow = tree:getComponent("shadow")
-    --                 if shadow and shadow.getDynamicDrawItem then
-    --                     table.insert(drawItems, shadow:getDynamicDrawItem(tree))
-    --                 end
+        -- elseif mapData == map.tree then
+        --     for _, tree in ipairs(map.treeInstances) do
+        --         if tree.active then
+        --             local visual = tree:getComponent("visual")
+        --             if visual then
+        --                 local shadow = tree:getComponent("shadow")
+        --                 if shadow and shadow.getDynamicDrawItem then
+        --                     table.insert(drawItems, shadow:getDynamicDrawItem(tree))
+        --                 end
 
-    --                 table.insert(drawItems, {
-    --                     sort_y = base_sort_y + tree.y,
-    --                     image_or_particles = map.tiles4.tilesetImage,
-    --                     quad = map.tiles4.quads[visual.tileId],
-    --                     x = tree.x + visual.offset_x,
-    --                     y = tree.y + visual.offset_y,
-    --                     rotation = tree.rotation,
-    --                     scale_x = map_scale * visual.scale * tree.scale,
-    --                     scale_y = map_scale * visual.scale * tree.scale,
-    --                     offset_x = 0,
-    --                     offset_y = 0,
-    --                     color = tree.color,
-    --                     blend_mode = {"alpha"},
-    --                     source_object_type = "tree",
-    --                     object_id = tree.id,
-    --                 })
-    --                 performance.objectsRendered = performance.objectsRendered + 1
-    --             end
-    --         end
-    --     end
-
-
+        --                 table.insert(drawItems, {
+        --                     sort_y = base_sort_y + tree.y,
+        --                     image_or_particles = map.tiles4.tilesetImage,
+        --                     quad = map.tiles4.quads[visual.tileId],
+        --                     x = tree.x + visual.offset_x,
+        --                     y = tree.y + visual.offset_y,
+        --                     rotation = tree.rotation,
+        --                     scale_x = map_scale * visual.scale * tree.scale,
+        --                     scale_y = map_scale * visual.scale * tree.scale,
+        --                     offset_x = 0,
+        --                     offset_y = 0,
+        --                     color = tree.color,
+        --                     blend_mode = {"alpha"},
+        --                     source_object_type = "tree",
+        --                     object_id = tree.id,
+        --                 })
+        --                 performance.objectsRendered = performance.objectsRendered + 1
+        --             end
+        --         end
+        --     end
     elseif mapData == map.tree then
         for _, tree in ipairs(map.treeInstances) do
             if tree.active then
@@ -849,7 +845,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
 
                     -- Create tree draw item with potential wind shader
                     local drawItem = {
-                        sort_y = base_sort_y + tree.y  -100,
+                        sort_y = base_sort_y + tree.y - 100,
                         image_or_particles = map.tiles4.tilesetImage,
                         quad = map.tiles4.quads[visual.tileId],
                         x = tree.x + visual.offset_x,
@@ -860,21 +856,21 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_x = 0,
                         offset_y = 0,
                         color = tree.color,
-                        blend_mode = {"alpha"},
+                        blend_mode = { "alpha" },
                         source_object_type = "tree",
                         object_id = tree.id,
                     }
                     -- print(visual.usewind, wind.shader)
-                    
+
                     -- Add wind shader if enabled
                     -- if visual.usewind and wind.shader then
-                        drawItem.shader = wind.shader
-                        drawItem.shader_params = {
-                            world_position = {tree.x, tree.y}
-                        }
-                        drawItem.source_object_type = "tree_with_wind"
+                    drawItem.shader = wind.shader
+                    drawItem.shader_params = {
+                        world_position = { tree.x, tree.y }
+                    }
+                    drawItem.source_object_type = "tree_with_wind"
                     -- end
-                    
+
                     table.insert(drawItems, drawItem)
                     -- performance.objectsRendered = performance.objectsRendered + 1
                 end
@@ -892,9 +888,9 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     -- for key, value in pairs(house.color) do
                     --     print(key,value)
                     -- end
-                    
+
                     table.insert(drawItems, {
-                        sort_y = base_sort_y + house.y +100,
+                        sort_y = base_sort_y + house.y + 100,
                         image_or_particles = map.tiles5.tilesetImage,
                         quad = map.tiles5.quads[visual.tileId],
                         x = house.x + visual.offset_x,
@@ -905,7 +901,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_x = 0,
                         offset_y = 0,
                         color = house.color,
-                        blend_mode = {"alpha"},
+                        blend_mode = { "alpha" },
                         source_object_type = "house",
                         object_id = house.id,
                     })
@@ -913,7 +909,6 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                 end
             end
         end
-    
     elseif mapData.draw then
         local max_tiles_x = math.ceil(var.game_width / (mapData.tiles.tileWidth * map_scale))
         local max_tiles_y = math.ceil(var.game_height / (mapData.tiles.tileHeight * map_scale))
@@ -936,8 +931,8 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         scale_y = map_scale,
                         offset_x = 0,
                         offset_y = 0,
-                        color = {1, 1, 1, 1},
-                        blend_mode = {"alpha"},
+                        color = { 1, 1, 1, 1 },
+                        blend_mode = { "alpha" },
                         source_object_type = "map_tile",
                     })
                 end
@@ -953,7 +948,7 @@ end
 -- Create serializable map data for saving
 function map.createSaveData()
     local map_data = {}
-    
+
     -- Capture base tile map data
     if map.map and map.map.tileData then
         map_data.base_tiles = {
@@ -961,7 +956,7 @@ function map.createSaveData()
             height = map.map.height,
             tile_data = {}
         }
-        
+
         -- Deep copy tile data
         for y = 1, map.map.height do
             map_data.base_tiles.tile_data[y] = {}
@@ -970,7 +965,7 @@ function map.createSaveData()
             end
         end
     end
-    
+
     -- Capture arch instances
     map_data.arches = {}
     for i, arch in ipairs(map.archInstances) do
@@ -982,7 +977,7 @@ function map.createSaveData()
             visual_offset_y = arch.visual_offset_y
         }
     end
-    
+
     -- Capture tree instances
     map_data.trees = {}
     for i, tree in ipairs(map.treeInstances) do
@@ -1002,13 +997,13 @@ function map.createSaveData()
             id = house.id
         }
     end
-    
+
     return map_data
 end
 
 function map.createSaveDataSmall()
     local map_data = {}
-    
+
     -- -- Capture base tile map data
     -- if map.map and map.map.tileData then
     --     map_data.base_tiles = {
@@ -1016,7 +1011,7 @@ function map.createSaveDataSmall()
     --         height = map.map.height,
     --         tile_data = {}
     --     }
-        
+
     --     -- Deep copy tile data
     --     for y = 1, map.map.height do
     --         map_data.base_tiles.tile_data[y] = {}
@@ -1025,7 +1020,7 @@ function map.createSaveDataSmall()
     --         end
     --     end
     -- end
-    
+
     -- Capture arch instances
     map_data.arches = {}
     for i, arch in ipairs(map.archInstances) do
@@ -1037,7 +1032,7 @@ function map.createSaveDataSmall()
             visual_offset_y = arch.visual_offset_y
         }
     end
-    
+
     -- Capture tree instances
     map_data.trees = {}
     for i, tree in ipairs(map.treeInstances) do
@@ -1057,17 +1052,16 @@ function map.createSaveDataSmall()
             id = house.id
         }
     end
-    
+
     return map_data
 end
-
 
 -- Restore map from save data
 function map.restore(map_data)
     if not map_data then
         return true -- No map data to restore, but not an error
     end
-    
+
     -- Restore base tile map
     if map_data.base_tiles and map.map then
         -- Ensure map dimensions match or resize if needed
@@ -1076,7 +1070,7 @@ function map.restore(map_data)
             map.map.height = map_data.base_tiles.height
             map.map.tileData = {}
         end
-        
+
         -- Restore tile data
         for y = 1, map_data.base_tiles.height do
             map.map.tileData[y] = {}
@@ -1085,18 +1079,18 @@ function map.restore(map_data)
             end
         end
     end
-    
+
     -- Clear existing arches
     for _, arch in ipairs(map.archInstances) do
         arch:destroy()
     end
     map.archInstances = {}
-    
+
     -- Restore arches
     if map_data.arches then
         for _, arch_data in ipairs(map_data.arches) do
             local new_arch = map.createArches(arch_data.pivot_x, arch_data.pivot_y)
-            
+
             -- Restore any additional arch properties if needed
             if arch_data.visual_offset_x then
                 new_arch.visual_offset_x = arch_data.visual_offset_x
@@ -1105,31 +1099,31 @@ function map.restore(map_data)
                 new_arch.visual_offset_y = arch_data.visual_offset_y
             end
         end
-        map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- reload 
+        map_a = map.addMapToDynamicDrawList(map.arches, 0, 0, 1, 200) -- reload
     end
-    
+
     -- Clear existing trees
     for _, tree in ipairs(map.treeInstances) do
         tree:destroy()
     end
     map.treeInstances = {}
-    
+
     -- Restore trees
     if map_data.trees then
         for _, tree_data in ipairs(map_data.trees) do
             map.createTree(tree_data.x, tree_data.y)
         end
-        map_b = map.addMapToDynamicDrawList(map.tree, 0,0,0.8,240)
+        map_b = map.addMapToDynamicDrawList(map.tree, 0, 0, 0.8, 240)
     end
-    
+
     -- Restore houses
     if map_data.houses then
         for _, house_data in ipairs(map_data.houses) do
             map.createHouse(house_data.x, house_data.y)
         end
-        map_c = map.addMapToDynamicDrawList(map.house, 0,0,0.8,240)
+        map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 240)
     end
-    
+
     return true
 end
 
@@ -1181,18 +1175,18 @@ function map.resetPerformanceStats()
 end
 
 -- Initialize object pools
-initPool("drawItems", 
+initPool("drawItems",
     function() return {} end,
-    function(item) 
-        for k in pairs(item) do 
-            item[k] = nil 
-        end 
+    function(item)
+        for k in pairs(item) do
+            item[k] = nil
+        end
     end
 )
 
 initPool("chunks",
     function() return createChunk(0, 0) end,
-    function(chunk) 
+    function(chunk)
         chunk.dirty = true
         chunk.lastAccess = love.timer.getTime()
         for y = 1, MAP_CONFIG.CHUNK_SIZE do

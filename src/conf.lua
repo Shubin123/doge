@@ -1,8 +1,8 @@
 var = {}
-var.multiplayer = tonumber(arg[2]) or 2--temp logic -- set to nil for offline
+var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
 -- globals
-var.screen_height = 600
-var.screen_width = 800
+var.screen_height = 1080
+var.screen_width = 1920
 var.screen_flags = {
     ["resizable"] = true,
     ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
@@ -36,8 +36,8 @@ var.sprite_width = 100
 
 
  var.ScreenInfo = {
-    screen_height = 600,
-    screen_width = 800,
+    screen_height = 1080,
+    screen_width = 1920,
     screen_flags = {
         ["resizable"] = true
     }
@@ -45,20 +45,17 @@ var.sprite_width = 100
  var.points = {}
 
  var.State = "running"
- 
 
  var.game_width = 400
  var.game_height = 400
  var.header_height = 50
-
-
 
 var.graphics_high = true -- for now just a high settings for all the shaders or nothing
 
 var.indoors = false
 
 function love.conf(t)
-    
+    t.window.depth = 16
 -- print(t)
 for key, value in pairs(t) do
     -- print(key,value)

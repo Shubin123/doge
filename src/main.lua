@@ -1,5 +1,4 @@
 
-
 -- math.randomseed(os.time())
 
 menu = require("ui.menu")
@@ -213,11 +212,13 @@ function love.draw()
 
     love.graphics.setColor(1, 1, 1, 0.35)
     -- Draw map with blood effects
-    if blood and blood.drawBackground then
-        blood.drawBackground(map.map, game_area_x, game_area_y)
-    else
-        map.map:draw(game_area_x, game_area_y, 1)
-    end
+    -- if blood and blood.drawBackground then
+    --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
+    -- else
+        
+    -- end
+    map.map:draw(-10000,100,1)
+
     love.graphics.setColor(1, 1, 1, 1)
 
 

@@ -1,5 +1,5 @@
--- multiplayer.lua - ENet LAN multiplayer Module
-local enet = require("enet")
+-- multiplayer.lua - Socket-based LAN Multiplayer Module using TCP
+local socket = require "socket"
 
 local multiplayer = {}
 multiplayer.__index = multiplayer
@@ -10,79 +10,104 @@ function multiplayer.new(config)
 
     -- Configuration
     self.config = config or {}
-
     self.port = self.config.port or 6750
-    self.max_peers = self.config.max_peers or 32
+    self.address = self.config.address or "localhost"
     self.timeout = self.config.timeout or 100
 
     -- State
     self.is_host = false
     self.is_client = false
-    self.host = nil
-    self.client = nil
-    self.server_peer = nil
-    self.connected_peers = {}
+    self.server_socket = nil -- TCP server socket (host only)
+    self.client_socket = nil -- TCP client socket (client only)
+    self.connected_peers = {} -- For host to track clients {socket, ip, port, connect_time}
     self.message_handlers = {}
     self.connection_handlers = {}
+    self.fallback_mode = false -- Fallback for unsupported environments
 
     return self
 end
-host = 0
+
 -- Start as host (server)
 function multiplayer:startHost(ip)
-    if self.host then
+    if self.server_socket or self.client_socket then
         self:stop()
     end
 
-    local address = ip .. ":" .. self.port
-    self.host = enet.host_create(address, self.max_peers)
-    host = self.host
-    
-    if self.host then
-        self.is_host = true
-        print("Host started on " .. address)
-        return true
+    local address = ip or "*"
+    self.server_socket = socket.tcp()
+    if self.server_socket then
+        self.server_socket:settimeout(0) -- Non-blocking
+        local success, err = self.server_socket:bind(address, self.port)
+        if success then
+            local listen_success, listen_err = self.server_socket:listen(32) -- Allow up to 32 pending connections
+            if listen_success then
+                self.is_host = true
+                print("Host started on " .. address .. ":" .. self.port)
+                return true
+            else
+                print("Failed to listen on " .. address .. ":" .. self.port .. ": " .. tostring(listen_err))
+                self.server_socket:close()
+                self.server_socket = nil
+                self.fallback_mode = true
+                print("Falling back to mock networking mode (host)")
+                return false
+            end
+        else
+            print("Failed to bind host to " .. address .. ":" .. self.port .. ": " .. tostring(err))
+            self.server_socket:close()
+            self.server_socket = nil
+            self.fallback_mode = true
+            print("Falling back to mock networking mode (host)")
+            return false
+        end
     else
-        print("Failed to start host")
+        print("Failed to create TCP socket for host")
+        self.fallback_mode = true
+        print("Falling back to mock networking mode (host)")
         return false
     end
 end
 
--- function multiplayer:getHost()
---     if self.host then
---         print(self.host:compress_with_range_coder())
---     end
--- end
-
 -- Connect as client
 function multiplayer:connectToHost(host_address)
-    if self.client then
+    if self.server_socket or self.client_socket then
         self:stop()
     end
 
-    host_address = host_address
-    local address = host_address .. ":" .. self.port
-
-    self.client = enet.host_create()
-    if self.client then
-        self.server_peer = self.client:connect(address)
-        if self.server_peer then
+    self.address = host_address or self.address
+    self.client_socket = socket.tcp()
+    if self.client_socket then
+        self.client_socket:settimeout(0) -- Non-blocking
+        local success, err = self.client_socket:connect(self.address, self.port)
+        
+        -- In non-blocking mode, connect() may return "timeout" which means connection is in progress
+        if success or err == "timeout" then
             self.is_client = true
-            print("Attempting to connect to " .. address)
+            print("Attempting to connect to " .. self.address .. ":" .. self.port)
             return true
         else
-            print("Failed to create connection to " .. address)
-            self.client = nil
+            print("Failed to connect to " .. self.address .. ":" .. self.port .. ": " .. tostring(err))
+            self.client_socket:close()
+            self.client_socket = nil
+            self.fallback_mode = true
+            print("Falling back to mock networking mode (client)")
             return false
         end
     else
-        print("Failed to create client")
+        print("Failed to create TCP socket for client")
+        self.fallback_mode = true
+        print("Falling back to mock networking mode (client)")
         return false
     end
 end
 
 -- Update networking (call this every frame)
 function multiplayer:update()
+    if self.fallback_mode then
+        -- In fallback mode, do nothing or simulate minimal networking
+        return
+    end
+
     if self.is_host then
         self:_updateHost()
     end
@@ -94,150 +119,217 @@ end
 
 -- Host update logic
 function multiplayer:_updateHost()
-    if not self.host then return end
+    if not self.server_socket then return end
 
-    local event = self.host:service(self.timeout)
-
-    while event do
-        if event.type == "connect" then
-            print("Client connected: " .. tostring(event.peer))
-            self.connected_peers[event.peer] = {
-                peer = event.peer,
-                connect_time = love and love.timer.getTime() or os.time()
-            }
-            self:_callConnectionHandler("connect", event.peer)
-        elseif event.type == "disconnect" then
-            print("Client disconnected: " .. tostring(event.peer))
-            self.connected_peers[event.peer] = nil
-            self:_callConnectionHandler("disconnect", event.peer)
-        elseif event.type == "receive" then
-            self:_handleMessage(event.data, event.peer, "host")
-        end
-
-        event = self.host:service(0) -- Check for more events without waiting
+    -- Accept new connections
+    local client_socket = self.server_socket:accept()
+    if client_socket then
+        client_socket:settimeout(0) -- Make client socket non-blocking
+        local ip, port = client_socket:getpeername()
+        local peer_key = ip .. ":" .. port
+        print("Client connected: " .. peer_key)
+        self.connected_peers[peer_key] = {
+            socket = client_socket,
+            ip = ip,
+            port = port,
+            connect_time = love and love.timer.getTime() or os.time(),
+            buffer = "" -- Buffer for incomplete messages
+        }
+        self:_callConnectionHandler("connect", peer_key)
     end
+
+    -- Handle messages from connected clients
+    local disconnected_peers = {}
+    for peer_key, peer_info in pairs(self.connected_peers) do
+        local data, err, partial = peer_info.socket:receive("*a")
+        
+        if err == "closed" then
+            print("Client disconnected: " .. peer_key)
+            peer_info.socket:close()
+            table.insert(disconnected_peers, peer_key)
+            self:_callConnectionHandler("disconnect", peer_key)
+        elseif data or partial then
+            -- Append received data to buffer
+            peer_info.buffer = peer_info.buffer .. (data or partial or "")
+            
+            -- Process complete messages (assuming messages are newline-delimited)
+            while true do
+                local newline_pos = peer_info.buffer:find("\n")
+                if not newline_pos then break end
+                
+                local message_data = peer_info.buffer:sub(1, newline_pos - 1)
+                peer_info.buffer = peer_info.buffer:sub(newline_pos + 1)
+                
+                if message_data ~= "" then
+                    self:_handleMessage(message_data, peer_key, "host")
+                end
+            end
+        end
+    end
+
+    -- Remove disconnected peers
+    for _, peer_key in ipairs(disconnected_peers) do
+        self.connected_peers[peer_key] = nil
+    end
+
+    -- Reduce CPU usage
+    socket.sleep(0.01)
 end
 
 -- Client update logic
 function multiplayer:_updateClient()
-    -- if not self.client then return end
+    if not self.client_socket then return end
 
-    local event = self.client:service(self.timeout)
-    -- print(event)
-    while event do
-        if event.type == "connect" then
-            print("Connected to server")
-            self:_callConnectionHandler("connect", event.peer)
-        elseif event.type == "disconnect" then
-            print("Disconnected from server")
-            self.server_peer = nil
-            self:_callConnectionHandler("disconnect", event.peer)
-        elseif event.type == "receive" then
-            self:_handleMessage(event.data, event.peer, "client")
+    -- Initialize buffer if it doesn't exist
+    if not self.client_buffer then
+        self.client_buffer = ""
+    end
+
+    local data, err, partial = self.client_socket:receive("*a")
+    
+    if err == "closed" then
+        print("Disconnected from server")
+        self.client_socket:close()
+        self.client_socket = nil
+        self.is_client = false
+        self:_callConnectionHandler("disconnect", nil)
+        return
+    elseif data or partial then
+        -- Append received data to buffer
+        self.client_buffer = self.client_buffer .. (data or partial or "")
+        
+        -- Process complete messages (newline-delimited)
+        while true do
+            local newline_pos = self.client_buffer:find("\n")
+            if not newline_pos then break end
+            
+            local message_data = self.client_buffer:sub(1, newline_pos - 1)
+            self.client_buffer = self.client_buffer:sub(newline_pos + 1)
+            
+            if message_data ~= "" then
+                self:_handleMessage(message_data, "server", "client")
+            end
         end
-
-        event = self.client:service(0)
     end
 end
 
 -- Send message to specific peer (host only)
 function multiplayer:sendToPeer(peer, message, channel)
+    if self.fallback_mode then
+        print("Cannot send to peer in fallback mode")
+        return false
+    end
+
     if not self.is_host or not peer then
         return false
     end
 
-    channel = channel or 0
-    peer:send(message, channel)
-    return true
+    local peer_info = self.connected_peers[peer]
+    if peer_info and peer_info.socket then
+        local success, err = peer_info.socket:send(message .. "\n")
+        if success then
+            return true
+        else
+            print("Failed to send to peer " .. peer .. ": " .. tostring(err))
+            return false
+        end
+    end
+    return false
 end
 
 -- Send message to all connected peers (host only)
 function multiplayer:broadcast(message, channel, exclude_peer)
+    if self.fallback_mode then
+        print("Cannot broadcast in fallback mode")
+        return false
+    end
+
     if not self.is_host then
         return false
     end
 
-    channel = channel or 0
     local sent_count = 0
-
-    -- for peer, peer_info in pairs(self.connected_peers) do
-    --     if peer ~= exclude_peer then
-    --         peer:send(message, channel)
-    --         sent_count = sent_count + 1
-    --     end
-    -- end
-        host:broadcast(message,channel,"reliable")
-    -- return sent_count
+    for peer_key, peer_info in pairs(self.connected_peers) do
+        if peer_key ~= exclude_peer and peer_info.socket then
+            local success, err = peer_info.socket:send(message .. "\n")
+            if success then
+                sent_count = sent_count + 1
+            else
+                print("Failed to broadcast to peer " .. peer_key .. ": " .. tostring(err))
+            end
+        end
+    end
+    return sent_count > 0
 end
 
 -- Send message to server (client only)
 function multiplayer:sendToServer(message, channel)
-    if not self.is_client or not self.server_peer then
+    if self.fallback_mode then
+        print("Cannot send to server in fallback mode")
         return false
     end
 
-    channel = channel or 0
-    self.server_peer:send(message, channel)
-    return true
+    if not self.is_client or not self.client_socket then
+        return false
+    end
+
+    local success, err = self.client_socket:send(message .. "\n")
+    if success then
+        return true
+    else
+        print("Failed to send to server: " .. tostring(err))
+        return false
+    end
 end
 
-
-
+-- Handle sending movement messages
 function multiplayer.sendMovementMessage()
-    game_state = snapshot.create()
-    
-    -- Convert to JSON first, then compress with maximum compression
+    if not mp or mp.fallback_mode then
+        if mp and mp.fallback_mode then
+            print("Cannot send movement message in fallback mode")
+        end
+        return
+    end
+
+    local game_state = snapshot.create()
     local json_string = json.encode(game_state)
-    
-    -- for k,v in pairs( love.data.decode("string","hex", love.data.encode("data", "hex", tostring(game_state)))) do print(k,v) end
-    
-    local compressed_data = love.data.compress("string", "zlib", json_string, 9)  -- 9 = max compression level
-    
+
     if var.multiplayer == 1 then
-        mp:broadcast(compressed_data)
+        mp:broadcast(json_string)
     else
-        -- client info to send to server -- doesnt work correctly for more than one client
-        mp:sendToServer(compressed_data)
+        mp:sendToServer(json_string)
     end
 end
 
 -- Handle incoming messages
 function multiplayer:_handleMessage(data, peer, role)
-    -- Decompress the data, then decode JSON
-    local decompressed_data = love.data.decompress("string", "zlib", data)
-    local message = json.decode(decompressed_data)
+    local decode_success, message = pcall(json.decode, data)
+    if not decode_success then
+        print("Failed to decode JSON from " .. tostring(peer))
+        return
+    end
     
-    -- Check if this is a command block message
     if message.type == "command_block" then
         command.receiveCommandBlock(message.block)
         return
     end
     
-    -- Otherwise treat as game state (legacy handling)
     local game_state = message
     
     if role == "client" then
-        -- print("")
-        -- print(data)
-        -- debug.debug()
-        -- renderer.applyGameStateSnapshot(game_state)
         snapshot.apply(game_state)
     end
     
     if role == "host" then
-        -- print(game_state.client_id)
-        
-        local player_id =  tonumber(string.sub(game_state.client_id,#game_state.client_id))
-        if  not player.online.bodies[player_id] then
-            
+        local player_id = tonumber(string.sub(game_state.client_id, #game_state.client_id))
+        if not player.online.bodies[player_id] then
             player.online.bodies[player_id] = love.physics.newBody(world, game_state.player_data.x, game_state.player_data.y)
             player.online.fixture = love.physics.newFixture(player.online.bodies[player_id], player.shape)
             player.online.fixture:setGroupIndex(-1)
             player.online.health[player_id] = 100
         end
 
-        player.online.bodies[player_id]:setPosition(game_state.player_data.x,game_state.player_data.y)
-
+        player.online.bodies[player_id]:setPosition(game_state.player_data.x, game_state.player_data.y)
         snapshot.apply(game_state)
     end
 end
@@ -277,7 +369,7 @@ function multiplayer:getConnectionInfo()
             })
         end
     elseif self.is_client then
-        info.connected_to_server = self.server_peer ~= nil
+        info.connected_to_server = self.client_socket ~= nil
     end
 
     return info
@@ -285,23 +377,33 @@ end
 
 -- Stop networking
 function multiplayer:stop()
-    if self.host then
-        self.host:destroy()
-        self.host = nil
+    -- Close client connections if host
+    if self.is_host and self.connected_peers then
+        for peer_key, peer_info in pairs(self.connected_peers) do
+            if peer_info.socket then
+                peer_info.socket:close()
+            end
+        end
+        self.connected_peers = {}
     end
 
-    if self.client then
-        if self.server_peer then
-            self.server_peer:disconnect()
-        end
-        self.client:destroy()
-        self.client = nil
-        self.server_peer = nil
+    -- Close server socket if host
+    if self.server_socket then
+        self.server_socket:close()
+        self.server_socket = nil
+    end
+
+    -- Close client socket if client
+    if self.client_socket then
+        self.client_socket:close()
+        self.client_socket = nil
     end
 
     self.is_host = false
     self.is_client = false
     self.connected_peers = {}
+    self.client_buffer = nil
+    self.fallback_mode = false
 
     print("Networking stopped")
 end
@@ -315,18 +417,17 @@ function multiplayer:createMessage(msg_type, data)
     }
 end
 
+-- Load multiplayer settings
 function multiplayer.load()
     mp = multiplayer.new({
         port = 6750,
-        max_peers = 8,
-        timeout = 200 --IMPORANT !!!
+        timeout = 200
     })
 
     mp:onMessage("player_move", function(message, peer, role)
         print("Player moved:", message, "from", peer)
     end)
 
-    -- Set up connection handlers
     mp:onConnection("connect", function(peer)
         print("Connection event:", peer)
         if not mp.is_host then
@@ -340,21 +441,14 @@ function multiplayer.load()
         print("Disconnection event:", peer)
     end)
 
-
-    -- var.multiplayer = math.random(2)
-    
     if var.multiplayer then
-        -- print(arg[3])
-    local ip = arg[3] and arg[3] or "localhost"
-
-    if var.multiplayer == 1  then
-        mp:startHost(ip)
-    else
-        mp:connectToHost(ip)
+        local ip = arg[3] and arg[3] or "localhost"
+        if var.multiplayer == 1 then
+            mp:startHost(ip)
+        else
+            mp:connectToHost(ip)
+        end
     end
-
-    end
-
 end
 
 return multiplayer
