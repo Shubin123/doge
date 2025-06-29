@@ -190,33 +190,47 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
     end
 
     map.draw = function(self, x, y, scale)
-        -- print("x"..x)
         scale = scale or 1
         local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
         local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
-        for row = 1, max_tiles_y do
-            for col = 1, max_tiles_x do
-                local tileId = self.tileData[row] and self.tileData[row][col]
-                if tileId and tileId > 0 and self.tiles.quads[tileId] then
-                    love.graphics.draw(
-                        self.tiles.tilesetImage,
-                        self.tiles.quads[tileId],
-                        x + (col - 1) * self.tiles.tileWidth * scale,
-                        y + (row - 1) * self.tiles.tileHeight * scale,
-                        0,
-                        scale,
-                        scale,
-                        -9800,
-                        y + 2000 
-                    )
+        
+        -- Initialize spriteBatch if not already created
+        if not self.spriteBatch then
+            self.spriteBatch = love.graphics.newSpriteBatch(self.tiles.tilesetImage, max_tiles_x * max_tiles_y)
+            self.dirty = true
+        end
+        
+        -- Rebuild spriteBatch only if map data has changed
+        if self.dirty then
+            self.spriteBatch:clear()
+            for row = 1, max_tiles_y do
+                for col = 1, max_tiles_x do
+                    local tileId = self.tileData[row] and self.tileData[row][col]
+                    if tileId and tileId > 0 and self.tiles.quads[tileId] then
+                        self.spriteBatch:add(
+                            self.tiles.quads[tileId],
+                            x + (col - 1) * self.tiles.tileWidth * scale,
+                            y + (row - 1) * self.tiles.tileHeight * scale,
+                            0,
+                            scale,
+                            scale,
+                            -9800,
+                            y + 2000
+                        )
+                    end
                 end
             end
+            self.dirty = false
         end
+        
+        -- Draw the existing spriteBatch
+        love.graphics.draw(self.spriteBatch)
     end
 
     map.setTile = function(self, x, y, tileId)
         if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
             self.tileData[y][x] = tileId
+            self.dirty = true -- Mark map as dirty to rebuild spriteBatch on next draw
         end
     end
 
