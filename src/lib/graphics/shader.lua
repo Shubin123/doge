@@ -11,7 +11,7 @@ function shader.load()
 
     -- JFA needs two canvases for ping-pong, RG for UV
     jfa_canvas1 = love.graphics.newCanvas(W, H) --rg16f 
-    jfa_canvas2 = love.graphics.newCanvas(W, H )
+    jfa_canvas2 = love.graphics.newCanvas(W, H)
 
     -- Distance field canvas, R for distance
     df_canvas = love.graphics.newCanvas(W, H)
@@ -137,7 +137,7 @@ function shader.pass()
     gi_shader:send("baseRadiance", shader.radiance)
     
     -- JFA passes
-    local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 1
+    local passes = math.ceil(math.log(math.max(var.game_width, var.game_height), 2)) + 10
 
     for i = 1, passes do
         jfa_shader:send("stepSize", math.pow(2, passes - i))

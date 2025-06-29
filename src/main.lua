@@ -55,10 +55,11 @@ coin_image, coin_quad, coin_sprite = 0, 0, 0
 png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
 enemy_image = 0
 
+-- Game area dimensions, updated on load and resize
 W = love.graphics.getWidth()
 H = love.graphics.getHeight()
-game_area_x = (W - var.game_width) / 2
-game_area_y = var.header_height
+ game_area_x = (W - var.game_width) / 2
+ game_area_y = var.header_height
 
 
 -- lighting variables
@@ -76,6 +77,13 @@ function love.load()
 
     -- Window setup
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
+    -- Dynamically set game area to match screen size initially
+    var.game_width = var.screen_width
+    var.game_height = var.screen_height - var.header_height
+    W = var.screen_width
+    H = var.screen_height
+    game_area_x = (W - var.game_width) / 2
+    game_area_y = var.header_height
 
     -- Load fonts
     statsFont = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
@@ -179,10 +187,7 @@ function love.load()
 
 end
 
-local W = love.graphics.getWidth()
-local H = love.graphics.getHeight()
-local game_area_x = (W - var.game_width) / 2
-local game_area_y = var.header_height
+-- Removed duplicate definition of game area dimensions, now defined at top level
 
 
 function love.draw()
@@ -353,6 +358,13 @@ function love.resize(w, h)
     var.screen_height = h
     var.ScreenInfo.screen_width = w
     var.ScreenInfo.screen_height = h
+    -- Update game area dimensions on resize to match screen size
+    W = w
+    H = h
+    var.game_width = w
+    var.game_height = h - var.header_height
+    game_area_x = (W - var.game_width) / 2
+    game_area_y = var.header_height
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
