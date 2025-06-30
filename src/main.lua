@@ -36,6 +36,7 @@ blood = require("systems.blood")
 wind = require("lib.graphics.wind")
 car = require("game.car")
 collision = require("util.collision")
+tileRules = require("systems.TileRules")
 
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -215,7 +216,7 @@ function love.draw()
 
     camera.apply()
 
-    love.graphics.setColor(1, 1, 1, 0.35)
+    love.graphics.setColor(1, 1, 1, 0.45)
     -- Draw map with blood effects
     -- if blood and blood.drawBackground then
     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)

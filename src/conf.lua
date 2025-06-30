@@ -1,8 +1,8 @@
 var = {}
 var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
 -- globals
-var.screen_height = 600
-var.screen_width = 800
+var.screen_height = 1080
+var.screen_width = 1920
 var.screen_flags = {
     ["resizable"] = true,
     ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
