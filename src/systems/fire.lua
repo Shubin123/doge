@@ -28,6 +28,8 @@ fire.effects = {
     {path = 'gfx/fx/Spritesheets/Blood Splat.png', grid = {5, 2}},
     {path = 'gfx/fx/Spritesheets/Eletric A-Sheet.png', grid = {3, 3}},
     {path = 'gfx/fx/Spritesheets/Eletric Aura.png', grid = {5, 2}},
+    
+    
     {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {5, 5}},
     
     

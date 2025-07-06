@@ -223,7 +223,7 @@ function bullet.populate()
     -- Add shell casings to draw list (ground level objects)
     for _, shell in ipairs(bullet.shells) do
         table.insert(dynamic_draw_list, {
-            sort_y = shell.pos.y + 50, -- Shells fall on ground, should be behind most objects
+            sort_y = shell.pos.y + 150, -- Shells fall on ground, should be behind most objects
             source_object_type = "shell_casing",
             shell_data = shell,
             color = {1, 1, 1, 1},
@@ -273,6 +273,8 @@ function bullet.collision(fixture_a, fixture_b, contact)
         other_f  = fixture_a
     end
     if not bullet_f then return end
+
+    
 
     local inst = bullet_f:getUserData()
     local otherBody = other_f:getBody()
@@ -583,35 +585,36 @@ function bullet.createShellEjection(gunPos, gunDir, shellType)
         maxLife = 4,
         color = color,
         size = size,
-        groundY = ejectionPos.y + 100  -- approximate ground level
+        groundY = ejectionPos.y + 100, -- approximate ground level
+        sort_y = 1000,
     })
 end
 
 -- Draw shell casings
 function bullet.drawShells()
-    for _, shell in ipairs(bullet.shells) do
-        local alpha = math.min(1, shell.life / shell.maxLife)
-        if shell.life < 1 then
-            alpha = shell.life  -- fade out in last second
-        end
+    -- for _, shell in ipairs(bullet.shells) do
+    --     local alpha = math.min(1, shell.life / shell.maxLife)
+    --     if shell.life < 1 then
+    --         alpha = shell.life  -- fade out in last second
+    --     end
         
-        love.graphics.push()
-        love.graphics.translate(shell.pos.x, shell.pos.y)
-        love.graphics.rotate(shell.rotation)
+    --     love.graphics.push()
+    --     love.graphics.translate(shell.pos.x, shell.pos.y)
+    --     love.graphics.rotate(shell.rotation)
         
-        -- Draw shell casing as small rectangle
-        love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
-        love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
+    --     -- Draw shell casing as small rectangle
+    --     love.graphics.setColor(shell.color[1], shell.color[2], shell.color[3], alpha)
+    --     love.graphics.rectangle("fill", -shell.size.width/2, -shell.size.height/2, 
+    --                           shell.size.width, shell.size.height)
         
-        -- Add rim highlight
-        love.graphics.setColor(1, 1, 1, alpha * 0.5)
-        love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
-                              shell.size.width, shell.size.height)
+    --     -- Add rim highlight
+    --     love.graphics.setColor(1, 1, 1, alpha * 0.5)
+    --     love.graphics.rectangle("line", -shell.size.width/2, -shell.size.height/2, 
+    --                           shell.size.width, shell.size.height)
         
-        love.graphics.pop()
-    end
-    love.graphics.setColor(1, 1, 1, 1)
+    --     love.graphics.pop()
+    -- end
+    -- love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- Draw gunpowder particles

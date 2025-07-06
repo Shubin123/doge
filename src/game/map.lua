@@ -748,31 +748,31 @@ end
 
 function map.load()
 
-    local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
-    map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
-    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-    
-
-
-    for x = 1, 700 do
-        for y = 1, 900 do
-            map.map:setTile(x, y, math.random(1,200))
-        end
-    end
-
-    
-
-    -- local tilesetImage = love.graphics.newImage("gfx/TileSet/grounds.png")
+    -- local tilesetImage = love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png")
     -- map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
     -- map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
     
 
 
-    -- for x = 1, 200 do
-    --     for y = 1, 200 do
-    --         map.map:setTile(x, y, tileRules.getValidTile(x, y))
+    -- for x = 1, 700 do
+    --     for y = 1, 900 do
+    --         map.map:setTile(x, y, math.random(1,200))
     --     end
     -- end
+
+    
+
+    local tilesetImage = love.graphics.newImage("gfx/TileSet/grounds.png")
+    map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
+    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
+    
+
+
+    for x = 1, 200 do
+        for y = 1, 200 do
+            map.map:setTile(x, y, tileRules.getValidTile(x, y))
+        end
+    end
 
     -- Load arch tileset
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")

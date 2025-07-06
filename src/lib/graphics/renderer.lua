@@ -802,6 +802,17 @@ local function renderDrawType(drawable)
         if d.font then
             love.graphics.setFont(current_font)
         end
+    elseif d.draw_type == "explosion" then
+        love.graphics.draw(d.image, d.quad, d.x, d.y, 0, d.scale_x, d.scale_y, d.offset_x, d.offset_y)
+    elseif d.draw_type == "shockwave" then
+        love.graphics.setShader(d.shader)
+        d.shader:send("center", {d.x, d.y})
+        d.shader:send("radius", d.radius)
+        d.shader:send("maxRadius", d.maxRadius)
+        d.shader:send("time", d.time)
+        -- Draw a full-screen quad to apply the shader effect
+        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+        love.graphics.setShader()
     end
 end
 

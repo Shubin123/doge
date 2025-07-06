@@ -129,10 +129,14 @@ function Gun:shoot(mouseX, mouseY)
     
     -- Play gun sound based on weapon type with offset synced to fire rate
     local soundType = "gun1" -- default to pistol sound
-    if self.fireRate > 5 then
-        soundType = "gun2" -- higher fire rate weapons like SMG or rifle
-    elseif self.projectileType == "rocket" then
-        soundType = "fire" -- rocket launcher uses fire sound
+    if gun.currentWeaponIndex == 2 then
+        soundType = "gun2" -- SMG and Assault Rifle
+    elseif gun.currentWeaponIndex == 3 then
+        soundType = "gun3" -- SMG and Assault Rifle
+    elseif gun.currentWeaponIndex == 4 then
+        soundType = "gun4" -- Shotgun
+    elseif gun.currentWeaponIndex == 5 then
+        soundType = "fire" -- Rocket Launcher uses fire sound
     end
     audio.playSound(soundType, 1 / self.fireRate)
     
@@ -477,28 +481,29 @@ function GunTool.getCurrentGun()
     return GunTool.currentGun
 end
 
-function GunTool.collision(fixture_a, fixture_b, contact)
+-- function GunTool.collision(fixture_a, fixture_b, contact)
 
-    bullet.collision(fixture_a, fixture_b, contact)
-    rocket.collision(fixture_a, fixture_b, contact)
-    -- local ud_a = fixture_a:getUserData()
-    -- local ud_b = fixture_b:getUserData()
+--     rocket.collision(fixture_a, fixture_b, contact)
+--     bullet.collision(fixture_a, fixture_b, contact)
+    
+--     -- local ud_a = fixture_a:getUserData()
+--     -- local ud_b = fixture_b:getUserData()
 
-    -- -- It's good practice to check if user data exists
-    -- if not ud_a or not ud_b then return end
+--     -- -- It's good practice to check if user data exists
+--     -- if not ud_a or not ud_b then return end
 
-    -- -- Check for rocket involvement first (using the specific 'topSpeed' check)
-    -- if (type(ud_a) == 'table' and ud_a.topSpeed) or (type(ud_b) == 'table' and ud_b.topSpeed) then
-    --     rocket.collision(fixture_a, fixture_b, contact)
-    --     return -- Exit after handling to prevent double-processing
-    -- end
+--     -- -- Check for rocket involvement first (using the specific 'topSpeed' check)
+--     -- if (type(ud_a) == 'table' and ud_a.topSpeed) or (type(ud_b) == 'table' and ud_b.topSpeed) then
+--     --     rocket.collision(fixture_a, fixture_b, contact)
+--     --     return -- Exit after handling to prevent double-processing
+--     -- end
 
-    -- -- Then, check for bullet involvement (bullets have 'speed' but not 'topSpeed')
-    -- if (type(ud_a) == 'table' and ud_a.speed and not ud_a.topSpeed) or 
-    --    (type(ud_b) == 'table' and ud_b.speed and not ud_b.topSpeed) then
-    --     bullet.collision(fixture_a, fixture_b, contact)
-    --     return
-    -- end
-end
+--     -- -- Then, check for bullet involvement (bullets have 'speed' but not 'topSpeed')
+--     -- if (type(ud_a) == 'table' and ud_a.speed and not ud_a.topSpeed) or 
+--     --    (type(ud_b) == 'table' and ud_b.speed and not ud_b.topSpeed) then
+--     --     bullet.collision(fixture_a, fixture_b, contact)
+--     --     return
+--     -- end
+-- end
 
 return GunTool

@@ -1,0 +1,2 @@
+fmpeg -i src/audio/gun2.mp3 -ss 2.1 -t 0.3 -c copy src/audio/gun2_trimmed.mp3 -y
+start @ 2.1 second for 0.3 seconds

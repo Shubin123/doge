@@ -145,11 +145,19 @@ function collision.init()
     
     -- Rocket vs Enemy: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)
+                    
+
         local userData = fixtureA:getUserData()
+
         if userData and not userData.destroyed then
+                
+            
             userData.destroyed = true
             local rocketBody = fixtureA:getBody()
             local x, y = rocketBody:getPosition()
+
+            audio.playSound("explosion", 0.1,0.5)
+            explosion.create(x,y, explosion.TYPES.ROCKET)
             if enemies_bods then
                 local splash_enemies = {}
                 for i, eb in ipairs(enemies_bods) do
@@ -217,33 +225,33 @@ function collision.init()
     end)
     
     -- Projectile vs Player: Damage player and destroy projectile (specific to bullets)
-    collision.registerResponse("projectile", "player", function(fixtureA, fixtureB, contact)
-        local userData = fixtureA:getUserData()
-        if userData then
-            local playerBody = fixtureB:getBody()
-            local hit_client = false
-            for k, body in pairs(player.online.bodies) do
-                if body == playerBody then
-                    player.online.health[k] = player.online.health[k] - 1
-                    hit_client = true
-                    local px, py = body:getPosition()
-                    if blood and blood.onEnemyDamage then
-                        blood.onEnemyDamage(px, py, 1)
-                    end
-                end
-            end
-            if not hit_client then
-                player.health = player.health - 1
-                local px, py = playerBody:getPosition()
-                if blood and blood.onEnemyDamage then
-                    blood.onEnemyDamage(px, py, 1)
-                end
-            end
-            if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
-                table.insert(bullet.toReturn, userData)
-            end
-        end
-    end)
+    -- collision.registerResponse("projectile", "player", function(fixtureA, fixtureB, contact)
+    --     local userData = fixtureA:getUserData()
+    --     if userData then
+    --         local playerBody = fixtureB:getBody()
+    --         local hit_client = false
+    --         for k, body in pairs(player.online.bodies) do
+    --             if body == playerBody then
+    --                 player.online.health[k] = player.online.health[k] - 1
+    --                 hit_client = true
+    --                 local px, py = body:getPosition()
+    --                 if blood and blood.onEnemyDamage then
+    --                     blood.onEnemyDamage(px, py, 1)
+    --                 end
+    --             end
+    --         end
+    --         if not hit_client then
+    --             player.health = player.health - 1
+    --             local px, py = playerBody:getPosition()
+    --             if blood and blood.onEnemyDamage then
+    --                 blood.onEnemyDamage(px, py, 1)
+    --             end
+    --         end
+    --         if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
+    --             table.insert(bullet.toReturn, userData)
+    --         end
+    --     end
+    -- end)
     
     -- Rocket vs Player: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "player", function(fixtureA, fixtureB, contact)
@@ -310,12 +318,17 @@ function collision.init()
     
     -- Map vs Rocket: Apply impulse, trigger explosion, and destroy rocket
     collision.registerResponse("map", "rocket", function(fixtureA, fixtureB, contact)
+            
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
+        local x,y = contact:getPositions()
         local hit = {x = nx * 200, y = ny * 200}
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and not userData.destroyed then
+            audio.playSound("explosion", 0.1,0.5)
+            explosion.create(x,y, explosion.TYPES.ROCKET)
+            
             userData.destroyed = true
             local x, y = otherBody:getPosition()
             if enemies_bods then

@@ -36,7 +36,8 @@ blood = require("systems.blood")
 wind = require("lib.graphics.wind")
 car = require("game.car")
 collision = require("util.collision")
-tileRules = require("systems.TileRules")
+tileRules = require("systems.tileRules")
+explosion = require("systems.explosion")
 
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -179,6 +180,7 @@ function love.load()
     blur.load()
     light.load()
     blood.load()
+    explosion.load()
     car.load(world)
     collision.init()
     audio.loadSounds()
@@ -243,8 +245,10 @@ function love.draw()
 
     
     bullet.populate()
+    explosion.populate()
     rocket.populate()  
     blood.populate()
+    
     car.populate()
 
     if var.graphics_high then
@@ -337,6 +341,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     portal.update(dt)
     -- blur.update(dt)
     blood.update(dt)
+    explosion.update(dt)
     command.update(dt)
     cmdn.update(dt)
     
