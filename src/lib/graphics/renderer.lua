@@ -937,8 +937,12 @@ function renderer.renderSortedDrawList()
             end
 
             -- Draw shader rectangle
+            if drawable.draw_type == "shockwave" then 
+                -- drawable.shader:send("time", drawable.time*100)
+                love.graphics.circle("fill",drawable.x,drawable.y,drawable.radius)
+            else 
             love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
-
+            end
             -- Reset shader
             love.graphics.setShader()
 

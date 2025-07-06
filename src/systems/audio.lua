@@ -47,18 +47,18 @@ function love.audio.update()
 end
 
 -- overwrite love.audio.play to create and register source if needed
-local play = love.audio.play
-function love.audio.play(what, how, loop)
-    local src = what
-    if type(what) ~= "userdata" or not what:typeOf("Source") then
-        src = love.audio.newSource(what, how)
-        src:setLooping(loop or false)
-    end
+-- local play = love.audio.play
+-- function love.audio.play(what, how, loop)
+--     local src = what
+--     if type(what) ~= "userdata" or not what:typeOf("Source") then
+--         src = love.audio.newSource(what, how)
+--         src:setLooping(loop or false)
+--     end
 
-    play(src)
-    sources[src] = src
-    return src
-end
+--     play(src)
+--     sources[src] = src
+--     return src
+-- end
 
 -- stops a source
 local stop = love.audio.stop

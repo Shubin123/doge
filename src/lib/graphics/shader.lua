@@ -8,7 +8,7 @@ function shader.load()
     -- Calculate GI resolution based on performance target
     -- Scale down GI resolution for larger screens to maintain performance
     local pixel_count = W * H
-    local gi_scale = math.min(1.0, math.sqrt(1000000 / pixel_count)) -- Target ~2M pixels for GI
+    local gi_scale = math.min(1.0, math.sqrt(500000 / pixel_count)) -- Target ~1M pixels for GI *2mil to expensive 500k min otherwise too jittery
     
     -- GI resolution (lower for performance)
     local gi_w = math.max(128, math.floor(W * gi_scale))
@@ -18,8 +18,8 @@ function shader.load()
     scene_canvas = love.graphics.newCanvas(W, H, {format  = "rgba4"}) -- rgba8
 
     -- JFA needs two canvases for ping-pong, RG for UV (at GI resolution)
-    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = "rg16f"}) --rg16f 
-    jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = "rg16f"})
+    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = "rgba16f"}) --rg16f 
+    jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = "rgba16f"})
 
     -- Distance field canvas, R for distance (at GI resolution)
     df_canvas = love.graphics.newCanvas(gi_w, gi_h) -- r16f
@@ -78,55 +78,57 @@ function shader.load()
 
     -- Optimized GI shader - same as original but will run at lower resolution
     gi_shader = love.graphics.newShader([[
-        //#pragma language glsl3
-        uniform sampler2D surfaceTexture;
-        const float PI = 3.14159265359;
-        const int MAX_DISTANCE = 6;
-        const int MAX_SAMPLES = 40;
-
-        uniform int sampleCount;
-        uniform float baseRadiance;
+    //#pragma language glsl3
+    
+    #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
+        #define MY_HIGHP_OR_MEDIUMP highp
+    #else
+        #define MY_HIGHP_OR_MEDIUMP mediump
+    #endif
+    
+    uniform sampler2D surfaceTexture;
+    const MY_HIGHP_OR_MEDIUMP number PI = 3.14159265359;
+    
+    extern MY_HIGHP_OR_MEDIUMP number baseRadiance;
+    
+    MY_HIGHP_OR_MEDIUMP number rand(vec2 co) {
+      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+    
+    vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+        // Adaptive sampling based on distance from center
+        MY_HIGHP_OR_MEDIUMP number distFromCenter = distance(tc, vec2(0.5));
+        MY_HIGHP_OR_MEDIUMP number sampleMultiplier = 1.0;
+        sampleMultiplier = max(0.01, sampleMultiplier);
         
-        float rand(vec2 co) {
-          return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-        }
+        MY_HIGHP_OR_MEDIUMP number oneOverRays = 1.0 / 30.0;
+        MY_HIGHP_OR_MEDIUMP number tauOverRays = 2.0 * PI * oneOverRays;
+        vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
+        vec2 ratio = normalize(oneOverSize);
+        MY_HIGHP_OR_MEDIUMP number minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.1;
+        vec3 radiance = vec3(baseRadiance);
+        MY_HIGHP_OR_MEDIUMP number noise = rand(tc);
         
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Adaptive sampling based on distance from center
-            float distFromCenter = distance(tc, vec2(0.5));
-            float sampleMultiplier = smoothstep(2, 0.1, distFromCenter);
-            sampleMultiplier = max(0.01, sampleMultiplier);
-            int adaptiveSamples = int(max(1.0, sampleMultiplier * float(sampleCount)));
+        MY_HIGHP_OR_MEDIUMP number stepMultiplier = 1.0 + distFromCenter * 0.3;
+        
+        for(MY_HIGHP_OR_MEDIUMP number i = 0.0; i < 30.0; i += 1.0) {
+            MY_HIGHP_OR_MEDIUMP number angle = (0.5 + i + noise) * tauOverRays;
+            vec2 rayDirection = vec2(cos(angle), sin(angle));
+            vec2 sampleTC = tc;
             
-            float oneOverRays = 1.0 / float(adaptiveSamples);
-            float tauOverRays = 2.0 * PI * oneOverRays;
-            vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec2 ratio = normalize(oneOverSize);
-            float minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.1;
-            vec3 radiance = vec3(baseRadiance);
-            float noise = rand(tc);
-            
-            float stepMultiplier = 1.0 + distFromCenter * 0.3;
-            
-            for(int i = 0; i < MAX_SAMPLES; i ++) {
-                if(i >= adaptiveSamples) break;
-                
-                float angle = (0.5 + float(i) + noise) * tauOverRays;
-                vec2 rayDirection = vec2(cos(angle), sin(angle));
-                vec2 sampleTC = tc;
-                for (int step = 0; step < MAX_DISTANCE; step += 1) {
-                  float df = Texel(tex, sampleTC).r;
-                  sampleTC += rayDirection * df * ratio * stepMultiplier;
-                  
-                  if (df <= minStepSize) {
-                    radiance.rgb += pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2));
-                    break;
-                  }
-                }
+            for (MY_HIGHP_OR_MEDIUMP number step = 0.0; step < 8.0; step += 1.0) {
+              MY_HIGHP_OR_MEDIUMP number df = Texel(tex, sampleTC).r;
+              sampleTC += rayDirection * df * ratio * stepMultiplier;
+              
+              if (df <= minStepSize) {
+                radiance.rgb += pow(Texel(surfaceTexture, sampleTC).rgb, vec3(2.2));
+                break;
+              }
             }
-            return vec4(pow(radiance * oneOverRays, vec3(1.0 / 2.2)), 1.0);
         }
-    ]])
+        return vec4(pow(radiance * oneOverRays, vec3(1.0 / 2.2)), 1.0);
+    }
+]])
 
     -- Upscale shader for final composite
     upscale_shader = love.graphics.newShader([[
@@ -166,11 +168,11 @@ function shader.pass()
     love.graphics.draw(scene_canvas, 0, 0, 0, shader.gi_scale, shader.gi_scale)
     
     gi_shader:send("surfaceTexture", scene_canvas)
-    gi_shader:send("sampleCount", shader.sample)
+    -- gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("baseRadiance", shader.radiance)
     
     -- JFA passes at GI resolution
-    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))
+    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))  + 10
     
     for i = 1, passes do
         jfa_shader:send("stepSize", math.pow(2, passes - i))

@@ -12,17 +12,72 @@ local rocket_animation
 local death_animation
 
 function explosion.load()
+    -- Initialize like portal.lua
+    explosion.SHADERS = {}
+    explosion.current_time = 0
+    
     -- Load explosion spritesheet
     explosion_image = love.graphics.newImage("gfx/explosions/spritesheet/round_explosion/spritesheet/spritesheet.png")
+    
     -- Create animations for different explosion types
-    -- Assuming the spritesheet has frames of 128x128 pixels based on typical explosion sprite sizes
-    -- Rocket explosion: shorter, more intense (16 frames at 15 FPS = ~1.067s)
     rocket_animation = createAnimation(explosion_image, 100, 100, 0.5, 60)
-    -- Death explosion: slightly different animation if needed (16 frames for now)
     death_animation = createAnimation(explosion_image, 128, 128, 1.067, 16)
     
-    -- Load shockwave shader
-    shockwave_shader = love.graphics.newShader("shaders/shockwave.frag")
+    -- Create shockwave distortion shader like water.lua
+    explosion.SHADERS["shockwave"] = love.graphics.newShader([[
+        
+        #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
+        #define MY_HIGHP_OR_MEDIUMP highp
+        #else
+        #define MY_HIGHP_OR_MEDIUMP mediump
+        #endif
+
+        extern MY_HIGHP_OR_MEDIUMP number time;
+        extern MY_HIGHP_OR_MEDIUMP vec2 explosionCenter;
+        extern MY_HIGHP_OR_MEDIUMP number explosionRadius;
+        extern MY_HIGHP_OR_MEDIUMP number maxRadius;
+        extern MY_HIGHP_OR_MEDIUMP number distortionStrength;
+        
+        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+            // Calculate distance from explosion center
+            MY_HIGHP_OR_MEDIUMP number dist = distance(sc, explosionCenter);
+            
+            // Check if we're in the shockwave area
+            MY_HIGHP_OR_MEDIUMP number waveFront = explosionRadius;
+            MY_HIGHP_OR_MEDIUMP number waveThickness = maxRadius * 0.15;
+            
+            if (dist < waveFront + waveThickness && dist > waveFront - waveThickness) {
+                // Calculate distortion based on distance from wave front
+                MY_HIGHP_OR_MEDIUMP number distFromWave = abs(dist - waveFront);
+                MY_HIGHP_OR_MEDIUMP number distortionFactor = 1.0 - (distFromWave / waveThickness);
+                distortionFactor = distortionFactor * distortionFactor; // Square for sharper falloff
+                
+                // Calculate direction from explosion center
+                MY_HIGHP_OR_MEDIUMP vec2 direction = normalize(sc - explosionCenter);
+                
+                // Add some ripple effects
+                MY_HIGHP_OR_MEDIUMP number ripple = sin(dist * 0.1 + time * 5.0) * 0.3;
+                
+                // Apply radial distortion to texture coordinates
+                MY_HIGHP_OR_MEDIUMP vec2 distortedTC = tc + direction * distortionFactor * distortionStrength * (1.0 + ripple);
+                
+                // Sample with distorted coordinates
+                return Texel(tex, distortedTC) * color;
+            } else {
+                // Outside shockwave area, return normal texture
+                return Texel(tex, tc) * color;
+            }
+        }
+    ]])
+    
+    -- Explosion parameters
+    explosion.params = {
+        time = 0,
+        explosionCenter = {400, 300},
+        explosionRadius = 0,
+        maxRadius = 150,
+        distortionStrength = 0.02
+    }
 end
 
 -- Create a new explosion at the specified position with the given type
@@ -44,21 +99,25 @@ function explosion.create(x, y, explosion_type)
         currentTime = 0,
         completed = false,
         shockwaveRadius = 0,
-        shockwaveMaxRadius = 200, -- Max radius for shockwave effect
-        shockwaveDuration = 1.5   -- Duration for shockwave to fully expand
+        shockwaveMaxRadius = explosion_type == explosion.TYPES.DEATH and 200 or 150,
+        shockwaveDuration = 4
     }
     table.insert(explosion.explosions, inst)
     return inst
 end
 
 function explosion.update(dt)
+    explosion.current_time = explosion.current_time + dt
+    
     for i = #explosion.explosions, 1, -1 do
         local e = explosion.explosions[i]
         e.currentTime = e.currentTime + dt
+        
         -- Update shockwave radius
         if e.currentTime <= e.shockwaveDuration then
             e.shockwaveRadius = (e.currentTime / e.shockwaveDuration) * e.shockwaveMaxRadius
         end
+        
         if e.currentTime >= e.animation.duration and e.currentTime >= e.shockwaveDuration then
             e.completed = true
             table.remove(explosion.explosions, i)
@@ -78,9 +137,9 @@ function explosion.populate()
                     quad = e.animation.quads[frameNum],
                     x = e.x,
                     y = e.y,
-                    scale_x = 1.5, -- Scale for visibility
+                    scale_x = 1.5,
                     scale_y = 1.5,
-                    offset_x = 50, -- Center for 100x100 frame
+                    offset_x = 50,
                     offset_y = 50,
                     color = {1, 1, 1, 1},
                     blend_mode = {"alpha"}
@@ -90,19 +149,43 @@ function explosion.populate()
     end
 end
 
--- Helper function to create animation (copied from main.lua for completeness)
+-- Apply shockwave distortion pass (call this after scene is rendered to canvas, like water.pass())
+function explosion.pass()
+    local shader = explosion.SHADERS["shockwave"]
+    if shader then
+        -- Find active explosions and apply their distortion
+        for _, e in ipairs(explosion.explosions) do
+            if not e.completed and e.currentTime <= e.shockwaveDuration then
+                -- Convert world space explosion position to screen space by applying camera offset
+                local screen_explosion_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
+                
+                -- Set shader parameters for this explosion (using screen coordinates)
+                shader:send("time", explosion.current_time)
+                shader:send("explosionCenter", {screen_explosion_pos.x, screen_explosion_pos.y})
+                shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
+                shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
+                shader:send("distortionStrength", 0.02)
+                
+                -- Apply the distortion effect
+                love.graphics.setShader(shader)
+                love.graphics.draw(scene_canvas)
+                love.graphics.setShader()
+                
+                -- Only apply one explosion at a time to avoid conflicts
+                break
+            end
+        end
+    end
+end
+
+-- Helper function to create animation
 function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
     animation.spriteSheet = image
     animation.quads = {}
 
-    -- Calculate the total possible frames in the sprite sheet
     local totalPossibleFrames = math.floor(image:getWidth() / width) * math.floor(image:getHeight() / height)
-
-    -- If numFrames is not provided, use all possible frames
     local framesToUse = numFrames or totalPossibleFrames
-
-    -- Make sure we don't try to use more frames than are available
     framesToUse = math.min(framesToUse, totalPossibleFrames)
 
     local frameCount = 0
@@ -113,12 +196,12 @@ function createAnimation(image, width, height, duration, numFrames)
 
             frameCount = frameCount + 1
             if frameCount >= framesToUse then
-                break -- Stop adding frames once we've reached the desired number
+                break
             end
         end
 
         if frameCount >= framesToUse then
-            break -- Also break from the outer loop
+            break
         end
     end
 

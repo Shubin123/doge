@@ -359,35 +359,35 @@ function map.createAdvancedMap(config)
     return advancedMap
 end
 
-function map.collision(fixture_a, fixture_b, contact)
-    local not_map
-    if (fixture_a:getGroupIndex() == 4) then
-        not_map = fixture_b
-    elseif fixture_b:getGroupIndex() == 4 then
-        not_map = fixture_a
-    end
-    if not_map then
-        -- print("friction", contact:getFriction())
-        -- print("normal", contact:getNormal())
-        local nx, ny = contact:getNormal()
-        -- print(norm)
-        local hit   = vec2.new(nx, ny)
-        hit         = 200 * hit
-        -- print(hit)
-        not_map:getBody():applyLinearImpulse(hit.x, hit.y)
+-- function map.collision(fixture_a, fixture_b, contact)
+--     local not_map
+--     if (fixture_a:getGroupIndex() == 4) then
+--         not_map = fixture_b
+--     elseif fixture_b:getGroupIndex() == 4 then
+--         not_map = fixture_a
+--     end
+--     if not_map then
+--         -- print("friction", contact:getFriction())
+--         -- print("normal", contact:getNormal())
+--         local nx, ny = contact:getNormal()
+--         -- print(norm)
+--         local hit   = vec2.new(nx, ny)
+--         hit         = 200 * hit
+--         -- print(hit)
+--         not_map:getBody():applyLinearImpulse(hit.x, hit.y)
 
-        if not_map:getGroupIndex() == -1 then
-            var.indoors = not var.indoors
-        end
+--         if not_map:getGroupIndex() == -1 then
+--             var.indoors = not var.indoors
+--         end
 
 
-        -- if hit == vec2.new(0,0) then
-        --     not_map:getBody():applyLinearImpulse(math.random(-200,200),math.random(-200,200))
-        -- end
-    end
+--         -- if hit == vec2.new(0,0) then
+--         --     not_map:getBody():applyLinearImpulse(math.random(-200,200),math.random(-200,200))
+--         -- end
+--     end
 
-    --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
-end
+--     --  or (fixture_a:getGroupIndex() == -1 and fixture_b:getGroupIndex() == 4)
+-- end
 
 -- Enhanced object system with components
 function map.createDynamicObject(config)
@@ -636,6 +636,7 @@ function map.createHouse(x, y)
         height = 128,   -- Total house height
         wall_thickness = 6, -- Wall thickness
         door_gap = 30,  -- Width of door opening
+        trigger_size = 100, -- Size of the trigger area for AABB check
 
         init = function(self, owner)
             local half_width = self.width / 2
@@ -677,13 +678,34 @@ function map.createHouse(x, y)
             local front_right_fixture = love.physics.newFixture(owner.body, front_right_shape)
             front_right_fixture:setUserData({ type = "house", id = owner.id, side = "front_right", object = owner })
             table.insert(owner.fixtures, front_right_fixture)
+            
+            -- Set collision group for wall fixtures
             for _, _fixture in pairs(owner.fixtures) do
                 _fixture:setGroupIndex(4)
             end
-            -- print(_G)
-            -- for key, value in pairs(_G) do
-            --     print(key,value)
-            -- end
+        end,
+    })
+    
+    house:addComponent("proximityCheck", {
+        trigger_size = 128, -- Size of the AABB area for indoors check
+        
+        init = function(self, owner)
+            self.half_size = self.trigger_size / 2
+        end,
+        
+        update = function(self, owner, dt)
+            if player and player.body then
+                local px, py = player.body:getPosition()
+                local hx, hy = owner.body:getPosition()
+                
+                -- AABB check for player position within house trigger area
+                if px > hx - self.half_size and px < hx + self.half_size and
+                   py > hy - self.half_size and py < hy + self.half_size then
+                    var.indoors = true
+                else
+                    var.indoors = false
+                end
+            end
         end,
     })
 
@@ -744,6 +766,15 @@ function map.findTreeByFixture(fixture)
         end
     end
     return nil
+end
+
+-- Update all house instances to check for player proximity
+function map.updateHouses(dt)
+    for _, house in ipairs(map.houseInstances) do
+        if house.active then
+            house:update(dt)
+        end
+    end
 end
 
 function map.load()

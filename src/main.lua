@@ -1,4 +1,3 @@
-
 -- math.randomseed(os.time())
 
 menu = require("ui.menu")
@@ -24,7 +23,7 @@ portal = require("game.portal")
 crt = require("systems.crt")
 renderer = require("lib.graphics.renderer")
 snapshot = require("network.snapshot")
-blur = require ("systems.blur")
+blur = require("systems.blur")
 serial = require("util.serial")
 editor = require("ui.editor")
 multiplayer = require("network.multiplayer")
@@ -41,14 +40,14 @@ explosion = require("systems.explosion")
 
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
-cmdn = require("ui.cmndX") -- improved console - always active
+cmdn = require("ui.cmndX")      -- improved console - always active
 -- hotreloader / helpers
 local lurker = require("util.lurker")
 json = require("util.json")
 
 -- Game variables
 world = 0
-t = 0  -- Timer for network updates
+t = 0 -- Timer for network updates
 local fence_body, fence_shape, fence_fixture
 coin_bods = {}
 enemies_bods = {}
@@ -60,8 +59,8 @@ enemy_image = 0
 -- Game area dimensions, updated on load and resize
 W = love.graphics.getWidth()
 H = love.graphics.getHeight()
- game_area_x = (W - var.game_width) / 2
- game_area_y = var.header_height
+game_area_x = (W - var.game_width) / 2
+game_area_y = var.header_height
 
 
 -- lighting variables
@@ -105,26 +104,26 @@ function love.load()
     fence_fixture = love.physics.newFixture(fence_body, fence_shape)
     fence_fixture:setGroupIndex(4)
 
-    map.createArches(300,200)
-    map.createTree(400,100)
-    map.createHouse(500,300)
+    map.createArches(300, 200)
+    map.createTree(400, 100)
+    map.createHouse(500, 300)
     -- map.createTreeWithWind(500,100)
     -- if player.body:getX() > 200 or player.body:getX() < 170  or  player.body:getY()  > 190  or player.body:nthY()  < 140 then
 
     -- Load map and player
     map.load()
-    map_a = map.addMapToDynamicDrawList(map.arches, 0,0,1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
-    map_b = map.addMapToDynamicDrawList(map.tree, 0,0, 0.8, 240)
-    map.houseInstances[1].color = {1,1,1,0.2}
+    map_a = map.addMapToDynamicDrawList(map.arches, 0, 0, 1, 200) -- since the editor can modify this live this needs to be called again when redrawn at different position
+    map_b = map.addMapToDynamicDrawList(map.tree, 0, 0, 0.8, 240)
+    map.houseInstances[1].color = { 1, 1, 1, 0.2 }
     -- print(map.houseInstances)
     -- for index, value in pairs(map.houseInstances) do
     --     print(index,value)
     -- end
-    map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
-    
-                    -- for key, value in pairs(map.house.color) do
-                    --     print(key,value)
-                    -- end
+    map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
+
+    -- for key, value in pairs(map.house.color) do
+    --     print(key,value)
+    -- end
 
     multiplayer.load()
     player.load(world)
@@ -137,32 +136,32 @@ function love.load()
 
     command.load()
     cmdn.load()
-    -- Coins and enemies 
-    
+    -- Coins and enemies
+
     -- physics
 
     -- print(shape_sizes)
     if not var.multiplayer or var.multiplayer == 1 then
-    coin_shape = love.physics.newCircleShape(5)
-    createCoins(var.num_coins)
+        coin_shape = love.physics.newCircleShape(5)
+        createCoins(var.num_coins)
 
-    enemy_shape = love.physics.newCircleShape(10)
-    createEnemies(var.num_enemies)
+        enemy_shape = love.physics.newCircleShape(10)
+        createEnemies(var.num_enemies)
     end
 
     -- Graphics
     if var.num_coins > 0 then
-    coin_image = love.graphics.newImage("gfx/coin.png")
-    coin_x, coin_y = coin_image:getDimensions()
-    coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
-    coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
+        coin_image = love.graphics.newImage("gfx/coin.png")
+        coin_x, coin_y = coin_image:getDimensions()
+        coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
+        coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
     end
 
     enemy_image = love.graphics.newImage("gfx/enemy.png")
     enemy_width, enemy_height = enemy_image:getDimensions()
 
 
-    editor.load(world,map)
+    editor.load(world, map)
 
 
     -- Shaders
@@ -187,7 +186,6 @@ function love.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
-
 end
 
 -- Removed duplicate definition of game area dimensions, now defined at top level
@@ -197,21 +195,21 @@ function love.draw()
     if var.State == "menu" then
         menu.draw()
         -- blur.enable()
-    --     return
+        --     return
     end
-    
 
-   
-    
+
+
+
     if var.graphics_high then
-    shader.prepass()
+        shader.prepass()
     end
 
-    -- if moonshine then 
-        
+    -- if moonshine then
+
     --  light.draw()
-    -- end 
-    
+    -- end
+
 
     love.graphics.push() --push all camera transforms (move everything when player moves)
 
@@ -223,14 +221,14 @@ function love.draw()
     -- if blood and blood.drawBackground then
     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
     -- else
-        
+
     -- end
-    map.map:draw(-10000,100,1)
+    map.map:draw(-10000, 100, 1)
 
     love.graphics.setColor(1, 1, 1, 1)
 
 
-    -- Populate and sort dynamic draw list if neccessary    
+    -- Populate and sort dynamic draw list if neccessary
     grass.public.draw()
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
@@ -241,89 +239,102 @@ function love.draw()
     else
         renderer.populateDynamicDrawList()
     end
-    
 
-    
+
+
     bullet.populate()
     explosion.populate()
-    rocket.populate()  
+    rocket.populate()
     blood.populate()
-    
+
     car.populate()
 
     if var.graphics_high then
-    light.populate()
+        light.populate()
     end
-    
+
     gun.drawWorld()
 
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
-    
-    
+
+
 
     renderer.renderSortedDrawList()
-    
-    
-    
+
+
+
 
 
 
     love.graphics.pop() -- pop back into base world space
     -- order is IMPORTANT HERE shader-> smoke -> water
-    
-    
-     
+
+    -- explosion.draw()
+
 
 
     if var.graphics_high then
         light.draw()
-    shader.pass()
-    -- smoke.pass()
-    water.pass()
-    crtShader.endCapture()
-    -- blur.pass()
-    
+
+
+        shader.pass()
+        explosion.pass()
+        -- smoke.pass()
+        water.pass()
+        crtShader.endCapture()
+
+        -- blur.pass()
     end
 
     mydraw.mydraw() -- ui last
-    command.draw() -- Draw console on top
-    cmdn.draw() -- Draw improved console on top
+    command.draw()  -- Draw console on top
+    cmdn.draw()     -- Draw improved console on top
     -- editor.debugDraw()
 end
 
 local t = 0
+local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
-    map.houseInstances[1].color = {1,1,1,var.indoors and 0 or 1}
-    map_c = map.addMapToDynamicDrawList(map.house, 0,0, 0.8, 100)
+    map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
+    map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
-    love.audio.update()
+
 
 
     if var.multiplayer then
-            mp:update()
-            multiplayer.sendMovementMessage()
+        mp:update()
+        multiplayer.sendMovementMessage()
     end
-    
+
     editor.update(dt)
 
     if var.State == "menu" then
         menu.update(dt)
         -- if not var.multiplayer then
-            
-            return 
+        if not paused then
+         paused = love.audio.pause() -- change this to stop other audio play menu
+        end
+        
+        return
+    else
+        if paused then
+            for _,v in pairs(paused) do
                 
-            -- end -- 
-
-        -- return
-    elseif State == "running" then
-        var.State = "game"
+                love.audio.play(v)
+                paused = nil
+            end
+        end
+        -- love.audio.setVolume(1)
     end
+    
+    
     world:update(dt)
+        love.audio.update()
     -- t = t + dt
     -- if t > 0.05 then  -- 20 updates per second for smoother multiplayer
 
-        -- t = 0
+    -- t = 0
     -- end
 
     player.update(dt)
@@ -344,19 +355,19 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     explosion.update(dt)
     command.update(dt)
     cmdn.update(dt)
-    
+    map.updateHouses(dt)
 
-    if var.multiplayer == 1 or not var.multiplayer  then
+
+    if var.multiplayer == 1 or not var.multiplayer then
         enemy.update(dt)
         boss.update(dt)
     end
 
     gun.update(dt)
-    bullet.update(dt)
-    rocket.update(dt)
+    -- bullet.update(dt)
+    -- rocket.update(dt)
 
     -- wind.update(dt)
-
 end
 
 function love.resize(w, h)
@@ -371,15 +382,17 @@ function love.resize(w, h)
     var.game_height = h - var.header_height
     game_area_x = (W - var.game_width) / 2
     game_area_y = var.header_height
+    shader.load()
+    light.load()
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
     -- Handle console mouse events first
     cmdn.mousepressed(x, y, button)
-    
+
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
-        print(nextStateAction)
+        
         if nextStateAction == "running" then
             var.State = "running"
             -- player.health = 100
@@ -388,7 +401,7 @@ function love.mousepressed(x, y, button, istouch, presses)
         elseif nextStateAction == "exit" then
             love.event.quit()
         end
-        return  -- Don't process game input when in menu
+        return -- Don't process game input when in menu
     end
 
     if command.mousepressed(x, y, button) then
@@ -396,31 +409,31 @@ function love.mousepressed(x, y, button, istouch, presses)
     end
     -- Delegate to gun system for shooting (only when not in menu)
     gun.mousepressed(x, y, button)
-    
+
     local center_x = love.graphics.getWidth() / 2 -- or player's screen position
     local center_y = love.graphics.getHeight() / 2
 
     local direction = vec2.new(x - center_x, y - center_y)
     local normalized_direction = vec2.norm(direction)
-    
+
     -- Check if we have fireballs available in the ring
     if fire.getAvailableCount() > 0 then
         -- Get the position of the last fireball in the ring
         local fireball_pos = fire_instances[#fire_instances].pos
-        
+
         -- Create a projectile fireball
-        table.insert(fire.fireables, { 
-            vec2.new(fireball_pos.x, fireball_pos.y), 
-            normalized_direction, 
-            false 
+        table.insert(fire.fireables, {
+            vec2.new(fireball_pos.x, fireball_pos.y),
+            normalized_direction,
+            false
         })
-        
+
         -- Remove the fireball from the ring
         fire.removeFireball()
     end
 
     editor.mousepressed(x, y, button)
-    
+
     lurker.scan()
 end
 
@@ -448,21 +461,21 @@ function love.keypressed(key)
 
         zoomToggle = not zoomToggle
     end
-    
+
     -- if key == "p" then
     --     -- fire.pierce = not fire.pierce
     --     -- enemy.addEnemy(var.game_width / 2, var.game_height / 2)
     --     -- var.num_enemies  = var.num_enemies  + 1
-        
+
     --     debug.debug()
     -- end
 
     if key == "escape" then
-        var.State = (var.State == "menu") and "running" or "menu" 
+        var.State = (var.State == "menu") and "running" or "menu"
         -- print(var.State)
         menu.blur = not menu.blur
         blur.blur_enabled = not blur.blur_enabled
-        
+
         -- blur.set_radius(0.00001)
     end
 
@@ -475,7 +488,7 @@ end
 function love.mousereleased(x, y, button, istouch, presses)
     -- Handle console mouse events first
     cmdn.mousereleased(x, y, button)
-    
+
     if var.State ~= "menu" then
         gun.mousereleased(x, y, button)
     end
@@ -487,8 +500,8 @@ function love.mousemoved(x, y, dx, dy, istouch)
 end
 
 function love.keyreleased(key)
- command.keyreleased(key)
- cmdn.keyreleased(key)
+    command.keyreleased(key)
+    cmdn.keyreleased(key)
 end
 
 function love.wheelmoved(x, y)
@@ -541,15 +554,14 @@ function createEnemies(n)
         table.insert(enemies_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, enemy_shape)
         _fixture:setGroupIndex(-777)
-        
+
         -- Set enemy mass and physics properties for proper knockback
-        _fixture:setDensity(2.0)  -- Give enemies substantial mass
-        _bod:resetMassData()  -- Apply the density changes
+        _fixture:setDensity(2.0)    -- Give enemies substantial mass
+        _bod:resetMassData()        -- Apply the density changes
         _bod:setLinearDamping(3.0)  -- Add damping so they don't slide forever
-        _bod:setAngularDamping(5.0)  -- Prevent excessive spinning
+        _bod:setAngularDamping(5.0) -- Prevent excessive spinning
     end
 end
-
 
 function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
@@ -590,8 +602,6 @@ end
 
 function beginContact(fixture_a, fixture_b, contact)
     collision.handle(fixture_a, fixture_b, contact)
-
-
 end
 
 function checkDestroy(t, v)

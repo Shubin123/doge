@@ -9,6 +9,7 @@ collision.groups = {
     coin = 69,
     map = 4,
     rocket = -3,
+    -- houseTrigger = -4, -- cant check leaving the collider =(
     -- Add other groups as needed
 }
 
@@ -40,6 +41,8 @@ function collision.getType(fixture)
         return "map"
     elseif groupIndex == collision.groups.rocket then
         return "rocket"
+    -- elseif groupIndex == collision.groups.houseTrigger then
+    --     return "houseTrigger"
     end
     
     local userData = fixture:getUserData()
@@ -295,14 +298,18 @@ function collision.init()
         end
     end)
     
-    -- Map vs Player: Apply impulse and toggle indoors state
+    -- Map vs Player: Apply impulse only
     collision.registerResponse("map", "player", function(fixtureA, fixtureB, contact)
         local playerBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local hit = {x = nx * 200, y = ny * 200}
         playerBody:applyLinearImpulse(hit.x, hit.y)
-        var.indoors = not var.indoors
     end)
+    
+    -- -- House Trigger vs Player: Toggle indoors state without collision
+    -- collision.registerResponse("houseTrigger", "player", function(fixtureA, fixtureB, contact)
+    --     var.indoors = not var.indoors
+    -- end)
     
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)
     collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)

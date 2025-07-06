@@ -7,7 +7,7 @@ function car.load(world)
     -- Clear existing cars to prevent duplicates on reload
     car.cars = {}
     -- Create a block instance for car using the superclass
-    car.blockInstance = block.new("gfx/vehicles/car.png", 128, 128, 2, 450, car.scale, world, var.game_width / 2 + 100, var.game_height / 2 + 100)
+    car.blockInstance = block.new("gfx/vehicles/car.png", 128, 128, 2, 450, car.scale, world, var.game_width / 2 + 200, var.game_height / 2 + 100)
     
     -- Create an initial car instance for all players
     table.insert(car.cars, car.blockInstance)
