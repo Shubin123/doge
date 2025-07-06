@@ -1,4 +1,5 @@
 local audio = {}
+local music = require("systems.music")
 
 -- will hold the currently playing sources
 local sources = {}
@@ -76,8 +77,8 @@ function audio.playSound(soundType, offset, volume)
         if sound then
             local src = sound:clone() --no clone will be played sequentially slow idk
             sources[src] = src
-            -- Apply pitch and volume variations
-            local pitchVariation = 0.9 + math.random() * 1.2  -- Random pitch between 90% and 110%
+            -- Apply pitch variations based on patterns defined in music.lua
+            local pitchVariation = music.getNextPitch(soundType)
             src:setPitch(pitchVariation)
             
             -- Estimate duration (LÖVE doesn't provide direct duration access for static sources)

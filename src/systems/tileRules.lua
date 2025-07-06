@@ -18,6 +18,22 @@ TileRules.patterns = {
     -- [0] = 
 }
 
+-- TileRules.patterns = {
+--     -- 1x2 patterns
+--     [1] = {1,2,3,0,9,10,11,0,17,18,19},           -- horizontal 1x2
+--     [2] = {145,167,147},   
+--     -- [2] = {154},
+     
+--     -- [4] = {170},   
+      
+--     -- [3] = {48},   
+--     -- [2] = {121,122,123}
+    
+--     -- [0] = 
+-- }
+
+
+
 -- Parse pattern into 2D structure
 function TileRules.parsePattern(pattern)
     local rows = {{}}

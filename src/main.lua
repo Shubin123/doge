@@ -216,7 +216,7 @@ function love.draw()
 
     camera.apply()
 
-    love.graphics.setColor(1, 1, 1, 0.45)
+    love.graphics.setColor(1, 1, 1, 0.35)
     -- Draw map with blood effects
     -- if blood and blood.drawBackground then
     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
