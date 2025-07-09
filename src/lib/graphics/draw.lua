@@ -1,10 +1,10 @@
 draw = {}
-
+oldhand = love.graphics.newImage("gfx/menu/old_hand.png")
 function draw.mydraw()
     
     if var.State == "menu" then
         menu.draw()
-        love.graphics.draw(love.graphics.newImage("gfx/menu/old_hand.png"), love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
+        love.graphics.draw(oldhand, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
         return
     end
     

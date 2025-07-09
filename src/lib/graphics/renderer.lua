@@ -629,10 +629,15 @@ function renderer.populateDynamicDrawList()
     addEnemiesFromBodies()
     addCoinsFromBodies()
 
+
     fire.populate()
     enemy.populate()
     boss.populate()
     -- light.populate()
+    -- characterAnimator.populate()
+    characterAnimator.populate(200,200,1,0)
+    
+
     command.populate()
 end
 
@@ -643,56 +648,6 @@ function renderer.populateDynamicDrawListNETHOST()
     boss.populate()
 end
 
--- function renderer.renderSortedDrawList()
---     -- Store current graphics state
---     local current_state = {
---         color = { love.graphics.getColor() },
---         blend_mode = love.graphics.getBlendMode(),
---         shader = love.graphics.getShader(),
---         line_width = love.graphics.getLineWidth()
---     }
-
---     local last_state = {
---         color = { 1, 1, 1, 1 },
---         blend_mode = { "alpha" },
---         line_width = 1
---     }
-
---     for _, drawable in ipairs(dynamic_draw_list) do
---         -- Optimize state changes
---         if drawable.color and not areColorsEqual(drawable.color, last_state.color) then
---             love.graphics.setColor(unpack(drawable.color))
---             last_state.color = drawable.color
---         end
-
---         if drawable.blend_mode and not areBlendModesEqual(drawable.blend_mode, last_state.blend_mode) then
---             love.graphics.setBlendMode(unpack(drawable.blend_mode))
---             last_state.blend_mode = drawable.blend_mode
---         end
-
---         if drawable.line_width and drawable.line_width ~= last_state.line_width then
---             love.graphics.setLineWidth(drawable.line_width)
---             last_state.line_width = drawable.line_width
---         end
-
---         -- Render based on type
---         if drawable.draw_type then
---             renderDrawType(drawable)
---         -- elseif drawable.light_shader then
---         --     renderLightEffect(drawable)
---         elseif drawable.shader then
---             renderShader(drawable)
---         elseif drawable.image_or_particles then
---             renderImage(drawable)
---         end
---     end
-
---     -- Restore state
---     love.graphics.setColor(unpack(current_state.color))
---     love.graphics.setBlendMode(current_state.blend_mode)
---     love.graphics.setShader(current_state.shader)
---     love.graphics.setLineWidth(current_state.line_width)
--- end
 
 -- Rendering helper functions (must be declared before renderSortedDrawList)
 local function renderRocketExhaust(d)

@@ -247,10 +247,10 @@ function player.applyKnockback(direction, force)
 end
 
 function player.draw()
-    local px, py = player.body:getX(), player.body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
-    -- print( player.animation.duration)
-    love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
+    -- local px, py = player.body:getX(), player.body:getY()
+    -- local spriteNum = math.floor(player.animation.currentTime / player.animation.duration * #player.animation.quads) + 1
+    -- -- print( player.animation.duration)
+    -- love.graphics.draw(player.animation.spriteSheet, player.animation.quads[spriteNum],   px,  py, var.character_rotation, player.scale, player.scale, -150, 0)
 end
 
 function player.collision(fixture_a,fixture_b,contact)

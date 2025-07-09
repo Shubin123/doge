@@ -37,6 +37,8 @@ car = require("game.car")
 collision = require("util.collision")
 tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
+characterAnimator = require("game.characterAnimator")
+override = require("util.override")
 
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -124,6 +126,8 @@ function love.load()
     -- for key, value in pairs(map.house.color) do
     --     print(key,value)
     -- end
+    characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
+    -- characterAnimator.init({"gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png",},256,256,nil)
 
     multiplayer.load()
     player.load(world)
@@ -248,12 +252,15 @@ function love.draw()
     blood.populate()
 
     car.populate()
+    
+    
 
     if var.graphics_high then
         light.populate()
     end
 
     gun.drawWorld()
+    -- characterAnimator.populate(200,200,1,0)
 
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
@@ -263,7 +270,7 @@ function love.draw()
     renderer.renderSortedDrawList()
 
 
-
+    
 
 
 
@@ -299,8 +306,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
-
-
+    characterAnimator.update(dt)
+    -- characterAnimator.setDirection(math.floor(math.abs((math.sin(fire.t/10)*7)) + 1))
+    -- print(math.floor(math.abs((math.sin(fire.t)*7)) + 1))
 
     if var.multiplayer then
         mp:update()
