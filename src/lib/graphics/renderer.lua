@@ -635,7 +635,7 @@ function renderer.populateDynamicDrawList()
     boss.populate()
     -- light.populate()
     -- characterAnimator.populate()
-    characterAnimator.populate(200,200,1,0)
+    
     
 
     command.populate()

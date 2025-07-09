@@ -3,173 +3,126 @@
 
 local characterAnimator = {}
 
--- Configuration
-characterAnimator.directions = 8 -- Number of directional angles in the sprite sheet
-characterAnimator.frameRate = 25 -- Frames per second for animation playback
-characterAnimator.spriteSheetPath = "gfx/watchmanOfDoom/idle.png" -- Placeholder path, update with actual sprite sheet path
+-- Default configuration
+local DEFAULT_CONFIG = {
+    directions = 8,
+    frameRate = 25
+}
 
--- Internal state
-characterAnimator.spriteSheet = nil
-characterAnimator.frameWidth = 0
-characterAnimator.frameHeight = 0
-characterAnimator.framesPerDirection = 0
-characterAnimator.columns = 0
-characterAnimator.rows = 0
-characterAnimator.currentDirection = 1 -- 1 to 8, representing each direction
-characterAnimator.currentFrame = 1 -- Current frame in the animation sequence
-characterAnimator.timeAccumulator = 0 -- For frame timing
-
--- Initialize the animator with a sprite sheet
-function characterAnimator.init(spriteSheetPath, frameWidth, frameHeight, framesPerDirection)
-    if spriteSheetPath then
-        characterAnimator.spriteSheetPath = spriteSheetPath
+-- Create a new animator instance
+local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
+    local instance = {}
+    
+    -- Configuration
+    instance.config = {}
+    for k, v in pairs(DEFAULT_CONFIG) do
+        instance.config[k] = v
     end
     
-    -- Load sprite sheet (assuming a function or library to load images in your game engine)
-    characterAnimator.spriteSheet = love.graphics.newImage(characterAnimator.spriteSheetPath)
-    if not characterAnimator.spriteSheet then
-        print("Error: Could not load sprite sheet at " .. characterAnimator.spriteSheetPath)
-        return false
-    
-    end
-    
-    -- Set dimensions
-    characterAnimator.frameWidth = frameWidth or (characterAnimator.spriteSheet:getWidth() / characterAnimator.directions)
-    characterAnimator.frameHeight = frameHeight or characterAnimator.frameWidth
-    characterAnimator.framesPerDirection = framesPerDirection or (characterAnimator.spriteSheet:getHeight() / characterAnimator.frameHeight)
-    characterAnimator.columns = characterAnimator.directions
-    characterAnimator.rows = characterAnimator.framesPerDirection
-    
-    -- Reset animation state
-    characterAnimator.currentDirection = 1
-    characterAnimator.currentFrame = 1
-    characterAnimator.timeAccumulator = 0
-    
-    print("Character animator initialized with sprite sheet: " .. characterAnimator.spriteSheetPath)
-    return true
-end
-
--- Update the animation state based on delta time
-function characterAnimator.update(dt)
-    if not characterAnimator.spriteSheet then return end
-    
-    characterAnimator.timeAccumulator = characterAnimator.timeAccumulator + dt
-    local frameInterval = 1 / characterAnimator.frameRate
-    
-    if characterAnimator.timeAccumulator >= frameInterval then
-        characterAnimator.currentFrame = characterAnimator.currentFrame + 1
-        if characterAnimator.currentFrame > characterAnimator.framesPerDirection then
-            characterAnimator.currentFrame = 1 -- Loop back to the first frame of the direction
-        end
-        characterAnimator.timeAccumulator = 0
-    end
-end
-
--- Set the direction of the character (1 to 8)
-function characterAnimator.setDirection(direction)
-    if direction >= 1 and direction <= characterAnimator.directions then
-        characterAnimator.currentDirection = direction
+    -- Handle single sprite sheet or table of sprite sheets
+    local paths = {}
+    if type(spriteSheetPaths) == "string" then
+        paths = {spriteSheetPaths}
     else
-        print("Invalid direction: " .. tostring(direction) .. ". Direction must be between 1 and " .. characterAnimator.directions , direction)
+        paths = spriteSheetPaths
     end
-end
-
--- Draw the current frame of the animation at the specified position
-function characterAnimator.populate(x, y, scale, rotation)
-    if not characterAnimator.spriteSheet then return end
     
-    scale = scale or 1
-    rotation = rotation or 0
+    -- Load all sprite sheets
+    instance.states = {}
+    for i, path in ipairs(paths) do
+        local spriteSheet = love.graphics.newImage(path)
+        if spriteSheet then
+            local calcFrameWidth = frameWidth or (spriteSheet:getWidth() / instance.config.directions)
+            local calcFrameHeight = frameHeight or calcFrameWidth
+            local calcFramesPerDirection = spriteSheet:getHeight() / calcFrameHeight
+            
+            instance.states[i] = {
+                spriteSheet = spriteSheet,
+                frameWidth = calcFrameWidth,
+                frameHeight = calcFrameHeight,
+                framesPerDirection = calcFramesPerDirection
+            }
+        end
+    end
     
-    -- Calculate the source rectangle for the current frame
-    local srcX = (characterAnimator.currentDirection - 1) * characterAnimator.frameWidth
+    -- Set initial state
+    instance.currentState = 1
+    instance.currentDirection = 1
+    instance.currentFrame = 1
+    instance.timeAccumulator = 0
     
-    local srcY = (characterAnimator.framesPerDirection - characterAnimator.currentFrame) * characterAnimator.frameHeight -- Invert Y for correct orientation
+    function instance.update(dt)
+        local stateData = instance.states[instance.currentState]
+        if not stateData then return end
+        
+        instance.timeAccumulator = instance.timeAccumulator + dt
+        local frameInterval = 1 / instance.config.frameRate
+        
+        if instance.timeAccumulator >= frameInterval then
+            instance.currentFrame = instance.currentFrame + 1
+            if instance.currentFrame > stateData.framesPerDirection then
+                instance.currentFrame = 1
+            end
+            instance.timeAccumulator = 0
+        end
+    end
     
-    -- Create a quad for the current frame
-    local quad = love.graphics.newQuad(srcX, srcY, characterAnimator.frameWidth, characterAnimator.frameHeight, 
-                                       characterAnimator.spriteSheet:getWidth(), characterAnimator.spriteSheet:getHeight())
+    function instance.setDirection(direction)
+        if direction >= 1 and direction <= instance.config.directions then
+            instance.currentDirection = direction
+        end
+    end
     
-    -- -- Draw the current frame
-    -- love.graphics.draw(characterAnimator.spriteSheet, quad, x, y, rotation, scale, scale, 
-    --                    characterAnimator.frameWidth / 2, characterAnimator.frameHeight / 2)
-
-
-
-
-
-    --  if not characterAnimator.spriteSheet then return end
+    function instance.setState(stateNumber)
+        if instance.states[stateNumber] then
+            instance.currentState = stateNumber
+            instance.currentFrame = 1
+            instance.timeAccumulator = 0
+        end
+    end
     
-    -- scale = scale or 1
-    -- rotation = rotation or 0
-    -- layer = layer or 1 -- Default layer for sorting
-    
-    -- -- Calculate the source rectangle for the current frame
-    -- local srcX = (characterAnimator.currentDirection - 1) * characterAnimator.frameWidth
-    -- local srcY = (characterAnimator.framesPerDirection - characterAnimator.currentFrame) * characterAnimator.frameHeight -- Invert Y for correct orientation
-    
-    -- -- Create a quad for the current frame
-    -- local quad = love.graphics.newQuad(srcX, srcY, characterAnimator.frameWidth, characterAnimator.frameHeight, 
-    --                                    characterAnimator.spriteSheet:getWidth(), characterAnimator.spriteSheet:getHeight())
-    
-
-    -- for i = 1, #coin_bods do
-        -- local cx, cy = 0,0
+    function instance.populate(x, y, scale, rotation, layer)
+        local stateData = instance.states[instance.currentState]
+        if not stateData then return end
+        
+        x = x or 0
+        y = y or 0
+        scale = scale or 1
+        rotation = rotation or 0
+        layer = layer or 200
+        
+        local srcX = (instance.currentDirection - 1) * stateData.frameWidth
+        local srcY = (stateData.framesPerDirection - instance.currentFrame) * stateData.frameHeight
+        
+        local quad = love.graphics.newQuad(
+            srcX, srcY, 
+            stateData.frameWidth, stateData.frameHeight,
+            stateData.spriteSheet:getWidth(), stateData.spriteSheet:getHeight()
+        )
+        
         table.insert(dynamic_draw_list, {
-            sort_y = 200,
-            image_or_particles = characterAnimator.spriteSheet,
+            sort_y = layer,
+            image_or_particles = stateData.spriteSheet,
             quad = quad,
-            x = 0,
-            y = 0,
-            rotation = 0,
+            x = x,
+            y = y,
+            rotation = rotation,
             scale_x = scale,
             scale_y = scale,
             offset_x = 0,
-            offset_y = 20,
+            offset_y = 0,
             color = { 1, 1, 1, 1 },
             blend_mode = { "alpha" },
-            source_object_type = "coin"
+            source_object_type = "character_animator"
         })
-    -- end
-
+    end
+    
+    return instance
 end
 
-
-
--- Example usage for player, enemy, or NPC
-function characterAnimator.createCharacter(spriteSheetPath, frameWidth, frameHeight, framesPerDirection)
-    local char = {}
-    char.animator = {}
-    
-    -- Copy animator functions to character instance
-    for k, v in pairs(characterAnimator) do
-        if type(v) == "function" then
-            char.animator[k] = v
-        end
-    end
-    
-    -- Initialize with specific sprite sheet if provided
-    char.animator.init(spriteSheetPath or characterAnimator.spriteSheetPath, frameWidth, frameHeight, framesPerDirection)
-    
-    -- Additional character-specific properties can be added here
-    char.x = 0
-    char.y = 0
-    char.direction = 1
-    char.scale = 1
-    char.rotation = 0
-    
-    -- Update function for character
-    function char.update(dt)
-        char.animator.update(dt)
-        char.animator.setDirection(char.direction)
-    end
-    
-    -- Draw function for character
-    function char.draw()
-        char.animator.draw(char.x, char.y, char.scale, char.rotation)
-    end
-    
-    return char
+-- Main init function
+function characterAnimator.init(spriteSheetPaths, frameWidth, frameHeight)
+    return createInstance(spriteSheetPaths, frameWidth, frameHeight)
 end
 
 return characterAnimator

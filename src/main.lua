@@ -126,8 +126,10 @@ function love.load()
     -- for key, value in pairs(map.house.color) do
     --     print(key,value)
     -- end
-    characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
-    -- characterAnimator.init({"gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png",},256,256,nil)
+    flying_enemy = characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
+    gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
+        
+
 
     multiplayer.load()
     player.load(world)
@@ -244,7 +246,7 @@ function love.draw()
         renderer.populateDynamicDrawList()
     end
 
-
+    
 
     bullet.populate()
     explosion.populate()
@@ -252,7 +254,8 @@ function love.draw()
     blood.populate()
 
     car.populate()
-    
+    gun_enemy.populate()
+    flying_enemy.populate()
     
 
     if var.graphics_high then
@@ -306,8 +309,12 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
-    characterAnimator.update(dt)
-    -- characterAnimator.setDirection(math.floor(math.abs((math.sin(fire.t/10)*7)) + 1))
+    flying_enemy.update(dt)
+    flying_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/30)*7)) + 1))
+
+    gun_enemy.update(dt)
+    gun_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/10)*7)) + 1))
+
     -- print(math.floor(math.abs((math.sin(fire.t)*7)) + 1))
 
     if var.multiplayer then
@@ -460,11 +467,17 @@ local zoomToggle = false;
 
 function love.keypressed(key)
     if key == "z" then
+        -- print('nig')
+        
+
         if not zoomToggle then
             camera.setZoom(2)
+            gun_enemy.setState(1)
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
+            gun_enemy.setState(2)
+
         end
 
         zoomToggle = not zoomToggle
