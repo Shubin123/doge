@@ -126,8 +126,12 @@ function love.load()
     -- for key, value in pairs(map.house.color) do
     --     print(key,value)
     -- end
+    princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png"},128,128,nil)
+    
     flying_enemy = characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
-    gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
+
+    -- gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
+    gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128,nil)
         
 
 
@@ -254,8 +258,9 @@ function love.draw()
     blood.populate()
 
     car.populate()
-    gun_enemy.populate()
+    gun_enemy.populate(10,10)
     flying_enemy.populate()
+    princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
     
 
     if var.graphics_high then
@@ -308,6 +313,25 @@ local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
+
+
+    
+    print(player.body:getLinearVelocity())
+    local vx, vy = player.body:getLinearVelocity()
+    if vx == 0 and vy == 0 then
+        princess.setState(3)
+    elseif math.abs(vx) >= 99 or math.abs(vy) >= 99 then
+        princess.setState(2)
+    else
+        princess.setState(1)
+    end
+
+    local angle = math.atan2(-vy, vx)
+
+    local direction = math.floor((angle + math.pi/2) / (math.pi/4) + 0.5) % 8 + 1
+
+    princess.setDirection(direction)
+    princess.update(dt)
 
     flying_enemy.update(dt)
     flying_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/30)*7)) + 1))
@@ -473,9 +497,11 @@ function love.keypressed(key)
         if not zoomToggle then
             camera.setZoom(2)
             gun_enemy.setState(1)
+            
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
+            
             gun_enemy.setState(2)
 
         end

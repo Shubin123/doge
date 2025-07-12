@@ -857,6 +857,7 @@ function renderer.renderSortedDrawList()
      
 
     for _, drawable in ipairs(dynamic_draw_list) do
+        
         -- Set color if different from last
         local color = drawable.color or {1, 1, 1, 1}  -- Default to white if no color specified
         if color[1] ~= last_color[1] or color[2] ~= last_color[2] or
@@ -994,6 +995,7 @@ function renderer.renderSortedDrawList()
                     drawable.offset_y or 0
                 )
             end
+            
             
             love.graphics.setShader()
             -- Handle regular image drawing

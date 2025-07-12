@@ -5,8 +5,8 @@ player.online.bodies = {}
 player.online.health = {}
 player.scale = 0.8
 
-    player.maxSpeed = 100
-    player.acceleration = 2000
+    player.maxSpeed = 200
+    player.acceleration = 1000
     player.friction = 0.85
 
 function newAnimation(image, width, height, duration, numFrames)
@@ -126,8 +126,12 @@ function player.update(dt)
         player.body:setLinearVelocity(dodgeVX, dodgeVY)
         
         -- Set dodge animation
-        player.currentAnimation = "dodge"
+        player.currentAnimation = princess.getState()
+        
+        princess.setState(4)
         return -- Skip normal movement during dodge
+    else
+        princess.setState(player.currentAnimation)
     end
     
     -- Normal movement (only when not dodging)

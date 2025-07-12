@@ -6,7 +6,7 @@ local characterAnimator = {}
 -- Default configuration
 local DEFAULT_CONFIG = {
     directions = 8,
-    frameRate = 25
+    frameRate = 20
 }
 
 -- Create a new animator instance
@@ -76,9 +76,12 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
     function instance.setState(stateNumber)
         if instance.states[stateNumber] then
             instance.currentState = stateNumber
-            instance.currentFrame = 1
-            instance.timeAccumulator = 0
+            -- instance.currentFrame = 1
+            -- instance.timeAccumulator = 0
         end
+    end
+    function instance.getState()
+        return instance.currentState
     end
     
     function instance.populate(x, y, scale, rotation, layer)

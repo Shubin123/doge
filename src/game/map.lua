@@ -793,15 +793,15 @@ function map.load()
 
     
 
-    -- local tilesetImage = love.graphics.newImage("gfx/TileSet/grounds.png")
-    -- map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
-    -- map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
+    local tilesetImage = love.graphics.newImage("gfx/TileSet/grounds.png")
+    map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
+    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
     
 
 
-    local tilesetImage =  love.graphics.newImage("gfx/TileSet/houseInterior.png")
-    map.tiles = newTiles(tilesetImage, 16, 16)
-    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
+    -- local tilesetImage =  love.graphics.newImage("gfx/TileSet/houseInterior.png")
+    -- map.tiles = newTiles(tilesetImage, 16, 16)
+    -- map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
 
 
 
