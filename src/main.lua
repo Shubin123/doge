@@ -127,6 +127,9 @@ function love.load()
     --     print(key,value)
     -- end
     princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png"},128,128,nil)
+    fighter = characterAnimator.init({"gfx/3d/fighter/walk.png"},256,256,nil)
+    
+
     
     flying_enemy = characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
 
@@ -261,6 +264,7 @@ function love.draw()
     gun_enemy.populate(10,10)
     flying_enemy.populate()
     princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
+    fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
     
 
     if var.graphics_high then
@@ -316,7 +320,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
 
     
-    print(player.body:getLinearVelocity())
+    -- print(player.body:getLinearVelocity())
     local vx, vy = player.body:getLinearVelocity()
     if vx == 0 and vy == 0 then
         princess.setState(3)
@@ -329,7 +333,10 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     local angle = math.atan2(-vy, vx)
 
     local direction = math.floor((angle + math.pi/2) / (math.pi/4) + 0.5) % 8 + 1
-
+    local direction16 = math.floor((angle - math.pi/2) / (math.pi/8) + 0.5) % 16 + 1
+    print(direction16)
+    fighter.setDirection(direction16)
+    fighter.update(dt)
     princess.setDirection(direction)
     princess.update(dt)
 
