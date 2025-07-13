@@ -104,7 +104,14 @@ function collision.init()
             local coinBody = fixtureB:getBody()
             for i = 1, #coin_bods do
                 if coin_bods[i] == coinBody then
-                    var.player_score = var.player_score + 1
+                    -- Get coin data to calculate score based on size
+                    local coinUserData = fixtureB:getUserData()
+                    local coinValue = 1
+                    if coinUserData and coinUserData.value then
+                        coinValue = coinUserData.value
+                    end
+                    
+                    var.player_score = var.player_score + coinValue
                     var.num_coins = var.num_coins - 1
                     table.remove(coin_bods, i)
                     coinBody:destroy()
@@ -116,6 +123,103 @@ function collision.init()
                 end
             end
         end
+    end)
+    
+    -- Coin vs Coin: Agar-like absorption mechanic
+    collision.registerResponse("coin", "coin", function(fixtureA, fixtureB, contact)
+        local bodyA = fixtureA:getBody()
+        local bodyB = fixtureB:getBody()
+        local userDataA = fixtureA:getUserData() or {}
+        local userDataB = fixtureB:getUserData() or {}
+        
+        -- Initialize coin data if not present
+        if not userDataA.value then userDataA.value = 1 end
+        if not userDataB.value then userDataB.value = 1 end
+        if not userDataA.size then userDataA.size = 0.5 end
+        if not userDataB.size then userDataB.size = 0.5 end
+        
+        -- Determine which coin absorbs which (larger absorbs smaller, or first one if equal)
+        local absorber, absorbed
+        local absorberFixture, absorbedFixture
+        local absorberData, absorbedData
+        
+        if userDataA.size > userDataB.size then
+            absorber = bodyA
+            absorbed = bodyB
+            absorberFixture = fixtureA
+            absorbedFixture = fixtureB
+            absorberData = userDataA
+            absorbedData = userDataB
+        elseif userDataB.size > userDataA.size then
+            absorber = bodyB
+            absorbed = bodyA
+            absorberFixture = fixtureB
+            absorbedFixture = fixtureA
+            absorberData = userDataB
+            absorbedData = userDataA
+        else
+            -- Equal size - first coin (A) absorbs second coin (B)
+            absorber = bodyA
+            absorbed = bodyB
+            absorberFixture = fixtureA
+            absorbedFixture = fixtureB
+            absorberData = userDataA
+            absorbedData = userDataB
+        end
+        
+        -- Calculate new properties for absorbing coin
+        local growthFactor = 0.1 -- How much the coin grows per absorption
+        local newSize = absorberData.size + (absorbedData.size * growthFactor)
+        local newValue = absorberData.value + absorbedData.value
+        
+        -- Update absorber coin properties
+        absorberData.size = newSize
+        absorberData.value = newValue
+        absorberFixture:setUserData(absorberData)
+        
+        -- Scale the absorber coin's visual size (if you have a scaling system)
+        -- local scaleFactor = 1.0002
+        -- if absorberData.originalRadius then
+        --     -- If you track original radius, scale the fixture
+        --     local newRadius = absorberData.originalRadius * scaleFactor
+        --     -- Note: You'd need to recreate the fixture with new radius in your coin system
+        --     -- This is a placeholder for that functionality
+        -- end
+        
+        -- Add visual/audio feedback
+        -- if audio then
+        --     local pitch = math.min(1 + (newSize * 0.1), 2) -- Higher pitch for bigger coins
+        --     audio.playSound("coin", 0.05, pitch)
+        -- end
+        
+        -- Create absorption effect (if you have particle systems)
+        local ax, ay = absorber:getPosition()
+        local bx, by = absorbed:getPosition()
+        -- if blood and blood.onEnemyDamage then
+        --     -- Repurpose blood effect for coin absorption visual
+        --     blood.onEnemyDamage(bx, by, 1, {x = (ax - bx) / 10, y = (ay - by) / 10})
+        -- end
+        
+        -- Remove absorbed coin
+        for i = 1, #coin_bods do
+            if coin_bods[i] == absorbed then
+                table.remove(coin_bods, i)
+                absorbed:destroy()
+                var.num_coins = var.num_coins - 1
+                break
+            end
+
+            -- if coin_bods[i] == absorber then
+
+                    -- local new_size = coin_bods[i]:getUserData().size + 0.1
+                    -- coin_bods[i]:setUserData(new_size).size
+
+            -- end
+        end
+        
+        -- Apply slight attraction force to absorber towards absorbed coin position
+        local direction = {x = (bx - ax) * 0.1, y = (by - ay) * 0.1}
+        absorber:applyLinearImpulse(direction.x, direction.y)
     end)
     
     -- Projectile vs Enemy: Damage enemy and destroy projectile (specific to bullets)

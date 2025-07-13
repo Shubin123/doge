@@ -68,9 +68,9 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
     end
     
     function instance.setDirection(direction)
-        if direction >= 1 and direction <= instance.config.directions then
+        -- if direction >= 1 and direction <= instance.config.directions then -- guardrails off since we are testing 8 vs 16 directions
             instance.currentDirection = direction
-        end
+        -- end
     end
     
     function instance.setState(stateNumber)

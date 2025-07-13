@@ -232,14 +232,15 @@ end
 local function addCoinsFromBodies()
     for i = 1, #coin_bods do
         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
+         local scale = coin_bods[i]:getFixtures()[1]:getUserData() ~= nil and coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
         table.insert(dynamic_draw_list, {
             sort_y = cy + (coin_image:getHeight() * 0.5) / 2 + 100,
             image_or_particles = coin_image,
             x = cx,
             y = cy,
             rotation = 0,
-            scale_x = 0.5,
-            scale_y = 0.5,
+            scale_x = scale,
+            scale_y = scale,
             offset_x = coin_image:getWidth() / 2,
             offset_y = coin_image:getHeight() / 2,
             color = { 1, 1, 1, 1 },

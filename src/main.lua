@@ -334,7 +334,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     local direction = math.floor((angle + math.pi/2) / (math.pi/4) + 0.5) % 8 + 1
     local direction16 = math.floor((angle - math.pi/2) / (math.pi/8) + 0.5) % 16 + 1
-    print(direction16)
+    -- print(direction16)
     fighter.setDirection(direction16)
     fighter.update(dt)
     princess.setDirection(direction)
@@ -375,11 +375,12 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     
     
-    world:update(dt)
-        love.audio.update()
+    
+    -- love.audio.update()
     -- t = t + dt
-    -- if t > 0.05 then  -- 20 updates per second for smoother multiplayer
-
+    -- if t > 0.5 then
+    -- print(dt)
+    world:update(dt)
     -- t = 0
     -- end
 
@@ -596,6 +597,7 @@ function createCoins(n)
             "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
+        
         _fixture:setGroupIndex(69)
     end
 end
