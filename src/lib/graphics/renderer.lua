@@ -856,9 +856,9 @@ function renderer.renderSortedDrawList()
     local last_blend_mode = { "alpha" }
 
      
-
+    
     for _, drawable in ipairs(dynamic_draw_list) do
-        
+        -- print(drawable.source_object_type == "fire")
         -- Set color if different from last
         local color = drawable.color or {1, 1, 1, 1}  -- Default to white if no color specified
         if color[1] ~= last_color[1] or color[2] ~= last_color[2] or
@@ -901,9 +901,21 @@ function renderer.renderSortedDrawList()
             love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
             end
             -- Reset shader
+            love.graphics.setShader(current_shader)
+
+        elseif drawable.source_object_type == "fire_effect" then -- naturally lit objects dont have shadow!
             love.graphics.setShader()
-
-
+            love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            love.graphics.setShader(current_shader)
 
 
         -- Handle bullet effects drawing
@@ -975,7 +987,7 @@ function renderer.renderSortedDrawList()
 
         elseif drawable.source_object_type == "tree_with_wind" and drawable.shader then
             
-            love.graphics.setShader(drawable.shader)
+            -- love.graphics.setShader(drawable.shader)
             
             -- Send world position to shader
             -- if drawable.shader_params and drawable.shader_params.world_position then
@@ -998,7 +1010,7 @@ function renderer.renderSortedDrawList()
             end
             
             
-            love.graphics.setShader()
+            -- love.graphics.setShader()
             -- Handle regular image drawing
         elseif drawable.image_or_particles then
             if drawable.quad then
@@ -1080,20 +1092,29 @@ function renderer.renderSortedDrawList()
             if drawable.width then
                 love.graphics.setLineWidth(1) -- Reset to default
             end
-    
-        end
+        
+        
+        
 
 
-
-         if drawable.draw_type == "light" then
+        elseif drawable.draw_type == "light" then
+            -- love.graphics.setShader()
             renderLights(drawable)
+            love.graphics.setShader(current_shader)
         -- elseif drawable.light_shader then
         --     renderLightEffect(drawable)
         -- elseif drawable.shader then
         --     renderShader(drawable)
         -- elseif drawable.image_or_particles then
         --     renderImage(drawable)
+
+        
         end
+
+        -- if drawable.source_object_type == "fire_effect" then
+
+        --      love.graphics.setShader(current_shader)
+        -- end
     end
 
 

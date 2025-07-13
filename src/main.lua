@@ -39,7 +39,7 @@ tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
 characterAnimator = require("game.characterAnimator")
 override = require("util.override")
-
+shadow = require("lib.graphics.shadow")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX")      -- improved console - always active
@@ -197,6 +197,8 @@ function love.load()
     collision.init()
     audio.loadSounds()
 
+    shadow.load()
+
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
 end
@@ -212,22 +214,17 @@ function love.draw()
     end
 
 
-
-
     if var.graphics_high then
         shader.prepass()
     end
 
-    -- if moonshine then
-
-    --  light.draw()
-    -- end
-
-
     love.graphics.push() --push all camera transforms (move everything when player moves)
 
-
+    
     camera.apply()
+    
+    love.graphics.setShader(objectShader)
+
 
     love.graphics.setColor(1, 1, 1, 0.35)
     -- Draw map with blood effects
@@ -239,9 +236,11 @@ function love.draw()
     map.map:draw(-10000, 100, 1)
 
     love.graphics.setColor(1, 1, 1, 1)
-
+    
 
     -- Populate and sort dynamic draw list if neccessary
+    -- love.graphics.setShader(objectShader)
+    
     grass.public.draw()
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
@@ -252,9 +251,7 @@ function love.draw()
     else
         renderer.populateDynamicDrawList()
     end
-
     
-
     bullet.populate()
     explosion.populate()
     rocket.populate()
@@ -278,6 +275,9 @@ function love.draw()
     -- Render sorted entities
 
 
+    -- if (shadowblock) then
+    love.graphics.setShader(objectShader)
+    -- end
 
     renderer.renderSortedDrawList()
 
@@ -316,35 +316,13 @@ local t = 0
 local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
+    
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
 
     
     -- print(player.body:getLinearVelocity())
-    local vx, vy = player.body:getLinearVelocity()
-    if vx == 0 and vy == 0 then
-        princess.setState(3)
-    elseif math.abs(vx) >= 99 or math.abs(vy) >= 99 then
-        princess.setState(2)
-    else
-        princess.setState(1)
-    end
-
-    local angle = math.atan2(-vy, vx)
-
-    local direction = math.floor((angle + math.pi/2) / (math.pi/4) + 0.5) % 8 + 1
-    local direction16 = math.floor((angle - math.pi/2) / (math.pi/8) + 0.5) % 16 + 1
-    -- print(direction16)
-    fighter.setDirection(direction16)
-    fighter.update(dt)
-    princess.setDirection(direction)
-    princess.update(dt)
-
-    flying_enemy.update(dt)
-    flying_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/30)*7)) + 1))
-
-    gun_enemy.update(dt)
-    gun_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/10)*7)) + 1))
+    characterAnimator.update(dt)
 
     -- print(math.floor(math.abs((math.sin(fire.t)*7)) + 1))
 
@@ -411,6 +389,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     gun.update(dt)
+    shadow.update(dt)
     -- bullet.update(dt)
     -- rocket.update(dt)
 

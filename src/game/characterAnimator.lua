@@ -104,7 +104,7 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
         )
         
         table.insert(dynamic_draw_list, {
-            sort_y = layer,
+            sort_y = y + 200,
             image_or_particles = stateData.spriteSheet,
             quad = quad,
             x = x,
@@ -128,4 +128,30 @@ function characterAnimator.init(spriteSheetPaths, frameWidth, frameHeight)
     return createInstance(spriteSheetPaths, frameWidth, frameHeight)
 end
 
+function characterAnimator.update(dt)
+    local vx, vy = player.body:getLinearVelocity()
+    if vx == 0 and vy == 0 then
+        princess.setState(3)
+    elseif math.abs(vx) >= 99 or math.abs(vy) >= 99 then
+        princess.setState(2)
+    else
+        princess.setState(1)
+    end
+
+    local angle = math.atan2(-vy, vx)
+
+    local direction = math.floor((angle + math.pi/2) / (math.pi/4) + 0.5) % 8 + 1
+    local direction16 = math.floor((angle - math.pi/2) / (math.pi/8) + 0.5) % 16 + 1
+    -- print(direction16)
+    fighter.setDirection(direction16)
+    fighter.update(dt)
+    princess.setDirection(direction)
+    princess.update(dt)
+
+    flying_enemy.update(dt)
+    flying_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/30)*7)) + 1))
+
+    gun_enemy.update(dt)
+    gun_enemy.setDirection(math.floor(math.abs((math.sin(fire.t/10)*7)) + 1))
+end
 return characterAnimator

@@ -2,7 +2,7 @@ shader = {}
 
 shader.distance = 0.1
 shader.sample = 40
-shader.radiance = 0
+shader.radiance = 1
 
 function shader.load()
     -- Calculate GI resolution based on performance target
@@ -196,7 +196,7 @@ function shader.pass()
     upscale_shader:send("giTexture", gi_canvas)
     love.graphics.draw(scene_canvas)
     
-    love.graphics.setShader()
+    love.graphics.setShader(objectShader)
 end
 
 return shader

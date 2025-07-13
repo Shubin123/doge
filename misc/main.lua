@@ -1,109 +1,194 @@
--- main.lua
+-- LÖVE 2D Combined Object and Shadow Shaders
+local objectShader
+local shadowShader
+local shadowOffset = 20
+
 function love.load()
-    -- Create a positional audio source
-    audioFile = love.audio.newSource("monotest (1).mp3", "static")
+    -- Create the light-based directional shader for objects
+   
+objectShader = love.graphics.newShader([[
+    uniform vec2 lightPos;
+    varying vec2 pos;
     
-    -- Check if the source is mono before setting position
-    if audioFile:getChannelCount() == 1 then
-        -- Set the source to use positional audio (only works with mono sources)
-        audioFile:setPosition(100, 200, 0) -- x, y, z coordinates
-    else
-        print("Warning: Audio file is not mono. Positional audio disabled.")
-        print("Channels detected: " .. audioFile:getChannelCount())
-        -- For stereo files, you can still play them but without positional effects
+    #ifdef VERTEX
+    vec4 position(mat4 transform_projection, vec4 vertex_position) {
+        pos = vertex_position.xy;
+        return transform_projection * vertex_position;
+    }
+    #endif
+    
+    #ifdef PIXEL
+    vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+        // Get the original texture color
+        vec4 texColor = Texel(texture, texture_coords);
+        
+        // Calculate direction from current pixel to light (not light to pixel)
+        vec2 lightDir = normalize(lightPos - pos);
+        
+        // Create a shadow intensity based on distance and direction from light
+        float distance = length(lightPos - pos);
+        float shadowIntensity = 1.0 - clamp(distance * 0.01, 0.0, 1.0); // Closer = brighter
+        
+        // Optional: Add directional component if you want directional lighting
+        // shadowIntensity *= (dot(lightDir, vec2(0.0, -1.0)) * 0.5 + 0.5);
+        
+        // Apply shadow as a darkening effect (black/white gradient)
+        vec3 shadowColor = mix(vec3(0.0), mix(texColor.rgb,vec3(0,1,0),0.5), shadowIntensity);
+        
+        // Preserve the original alpha and blend with the input color
+        return vec4(shadowColor * color.rgb, texColor.a * color.a);
+    }
+    #endif
+]])
+    
+    -- Create the shadow casting shader
+    shadowShader = love.graphics.newShader([[
+    uniform vec2 midpoint;
+    uniform float offset;
+    
+    varying float originalAlpha;
+    
+    #ifdef VERTEX
+    vec4 position(mat4 transform_projection, vec4 vertex_position) {
+        vec2 vert = vertex_position.xy;
+        vec2 vert2 = normalize(vert - midpoint);
+        float mult = offset;
+        
+        // Use the real Z coordinate - Z = 0 for objects, Z = 1 for shadows
+        mult = mix(offset, 10000.0, 0);
+        
+        vert += vert2 * mult;
+        
+        // Preserve the original alpha channel
+        originalAlpha = VaryingColor.a;
+        
+        return transform_projection * vec4(vert, 0.0, 1.0);
+    }
+    #endif
+    
+    #ifdef PIXEL
+    vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+        // Use the original alpha channel instead of hardcoded 0.5
+        return vec4(0.0, 0.0, 0.0, originalAlpha); // Semi-transparent black shadows with original alpha
+    }
+    #endif
+]])
+
+    a = love.graphics.newImage("apple.png")
+end
+local lightPos = {}
+function love.update(dt)
+    -- Update light position with mouse
+    lightPos[1] = love.mouse.getX()
+    lightPos[2] = love.mouse.getY()
+    
+    -- Shadow distance control
+    if love.keyboard.isDown("=") or love.keyboard.isDown("kp+") then
+        shadowOffset = shadowOffset + dt * 30
+    elseif love.keyboard.isDown("-") or love.keyboard.isDown("kp-") then
+        shadowOffset = shadowOffset - dt * 30
     end
+    shadowOffset = math.max(1, shadowOffset) -- Minimum shadow distance
     
-    -- Optional: Set volume rolloff for distance-based volume (only for mono)
-    if audioFile:getChannelCount() == 1 then
-        audioFile:setAttenuationDistances(50, 200) -- reference distance, max distance
-        audioFile:setRolloff(1.0) -- rolloff factor (how quickly volume decreases)
-    end
-    
-    -- Set listener position (usually the player/camera position)
-    love.audio.setPosition(0, 0, 0)
-    
-    -- Optional: Set listener orientation
-    love.audio.setOrientation(0, 0, -1, 0, 1, 0) -- forward vector, up vector
-    print(love.audio.getDistanceModel( ))
-    -- Player position for demonstration
-    playerX, playerY = 0, 0
-    
-    -- Sound source position
-    soundX, soundY = 100, 200
-    
-    -- Start playing the sound
-    audioFile:setLooping(true)
-    audioFile:play()
+    -- Send uniforms to shaders
+    objectShader:send("lightPos", lightPos)
+    shadowShader:send("midpoint", lightPos)
+    shadowShader:send("offset", shadowOffset)
 end
 
-function love.update(dt)
-    -- Update listener position based on player movement
-    love.audio.setPosition(playerX, playerY, 0)
+-- Helper function to create shadow geometry
+function createShadowMesh(x, y, w, h)
+    local vertices = {
+        -- Original object vertices (Z = 0)
+        {x, y, 0, 0, 0, 1, 1, 1, 1},
+        {x + w, y, 0, 1, 0, 1, 1, 1, 1},
+        {x + w, y + h, 0, 1, 1, 1, 1, 1, 1},
+        {x, y + h, 0, 0, 1, 1, 1, 1, 1},
+        
+        -- Shadow vertices (Z = 1)
+        {x, y, 1, 0, 0, 1, 1, 1, 1},
+        {x + w, y, 1, 1, 0, 1, 1, 1, 1},
+        {x + w, y + h, 1, 1, 1, 1, 1, 1, 1},
+        {x, y + h, 1, 0, 1, 1, 1, 1, 1},
+    }
     
-    -- Example: Move player with arrow keys
-    if love.keyboard.isDown("left") then
-        playerX = playerX - 100 * dt
-    elseif love.keyboard.isDown("right") then
-        playerX = playerX + 100 * dt
-    end
+    local indices = {
+        -- Object quad
+        1, 2, 3, 1, 3, 4,
+        -- Shadow quad
+        5, 6, 7, 5, 7, 8
+    }
     
-    if love.keyboard.isDown("up") then
-        playerY = playerY - 100 * dt
-    elseif love.keyboard.isDown("down") then
-        playerY = playerY + 100 * dt
-    end
+    local mesh = love.graphics.newMesh(vertices, "triangles")
+    mesh:setVertexMap(indices)
+    return mesh
 end
 
 function love.draw()
-    -- Draw player
-    love.graphics.setColor(0, 1, 0) -- green
-    love.graphics.circle("fill", playerX, playerY, 10)
+    -- Dark background
+    love.graphics.clear(0.3,0.3,0.3, 1)
+    -- love.graphics.clear(0.5,0,0, 1)
     
-    -- Draw sound source
-    love.graphics.setColor(1, 0, 0) -- red
-    love.graphics.circle("fill", soundX, soundY, 15)
+    love.graphics.circle("fill", 100, 150, 30)
+    love.graphics.circle("fill", 100, 500, 50)
+    -- Define some objects
+    local objects = {
+        {x = 200, y = 200, w = 100, h = 80},
+        {x = 450, y = 300, w = 80, h = 60},
+        {x = 300, y = 400, w = 120, h = 40},
+        {x = 150, y = 350, w = 60, h = 100}
+    }
     
-    -- Reset color
-    love.graphics.setColor(1, 1, 1)
+    -- PASS 1: Draw shadows using shadow shader
+    love.graphics.setShader(shadowShader)
+    -- love.graphics.setColor(1, 1, 1, 1)
     
-    -- Display instructions
-    love.graphics.print("Use arrow keys to move. Notice how the sound changes with distance!", 10, 10)
-    love.graphics.print("Player position: " .. math.floor(playerX) .. ", " .. math.floor(playerY), 10, 30)
-end
-
--- Alternative approach: Create multiple positioned sources with error checking
-function createPositionalSource(x, y, soundFile)
-    local source = love.audio.newSource(soundFile, "static")
-    
-    -- Only apply positional audio if the source is mono
-    if source:getChannelCount() == 1 then
-        source:setPosition(x, y, 0)
-        source:setAttenuationDistances(30, 150)
-        source:setRolloff(1.5)
-        print("Created positional source at: " .. x .. ", " .. y)
-    else
-        print("Warning: " .. soundFile .. " is not mono. Playing as regular audio.")
+    for _, obj in ipairs(objects) do
+        local shadowMesh = createShadowMesh(obj.x, obj.y, obj.w, obj.h)
+        love.graphics.draw(shadowMesh)
     end
     
-    return source
-end
-
--- To convert stereo to mono in code (creates a new mono source):
-function createMonoSource(stereoFile)
-    -- This is a workaround - load the file and create a mono version
-    local stereoSource = love.audio.newSource(stereoFile, "static")
+    -- PASS 2: Draw objects with directional shader
+    love.graphics.setShader()
+    -- love.graphics.setColor(1, 1, 1, 0.8) -- Alpha affects the shader intensity
     
-    if stereoSource:getChannelCount() == 1 then
-        return stereoSource -- Already mono
-    else
-        -- For stereo files, you'll need to use external tools to convert to mono
-        -- or use separate mono audio files for positional audio
-        print("File is stereo. Use audio editing software to convert to mono for positional audio.")
-        return stereoSource -- Return as-is, but won't support positional audio
+    for _, obj in ipairs(objects) do
+        love.graphics.rectangle("fill", obj.x, obj.y, obj.w, obj.h)
     end
+    
+    -- Draw some circles with the directional shader
+    love.graphics.circle("fill", 100, 100, 40)
+    love.graphics.circle("fill", 600, 150, 30)
+    love.graphics.circle("fill", 500, 500, 50)
+    -- love.graphics.setBlendMode("screen","premultiplied")
+
+    love.graphics.draw(a,100,100,0,1)
+    -- love.graphics.setBlendMode("alpha")
+
+    
+    -- Reset shader
+    love.graphics.setShader()
+    
+    -- Draw light source
+    love.graphics.setColor(1, 1, 0, 0.8)
+    love.graphics.circle("fill", lightPos[1], lightPos[2], 12)
+    love.graphics.setColor(1, 1, 1, 0.2)
+    love.graphics.circle("line", lightPos[1], lightPos[2], 40)
+    
+    -- Draw UI
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print("Combined Object & Shadow Shaders", 10, 10)
+    love.graphics.print("Shadow Distance: " .. string.format("%.1f", shadowOffset), 10, 30)
+    love.graphics.print("Light Position: " .. lightPos[1] .. ", " .. lightPos[2], 10, 50)
+    love.graphics.print("", 10, 70)
+    love.graphics.print("Controls:", 10, 90)
+    love.graphics.print("  Mouse: Move light source", 10, 110)
+    love.graphics.print("  +/-: Control shadow distance", 10, 130)
+    love.graphics.print("", 10, 150)
+    love.graphics.print("Objects show directional lighting", 10, 170)
+    love.graphics.print("based on light position", 10, 190)
 end
 
--- Example usage:
--- local ambientSource = createPositionalSource(300, 400, "ambient.ogg")
--- ambientSource:setLooping(true)
--- ambientSource:play()
+function love.keypressed(key)
+    -- Remove viewangle reset since it's now light-based
+end
