@@ -117,4 +117,75 @@ function light.populate()
   })
 end
 
+function light.renderLights(drawable)
+    if drawable.draw_type == "light" then
+        love.graphics.push()
+
+        love.graphics.reset()
+        blueNeon(function()
+            love.graphics.setColor(0.17, 0.46, 1, 0.5)
+
+            -- Get car position and velocity
+            local carX = player.body:getX()
+            local carY = player.body:getY()
+            local velX, velY = player.body:getLinearVelocity()
+
+            -- Calculate car's heading angle using the same logic as getSpriteForHeading
+            local angle = 0
+            if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
+                angle = math.atan2(velY, velX)
+            end
+
+            -- Convert angle to direction vector for cone positioning
+            local dirX = math.cos(angle)
+            local dirY = math.sin(angle)
+
+            -- Distance to place cone in front of car
+            local lightDistance = 25
+
+            -- Calculate cone tip position in front of car based on heading
+            local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
+            local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
+
+            -- Cone dimensions
+            local coneLength = 30 * camera.zoom
+            local coneWidth = 55 * camera.zoom
+
+            -- Calculate perpendicular vector for cone base
+            local perpX = -dirY
+            local perpY = dirX
+
+            -- Base of cone extends further in heading direction from tip
+            local baseX = tipX + dirX * coneLength
+            local baseY = tipY + dirY * coneLength
+
+            -- Cone tip width (small rectangle at the tip)
+            local tipWidth = 20 * camera.zoom
+
+            -- Tip corners (small rectangle at car end)
+            local tipCorner1X = tipX + perpX * tipWidth / 2
+            local tipCorner1Y = tipY + perpY * tipWidth / 2
+            local tipCorner2X = tipX - perpX * tipWidth / 2
+            local tipCorner2Y = tipY - perpY * tipWidth / 2
+
+            -- Base corners (wide end of trapezoid)
+            local baseCorner1X = baseX + perpX * coneWidth / 2
+            local baseCorner1Y = baseY + perpY * coneWidth / 2
+            local baseCorner2X = baseX - perpX * coneWidth / 2
+            local baseCorner2Y = baseY - perpY * coneWidth / 2
+
+            -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
+            love.graphics.polygon("fill",
+                tipCorner1X, tipCorner1Y, -- tip corner 1
+                baseCorner1X, baseCorner1Y, -- base corner 1
+                baseCorner2X, baseCorner2Y, -- base corner 2
+                tipCorner2X, tipCorner2Y) -- tip corner 2
+
+            love.graphics.setColor(1, 1, 1, 1)
+        end)
+
+        love.graphics.pop()
+    end
+end
+
 return light

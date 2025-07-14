@@ -56,7 +56,7 @@ function explosion.load()
                 MY_HIGHP_OR_MEDIUMP vec2 direction = normalize(sc - explosionCenter);
                 
                 // Add some ripple effects
-                MY_HIGHP_OR_MEDIUMP number ripple = sin(dist * 0.1 + time * 5.0) * 0.3;
+                MY_HIGHP_OR_MEDIUMP number ripple = sin(dist * 0.1 + time * 5.0) * 0.9;
                 
                 // Apply radial distortion to texture coordinates
                 MY_HIGHP_OR_MEDIUMP vec2 distortedTC = tc + direction * distortionFactor * distortionStrength * (1.0 + ripple);

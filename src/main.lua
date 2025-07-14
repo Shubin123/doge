@@ -223,16 +223,17 @@ function love.draw()
     
     camera.apply()
     
-    love.graphics.setShader(objectShader)
+    love.graphics.setShader(shadow.getShader(false))
 
 
-    love.graphics.setColor(1, 1, 1, 0.35)
+    love.graphics.setColor(1,1,1, 0.4)
     -- Draw map with blood effects
     -- if blood and blood.drawBackground then
     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
     -- else
 
     -- end
+    
     map.map:draw(-10000, 100, 1)
 
     love.graphics.setColor(1, 1, 1, 1)
@@ -274,9 +275,10 @@ function love.draw()
     table.sort(dynamic_draw_list, renderer.sortByRenderY)
     -- Render sorted entities
 
-
+    
     -- if (shadowblock) then
-    love.graphics.setShader(objectShader)
+    love.graphics.setShader(shadow.getShader(true))
+    
     -- end
 
     renderer.renderSortedDrawList()
@@ -389,7 +391,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     gun.update(dt)
-    shadow.update(dt)
+    shadow.updateBothShaders(dt)
     -- bullet.update(dt)
     -- rocket.update(dt)
 

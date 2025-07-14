@@ -11,8 +11,8 @@ renderer.networked_state = {
     bullets = {},
     rockets = {},
     command_blocks = {},
-    bosses = {},       -- { boss_id = { x, y, health, state, ... } }
-    cars = {}          -- { car_id = { x, y, vx, vy, inUse, ... } }
+    bosses = {}, -- { boss_id = { x, y, health, state, ... } }
+    cars = {}    -- { car_id = { x, y, vx, vy, inUse, ... } }
 }
 
 -- Local player state (for smooth interpolation/prediction)
@@ -34,12 +34,12 @@ function renderer.updateInterpolation(dt)
             local target_y = player_data.y
             local current_x = player_data.prev_x
             local current_y = player_data.prev_y
-            
+
             -- Smooth interpolation towards target position
             local lerp_factor = math.min(1, dt * interpolation_speed)
             player_data.interpolated_x = current_x + (target_x - current_x) * lerp_factor
             player_data.interpolated_y = current_y + (target_y - current_y) * lerp_factor
-            
+
             -- Update previous position for next frame
             player_data.prev_x = player_data.interpolated_x
             player_data.prev_y = player_data.interpolated_y
@@ -58,7 +58,7 @@ function renderer.setNetworkedPlayers(players_data)
         renderer.networked_state.players = {}
         return
     end
-    
+
     -- Store previous positions for interpolation
     for player_id, new_data in pairs(players_data) do
         local existing_player = renderer.networked_state.players[player_id]
@@ -72,7 +72,7 @@ function renderer.setNetworkedPlayers(players_data)
             new_data.prev_y = new_data.y
         end
     end
-    
+
     renderer.networked_state.players = players_data
 end
 
@@ -116,7 +116,7 @@ function renderer.updateLocalPlayerFromPhysics()
             x = px,
             y = py,
             animation_frame = math.floor(player.animation.currentTime / (player.animation.duration) *
-            #player.animation.quads) + 1,
+                #player.animation.quads) + 1,
             scale = player.scale,
             rotation = var.character_rotation or 0,
             active = true
@@ -176,10 +176,6 @@ local function addPortal(x, y, sort_y)
         blend_mode = { "alpha" },
         source_object_type = "portal_shader"
     })
-
-
-    
-
 end
 
 local function addLightEffect(light_shader, x, y, width, height, sort_y, color, light_type)
@@ -200,7 +196,7 @@ end
 local function addEnemiesFromBodies()
     for i = 1, #enemies_bods do
         local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
-        
+
         -- Calculate enemy color based on health
         local enemy_color = { 1, 1, 1, 1 }
         if enemy and enemy.health and enemy.health[i] then
@@ -211,7 +207,7 @@ local function addEnemiesFromBodies()
                 enemy_color = { 1, 1 - red_intensity, 1 - red_intensity, 1 }
             end
         end
-        
+
         table.insert(dynamic_draw_list, {
             sort_y = ey + (enemy_image:getHeight() * 0.1) / 2 + 100,
             image_or_particles = enemy_image,
@@ -232,7 +228,8 @@ end
 local function addCoinsFromBodies()
     for i = 1, #coin_bods do
         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-         local scale = coin_bods[i]:getFixtures()[1]:getUserData() ~= nil and coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
+        local scale = coin_bods[i]:getFixtures()[1]:getUserData() ~= nil and
+        coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
         table.insert(dynamic_draw_list, {
             sort_y = cy + (coin_image:getHeight() * 0.5) / 2 + 100,
             image_or_particles = coin_image,
@@ -344,8 +341,8 @@ local function addNetworkedEntities()
                 bullet_id = bullet_id,
                 x = bullet_data.x,
                 y = bullet_data.y,
-                color = {1, 1, 1, 1},
-                blend_mode = {"alpha"}
+                color = { 1, 1, 1, 1 },
+                blend_mode = { "alpha" }
             })
         end
     end
@@ -369,43 +366,43 @@ local function addNetworkedEntities()
 
     -- Networked command blocks
     -- for _, command_block_data in pairs(renderer.networked_state.command_blocks) do
-        -- if command_block_data.active then
-            -- table.insert(dynamic_draw_list, {
-            --     sort_y = command_block_data.y + 100,
-            --     image_or_particles = command_block_img,
-            --     x = command_block_data.x,
-            --     y = command_block_data.y,
-            --     rotation = 0,
-            --     scale_x = 1,
-            --     scale_y = 1,
-            --     offset_x = command_block_data.w / 2,
-            --     offset_y = command_block_data.h / 2,
-            --     color = { 1, 1, 1, 1 },
-            --     blend_mode = { "alpha" },
-            --     source_object_type = "networked_command_block",
-            --     command = command_block_data.cmd
-            -- })
-            
-            -- Add text for networked command blocks (if player is close enough)
-            -- if player and player.body then
-            --     local player_x, player_y = player.body:getPosition()
-            --     local dist = math.sqrt((player_x - command_block_data.x) ^ 2 + (player_y - command_block_data.y) ^ 2)
-            --     if dist < 100 then
-            --         table.insert(dynamic_draw_list, {
-            --             sort_y = command_block_data.y + command_block_data.h + 101,
-            --             draw_type = "text",
-            --             text = command_block_data.cmd,
-            --             x = command_block_data.x - command_block_data.w / 2,
-            --             y = command_block_data.y - 20,
-            --             font = command and command.getCommandBlockFont and command.getCommandBlockFont(),
-            --             color = { 1, 1, 1, 1 },
-            --             blend_mode = { "alpha" }
-            --         })
-            --     end
-            -- end
-        -- end
+    -- if command_block_data.active then
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = command_block_data.y + 100,
+    --     image_or_particles = command_block_img,
+    --     x = command_block_data.x,
+    --     y = command_block_data.y,
+    --     rotation = 0,
+    --     scale_x = 1,
+    --     scale_y = 1,
+    --     offset_x = command_block_data.w / 2,
+    --     offset_y = command_block_data.h / 2,
+    --     color = { 1, 1, 1, 1 },
+    --     blend_mode = { "alpha" },
+    --     source_object_type = "networked_command_block",
+    --     command = command_block_data.cmd
+    -- })
+
+    -- Add text for networked command blocks (if player is close enough)
+    -- if player and player.body then
+    --     local player_x, player_y = player.body:getPosition()
+    --     local dist = math.sqrt((player_x - command_block_data.x) ^ 2 + (player_y - command_block_data.y) ^ 2)
+    --     if dist < 100 then
+    --         table.insert(dynamic_draw_list, {
+    --             sort_y = command_block_data.y + command_block_data.h + 101,
+    --             draw_type = "text",
+    --             text = command_block_data.cmd,
+    --             x = command_block_data.x - command_block_data.w / 2,
+    --             y = command_block_data.y - 20,
+    --             font = command and command.getCommandBlockFont and command.getCommandBlockFont(),
+    --             color = { 1, 1, 1, 1 },
+    --             blend_mode = { "alpha" }
+    --         })
+    --     end
     -- end
-    
+    -- end
+    -- end
+
     -- Networked cars
     -- for car_id, car_data in pairs(renderer.networked_state.cars) do
     --     local cx, cy = car_data.x, car_data.y
@@ -427,20 +424,20 @@ local function addNetworkedEntities()
     --         car_id = car_id
     --     })
     -- end
-    
+
     -- Networked bosses
     for boss_id, boss_data in pairs(renderer.networked_state.bosses) do
         if boss_data.health > 0 then
             local bx, by = boss_data.x, boss_data.y
             local render_x = bx + (boss_data.shake_offset_x or 0)
             local render_y = by + (boss_data.shake_offset_y or 0)
-            
+
             -- Determine sprite based on state (requires access to boss module)
             local boss_module = rawget(_G, "boss") or {}
             local boss_sprites = boss_module.sprites or {}
             local boss_states = boss_module.STATES or {}
             local sprite = boss_sprites.default or enemy_image
-            
+
             if boss_data.is_headless then
                 sprite = boss_sprites.headless or enemy_image
             elseif boss_data.is_backwards then
@@ -450,15 +447,15 @@ local function addNetworkedEntities()
             elseif boss_data.state == boss_states.FIRING_LASER then
                 sprite = boss_sprites.shooting or enemy_image
             end
-            
+
             -- Calculate color (flash red when damaged, if damage timer is available)
-            local color = {1, 1, 1, 1}
+            local color = { 1, 1, 1, 1 }
             -- Simplified, as damage flash timer might not be networked
-            
+
             -- Calculate rage factor based on health loss
             local rage_factor = 1 - (boss_data.health / boss_data.max_health)
             local boss_scale = boss_module.scale or 1.8
-            
+
             -- Add rage glow effect behind boss if angry
             if rage_factor > 0 then
                 table.insert(dynamic_draw_list, {
@@ -471,13 +468,13 @@ local function addNetworkedEntities()
                     scale_y = boss_scale * (boss_data.squish_amount or 1.0) * (1 + rage_factor * 0.2),
                     offset_x = sprite:getWidth() / 2,
                     offset_y = sprite:getHeight() / 2,
-                    color = {1, 0, 0, rage_factor * 0.3},
-                    blend_mode = {"add"},
+                    color = { 1, 0, 0, rage_factor * 0.3 },
+                    blend_mode = { "add" },
                     source_object_type = "networked_boss_glow",
                     boss_id = boss_id
                 })
             end
-            
+
             -- Add boss sprite to draw list
             table.insert(dynamic_draw_list, {
                 sort_y = render_y + 100,
@@ -491,11 +488,11 @@ local function addNetworkedEntities()
                 offset_x = sprite:getWidth() / 2,
                 offset_y = sprite:getHeight() / 2,
                 color = color,
-                blend_mode = {"alpha"},
+                blend_mode = { "alpha" },
                 source_object_type = "networked_boss",
                 boss_id = boss_id
             })
-            
+
             -- Draw laser targeting line if charging
             if boss_data.state == boss_states.CHARGING_LASER then
                 local eye_offset_x = boss_data.facing_right and 15 or -15
@@ -505,15 +502,15 @@ local function addNetworkedEntities()
                 local end_y = start_y + math.sin(boss_data.laser_angle or 0) * 1000
                 table.insert(dynamic_draw_list, {
                     sort_y = render_y + 95,
-                    line = {start_x, start_y, end_x, end_y},
-                    color = {1, 0, 0, 0.3},
+                    line = { start_x, start_y, end_x, end_y },
+                    color = { 1, 0, 0, 0.3 },
                     width = 1,
-                    blend_mode = {"alpha"},
+                    blend_mode = { "alpha" },
                     source_object_type = "networked_laser_targeting",
                     boss_id = boss_id
                 })
             end
-            
+
             -- Draw laser beam if firing
             if boss_data.state == boss_states.FIRING_LASER then
                 local eye_offset_x = boss_data.facing_right and 15 or -15
@@ -524,51 +521,51 @@ local function addNetworkedEntities()
                 local laser_width = boss_module.laser_width or 5
                 table.insert(dynamic_draw_list, {
                     sort_y = render_y + 95,
-                    line = {start_x, start_y, end_x, end_y},
-                    color = {1, 0, 0, 0.7},
+                    line = { start_x, start_y, end_x, end_y },
+                    color = { 1, 0, 0, 0.7 },
                     width = laser_width,
-                    blend_mode = {"add"},
+                    blend_mode = { "add" },
                     source_object_type = "networked_laser_beam",
                     boss_id = boss_id
                 })
             end
-            
+
             -- Draw health bar
             local health_percent = boss_data.health / boss_data.max_health
             local bar_width = 60
             local bar_height = 8
             local bar_y = render_y - 60
-            
+
             -- Health bar background
             table.insert(dynamic_draw_list, {
                 sort_y = bar_y,
                 rectangle = {
-                    x = render_x - bar_width/2,
+                    x = render_x - bar_width / 2,
                     y = bar_y,
                     width = bar_width,
                     height = bar_height
                 },
-                color = {0.2, 0.2, 0.2, 0.8},
-                blend_mode = {"alpha"},
+                color = { 0.2, 0.2, 0.2, 0.8 },
+                blend_mode = { "alpha" },
                 source_object_type = "networked_health_bar_bg",
                 boss_id = boss_id
             })
-            
+
             -- Health bar fill
             table.insert(dynamic_draw_list, {
                 sort_y = bar_y + 1,
                 rectangle = {
-                    x = render_x - bar_width/2 + 1,
+                    x = render_x - bar_width / 2 + 1,
                     y = bar_y + 1,
                     width = (bar_width - 2) * health_percent,
                     height = bar_height - 2
                 },
-                color = health_percent > 0.3 and {0.8, 0.2, 0.2, 0.9} or {1, 0, 0, 0.9},
-                blend_mode = {"alpha"},
+                color = health_percent > 0.3 and { 0.8, 0.2, 0.2, 0.9 } or { 1, 0, 0, 0.9 },
+                blend_mode = { "alpha" },
                 source_object_type = "networked_health_bar_fill",
                 boss_id = boss_id
             })
-            
+
             -- Boss name
             table.insert(dynamic_draw_list, {
                 sort_y = bar_y - 5,
@@ -576,9 +573,9 @@ local function addNetworkedEntities()
                 x = render_x - 25,
                 y = bar_y - 15,
                 font = gameFont,
-                color = {1, 1, 1, 0.9},
+                color = { 1, 1, 1, 0.9 },
                 scale = 0.8,
-                outline_color = {0, 0, 0, 0.9},
+                outline_color = { 0, 0, 0, 0.9 },
                 source_object_type = "networked_boss_name",
                 boss_id = boss_id
             })
@@ -617,7 +614,7 @@ function renderer.populateDynamicDrawList()
     -- Local player from physics
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
-    1
+        1
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
 
     addPortal(290, 150, 315)
@@ -636,8 +633,8 @@ function renderer.populateDynamicDrawList()
     boss.populate()
     -- light.populate()
     -- characterAnimator.populate()
-    
-    
+
+
 
     command.populate()
 end
@@ -648,7 +645,6 @@ function renderer.populateDynamicDrawListNETHOST()
     enemy.populate()
     boss.populate()
 end
-
 
 -- Rendering helper functions (must be declared before renderSortedDrawList)
 local function renderRocketExhaust(d)
@@ -736,11 +732,7 @@ local function renderDrawType(drawable)
         love.graphics.rectangle("line", -d.width / 2, -d.height / 2, d.width, d.height)
         love.graphics.pop()
     elseif d.draw_type == "bullet_point" then
-        
-        
         love.graphics.circle("fill", d.x, d.y, d.radius)
-
-
     elseif d.draw_type == "rocket_exhaust" then
         renderRocketExhaust(d)
     elseif d.draw_type == "rocket_thrust" then
@@ -762,7 +754,7 @@ local function renderDrawType(drawable)
         love.graphics.draw(d.image, d.quad, d.x, d.y, 0, d.scale_x, d.scale_y, d.offset_x, d.offset_y)
     elseif d.draw_type == "shockwave" then
         love.graphics.setShader(d.shader)
-        d.shader:send("center", {d.x, d.y})
+        d.shader:send("center", { d.x, d.y })
         d.shader:send("radius", d.radius)
         d.shader:send("maxRadius", d.maxRadius)
         d.shader:send("time", d.time)
@@ -772,77 +764,7 @@ local function renderDrawType(drawable)
     end
 end
 
-local function renderLights(drawable)
-    if drawable.draw_type == "light" then
 
-        love.graphics.push()
-
-        love.graphics.reset()
-          blueNeon(function()
-    love.graphics.setColor(0.17, 0.46, 1,0.5)
-    
-    -- Get car position and velocity
-    local carX = player.body:getX()
-    local carY = player.body:getY()
-    local velX, velY = player.body:getLinearVelocity()
-    
-    -- Calculate car's heading angle using the same logic as getSpriteForHeading
-    local angle = 0
-    if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
-        angle = math.atan2(velY, velX)
-    end
-    
-    -- Convert angle to direction vector for cone positioning
-    local dirX = math.cos(angle)
-    local dirY = math.sin(angle)
-    
-    -- Distance to place cone in front of car
-    local lightDistance = 25
-    
-    -- Calculate cone tip position in front of car based on heading
-    local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
-    local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
-        
-    -- Cone dimensions
-    local coneLength = 30 * camera.zoom
-    local coneWidth = 55 * camera.zoom
-    
-    -- Calculate perpendicular vector for cone base
-    local perpX = -dirY
-    local perpY = dirX
-    
-    -- Base of cone extends further in heading direction from tip
-    local baseX = tipX + dirX * coneLength
-    local baseY = tipY + dirY * coneLength
-    
-    -- Cone tip width (small rectangle at the tip)
-    local tipWidth = 20 * camera.zoom
-    
-    -- Tip corners (small rectangle at car end)
-    local tipCorner1X = tipX + perpX * tipWidth / 2
-    local tipCorner1Y = tipY + perpY * tipWidth / 2
-    local tipCorner2X = tipX - perpX * tipWidth / 2
-    local tipCorner2Y = tipY - perpY * tipWidth / 2
-    
-    -- Base corners (wide end of trapezoid)
-    local baseCorner1X = baseX + perpX * coneWidth / 2
-    local baseCorner1Y = baseY + perpY * coneWidth / 2
-    local baseCorner2X = baseX - perpX * coneWidth / 2
-    local baseCorner2Y = baseY - perpY * coneWidth / 2
-    
-    -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
-    love.graphics.polygon("fill", 
-        tipCorner1X, tipCorner1Y,    -- tip corner 1
-        baseCorner1X, baseCorner1Y,  -- base corner 1
-        baseCorner2X, baseCorner2Y,  -- base corner 2
-        tipCorner2X, tipCorner2Y)    -- tip corner 2
-    
-    love.graphics.setColor(1, 1, 1, 1)
-end)
-
-love.graphics.pop()
-    end
-end
 
 
 
@@ -855,12 +777,12 @@ function renderer.renderSortedDrawList()
     local last_color = { 1, 1, 1, 1 }
     local last_blend_mode = { "alpha" }
 
-     
-    
+
+
     for _, drawable in ipairs(dynamic_draw_list) do
         -- print(drawable.source_object_type == "fire")
         -- Set color if different from last
-        local color = drawable.color or {1, 1, 1, 1}  -- Default to white if no color specified
+        local color = drawable.color or { 1, 1, 1, 1 } -- Default to white if no color specified
         if color[1] ~= last_color[1] or color[2] ~= last_color[2] or
             color[3] ~= last_color[3] or color[4] ~= last_color[4] then
             love.graphics.setColor(color[1], color[2], color[3], color[4])
@@ -868,7 +790,7 @@ function renderer.renderSortedDrawList()
         end
 
         -- Set blend mode if different from last (with nil check)
-        local blend_mode = drawable.blend_mode or {"alpha"}
+        local blend_mode = drawable.blend_mode or { "alpha" }
         if blend_mode[1] ~= last_blend_mode[1] or
             (blend_mode[2] and blend_mode[2] ~= last_blend_mode[2]) then
             if blend_mode[2] then
@@ -880,7 +802,7 @@ function renderer.renderSortedDrawList()
         end
 
         -- Handle shader drawing
-        if drawable.shader and  drawable.source_object_type ~= "tree_with_wind" then
+        if drawable.shader and drawable.source_object_type ~= "tree_with_wind" then
             -- Set shader and parameters
             love.graphics.setShader(drawable.shader)
             if drawable.shader_params and drawable.source_object_type == "portal_shader" then
@@ -894,106 +816,86 @@ function renderer.renderSortedDrawList()
             end
 
             -- Draw shader rectangle
-            if drawable.draw_type == "shockwave" then 
+            if drawable.draw_type == "shockwave" then
                 -- drawable.shader:send("time", drawable.time*100)
-                love.graphics.circle("fill",drawable.x,drawable.y,drawable.radius)
-            else 
-            love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
+                love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius)
+            -- love.graphics.setShader(current_shader)
+
+            else
+                love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
             end
             -- Reset shader
+            -- love.graphics.setShader()
             love.graphics.setShader(current_shader)
-
         elseif drawable.source_object_type == "fire_effect" then -- naturally lit objects dont have shadow!
             love.graphics.setShader()
             love.graphics.draw(
-                    drawable.image_or_particles,
-                    drawable.x,
-                    drawable.y,
-                    drawable.rotation or 0,
-                    drawable.scale_x or 1,
-                    drawable.scale_y or 1,
-                    drawable.offset_x or 0,
-                    drawable.offset_y or 0
-                )
+                drawable.image_or_particles,
+                drawable.x,
+                drawable.y,
+                drawable.rotation or 0,
+                drawable.scale_x or 1,
+                drawable.scale_y or 1,
+                drawable.offset_x or 0,
+                drawable.offset_y or 0
+            )
             love.graphics.setShader(current_shader)
 
 
-        -- Handle bullet effects drawing
+            -- Handle bullet effects drawing
         elseif drawable.source_object_type == "muzzle_flash" then
-                   
-        local current_color = { love.graphics.getColor() } 
-        local current_blend_mode = love.graphics.getBlendMode()
-        local current_shader = love.graphics.getShader()
-        
-            bullet.drawSingleMuzzleFlash(drawable.flash_data)
-            
-        love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
-        love.graphics.setBlendMode(current_blend_mode)
-        love.graphics.setShader(current_shader)
+            local current_color = { love.graphics.getColor() }
+            local current_blend_mode = love.graphics.getBlendMode()
+            local current_shader = love.graphics.getShader()
 
+            bullet.drawSingleMuzzleFlash(drawable.flash_data)
+
+            love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+            love.graphics.setBlendMode(current_blend_mode)
+            love.graphics.setShader(current_shader)
         elseif drawable.source_object_type == "gunpowder_particle" then
-        
-        local current_color = { love.graphics.getColor() }
-        local current_blend_mode = love.graphics.getBlendMode()
-        local current_shader = love.graphics.getShader()
+            local current_color = { love.graphics.getColor() }
+            local current_blend_mode = love.graphics.getBlendMode()
+            local current_shader = love.graphics.getShader()
 
             bullet.drawSingleParticle(drawable.particle_data)
 
-        love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
-        love.graphics.setBlendMode(current_blend_mode)
-        love.graphics.setShader(current_shader)
-
-
+            love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+            love.graphics.setBlendMode(current_blend_mode)
+            love.graphics.setShader(current_shader)
         elseif drawable.source_object_type == "shell_casing" then
-            
-      local current_color = { love.graphics.getColor() }
-        local current_blend_mode = love.graphics.getBlendMode()
-        local current_shader = love.graphics.getShader()
+            local current_color = { love.graphics.getColor() }
+            local current_blend_mode = love.graphics.getBlendMode()
+            local current_shader = love.graphics.getShader()
 
 
             bullet.drawSingleShell(drawable.shell_data)
             -- love.graphics.setShader(current_shader)
 
-                    love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
-        love.graphics.setBlendMode(current_blend_mode)
-        love.graphics.setShader(current_shader)
-
-
+            love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
+            love.graphics.setBlendMode(current_blend_mode)
+            love.graphics.setShader(current_shader)
         elseif drawable.source_object_type == "bullet_tracer" then
-            
-            
             bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
-            
-               
-               
-            
-            
         elseif drawable.source_object_type == "networked_bullet_tracer" then
             bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
-
         elseif drawable.source_object_type == "blood_drop" then
             blood.drawSingleBloodDrop(drawable)
-        
-        -- Handle rocket draw types
-        elseif drawable.draw_type == "rocket_body" or 
-               drawable.draw_type == "rocket_thrust" or 
-               drawable.draw_type == "rocket_exhaust" or 
-               drawable.draw_type == "rocket_explosion" then
 
-            
+            -- Handle rocket draw types
+        elseif drawable.draw_type == "rocket_body" or
+            drawable.draw_type == "rocket_thrust" or
+            drawable.draw_type == "rocket_exhaust" or
+            drawable.draw_type == "rocket_explosion" then
             renderDrawType(drawable)
-
-
-
         elseif drawable.source_object_type == "tree_with_wind" and drawable.shader then
-            
             -- love.graphics.setShader(drawable.shader)
-            
+
             -- Send world position to shader
             -- if drawable.shader_params and drawable.shader_params.world_position then
             --     drawable.shader:send("world_position", {0,0})
             -- end
-            
+
             -- Draw the tree with shader
             if drawable.quad then
                 love.graphics.draw(
@@ -1008,8 +910,8 @@ function renderer.renderSortedDrawList()
                     drawable.offset_y or 0
                 )
             end
-            
-            
+
+
             -- love.graphics.setShader()
             -- Handle regular image drawing
         elseif drawable.image_or_particles then
@@ -1037,53 +939,58 @@ function renderer.renderSortedDrawList()
                     drawable.offset_y or 0
                 )
             end
+        elseif drawable.draw_type == "text" then
+            local current_font = love.graphics.getFont()
+            if drawable.font then
+                love.graphics.setFont(drawable.font)
+            end
+            love.graphics.print(drawable.text, drawable.x, drawable.y)
+            if drawable.font then
+                love.graphics.setFont(love.graphics.getFont())
+            end
 
-         elseif drawable.draw_type == "text" then
-        local current_font = love.graphics.getFont()
-        if drawable.font then
-            love.graphics.setFont(drawable.font)
-        end
-        love.graphics.print(drawable.text, drawable.x, drawable.y)
-        if drawable.font then
-            love.graphics.setFont(love.graphics.getFont())
-        end
 
 
-        
-        
-        -- Handle damage indicators (text without draw_type)
+
+            -- Handle damage indicators (text without draw_type)
         elseif drawable.text and drawable.source_object_type == "damage_indicator" then
             local current_font = love.graphics.getFont()
             if drawable.font then
                 love.graphics.setFont(drawable.font)
             end
-            
+
             -- Draw outline for crispness
             if drawable.outline_color then
-                love.graphics.setColor(drawable.outline_color[1], drawable.outline_color[2], drawable.outline_color[3], drawable.outline_color[4])
+                love.graphics.setColor(drawable.outline_color[1], drawable.outline_color[2], drawable.outline_color[3],
+                    drawable.outline_color[4])
                 -- Draw outline in 4 directions
                 local offset = 1
-                love.graphics.print(drawable.text, drawable.x - offset, drawable.y, 0, drawable.scale or 1, drawable.scale or 1)
-                love.graphics.print(drawable.text, drawable.x + offset, drawable.y, 0, drawable.scale or 1, drawable.scale or 1)
-                love.graphics.print(drawable.text, drawable.x, drawable.y - offset, 0, drawable.scale or 1, drawable.scale or 1)
-                love.graphics.print(drawable.text, drawable.x, drawable.y + offset, 0, drawable.scale or 1, drawable.scale or 1)
-                
+                love.graphics.print(drawable.text, drawable.x - offset, drawable.y, 0, drawable.scale or 1,
+                    drawable.scale or 1)
+                love.graphics.print(drawable.text, drawable.x + offset, drawable.y, 0, drawable.scale or 1,
+                    drawable.scale or 1)
+                love.graphics.print(drawable.text, drawable.x, drawable.y - offset, 0, drawable.scale or 1,
+                    drawable.scale or 1)
+                love.graphics.print(drawable.text, drawable.x, drawable.y + offset, 0, drawable.scale or 1,
+                    drawable.scale or 1)
+
                 -- Restore text color
                 love.graphics.setColor(drawable.color[1], drawable.color[2], drawable.color[3], drawable.color[4])
             end
-            
+
             -- Draw main text with scaling
             love.graphics.print(drawable.text, drawable.x, drawable.y, 0, drawable.scale or 1, drawable.scale or 1)
-            
+
             if drawable.font and current_font then
                 love.graphics.setFont(current_font)
             end
-        
-        -- Handle health bar rectangles
+
+            -- Handle health bar rectangles
         elseif drawable.rectangle and (drawable.source_object_type == "health_bar_bg" or drawable.source_object_type == "health_bar_fill") then
-            love.graphics.rectangle("fill", drawable.rectangle.x, drawable.rectangle.y, drawable.rectangle.width, drawable.rectangle.height)
-        
-        -- Handle line drawing (for lasers)
+            love.graphics.rectangle("fill", drawable.rectangle.x, drawable.rectangle.y, drawable.rectangle.width,
+                drawable.rectangle.height)
+
+            -- Handle line drawing (for lasers)
         elseif drawable.line then
             if drawable.width then
                 love.graphics.setLineWidth(drawable.width)
@@ -1092,23 +999,16 @@ function renderer.renderSortedDrawList()
             if drawable.width then
                 love.graphics.setLineWidth(1) -- Reset to default
             end
-        
-        
-        
-
-
         elseif drawable.draw_type == "light" then
             -- love.graphics.setShader()
-            renderLights(drawable)
+            light.renderLights(drawable)
             love.graphics.setShader(current_shader)
-        -- elseif drawable.light_shader then
-        --     renderLightEffect(drawable)
-        -- elseif drawable.shader then
-        --     renderShader(drawable)
-        -- elseif drawable.image_or_particles then
-        --     renderImage(drawable)
-
-        
+            -- elseif drawable.light_shader then
+            --     renderLightEffect(drawable)
+            -- elseif drawable.shader then
+            --     renderShader(drawable)
+            -- elseif drawable.image_or_particles then
+            --     renderImage(drawable)
         end
 
         -- if drawable.source_object_type == "fire_effect" then
@@ -1124,7 +1024,6 @@ function renderer.renderSortedDrawList()
     love.graphics.setBlendMode(current_blend_mode)
     love.graphics.setShader(current_shader)
 end
-
 
 -- Helper functions for rendering
 local function areColorsEqual(c1, c2)
