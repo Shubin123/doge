@@ -80,6 +80,7 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
             -- instance.timeAccumulator = 0
         end
     end
+
     function instance.getState()
         return instance.currentState
     end
@@ -107,7 +108,7 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
             sort_y = y + 200,
             image_or_particles = stateData.spriteSheet,
             quad = quad,
-            x = x,
+            x = x - 20,
             y = y,
             rotation = rotation,
             scale_x = scale,
@@ -145,6 +146,7 @@ function characterAnimator.update(dt)
     -- print(direction16)
     fighter.setDirection(direction16)
     fighter.update(dt)
+
     princess.setDirection(direction)
     princess.update(dt)
 

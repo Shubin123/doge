@@ -1,7 +1,7 @@
 shader = {}
 
-shader.distance = 0.1
-shader.sample = 40
+-- shader.distance = 0.1
+-- shader.sample = 40
 shader.radiance = 1
 
 function shader.load()
@@ -91,6 +91,7 @@ function shader.load()
     
     extern MY_HIGHP_OR_MEDIUMP number baseRadiance;
     
+    
     MY_HIGHP_OR_MEDIUMP number rand(vec2 co) {
       return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
     }
@@ -172,7 +173,7 @@ function shader.pass()
     gi_shader:send("baseRadiance", shader.radiance)
     
     -- JFA passes at GI resolution
-    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))  + 10
+    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))  + 20
     
     for i = 1, passes do
         jfa_shader:send("stepSize", math.pow(2, passes - i))

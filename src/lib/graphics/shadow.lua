@@ -96,7 +96,10 @@ function shadow.load()
             vec4 texColor = Texel(texture, texture_coords);
             float totalLight = 0.0;
             
-            for (int i = 0; i < numLights && i < MAX_LIGHTS; i++) {
+            for (int i = 0; i < 1000; i++) {
+                if (i == numLights && i == MAX_LIGHTS) { //cmp uniform this way
+                break;
+                }
                 float distance = length(lightPositions[i] - pos);
                 float attenuation = 1.0 - clamp(distance / lightRanges[i], 0.0, 1.0);
                 totalLight += attenuation * lightIntensities[i];
@@ -116,6 +119,7 @@ function shadow.load()
     -- Initialize lights
     shadow.addLight(love.mouse.getX(), love.mouse.getY(), 1.0, 200)
     shadow.addLight(100, 200, 1.0, 50)
+    shadow.addLight(player.body:getX(), player.body:getY(), 1.0, 300)
     
     for i=1,10 do
     for j=1,10 do
@@ -135,8 +139,10 @@ function shadow.updateBothShaders(dt)
         lights[1].y = love.mouse.getY()
         lights[2].x = math.sin(fire.t)*100
         lights[2].range = (math.cos(fire.t) + 1)*100
-        for i=3,#lights do
+        lights[3].x,lights[3].y = player.body:getX(), player.body:getY()
+        for i=4,#lights do
         lights[i].range = (math.cos(fire.t/i) + 1)*100
+        
         end
     end
     

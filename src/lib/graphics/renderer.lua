@@ -144,23 +144,24 @@ local function initDrawList()
 end
 
 local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
-    local sort_y = y + (100 * scale)
-    table.insert(dynamic_draw_list, {
-        sort_y = sort_y + 45,
-        image_or_particles = player.animation.spriteSheet,
-        quad = player.animation.quads[((animation_frame + 5) % 5) + 6],
-        x = x,
-        y = y,
-        rotation = rotation or 0,
-        scale_x = scale,
-        scale_y = scale,
-        offset_x = 35,
-        offset_y = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "alpha" },
-        source_object_type = "networked_player",
-        player_id = player_id
-    })
+    -- DEPRECATE THIS !!
+    -- local sort_y = y + (100 * scale)
+    -- table.insert(dynamic_draw_list, {
+    --     sort_y = sort_y + 45,
+    --     image_or_particles = player.animation.spriteSheet,
+    --     quad = player.animation.quads[((animation_frame + 5) % 5) + 6],
+    --     x = x,
+    --     y = y,
+    --     rotation = rotation or 0,
+    --     scale_x = scale,
+    --     scale_y = scale,
+    --     offset_x = 35,
+    --     offset_y = 50,
+    --     color = { 1, 1, 1, 1 },
+    --     blend_mode = { "alpha" },
+    --     source_object_type = "networked_player",
+    --     player_id = player_id
+    -- })
 end
 
 local function addPortal(x, y, sort_y)

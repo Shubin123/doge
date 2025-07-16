@@ -71,7 +71,7 @@ function player.update(dt)
     -- Dodge system variables (initialize these in player.load() if not already)
     player.dodgeSpeed = player.dodgeSpeed or 300
     player.dodgeDuration = player.dodgeDuration or 0.2
-    player.dodgeCooldown = player.dodgeCooldown or 1.0
+    player.dodgeCooldown = player.dodgeCooldown or 0.3
     player.isDodging = player.isDodging or false
     player.dodgeTimer = player.dodgeTimer or 0
     player.dodgeCooldownTimer = player.dodgeCooldownTimer or 0
