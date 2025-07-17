@@ -40,6 +40,7 @@ explosion = require("systems.explosion")
 characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
+teslaCoil = require("lib.graphics.teslaCoil")
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX")      -- improved console - always active
@@ -221,9 +222,9 @@ function love.draw()
 
     
     camera.apply()
-    if (shadowblock) then
+    -- if (shadowblock) then
     love.graphics.setShader(shadow.getShader(false))
-    end
+    -- end
 
     love.graphics.setColor(1,1,1, 0.4)
     -- Draw map with blood effects
@@ -256,7 +257,8 @@ function love.draw()
     explosion.populate()
     rocket.populate()
     blood.populate()
-
+    -- teslaCoil.draw()
+    teslaCoil.populate()
     car.populate()
     gun_enemy.populate(10,10)
     flying_enemy.populate()
@@ -275,10 +277,9 @@ function love.draw()
     -- Render sorted entities
 
     
-    if (shadowblock) then
+    -- if (shadowblock) then
     love.graphics.setShader(shadow.getShader(true))
-    
-    end
+    -- end
 
     renderer.renderSortedDrawList()
 
@@ -320,7 +321,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
-
+    
     
     -- print(player.body:getLinearVelocity())
     
@@ -338,23 +339,22 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         menu.update(dt)
         -- if not var.multiplayer then
         if not paused then
-         paused = love.audio.pause() -- change this to stop other audio play menu
+        paused = love.audio.pause() -- change this to stop other audio play menu
         end
         
         return
     else
         if paused then
-            for _,v in pairs(paused) do
-                
+            for _,v in pairs(paused) do            
                 love.audio.play(v)
                 paused = nil
             end
         end
         -- love.audio.setVolume(1)
     end
-    
+
     characterAnimator.update(dt)
-    
+    teslaCoil.fireAt(love.mouse.getPosition())
     
     -- love.audio.update()
     -- t = t + dt

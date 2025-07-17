@@ -1,187 +1,141 @@
--- LÖVE 2D Screen Space Drop Shadow System
-local objectShader
-local shadowShader
-local canvas
-local shadowOffset = {20, 20}
+local config = {
+    base_x = 400,
+    base_y = 300,
+    coil_height = 10,
+    spark_count = 10,
+    spark_range = 10,
+    bolt_segments = 10,
+    bolt_deviation = 50,
+    animation_speed = 1,
+    colors = {
+        spark = {1, 1, 1}
+    }
+}
 
-function love.load()
-    -- Create the light-based directional shader for objects
-    objectShader = love.graphics.newShader([[
-        uniform vec2 lightPos;
-        varying vec2 pos;
-        
-        #ifdef VERTEX
-        vec4 position(mat4 transform_projection, vec4 vertex_position) {
-            pos = vertex_position.xy;
-            return transform_projection * vertex_position;
-        }
-        #endif
-        
-        #ifdef PIXEL
-        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
-            // Get the original texture color
-            vec4 texColor = Texel(texture, texture_coords);
-            
-            // Calculate direction from current pixel to light
-            vec2 lightDir = normalize(lightPos - pos);
-            
-            // Create a shadow intensity based on distance from light
-            float distance = length(lightPos - pos);
-            float shadowIntensity = 1.0 - clamp(distance * 0.01, 0.0, 1.0); // Closer = brighter
-            
-            // Apply lighting effect
-            vec3 shadowColor = mix(vec3(0.5), mix(texColor.rgb, vec3(0,1,0), 0.5), shadowIntensity);
-            
-            // Preserve the original alpha and blend with the input color
-            return vec4(shadowColor * color.rgb, texColor.a * color.a);
-        }
-        #endif
-    ]])
-    
-    -- Create the screen space drop shadow shader
-    shadowShader = love.graphics.newShader([[
-        uniform vec4 background_color;
-        uniform vec4 shadow_color;
-        uniform vec2 offset_in_pixels;
-        uniform vec2 screen_size;
-        
-        #ifdef VERTEX
-        vec4 position(mat4 transform_projection, vec4 vertex_position) {
-            return transform_projection * vertex_position;
-        }
-        #endif
-        
-        #ifdef PIXEL
-        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
-            // Read current pixel from screen texture
-            vec4 current_color = Texel(texture, texture_coords);
-            
-            // Check if the current color is our background color
-            if (length(current_color.rgb - background_color.rgb) < 0.01) {
-                
-                // Calculate offset texture coordinates using screen_size
-                vec2 offset_uv = texture_coords - offset_in_pixels / screen_size;
-                
-                // Make sure we're within bounds
-                if (offset_uv.x >= 0.0 && offset_uv.x <= 1.0 && offset_uv.y >= 0.0 && offset_uv.y <= 1.0) {
-                    vec4 offset_color = Texel(texture, offset_uv);
-                    
-                    // Check if at our offset position we have a color which is not the background
-                    if (length(offset_color.rgb - background_color.rgb) > 0.01) {
-                        // If so set it to our shadow color
-                        current_color = mix(shadow_color,vec4(1),0.5);
-                    }
-                }
-            }
-            
-            return current_color;
-        }
-        #endif
-    ]])
+local state = {
+    bolts = {},
+    time = 0
+}
 
-    a = love.graphics.newImage("apple.png")
-    
-    -- Create canvas for screen space effects
-    canvas = love.graphics.newCanvas(love.graphics.getWidth(), love.graphics.getHeight())
+-- Generate a Collatz sequence
+local function collatz(n)
+    local seq = {}
+    while n ~= 1 do
+        table.insert(seq, n)
+        if n % 2 == 0 then n = n / 2 else n = 3 * n + 1 end
+    end
+    table.insert(seq, 1)
+    return seq
 end
 
-local lightPos = {}
+-- Create jagged bolt segments
+local function generateBolt(x1, y1, x2, y2, collatz_val)
+    local segments = {}
+    local dx, dy = x2 - x1, y2 - y1
+    local len = math.sqrt(dx * dx + dy * dy)
+
+    for i = 0, config.bolt_segments do
+        local t = i / config.bolt_segments
+        local base_x = x1 + dx * t
+        local base_y = y1 + dy * t
+
+        local dev_factor = (1 - math.abs(t - 0.5) * 2) -- stronger in the middle
+        local angle = math.pi * 2 * ((collatz_val % 360) / 360)
+        local offset_x = math.cos(angle + i) * config.bolt_deviation * dev_factor * (math.random() - 0.5)
+        local offset_y = math.sin(angle + i) * config.bolt_deviation * dev_factor * (math.random() - 0.5)
+
+        table.insert(segments, {x = base_x + offset_x, y = base_y + offset_y})
+    end
+
+    return segments
+end
+
+-- Bresenham line plot
+local function drawPixelLine(x0, y0, x1, y1, pixel_size)
+    pixel_size = pixel_size or 2 -- Default size of 2 pixels
+
+    x0 = math.floor(x0 + 0.5)
+    y0 = math.floor(y0 + 0.5)
+    x1 = math.floor(x1 + 0.5)
+    y1 = math.floor(y1 + 0.5)
+
+    local dx = math.abs(x1 - x0)
+    local dy = -math.abs(y1 - y0)
+    local sx = x0 < x1 and 1 or -1
+    local sy = y0 < y1 and 1 or -1
+    local err = dx + dy
+
+    while true do
+        -- Draw a square "pixel"
+        love.graphics.rectangle("fill", x0 - pixel_size / 2, y0 - pixel_size / 2, pixel_size, pixel_size)
+
+        if x0 == x1 and y0 == y1 then break end
+        local e2 = 2 * err
+        if e2 >= dy then err = err + dy; x0 = x0 + sx end
+        if e2 <= dx then err = err + dx; y0 = y0 + sy end
+    end
+end
+
+local t = 0
+-- Draw bolts
+local function drawBolts()
+    love.graphics.setColor(config.colors.spark[1], config.colors.spark[2], config.colors.spark[3])
+    love.graphics.setPointSize(1)
+    t = t + 0.1
+    for _, bolt in ipairs(state.bolts) do
+        for i = 1, #bolt - 1 do
+            drawPixelLine(bolt[i].x, bolt[i].y, bolt[i + 1].x, bolt[i + 1].y, (math.sin(t) + 2)*2)
+        end
+    end
+end
+
+-- Create new bolts
+local function fireAt(x, y)
+    state.bolts = {}
+    local sx, sy = config.base_x, config.base_y - config.coil_height
+
+    for i = 1, config.spark_count do
+        local start_num = 3 + i * 2
+        local seq = collatz(start_num)
+        local seq_pos = (i % #seq) + 1
+        local val = seq[seq_pos]
+
+        local angle = (val % 360) * (math.pi / 180)
+        local dist = config.spark_range + (val % 10)
+        local tx = x + math.cos(angle) * dist
+        local ty = y + math.sin(angle) * dist
+
+        local bolt = generateBolt(sx, sy, tx, ty, val)
+        table.insert(state.bolts, bolt)
+    end
+end
+
+-- LÖVE callbacks
+function love.load()
+    love.window.setTitle("Pixelated Tesla Coil")
+    love.graphics.setBackgroundColor(0, 0, 0)
+    love.graphics.setDefaultFilter("nearest", "nearest")
+    math.randomseed(os.time())
+end
+
 function love.update(dt)
-    -- Update light position with mouse
-    lightPos[1] = love.mouse.getX()
-    lightPos[2] = love.mouse.getY()
-    
-    -- Shadow offset control
-    if love.keyboard.isDown("=") or love.keyboard.isDown("kp+") then
-        shadowOffset[1] = shadowOffset[1] + dt * 30
-        shadowOffset[2] = shadowOffset[2] + dt * 30
-    elseif love.keyboard.isDown("-") or love.keyboard.isDown("kp-") then
-        shadowOffset[1] = shadowOffset[1] - dt * 30
-        shadowOffset[2] = shadowOffset[2] - dt * 30
-    end
-    -- shadowOffset[1] = math.max(1, shadowOffset[1])
-    -- shadowOffset[2] = math.max(1, shadowOffset[2])
-    
-    -- Arrow key controls for shadow direction
-    if love.keyboard.isDown("up") then
-        shadowOffset[2] = shadowOffset[2] - dt * 30
-    elseif love.keyboard.isDown("down") then
-        shadowOffset[2] = shadowOffset[2] + dt * 30
-    end
-    if love.keyboard.isDown("left") then
-        shadowOffset[1] = shadowOffset[1] - dt * 30
-    elseif love.keyboard.isDown("right") then
-        shadowOffset[1] = shadowOffset[1] + dt * 30
-    end
-    
-    -- Send uniforms to shaders
-    objectShader:send("lightPos", lightPos)
-    shadowShader:send("background_color", {0.3, 0.3, 0.3, 1.0})
-    shadowShader:send("shadow_color", {1, 0.0, 0.0, 0.5})
-    shadowShader:send("offset_in_pixels", {love.mouse.getX(), love.mouse.getY()})
-    shadowShader:send("screen_size", {love.graphics.getWidth(), love.graphics.getHeight()})
+    state.time = state.time + dt
+    fireAt(love.mouse.getPosition())
 end
 
 function love.draw()
-    -- PASS 1: Render scene to canvas
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(0.3, 0.3, 0.3, 1) -- Background color
-    
-    -- Draw objects with lighting shader
-    love.graphics.setShader(objectShader)
-    love.graphics.setColor(1, 1, 1, 1)
-    
-    -- Draw rectangles
-    love.graphics.rectangle("fill", 200, 200, 100, 80)
-    love.graphics.rectangle("fill", 450, 300, 80, 60)
-    love.graphics.rectangle("fill", 300, 400, 120, 40)
-    love.graphics.rectangle("fill", 150, 350, 60, 100)
-    
-    -- Draw circles
-    love.graphics.circle("fill", 100, 150, 30)
-    love.graphics.circle("fill", 100, 500, 50)
-    love.graphics.circle("fill", 100, 100, 40)
-    love.graphics.circle("fill", 600, 150, 30)
-    love.graphics.circle("fill", 500, 500, 50)
-    
-    -- Draw image
-    love.graphics.draw(a, 100, 100, 0, 1)
-    
-    -- Draw light source
-    love.graphics.setShader()
-    love.graphics.setColor(1, 1, 0, 0.8)
-    love.graphics.circle("fill", lightPos[1], lightPos[2], 12)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.circle("line", lightPos[1], lightPos[2], 40)
-    
-    love.graphics.setCanvas()
-    
-    -- PASS 2: Apply drop shadow effect to the rendered scene
-    love.graphics.setShader(shadowShader)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(canvas, 0, 0)
-    
-    -- Reset shader for UI
-    love.graphics.setShader()
-    
-    -- Draw UI
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print("Screen Space Drop Shadow System", 10, 10)
-    love.graphics.print("Shadow Offset: " .. string.format("%.1f, %.1f", shadowOffset[1], shadowOffset[2]), 10, 30)
-    love.graphics.print("Light Position: " .. lightPos[1] .. ", " .. lightPos[2], 10, 50)
-    love.graphics.print("", 10, 70)
-    love.graphics.print("Controls:", 10, 90)
-    love.graphics.print("  Mouse: Move light source", 10, 110)
-    love.graphics.print("  +/-: Control shadow distance", 10, 130)
-    love.graphics.print("  Arrow keys: Control shadow direction", 10, 150)
-    love.graphics.print("", 10, 170)
-    love.graphics.print("Screen space shadows - no duplicate draws!", 10, 190)
-    love.graphics.print("Objects show directional lighting", 10, 210)
+    drawBolts()
+
+    -- Draw the coil base
+    love.graphics.setColor(0.5, 1, 1)
+    love.graphics.rectangle("fill", config.base_x - 3, config.base_y - config.coil_height, 6, config.coil_height)
+
+    love.graphics.setColor(1, 1, 0.2)
+    love.graphics.print("Click to fire pixel arc", 10, 10)
 end
 
-function love.resize(w, h)
-    -- Recreate canvas on window resize
-    canvas = love.graphics.newCanvas(w, h)
-    -- Update screen size uniform
-    shadowShader:send("screen_size", {w, h})
+function love.mousepressed(x, y, button)
+    if button == 1 then
+        fireAt(x, y)
+    end
 end

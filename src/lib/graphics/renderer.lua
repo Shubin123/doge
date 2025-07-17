@@ -145,6 +145,7 @@ end
 
 local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
     -- DEPRECATE THIS !!
+    -- moveto player.lua
     -- local sort_y = y + (100 * scale)
     -- table.insert(dynamic_draw_list, {
     --     sort_y = sort_y + 45,
@@ -614,12 +615,10 @@ function renderer.populateDynamicDrawList()
 
     -- Local player from physics
     local px, py = player.body:getX(), player.body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
-        1
+    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
-
     addPortal(290, 150, 315)
-
+    
     -- -- Add player light effect
     -- if blueNeon then
     --     addLightEffect(blueNeon,-camera.pos.x, -camera.pos.y, 100, 3, 10000, { 0.1, 0.46, 1, 1 }, "player_neon")
@@ -1010,6 +1009,10 @@ function renderer.renderSortedDrawList()
             --     renderShader(drawable)
             -- elseif drawable.image_or_particles then
             --     renderImage(drawable)
+
+        elseif drawable.draw_type == "teslaCoil" then
+                teslaCoil.renderPixelLine(drawable)
+        
         end
 
         -- if drawable.source_object_type == "fire_effect" then
