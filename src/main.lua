@@ -317,6 +317,7 @@ end
 local t = 0
 local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
+
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
     
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)

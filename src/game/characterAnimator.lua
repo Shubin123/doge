@@ -50,6 +50,7 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
     instance.currentDirection = 1
     instance.currentFrame = 1
     instance.timeAccumulator = 0
+    instance.priority = 0
     
     function instance.update(dt)
         local stateData = instance.states[instance.currentState]
@@ -73,9 +74,25 @@ local function createInstance(spriteSheetPaths, frameWidth, frameHeight)
         -- end
     end
     
-    function instance.setState(stateNumber)
+    function instance.setState(stateNumber, priority)
+        -- priority works in ascending order from 1. if no priority is set then assume overrideable
+        
+        
         if instance.states[stateNumber] then
+            if priority then
+                -- print(instance.priority)
+                if instance.priority < priority then
+                    instance.priority = priority
+                    return
+                end
+            else 
+                instance.currentState = stateNumber
+                return
+            end
+            
+
             instance.currentState = stateNumber
+            instance.priority = priority
             -- instance.currentFrame = 1
             -- instance.timeAccumulator = 0
         end

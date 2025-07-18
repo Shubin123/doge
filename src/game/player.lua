@@ -128,7 +128,7 @@ function player.update(dt)
         -- Set dodge animation
         player.currentAnimation = princess.getState()
         
-        princess.setState(4)
+        princess.setState(4,2)
         return -- Skip normal movement during dodge
     else
         princess.setState(player.currentAnimation)

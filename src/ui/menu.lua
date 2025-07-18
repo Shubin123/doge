@@ -148,8 +148,12 @@ function menu.mousepressed(x, y, button, screenInfo)
     elseif menu.currentMenu == "settings" then
         local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
         if inBounds({y = resolutionButton.y, text = resolutionButton.text .. res.text}) then
+            
             graphicsSettings.currentResolution = graphicsSettings.currentResolution % #graphicsSettings.resolutions + 1
             menu.applyResolution()
+            love.resize(graphicsSettings.resolutions[graphicsSettings.currentResolution].width,graphicsSettings.resolutions[graphicsSettings.currentResolution].height)
+            -- love.resize(w, h)
+            
             return nil
         end
 

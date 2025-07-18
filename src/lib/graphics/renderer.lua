@@ -765,9 +765,6 @@ local function renderDrawType(drawable)
 end
 
 
-
-
-
 function renderer.renderSortedDrawList()
     -- Store current graphics state
     local current_color = { love.graphics.getColor() }
