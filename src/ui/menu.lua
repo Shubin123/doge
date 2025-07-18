@@ -87,6 +87,9 @@ function menu.update(dt)
 end
 
 function menu.draw()
+    
+
+
     if graphicsSettings.particles then
         love.graphics.draw(ps)
     end
@@ -128,6 +131,22 @@ function menu.draw()
         love.graphics.printf(deleteSaveButton.text, 0, deleteSaveButton.y, var.screen_width, "center")
         love.graphics.printf(backSavesButton.text, 0, backSavesButton.y, var.screen_width, "center")
     end
+end
+
+function menu.drawUI()
+    if var.State == "menu" then
+        menu.draw()
+        love.graphics.draw(oldhand, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
+        return
+    end
+    
+
+    -- Draw header
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    love.graphics.rectangle("fill", 0, 0, W, var.header_height)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Health: "..player.health, 10, 10)
+    love.graphics.print("Points: " .. var.player_score, W - 100, 10)
 end
 
 function menu.mousepressed(x, y, button, screenInfo)
@@ -244,5 +263,8 @@ function menu.deleteSave()
     print("Delete save triggered.")
     
 end
+
+
+
 
 return menu

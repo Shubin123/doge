@@ -77,6 +77,9 @@ game_area_y = var.header_height
 
 
 function love.load()
+        preLoadDraw()
+
+    -- love.draw = preLoadDraw
     -- love.mouse.setVisible(false)
 
     -- Window setup
@@ -201,131 +204,129 @@ function love.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
+
+    love.draw = mydraw.mydraw
 end
 
 -- Removed duplicate definition of game area dimensions, now defined at top level
+-- function love.draw() end
+
+-- function love.draw()
+--     -- if var.State == "menu" then
+--     --     menu.draw()
+--     --     blur.enable()
+--     --     --     return
+--     -- end
 
 
-function love.draw()
-    if var.State == "menu" then
-        menu.draw()
-        -- blur.enable()
-        --     return
-    end
+--     if var.graphics_high then
+--         shader.prepass()
+--     end
 
-
-    if var.graphics_high then
-        shader.prepass()
-    end
-
-    love.graphics.push() --push all camera transforms (move everything when player moves)
-
-    
-    camera.apply()
-    -- if (shadowblock) then
-    love.graphics.setShader(shadow.getShader(false))
-    -- end
-
-    love.graphics.setColor(1,1,1, 0.4)
-    -- Draw map with blood effects
-    -- if blood and blood.drawBackground then
-    --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
-    -- else
-
-    -- end
-    
-    map.map:draw(-10000, 100, 1)
-
-    love.graphics.setColor(1, 1, 1, 1)
-    
-
-    -- Populate and sort dynamic draw list if neccessary
-    -- love.graphics.setShader(objectShader)
-    
-    grass.public.draw()
-    if var.multiplayer then
-        renderer.populateDynamicDrawListNetworked()
-
-        if var.multiplayer == 1 then
-            renderer.populateDynamicDrawListNETHOST()
-        end
-    else
-        renderer.populateDynamicDrawList()
-    end
-    
-    bullet.populate()
-    explosion.populate()
-    rocket.populate()
-    blood.populate()
-    -- teslaCoil.draw()
-    teslaCoil.populate()
-    car.populate()
-    gun_enemy.populate(10,10)
-    flying_enemy.populate()
-    princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
-    fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
-    
-
-    if var.graphics_high then
-        light.populate()
-    end
-
-    gun.drawWorld()
-    -- characterAnimator.populate(200,200,1,0)
-
-    table.sort(dynamic_draw_list, renderer.sortByRenderY)
-    -- Render sorted entities
+--     love.graphics.push() --push all camera transforms (move everything when player moves)
 
     
-    -- if (shadowblock) then
-    love.graphics.setShader(shadow.getShader(true))
-    -- end
+--     camera.apply()
+--     -- if (shadowblock) then
+--     love.graphics.setShader(shadow.getShader(false))
+--     -- end
 
-    renderer.renderSortedDrawList()
+--     love.graphics.setColor(1,1,1, 0.4)
+--     -- Draw map with blood effects
+--     -- if blood and blood.drawBackground then
+--     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
+--     -- else
+
+--     -- end
+    
+--     map.map:draw(-10000, 100, 1)
+
+--     love.graphics.setColor(1, 1, 1, 1)
+    
+
+--     -- Populate and sort dynamic draw list if neccessary
+--     -- love.graphics.setShader(objectShader)
+    
+--     grass.public.draw()
+--     if var.multiplayer then
+--         renderer.populateDynamicDrawListNetworked()
+
+--         if var.multiplayer == 1 then
+--             renderer.populateDynamicDrawListNETHOST()
+--         end
+--     else
+--         renderer.populateDynamicDrawList()
+--     end
+    
+--     bullet.populate()
+--     explosion.populate()
+--     rocket.populate()
+--     blood.populate()
+--     -- teslaCoil.draw()
+--     teslaCoil.populate()
+--     car.populate()
+--     gun_enemy.populate(10,10)
+--     flying_enemy.populate()
+--     princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
+--     fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
+    
+
+--     if var.graphics_high then
+--         light.populate()
+--     end
+
+--     gun.drawWorld()
+--     -- characterAnimator.populate(200,200,1,0)
+
+--     table.sort(dynamic_draw_list, renderer.sortByRenderY)
+--     -- Render sorted entities
+
+    
+--     -- if (shadowblock) then
+--     love.graphics.setShader(shadow.getShader(true))
+--     -- end
+
+--     renderer.renderSortedDrawList()
 
 
     
 
 
 
-    love.graphics.pop() -- pop back into base world space
-    -- order is IMPORTANT HERE shader-> smoke -> water
+--     love.graphics.pop() -- pop back into base world space
+--     -- order is IMPORTANT HERE shader-> smoke -> water
 
-    -- explosion.draw()
-
-
-
-    if var.graphics_high then
-        light.draw()
+--     -- explosion.draw()
 
 
-        shader.pass()
-        explosion.pass()
-        -- smoke.pass()
-        water.pass()
-        crtShader.endCapture()
 
-        -- blur.pass()
-    end
+--     if var.graphics_high then
+--         light.draw()
+--         shader.pass()
+--         explosion.pass()
+--         -- smoke.pass()
+--         water.pass()
+--         crtShader.endCapture()
 
-    mydraw.mydraw() -- ui last
-    command.draw()  -- Draw console on top
-    cmdn.draw()     -- Draw improved console on top
-    -- editor.debugDraw()
-end
+--         -- blur.pass()
+--     end
+
+--     menu.drawUI() -- ui last
+--     command.draw()  -- Draw console on top
+--     cmdn.draw()     -- Draw improved console on top
+--     -- editor.debugDraw()
+-- end
 
 local t = 0
 local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
 
+-- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
     
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
-    
-    
     -- print(player.body:getLinearVelocity())
-    
 
     -- print(math.floor(math.abs((math.sin(fire.t)*7)) + 1))
 
@@ -342,7 +343,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         if not paused then
         paused = love.audio.pause() -- change this to stop other audio play menu
         end
-        
+
         return
     else
         if paused then
@@ -372,7 +373,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         renderer.updateInterpolation(dt)
     end
 
-    camera.update(dt, player)
+    -- camera.update(dt, player)
     water.update(dt)
     -- smoke.update(dt)
     fire.update(dt)
@@ -397,6 +398,16 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- rocket.update(dt)
 
     -- wind.update(dt)
+
+    -- t = 0
+-- end
+
+    -- world:update(dt)
+    -- player.update(dt)
+    camera.update(dt,player)
+
+    -- t = t + 1
+
 end
 
 function love.resize(w, h)

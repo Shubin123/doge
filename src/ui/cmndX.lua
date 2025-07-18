@@ -12,7 +12,7 @@ local historyIndex = 0
 local output = {}
 local maxOutputLines = 20
 local scrollOffset = 0
-local font
+local font = gameFont
 local lineHeight = 16
 local padding = 10
 local consoleHeight = 350
@@ -308,13 +308,13 @@ local keyRepeatRate = 0.05  -- Time between repeats
 -- Initialize the cmdn module
 function cmdn.load()
     -- Try to load the desired font, fallback to default if it fails
-    local success, loadedFont = pcall(love.graphics.newFont, "gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
-    if success then
-        font = loadedFont
-    else
-        font = love.graphics.getFont() or love.graphics.newFont(16)
-    end
-    lineHeight = font:getHeight() + 2
+    -- local success, loadedFont = pcall(love.graphics.newFont, "gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    -- if success then
+    --     font = loadedFont
+    -- else
+    --     font = love.graphics.getFont() or love.graphics.newFont(16)
+    -- end
+    lineHeight = gameFont:getHeight() + 2
     -- consoleWidth is now fixed, not screen-dependent
     cmdn.addOutput("{green}=== {yellow}LUA DEBUG CONSOLE{/yellow} ==={/green}", promptColor)
     cmdn.addOutput("Type {yellow}help{/yellow} for available commands", outputColor)

@@ -72,7 +72,7 @@ function blood.load()
     local w, h = love.graphics.getDimensions()
     blood.canvas = love.graphics.newCanvas(w, h)
     
-    print("Blood system loaded")
+    -- print("Blood system loaded")
 end
 
 function blood.createBloodTexture()

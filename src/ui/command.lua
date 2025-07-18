@@ -40,13 +40,14 @@ local block = require("game.block")
 
 -- Initialize the command module
 function command.load()
-    font = love.graphics.getFont() or love.graphics.newFont(12)
-    lineHeight = font:getHeight() + 2
+    -- font = love.graphics.getFont() or love.graphics.newFont(12)
+    lineHeight = gameFont:getHeight() + 2
     consoleWidth = love.graphics.getWidth()
 
     -- Load command block font
-    command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
-    font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    -- command_block_font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    -- font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
+    font = gameFont
 
     -- Setup command block animation using superclass
     -- command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
@@ -859,9 +860,5 @@ function command.receiveCommandBlock(block)
     end
 end
 
--- Get command block font for external use
-function command.getCommandBlockFont()
-    return command_block_font
-end
 
 return command
