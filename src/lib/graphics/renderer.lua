@@ -231,7 +231,7 @@ local function addCoinsFromBodies()
     for i = 1, #coin_bods do
         local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
         local scale = coin_bods[i]:getFixtures()[1]:getUserData() ~= nil and
-        coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
+            coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
         table.insert(dynamic_draw_list, {
             sort_y = cy + (coin_image:getHeight() * 0.5) / 2 + 100,
             image_or_particles = coin_image,
@@ -615,16 +615,17 @@ function renderer.populateDynamicDrawList()
 
     -- Local player from physics
     local px, py = player.body:getX(), player.body:getY()
-    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) + 1
+    local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
+    1
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
     addPortal(290, 150, 315)
-    
+
     -- -- Add player light effect
     -- if blueNeon then
     --     addLightEffect(blueNeon,-camera.pos.x, -camera.pos.y, 100, 3, 10000, { 0.1, 0.46, 1, 1 }, "player_neon")
     -- end
 
-    addEnemiesFromBodies()
+    
     addCoinsFromBodies()
 
 
@@ -640,7 +641,7 @@ function renderer.populateDynamicDrawList()
 end
 
 function renderer.populateDynamicDrawListNETHOST()
-    addEnemiesFromBodies()
+    -- addEnemiesFromBodies()
     addCoinsFromBodies()
     enemy.populate()
     boss.populate()
@@ -798,6 +799,8 @@ function renderer.renderSortedDrawList()
             last_blend_mode = blend_mode
         end
 
+
+
         -- Handle shader drawing
         if drawable.shader and drawable.source_object_type ~= "tree_with_wind" then
             -- Set shader and parameters
@@ -816,15 +819,16 @@ function renderer.renderSortedDrawList()
             if drawable.draw_type == "shockwave" then
                 -- drawable.shader:send("time", drawable.time*100)
                 love.graphics.circle("fill", drawable.x, drawable.y, drawable.radius)
-            -- love.graphics.setShader(current_shader)
-
+                -- love.graphics.setShader(current_shader)
             else
                 love.graphics.rectangle("fill", drawable.x, drawable.y, drawable.width, drawable.height)
             end
             -- Reset shader
             -- love.graphics.setShader()
             love.graphics.setShader(current_shader)
+
         elseif drawable.source_object_type == "fire_effect" then -- naturally lit objects dont have shadow!
+        -- since we only want to do this for fire effect it needs to go first
             love.graphics.setShader()
             love.graphics.draw(
                 drawable.image_or_particles,
@@ -837,7 +841,6 @@ function renderer.renderSortedDrawList()
                 drawable.offset_y or 0
             )
             love.graphics.setShader(current_shader)
-
 
             -- Handle bullet effects drawing
         elseif drawable.source_object_type == "muzzle_flash" then
@@ -911,31 +914,6 @@ function renderer.renderSortedDrawList()
 
             -- love.graphics.setShader()
             -- Handle regular image drawing
-        elseif drawable.image_or_particles then
-            if drawable.quad then
-                love.graphics.draw(
-                    drawable.image_or_particles,
-                    drawable.quad,
-                    drawable.x,
-                    drawable.y,
-                    drawable.rotation or 0,
-                    drawable.scale_x or 1,
-                    drawable.scale_y or 1,
-                    drawable.offset_x or 0,
-                    drawable.offset_y or 0
-                )
-            else
-                love.graphics.draw(
-                    drawable.image_or_particles,
-                    drawable.x,
-                    drawable.y,
-                    drawable.rotation or 0,
-                    drawable.scale_x or 1,
-                    drawable.scale_y or 1,
-                    drawable.offset_x or 0,
-                    drawable.offset_y or 0
-                )
-            end
         elseif drawable.draw_type == "text" then
             local current_font = love.graphics.getFont()
             if drawable.font then
@@ -1006,11 +984,43 @@ function renderer.renderSortedDrawList()
             --     renderShader(drawable)
             -- elseif drawable.image_or_particles then
             --     renderImage(drawable)
-
-        elseif drawable.draw_type == "teslaCoil" then
-                teslaCoil.renderPixelLine(drawable)
+        elseif drawable.image_or_particles then      --default draw
         
+            if drawable.quad then
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.quad,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            else
+                love.graphics.draw(
+                    drawable.image_or_particles,
+                    drawable.x,
+                    drawable.y,
+                    drawable.rotation or 0,
+                    drawable.scale_x or 1,
+                    drawable.scale_y or 1,
+                    drawable.offset_x or 0,
+                    drawable.offset_y or 0
+                )
+            end
+        elseif drawable.draw_type == "teslaCoil" then
+            teslaCoil.renderPixelLine(drawable)
+        elseif drawable.source_object_type == "character_animator" then
+            
+            -- love.graphics.setShader(characterAnimator.shader)
+            -- -- love.graphics.setShader(shadow.getShader(false))
+            -- love.graphics.drawInstanced(drawable.mesh, 100000)
+            -- love.graphics.setShader(current_shader)
         end
+
+
 
         -- if drawable.source_object_type == "fire_effect" then
 

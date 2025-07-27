@@ -12,7 +12,6 @@ local historyIndex = 0
 local output = {}
 local maxOutputLines = 20
 local scrollOffset = 0
-local font = gameFont
 local lineHeight = 16
 local padding = 10
 local consoleHeight = 350
@@ -314,6 +313,7 @@ function cmdn.load()
     -- else
     --     font = love.graphics.getFont() or love.graphics.newFont(16)
     -- end
+    font = gameFont
     lineHeight = gameFont:getHeight() + 2
     -- consoleWidth is now fixed, not screen-dependent
     cmdn.addOutput("{green}=== {yellow}LUA DEBUG CONSOLE{/yellow} ==={/green}", promptColor)

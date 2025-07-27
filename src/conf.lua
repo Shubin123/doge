@@ -18,7 +18,6 @@ var.coin_bods = {}
 var.num_enemies = 1
 var.enemies_bods = {}
 
-
 var.max_grass = 20000 -- max grass blades per quadrant
 
 var.sprite_height = 100
@@ -33,7 +32,6 @@ var.sprite_width = 100
 
  var.tile_w = 16
  var.tile_h = 16
-
 
  var.ScreenInfo = {
     screen_height = var.screen_height,

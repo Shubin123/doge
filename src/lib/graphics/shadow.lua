@@ -85,9 +85,13 @@ function shadow.load()
         varying vec2 pos;
         
         #ifdef VERTEX
+        attribute vec2 InstancePosition;
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
-            pos = vertex_position.xy;
-            return transform_projection * vertex_position;
+            //pos = vertex_position.xy;
+            //return transform_projection * vertex_position;
+            vec4 instancedPosition = vertex_position + vec4(InstancePosition.xy, 0.0, 0.0);
+            pos = instancedPosition.xy;
+            return transform_projection * instancedPosition;
         }
         #endif
         
@@ -170,6 +174,12 @@ function shadow.updateBothShaders(dt)
         objectShaderWithCamera:send("lightPositions", unpack(positionsWithCamera))
         objectShaderWithCamera:send("lightIntensities", unpack(intensities))
         objectShaderWithCamera:send("lightRanges", unpack(ranges))
+
+        -- characterAnimator
+        characterAnimator.shader:send("numLights",#lights)
+        characterAnimator.shader:send("lightPositions",unpack(positions))
+        characterAnimator.shader:send("lightIntensities",unpack(intensities))
+        characterAnimator.shader:send("lightRanges",unpack(ranges))
     end
 end
 

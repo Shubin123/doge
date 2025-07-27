@@ -111,12 +111,12 @@ end
 
 function enemy.load()
     -- local fireImg = getFireSprite()
-    
+
     -- Create particle system for enemy projectiles (different color/settings
-    local fire_image  = love.graphics.newImage("gfx/firelowres.png")
+    local fire_image = love.graphics.newImage("gfx/firelowres.png")
     Quads = sprite:constructsprite(fire_image, 8, 8)
     enemy.particleSystem = love.graphics.newParticleSystem(fire_image, 200)
-    
+
     -- ENEMY PROJECTILE CONFIGURATION (different from player fire)
     enemy.particleSystem:setParticleLifetime(0.8, 1.5)
     enemy.particleSystem:setEmissionRate(12)
@@ -132,7 +132,7 @@ function enemy.load()
     enemy.particleSystem:setRotation(0, 2 * 3.14)
     enemy.particleSystem:setOffset(sprite:getTileSize())
     enemy.particleSystem:setInsertMode('bottom')
-    
+
     -- Initialize fire times for existing enemies
     for i = 1, #enemies_bods do
         enemy.last_fire_times[i] = 0
@@ -142,23 +142,23 @@ end
 function enemy.update(dt)
     enemy.particleSystem:update(dt)
     enemy.t = enemy.t + dt
-    
+
     -- Apply basic gravity/movement to enemies
     for i = 1, #enemies_bods do
         -- enemies_bods[i]:applyForce(0, 1)
-        
+
         -- AI logic for each enemy
         enemy.updateEnemyAI(i, dt)
-        
+
         -- Initialize health if not set
         if not enemy.health[i] then
             enemy.health[i] = enemy.max_health
         end
     end
-    
+
     -- Update existing projectiles
     enemy.updateProjectiles(dt)
-    
+
     -- Update damage indicators
     for i = #enemy.damage_indicators, 1, -1 do
         local indicator = enemy.damage_indicators[i]
@@ -463,6 +463,36 @@ function enemy.populate()
                 source_object_type = "health_bar_fill"
             })
         end
+    end
+
+    for i = 1, #enemies_bods do
+        local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
+
+        -- Calculate enemy color based on health
+        local enemy_color = { 1, 1, 1, 1 }
+        if enemy and enemy.health and enemy.health[i] then
+            local health_percent = enemy.health[i] / enemy.max_health
+            if health_percent <= 0.3 then
+                -- Low health - red tint
+                local red_intensity = 1 - (health_percent / 0.3) * 0.3
+                enemy_color = { 1, 1 - red_intensity, 1 - red_intensity, 1 }
+            end
+        end
+
+        table.insert(dynamic_draw_list, {
+            sort_y = ey + (enemy_image:getHeight() * 0.1) / 2 + 100,
+            image_or_particles = enemy_image,
+            x = ex,
+            y = ey,
+            rotation = 0,
+            scale_x = 0.1,
+            scale_y = 0.1,
+            offset_x = enemy_image:getWidth() / 2,
+            offset_y = enemy_image:getHeight() / 2,
+            color = enemy_color,
+            blend_mode = { "alpha" },
+            source_object_type = "enemy"
+        })
     end
 end
 

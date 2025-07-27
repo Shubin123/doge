@@ -74,10 +74,11 @@ game_area_y = var.header_height
 --     print("error:" ..msg)
 --     print("BEHAVIOUR IS UNDEFINED BEYOND THIS POINT")
 -- end
-
+-- dbg= require('mobdebug')
 
 function love.load()
         preLoadDraw()
+         
 
     -- love.draw = preLoadDraw
     -- love.mouse.setVisible(false)
@@ -130,15 +131,15 @@ function love.load()
     -- for key, value in pairs(map.house.color) do
     --     print(key,value)
     -- end
-    princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/roll2.png","gfx/3d/princess/jump copy.png"},128,128,nil)
-    fighter = characterAnimator.init({"gfx/3d/fighter/walk.png"},256,256,nil)
+    characterAnimator.load()
+    
+    princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
+    -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
 
-
-
-    flying_enemy = characterAnimator.init("gfx/3d/animated2.png",128,128,nil)
+    -- flying_enemy = characterAnimator.init({"gfx/3d/animated2.png"},128,128,nil)
 
     -- gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
-    gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128,nil)
+    -- gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
 
 
     multiplayer.load()
@@ -318,8 +319,19 @@ end
 -- end
 
 local t = 0
+local frameCounter = 0
 local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
+
+    t = t + dt 
+    frameCounter = frameCounter + 1
+    if t >= 1 then
+        print(frameCounter/t)
+        frameCounter = 0 
+        t = 0
+    end
+
+
 
 -- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
@@ -497,13 +509,13 @@ function love.keypressed(key)
 
         if not zoomToggle then
             camera.setZoom(2)
-            gun_enemy.setState(1)
+            -- gun_enemy.setState(1)
             
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
             
-            gun_enemy.setState(2)
+            -- gun_enemy.setState(2)
 
         end
 

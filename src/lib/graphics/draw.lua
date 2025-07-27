@@ -55,10 +55,12 @@ function draw.mydraw()
     -- teslaCoil.draw()
     teslaCoil.populate()
     car.populate()
-    gun_enemy.populate(10,10)
-    flying_enemy.populate()
-    princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
-    fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
+    -- gun_enemy.populate(10,10)
+    -- flying_enemy.populate()
+    -- princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
+    -- fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
+    characterAnimator.draw()
+    
     
 
     if var.graphics_high then

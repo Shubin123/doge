@@ -110,7 +110,6 @@ function collision.init()
                     if coinUserData and coinUserData.value then
                         coinValue = coinUserData.value
                     end
-                    
                     var.player_score = var.player_score + coinValue
                     var.num_coins = var.num_coins - 1
                     table.remove(coin_bods, i)

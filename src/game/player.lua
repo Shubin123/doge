@@ -126,12 +126,13 @@ function player.update(dt)
         player.body:setLinearVelocity(dodgeVX, dodgeVY)
         
         -- Set dodge animation
-        player.currentAnimation = princess.getState()
+        -- player.currentAnimation = princess.getState()
         
-        princess.setState(4,2)
+        princess.setState(4)
         return -- Skip normal movement during dodge
     else
-        princess.setState(player.currentAnimation)
+        -- print(player.currentAnimation)
+        -- princess.setState(princess.getState())
     end
     
     -- Normal movement (only when not dodging)
@@ -248,6 +249,8 @@ function player.applyKnockback(direction, force)
     
     -- Add knockback to current velocity for immediate visible effect
     player.body:setLinearVelocity(vx + knockbackVx, vy + knockbackVy)
+
+    
 end
 
 function player.draw()
