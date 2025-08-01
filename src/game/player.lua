@@ -1,5 +1,5 @@
 local player = {}
-player.health = 100
+player.health = 1000
 player.online = {}
 player.online.bodies = {}
 player.online.health = {}
@@ -128,7 +128,7 @@ function player.update(dt)
         -- Set dodge animation
         -- player.currentAnimation = princess.getState()
         
-        princess.setState(4)
+        -- princess.setState(4)
         return -- Skip normal movement during dodge
     else
         -- print(player.currentAnimation)
@@ -302,6 +302,31 @@ end
 
 function player.getAnimation()
     return player.animation
+end
+
+function player.getDirection()
+    -- Get player's linear velocity
+    local vx, vy = player.body:getPosition()
+    
+    -- Check if velocity is near zero to avoid division issues
+    if math.abs(vx) < 0.01 and math.abs(vy) < 0.01 then
+        return nil -- No movement, return nil (or a default direction if needed)
+    end
+    
+    -- Calculate angle in radians using atan2
+    local angle = math.atan2(vy, vx) -- vy first, vx second for LOVE2D's coordinate system
+    
+    -- Convert to degrees and normalize to [0, 360)
+    local angle_deg = math.deg(angle)
+    if angle_deg < 0 then
+        angle_deg = angle_deg + 360
+    end
+    
+    -- Map angle to one of 8 directions
+    -- Each direction spans 45 degrees, centered on 0°, 45°, 90°, etc.
+    local direction = math.floor((angle_deg + 22.5) / 45) % 8 + 1
+    
+    return direction
 end
 
 return player

@@ -41,6 +41,7 @@ characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
 teslaCoil = require("lib.graphics.teslaCoil")
+BehaviourTree = require('lib.behaviourTrees')
 
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX")      -- improved console - always active
@@ -133,13 +134,13 @@ function love.load()
     -- end
     characterAnimator.load()
     
-    princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
+    -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
     -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
 
     -- flying_enemy = characterAnimator.init({"gfx/3d/animated2.png"},128,128,nil)
 
-    -- gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
-    -- gun_enemy = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
+    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
+    gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
 
 
     multiplayer.load()
@@ -208,115 +209,6 @@ function love.load()
 
     love.draw = mydraw.mydraw
 end
-
--- Removed duplicate definition of game area dimensions, now defined at top level
--- function love.draw() end
-
--- function love.draw()
---     -- if var.State == "menu" then
---     --     menu.draw()
---     --     blur.enable()
---     --     --     return
---     -- end
-
-
---     if var.graphics_high then
---         shader.prepass()
---     end
-
---     love.graphics.push() --push all camera transforms (move everything when player moves)
-
-    
---     camera.apply()
---     -- if (shadowblock) then
---     love.graphics.setShader(shadow.getShader(false))
---     -- end
-
---     love.graphics.setColor(1,1,1, 0.4)
---     -- Draw map with blood effects
---     -- if blood and blood.drawBackground then
---     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
---     -- else
-
---     -- end
-    
---     map.map:draw(-10000, 100, 1)
-
---     love.graphics.setColor(1, 1, 1, 1)
-    
-
---     -- Populate and sort dynamic draw list if neccessary
---     -- love.graphics.setShader(objectShader)
-    
---     grass.public.draw()
---     if var.multiplayer then
---         renderer.populateDynamicDrawListNetworked()
-
---         if var.multiplayer == 1 then
---             renderer.populateDynamicDrawListNETHOST()
---         end
---     else
---         renderer.populateDynamicDrawList()
---     end
-    
---     bullet.populate()
---     explosion.populate()
---     rocket.populate()
---     blood.populate()
---     -- teslaCoil.draw()
---     teslaCoil.populate()
---     car.populate()
---     gun_enemy.populate(10,10)
---     flying_enemy.populate()
---     princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
---     fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
-    
-
---     if var.graphics_high then
---         light.populate()
---     end
-
---     gun.drawWorld()
---     -- characterAnimator.populate(200,200,1,0)
-
---     table.sort(dynamic_draw_list, renderer.sortByRenderY)
---     -- Render sorted entities
-
-    
---     -- if (shadowblock) then
---     love.graphics.setShader(shadow.getShader(true))
---     -- end
-
---     renderer.renderSortedDrawList()
-
-
-    
-
-
-
---     love.graphics.pop() -- pop back into base world space
---     -- order is IMPORTANT HERE shader-> smoke -> water
-
---     -- explosion.draw()
-
-
-
---     if var.graphics_high then
---         light.draw()
---         shader.pass()
---         explosion.pass()
---         -- smoke.pass()
---         water.pass()
---         crtShader.endCapture()
-
---         -- blur.pass()
---     end
-
---     menu.drawUI() -- ui last
---     command.draw()  -- Draw console on top
---     cmdn.draw()     -- Draw improved console on top
---     -- editor.debugDraw()
--- end
 
 local t = 0
 local frameCounter = 0

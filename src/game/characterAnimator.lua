@@ -6,7 +6,7 @@ local DEFAULT_CONFIG = {
     frameRate = 20
 }
 
-characterAnimator.instanceCount = 100
+characterAnimator.instanceCount = var.num_enemies -- for now just test with enemies
 local uniformWidth = 128
 local uniformHeight = 128
 
@@ -250,7 +250,7 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
 
     instanceMesh = love.graphics.newMesh(instanceFormat, emptyInstanceData, nil, "stream")
 
-    mesh:attachAttribute("InstanceMatrix1", instanceMesh, "perinstance") 
+    mesh:attachAttribute("InstanceMatrix1", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix3", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
@@ -271,7 +271,7 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
 
     print("Loaded " .. spriteCount .. " sprites into array texture")
     print("Created " .. #instances .. " instances")
-    return instances[1] -- Return first instance (e.g., princess) for compatibility
+    return instances -- Return first instance (e.g., princess) for compatibility
 end
 
 -- Calculate layer from direction and frame
@@ -336,23 +336,21 @@ end
 
 characterAnimator.frameTime = 0
 function characterAnimator.update(dt)
-    characterAnimator.frameTime = characterAnimator.frameTime + dt
-    instances[1].x,instances[1].y = player.body:getPosition()
-    if characterAnimator.frameTime > 1 / 24 then
+    -- characterAnimator.frameTime = characterAnimator.frameTime + dt
+    -- -- instances[1].x,instances[1].y = player.body:getPosition()
+    -- if characterAnimator.frameTime > 1 / 24 then
 
-        for i, instance in ipairs(instances) do
-            instance.update(dt)           -- Update animation state
-            if i ~= 1 then
-                    
-            
-            instance.x = instance.x + dt * 20 -- Move instances (example)
-            instance.y = instance.y + dt * 20
-            -- instance.setDirection(love.math.random(1, spriteTypes[1].directions)) -- Random direction for testing
-            end
-        end
-        characterAnimator.frameTime = 0
-    end
+    --     for i, instance in ipairs(instances) do
+    --         instance.update(dt)           -- Update animation state
+    --         if i ~= 1 then
+    --         instance.x = instance.x + dt * 20 -- Move instances (example)
+    --         instance.y = instance.y + dt * 20
+    --         -- instance.setDirection(love.math.random(1, spriteTypes[1].directions)) -- Random direction for testing
+    --         end
+    --     end
+    --     characterAnimator.frameTime = 0
     -- end
+    -- -- end
 
     characterAnimator.populate() -- Ensure instanceMesh is updated
 end
