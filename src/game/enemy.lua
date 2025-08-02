@@ -10,11 +10,12 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.body:resetMassData()
     self.body:setLinearDamping(3.0)
     self.body:setAngularDamping(5.0)
-    
+
     self.health = max_health or 100
     self.max_health = self.health
     self.scale = scale or 0.6
-    self.fire_cooldown = fire_cooldown or 2.0 --ideally get the number of frames for shooting animation dynamically to determine this
+    self.fire_cooldown = fire_cooldown or
+    2.0                                       --ideally get the number of frames for shooting animation dynamically to determine this
     self.detection_range = detection_range or 300
     self.projectile_speed = projectile_speed or 400
     self.last_fire_time = 0
@@ -25,9 +26,9 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.damaged = false
     self.max_projectiles = 30
     -- self.visibilityRange = 100
-    
+
     self:initBehaviourTree()
-    
+
     return self
 end
 
@@ -48,7 +49,7 @@ function Enemy:initBehaviourTree()
                         local dy = py - ey
                         local distance = math.sqrt(dx * dx + dy * dy)
                         if distance <= enemy.detection_range then
-                            enemy.target = {x = px, y = py, distance = distance, dx = dx, dy = dy}
+                            enemy.target = { x = px, y = py, distance = distance, dx = dx, dy = dy }
                             task:success()
                         else
                             enemy.target = nil
@@ -99,10 +100,10 @@ function Enemy:fireAtPlayer()
     local dy = self.target.dy
     local distance = self.target.distance
     if distance == 0 then return end
-    
+
     local dir_x = dx / distance
     local dir_y = dy / distance
-    
+
     local projectile = {
         vec2.new(ex, ey),
         vec2.new(dir_x * self.projectile_speed, dir_y * self.projectile_speed),
@@ -110,11 +111,11 @@ function Enemy:fireAtPlayer()
         self,
         self.t + 5.0
     }
-    
+
     local proj_body = love.physics.newBody(world, ex, ey, "dynamic")
     local proj_fixture = love.physics.newFixture(proj_body, love.physics.newCircleShape(15))
     proj_fixture:setGroupIndex(-777)
-    
+
     table.insert(self.projectiles, projectile)
     table.insert(self.projectile_bodies, proj_body)
 end
@@ -144,23 +145,23 @@ function Enemy:getDirectionToPlayer(n)
         n = 8 -- Default to 8 directions
     end
     n = math.floor(n)
-    
+
     -- Get positions
     local ex, ey = self.body:getPosition()
     local px, py = player.body:getPosition()
-    
+
     -- Calculate vector to player
     local dx = px - ex
     local dy = py - ey
-    
+
     -- Check if positions are too close
     if math.abs(dx) < 0.01 and math.abs(dy) < 0.01 then
         return nil -- Player is at enemy's position
     end
-    
+
     -- Calculate angle in radians
-    local angle = math.atan2(dy, -dx) -- dy first for LOVE2D (0° right, 90° down)
-    
+    local angle = math.atan2(dx, dy) -- dx first in this case i dunno
+
     -- Apply transform (e.g., rotation offset in radians or function)
     -- if transform then
     --     if type(transform) == "number" then
@@ -169,24 +170,24 @@ function Enemy:getDirectionToPlayer(n)
     --         angle = transform(angle, dx, dy)
     --     end
     -- end
-    
+
     -- Convert to degrees and normalize to [0, 360)
     local angle_deg = math.deg(angle)
     if angle_deg < 0 then
         angle_deg = angle_deg + 360
     end
-    
+
     -- Map to one of n directions
     local sector_size = 360 / n
     local direction = math.floor((angle_deg + sector_size / 2) / sector_size) % n + 1
-    
+
     return direction
 end
 
 function Enemy:damageEnemy(damage)
     self.health = self.health - damage
     self.damaged = true
-    
+
     local ex, ey = self.body:getPosition()
     local nearby_count = 0
     for _, ind in ipairs(self.damage_indicators) do
@@ -195,7 +196,7 @@ function Enemy:damageEnemy(damage)
             nearby_count = nearby_count + 1
         end
     end
-    
+
     local angle = (nearby_count * 45) % 360
     local spread_radius = math.min(15 + nearby_count * 3, 35)
     local spread_x = math.cos(math.rad(angle)) * spread_radius
@@ -203,7 +204,7 @@ function Enemy:damageEnemy(damage)
     local base_duration = 1.0
     local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))
     local final_duration = base_duration * duration_multiplier
-    
+
     table.insert(self.damage_indicators, {
         x = ex + spread_x,
         y = ey - 10 + spread_y,
@@ -217,7 +218,7 @@ function Enemy:damageEnemy(damage)
         bounce_factor = 0.95,
         nearby_count = nearby_count
     })
-    
+
     if self.health <= 0 then
         self:killEnemy()
     end
@@ -234,20 +235,20 @@ function Enemy:update(dt)
     self.btree:run()
     self:updateProjectiles(dt)
     if self.target then
-    local x, y = self.body:getPosition()
-    self.body:setPosition(x + (self.target.dx)*dt,y + (self.target.dy)*dt)
+        local x, y = self.body:getPosition()
+        self.body:setPosition(x + (self.target.dx) * dt * 0.3, y + (self.target.dy) * dt * 0.3)
     end
     for i = #self.damage_indicators, 1, -1 do
         local indicator = self.damage_indicators[i]
         indicator.time = indicator.time + dt
         local progress = indicator.time / indicator.duration
         local ease_out = 1 - math.pow(1 - progress, 3)
-        
+
         indicator.y = indicator.y + indicator.velocity_y * dt * indicator.bounce_factor
         indicator.x = indicator.x + indicator.velocity_x * dt
         indicator.velocity_y = indicator.velocity_y * 0.98
         indicator.velocity_x = indicator.velocity_x * 0.95
-        
+
         local fade_start = indicator.nearby_count > 3 and 0.5 or 0.7
         if progress > fade_start then
             local fade_progress = (progress - fade_start) / (1.0 - fade_start)
@@ -255,9 +256,9 @@ function Enemy:update(dt)
         else
             indicator.alpha = 1
         end
-        
+
         indicator.scale = 1.2 - (ease_out * 0.4)
-        
+
         for j, other in ipairs(self.damage_indicators) do
             if i ~= j and other.time < other.duration then
                 local dx = indicator.x - other.x
@@ -272,7 +273,7 @@ function Enemy:update(dt)
                 end
             end
         end
-        
+
         if indicator.time >= indicator.duration then
             table.remove(self.damage_indicators, i)
         end
@@ -317,15 +318,15 @@ function enemy.load()
     enemy.particleSystem:setOffset(sprite:getTileSize())
     enemy.particleSystem:setInsertMode('bottom')
 
-    for i=1,var.num_enemies do
-        enemy.addEnemy(math.random(100,var.screen_width),math.random(100,var.screen_height))
+    for i = 1, var.num_enemies do
+        enemy.addEnemy(math.random(100, var.screen_width), math.random(100, var.screen_height))
     end
 end
 
 function enemy.update(dt)
     enemy.t = enemy.t + dt
     enemy.particleSystem:update(dt)
-    
+
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
         e:update(dt)
@@ -355,8 +356,8 @@ function enemy.killEnemy(enemy_index)
 end
 
 function enemy.addEnemy(x, y)
-    local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown, 
-                        enemy.detection_range, enemy.projectile_speed)
+    local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown,
+        enemy.detection_range, enemy.projectile_speed)
     table.insert(enemy.enemies, e)
     local index = #enemy.enemies
     enemy.last_fire_times[index] = enemy.t - enemy.fire_cooldown
@@ -375,8 +376,13 @@ end
 function enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)
     local e = enemy.enemies[enemy_index]
     if e then
-        e.target = {x = player_x, y = player_y, distance = math.sqrt((player_x - enemy_x)^2 + (player_y - enemy_y)^2),
-                    dx = player_x - enemy_x, dy = player_y - enemy_y}
+        e.target = {
+            x = player_x,
+            y = player_y,
+            distance = math.sqrt((player_x - enemy_x) ^ 2 + (player_y - enemy_y) ^ 2),
+            dx = player_x - enemy_x,
+            dy = player_y - enemy_y
+        }
         e:fireAtPlayer()
     end
 end
@@ -388,9 +394,7 @@ function enemy.updateProjectiles(dt)
 end
 
 function enemy.populate()
-    
     for _, e in ipairs(enemy.enemies) do
-        
         for _, proj in ipairs(e.projectiles) do
             table.insert(dynamic_draw_list, {
                 sort_y = proj[1].y + 140,
@@ -408,10 +412,11 @@ function enemy.populate()
                 source_object_type = "fire_effect"
             })
         end
-        
+
         for _, indicator in ipairs(e.damage_indicators) do
             local damage = indicator.damage
-            local base_color, is_critical, is_mega_critical, is_splash = { 0.8, 0.2, 0.2 }, false, false, indicator.is_splash_indicator
+            local base_color, is_critical, is_mega_critical, is_splash = { 0.8, 0.2, 0.2 }, false, false,
+                indicator.is_splash_indicator
             if is_splash then
                 base_color = { 0.2, 0.8, 1 }
                 is_critical = true
@@ -433,14 +438,14 @@ function enemy.populate()
             elseif damage >= 8 then
                 base_color = { 1, 0.15, 0.15 }
             end
-            
+
             local saturation_boost = math.min(1.3, 1.0 + (indicator.nearby_count * 0.05))
             local final_color = {
                 math.min(1, base_color[1] * saturation_boost),
                 math.min(1, base_color[2] * saturation_boost),
                 math.min(1, base_color[3] * saturation_boost)
             }
-            
+
             local y_offset = -200 - (indicator.nearby_count * 2)
             local final_scale = indicator.scale
             local display_text
@@ -455,7 +460,7 @@ function enemy.populate()
                 final_scale = is_mega_critical and final_scale * 1.4 or is_critical and final_scale * 1.2 or final_scale
                 display_text = text_prefix .. damage
             end
-            
+
             table.insert(dynamic_draw_list, {
                 sort_y = indicator.y + y_offset,
                 text = display_text,
@@ -471,7 +476,7 @@ function enemy.populate()
                 blend_mode = { "alpha" },
                 source_object_type = "damage_indicator"
             })
-            
+
             if is_mega_critical or is_splash then
                 table.insert(dynamic_draw_list, {
                     sort_y = indicator.y + y_offset - 1,
@@ -487,7 +492,7 @@ function enemy.populate()
                 })
             end
         end
-        
+
         if e.damaged and e.health > 0 then
             local ex, ey = e.body:getPosition()
             local health_percent = e.health / e.max_health
@@ -506,7 +511,7 @@ function enemy.populate()
                 source_object_type = "health_bar_fill"
             })
         end
-        
+
         local ex, ey = e.body:getPosition()
         -- local enemy_color = { 1, 1, 1, 1 }
         -- if e.health then
@@ -516,7 +521,7 @@ function enemy.populate()
         --         enemy_color = { 1, 1 - red_intensity, 1 - red_intensity, 1 }
         --     end
         -- end
-        
+
         -- table.insert(dynamic_draw_list, {
         --     sort_y = ey + (enemy_image and enemy_image:getHeight() * 0.1 / 2 or 0) + 100,
         --     image_or_particles = enemy_image,
@@ -532,8 +537,9 @@ function enemy.populate()
         --     source_object_type = "enemy"
         -- })
         local enemyInstance = gun_enemies[_] -- the drawn instances
-        
-        enemyInstance.x,enemyInstance.y = ex,ey
+        -- local princessInstance = princess[_]
+        enemyInstance.x, enemyInstance.y = ex, ey
+        -- princessInstance.x,princessInstance.y = ex+10,ey+10
         -- print(player.velocity_x)
         -- print(e:getDirectionToPlayer())
         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)

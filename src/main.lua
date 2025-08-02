@@ -134,13 +134,16 @@ function love.load()
     -- end
     characterAnimator.load()
     
-    -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
+   
     -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
 
-    -- flying_enemy = characterAnimator.init({"gfx/3d/animated2.png"},128,128,nil)
+    -- gun_enemies = characterAnimator.init({"gfx/3d/animated2.png"},128,128)
 
     -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
-    gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
+    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
+    gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png", "gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png","gfx/3d/animated2.png"},128,128)
+    -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
+    
 
 
     multiplayer.load()

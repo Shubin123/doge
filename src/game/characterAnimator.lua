@@ -1,4 +1,5 @@
 -- Manages character animations from sprite sheets with 8-directional support using instanced rendering
+-- Optimized with texture packing to utilize 2048x2048 layers efficiently
 
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
@@ -9,14 +10,18 @@ local DEFAULT_CONFIG = {
 characterAnimator.instanceCount = var.num_enemies -- for now just test with enemies
 local uniformWidth = 128
 local uniformHeight = 128
+local LAYER_SIZE = 2048  -- Target layer size for packing
+local SPRITES_PER_ROW = math.floor(LAYER_SIZE / uniformWidth)  -- 16 sprites per row
+local SPRITES_PER_LAYER = SPRITES_PER_ROW * SPRITES_PER_ROW    -- 256 sprites per layer
 
 local mesh, instanceMesh, arrayTexture, shader
 local spriteTypes = {}  -- {name = {directions, framesPerDirection, totalFrames}}
-local frameOffsets = {} -- Starting layer for each sprite type
+local frameOffsets = {} -- Starting frame index for each sprite type
 local spriteCount = 0
 local instances = {}    -- Store all instances for populate
+local spriteLocationMap = {} -- Maps global sprite index to {layer, u, v} coordinates
 
--- Calculate cumulative frame offsets
+-- Calculate cumulative frame offsets and create location map
 local function calculateFrameOffsets(framesPerImageList, imageFiles)
     local offset = 0
     for i, filename in ipairs(imageFiles) do
@@ -29,6 +34,24 @@ local function calculateFrameOffsets(framesPerImageList, imageFiles)
             totalFrames = framesPerImageList[i]
         }
         frameOffsets[i] = offset
+        
+        -- Create location map for this sprite type's frames
+        for frameIdx = 0, framesPerImageList[i] - 1 do
+            local globalIndex = offset + frameIdx
+            local layer = math.floor(globalIndex / SPRITES_PER_LAYER)
+            local indexInLayer = globalIndex % SPRITES_PER_LAYER
+            local row = math.floor(indexInLayer / SPRITES_PER_ROW)
+            local col = indexInLayer % SPRITES_PER_ROW
+            
+            spriteLocationMap[globalIndex] = {
+                layer = layer,
+                u = col / SPRITES_PER_ROW,      -- UV coordinate (0-1)
+                v = row / SPRITES_PER_ROW,      -- UV coordinate (0-1)
+                uSize = 1.0 / SPRITES_PER_ROW, -- UV size for this sprite
+                vSize = 1.0 / SPRITES_PER_ROW
+            }
+        end
+        
         offset = offset + framesPerImageList[i]
     end
     spriteCount = offset
@@ -113,7 +136,7 @@ local function createInstance()
 end
 
 function characterAnimator.load()
-    -- Shader (unchanged)
+    -- Updated shader to handle UV coordinates for packed textures
     characterAnimator.shader = love.graphics.newShader([[
         #define MAX_LIGHTS 50
 
@@ -123,6 +146,7 @@ function characterAnimator.load()
         uniform float lightRanges[MAX_LIGHTS];
 
         varying float VaryingLayer;
+        varying vec2 VaryingUV;
         varying vec2 pos;
 
         #ifdef VERTEX
@@ -131,9 +155,17 @@ function characterAnimator.load()
         attribute vec4 InstanceMatrix3;
         attribute vec4 InstanceMatrix4;
         attribute float InstanceLayer;
+        attribute vec4 InstanceUVData; // u, v, uSize, vSize
 
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
             VaryingLayer = InstanceLayer;
+            
+            // Transform UV coordinates based on sprite location in packed texture
+            vec2 localUV = VaryingTexCoord.xy;
+            VaryingUV = vec2(
+                InstanceUVData.x + localUV.x * InstanceUVData.z,
+                InstanceUVData.y + localUV.y * InstanceUVData.w
+            );
 
             mat4 instance_matrix = mat4(
                 InstanceMatrix1,
@@ -153,7 +185,7 @@ function characterAnimator.load()
         uniform ArrayImage MainTex;
 
         void effect() {
-            vec4 texColor = Texel(MainTex, vec3(VaryingTexCoord.xy, VaryingLayer));
+            vec4 texColor = Texel(MainTex, vec3(VaryingUV, VaryingLayer));
 
             float totalLight = 0.0;
             for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -175,12 +207,16 @@ function characterAnimator.load()
 end
 
 function characterAnimator.init(imageFiles, frameWidth, frameHeight)
-    -- Process sprite sheets into array texture
-    local imageDataList = {}
+    -- Process sprite sheets into packed array texture layers
+    local allSpriteData = {}
     local framesPerImageList = {}
+    
+    -- First pass: extract all individual sprites
     for i, filename in ipairs(imageFiles) do
         local directions = 8
         local originalImageData = love.image.newImageData(filename)
+        local spritesForThisImage = {}
+
         local framesPerImage = 0
         if originalImageData then
             local spriteWidth = frameWidth or (originalImageData:getWidth() / directions)
@@ -188,7 +224,7 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
             local paddingX, paddingY = 0, 0
             local spritesX = directions
             local spritesY = math.floor(originalImageData:getHeight() / (spriteHeight + paddingY))
-
+            
             for sy = 0, spritesY - 1 do
                 for sx = 0, spritesX - 1 do
                     local uniformImageData = love.image.newImageData(uniformWidth, uniformHeight)
@@ -208,7 +244,7 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
                             end
                         end
                     end
-                    table.insert(imageDataList, uniformImageData)
+                    table.insert(allSpriteData, uniformImageData)
                     framesPerImage = framesPerImage + 1
                 end
             end
@@ -220,7 +256,38 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
     end
 
     calculateFrameOffsets(framesPerImageList, imageFiles)
-    arrayTexture = love.graphics.newArrayImage(imageDataList)
+    
+    -- Second pass: pack sprites into 2048x2048 layers
+    local numLayers = math.ceil(#allSpriteData / SPRITES_PER_LAYER)
+    local packedLayers = {}
+    
+    for layer = 0, numLayers - 1 do
+        local layerImageData = love.image.newImageData(LAYER_SIZE, LAYER_SIZE)
+        
+        for i = 0, SPRITES_PER_LAYER - 1 do
+            local spriteIndex = layer * SPRITES_PER_LAYER + i + 1
+            if spriteIndex <= #allSpriteData then
+                local spriteData = allSpriteData[spriteIndex]
+                local row = math.floor(i / SPRITES_PER_ROW)
+                local col = i % SPRITES_PER_ROW
+                local destX = col * uniformWidth
+                local destY = row * uniformHeight
+                
+                -- Copy sprite to packed layer
+                for y = 0, uniformHeight - 1 do
+                    for x = 0, uniformWidth - 1 do
+                        local r, g, b, a = spriteData:getPixel(x, y)
+                        layerImageData:setPixel(destX + x, destY + y, r, g, b, a)
+                    end
+                end
+            end
+        end
+        
+        table.insert(packedLayers, layerImageData)
+    end
+
+    arrayTexture = love.graphics.newArrayImage(packedLayers)
+    print("Created " .. numLayers .. " packed layers from " .. #allSpriteData .. " sprites")
 
     -- Create mesh for a single quad
     local size = uniformWidth / 2
@@ -234,17 +301,18 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
     mesh:setTexture(arrayTexture)
 
-    -- Create instance mesh
+    -- Create instance mesh with UV data
     local instanceFormat = {
         { "InstanceMatrix1", "float", 4 },
         { "InstanceMatrix2", "float", 4 },
         { "InstanceMatrix3", "float", 4 },
         { "InstanceMatrix4", "float", 4 },
-        { "InstanceLayer",   "float", 1 }
+        { "InstanceLayer",   "float", 1 },
+        { "InstanceUVData",  "float", 4 }  -- u, v, uSize, vSize
     }
 
     local emptyInstanceData = {}
-    for i = 1, characterAnimator.instanceCount * 17 do
+    for i = 1, characterAnimator.instanceCount * 21 do  -- Updated for new attribute count
         emptyInstanceData[i] = { 0 }
     end
 
@@ -255,31 +323,38 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
     mesh:attachAttribute("InstanceMatrix3", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceLayer", instanceMesh, "perinstance")
+    mesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
 
     -- Create multiple instances
-    instances = {}                                -- Clear any existing instances
-    for i = 1, characterAnimator.instanceCount do -- Create 10 instances for visibility
+    instances = {}
+    for i = 1, characterAnimator.instanceCount do
         local instance = createInstance()
         instance.x = love.math.random(0, love.graphics.getWidth() * 2)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
-        -- instance.currentState = imageFiles[math.min(i, #imageFiles)]:match("^(.-)%.png$")
-        instance.currentState = math.random(1,5)
+        instance.currentState = math.random(1,13)
         instance.currentDirection = love.math.random(1, spriteTypes[instance.currentState].directions)
         instance.scale = 1
-        -- instance.rotation = love.math.random() * math.pi * 2
     end
 
-    print("Loaded " .. spriteCount .. " sprites into array texture")
+    print("Loaded " .. spriteCount .. " sprites into " .. numLayers .. " packed array texture layers")
     print("Created " .. #instances .. " instances")
-    return instances -- Return first instance (e.g., princess) for compatibility
+    return instances
 end
 
--- Calculate layer from direction and frame
-local function getLayer(instance)
+-- Calculate layer and UV coordinates from direction and frame
+local function getLayerAndUV(instance)
     local spriteType = spriteTypes[instance.currentState]
     local offset = frameOffsets[instance.currentState]
     local directions = spriteType.directions
-    return offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    local globalIndex = offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    
+    local location = spriteLocationMap[globalIndex]
+    if location then
+        return location.layer, location.u, location.v, location.uSize, location.vSize
+    else
+        print("Warning: No location found for global index " .. globalIndex)
+        return 0, 0, 0, 1.0 / SPRITES_PER_ROW, 1.0 / SPRITES_PER_ROW
+    end
 end
 
 function characterAnimator.populate()
@@ -314,18 +389,23 @@ function characterAnimator.populate()
             instance.x, instance.y, 0, 1
         }
 
+        local layer, u, v, uSize, vSize = getLayerAndUV(instance)
+
         local instanceRow = {}
         for j = 1, 4 do instanceRow[j] = matrix[j] end
         for j = 1, 4 do instanceRow[4 + j] = matrix[4 + j] end
         for j = 1, 4 do instanceRow[8 + j] = matrix[8 + j] end
         for j = 1, 4 do instanceRow[12 + j] = matrix[12 + j] end
-        instanceRow[17] = getLayer(instance)
+        instanceRow[17] = layer
+        instanceRow[18] = u
+        instanceRow[19] = v
+        instanceRow[20] = uSize
+        instanceRow[21] = vSize
 
         instanceData[i] = instanceRow
     end
 
     instanceMesh:setVertices(instanceData)
-    -- print("Populated " .. activeInstanceCount .. " instances")
 end
 
 function characterAnimator.draw()
@@ -336,23 +416,19 @@ end
 
 characterAnimator.frameTime = 0
 function characterAnimator.update(dt)
-    -- characterAnimator.frameTime = characterAnimator.frameTime + dt
-    -- -- instances[1].x,instances[1].y = player.body:getPosition()
-    -- if characterAnimator.frameTime > 1 / 24 then
+    characterAnimator.frameTime = characterAnimator.frameTime + dt
+    if characterAnimator.frameTime > 1 / 24 then
+        for i, instance in ipairs(instances) do
+            instance.update(dt)
+            if i ~= 1 then
+                instance.x = instance.x + dt * 20
+                instance.y = instance.y + dt * 20
+            end
+        end
+        characterAnimator.frameTime = 0
+    end
 
-    --     for i, instance in ipairs(instances) do
-    --         instance.update(dt)           -- Update animation state
-    --         if i ~= 1 then
-    --         instance.x = instance.x + dt * 20 -- Move instances (example)
-    --         instance.y = instance.y + dt * 20
-    --         -- instance.setDirection(love.math.random(1, spriteTypes[1].directions)) -- Random direction for testing
-    --         end
-    --     end
-    --     characterAnimator.frameTime = 0
-    -- end
-    -- -- end
-
-    characterAnimator.populate() -- Ensure instanceMesh is updated
+    characterAnimator.populate()
 end
 
 return characterAnimator
