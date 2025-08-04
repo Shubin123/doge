@@ -1,5 +1,5 @@
 -- Manages character animations from sprite sheets with 8-directional support using instanced rendering
--- Optimized with texture packing to utilize 2048x2048 layers efficiently
+-- WebGL/Emscripten compatible version - avoids array textures completely on web
 
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
@@ -10,19 +10,19 @@ local DEFAULT_CONFIG = {
 characterAnimator.instanceCount = var.num_enemies -- for now just test with enemies
 local uniformWidth = 128
 local uniformHeight = 128
-local LAYER_SIZE = 2048  -- Target layer size for packing
-local SPRITES_PER_ROW = math.floor(LAYER_SIZE / uniformWidth)  -- 16 sprites per row
-local SPRITES_PER_LAYER = SPRITES_PER_ROW * SPRITES_PER_ROW    -- 256 sprites per layer
 
-local mesh, instanceMesh, arrayTexture, shader
+local mesh, instanceMesh, texture, shader
 local spriteTypes = {}  -- {name = {directions, framesPerDirection, totalFrames}}
 local frameOffsets = {} -- Starting frame index for each sprite type
 local spriteCount = 0
 local instances = {}    -- Store all instances for populate
-local spriteLocationMap = {} -- Maps global sprite index to {layer, u, v} coordinates
+local spriteLocationMap = {} -- Maps global sprite index to {u, v, uSize, vSize} coordinates
+
+-- Platform detection
+
 
 -- Calculate cumulative frame offsets and create location map
-local function calculateFrameOffsets(framesPerImageList, imageFiles)
+local function calculateFrameOffsets(framesPerImageList, imageFiles, textureWidth, textureHeight, spritesPerRow)
     local offset = 0
     for i, filename in ipairs(imageFiles) do
         local spriteName = filename:match("^(.-)%.png$")
@@ -38,17 +38,14 @@ local function calculateFrameOffsets(framesPerImageList, imageFiles)
         -- Create location map for this sprite type's frames
         for frameIdx = 0, framesPerImageList[i] - 1 do
             local globalIndex = offset + frameIdx
-            local layer = math.floor(globalIndex / SPRITES_PER_LAYER)
-            local indexInLayer = globalIndex % SPRITES_PER_LAYER
-            local row = math.floor(indexInLayer / SPRITES_PER_ROW)
-            local col = indexInLayer % SPRITES_PER_ROW
+            local row = math.floor(globalIndex / spritesPerRow)
+            local col = globalIndex % spritesPerRow
             
             spriteLocationMap[globalIndex] = {
-                layer = layer,
-                u = col / SPRITES_PER_ROW,      -- UV coordinate (0-1)
-                v = row / SPRITES_PER_ROW,      -- UV coordinate (0-1)
-                uSize = 1.0 / SPRITES_PER_ROW, -- UV size for this sprite
-                vSize = 1.0 / SPRITES_PER_ROW
+                u = (col * uniformWidth) / textureWidth,      -- UV coordinate (0-1)
+                v = (row * uniformHeight) / textureHeight,    -- UV coordinate (0-1)
+                uSize = uniformWidth / textureWidth,          -- UV size for this sprite
+                vSize = uniformHeight / textureHeight
             }
         end
         
@@ -136,84 +133,144 @@ local function createInstance()
 end
 
 function characterAnimator.load()
-    -- Updated shader to handle UV coordinates for packed textures
+    -- Universal shader that works on both desktop and web
     characterAnimator.shader = love.graphics.newShader([[
-        #define MAX_LIGHTS 50
-
+        #define MAX_LIGHTS 150
+        
         uniform int numLights;
-        uniform vec2 lightPositions[MAX_LIGHTS];
-        uniform float lightIntensities[MAX_LIGHTS];
-        uniform float lightRanges[MAX_LIGHTS];
-
-        varying float VaryingLayer;
+        //uniform vec2 lightPositions[MAX_LIGHTS];
+        //uniform float lightIntensities[MAX_LIGHTS];
+        //uniform float lightRanges[MAX_LIGHTS];
+        uniform vec4 lights[MAX_LIGHTS];
+        
+        // Outline uniforms
+        uniform float outlineWidth;
+        uniform vec3 outlineColor;
+        //uniform bool enableOutline; //dont need this since vertexColorOutline can determine per instance enable or disable
+        
         varying vec2 VaryingUV;
         varying vec2 pos;
-
+        varying vec4 VColor;
+        
         #ifdef VERTEX
         attribute vec4 InstanceMatrix1;
         attribute vec4 InstanceMatrix2;
         attribute vec4 InstanceMatrix3;
         attribute vec4 InstanceMatrix4;
-        attribute float InstanceLayer;
         attribute vec4 InstanceUVData; // u, v, uSize, vSize
-
+        attribute vec4 color;
+        
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
-            VaryingLayer = InstanceLayer;
-            
             // Transform UV coordinates based on sprite location in packed texture
             vec2 localUV = VaryingTexCoord.xy;
+            VColor = vec4(color);
             VaryingUV = vec2(
                 InstanceUVData.x + localUV.x * InstanceUVData.z,
                 InstanceUVData.y + localUV.y * InstanceUVData.w
             );
-
+            
             mat4 instance_matrix = mat4(
                 InstanceMatrix1,
                 InstanceMatrix2,
                 InstanceMatrix3,
                 InstanceMatrix4
             );
-
+            
             vec4 worldPos = instance_matrix * vertex_position;
             pos = worldPos.xy;
-
+            
             return transform_projection * worldPos;
         }
         #endif
-
+        
         #ifdef PIXEL
-        uniform ArrayImage MainTex;
-
+        uniform Image MainTex;
+        
         void effect() {
-            vec4 texColor = Texel(MainTex, vec3(VaryingUV, VaryingLayer));
-
+            vec4 texColor = Texel(MainTex, VaryingUV);
+            //texColor = mix(texColor,VColor,1); -- dont do mix here wait for light mix
+            // Calculate lighting
             float totalLight = 0.0;
             for (int i = 0; i < MAX_LIGHTS; i++) {
                 if (i >= numLights) {
                     break;
                 }
-                float distance = length(lightPositions[i] - pos);
-                float attenuation = 1.0 - clamp(distance / lightRanges[i], 0.0, 1.0);
-                totalLight += attenuation * lightIntensities[i];
+                float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
+                float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
+                totalLight += attenuation * lights[i][2];
             }
-
+            
             totalLight = clamp(totalLight, 0.0, 1.0);
-            vec3 finalColor = mix(vec3(0.0), texColor.rgb, totalLight);
+            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
+            
+            litColor = mix(litColor,VColor.xyz , totalLight/5);
 
-            love_Canvases[0] = vec4(finalColor, texColor.a);
+            // Outline detection
+            vec4 finalColor = vec4(litColor, texColor.a);
+            
+            if (VColor.w > 0.0) {
+                // If current pixel is transparent, check if any nearby pixels are opaque
+                if (texColor.a < 0.1) {
+                    float outline = 0.0;
+                    
+                    // Use a small fixed offset for sampling (adjust based on your atlas resolution)
+                    float pixelOffset = VColor.w * 0.0001; // Adjust this value as needed
+                    
+                    // 8-directional sampling for outline detection
+                    for (int x = -1; x <= 1; x++) {
+                        for (int y = -1; y <= 1; y++) {
+                            if (x == 0 && y == 0) continue;
+                            
+                            vec2 offset = vec2(float(x), float(y)) * pixelOffset;
+                            vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
+                            
+                            if (sampleColor.a > 0.1) {
+                                outline = 1.0;
+                                break;
+                            }
+                        }
+                        if (outline > 0.0) break;
+                    }
+                    
+                    if (outline > 0.0) {
+                        // finalColor = vec4(outlineColor, 0.5);
+                        finalColor = VColor;
+                    }
+                }
+            }
+            
+            love_Canvases[0] = finalColor;
         }
         #endif
     ]])
+    -- characterAnimator.shader:send("outlineWidth", 1)
+    -- characterAnimator.shader:send("outlineColor", {1, 1, 1}) -- white by default
+    -- characterAnimator.shader:send("enableOutline", true)
 end
 
-function characterAnimator.init(imageFiles, frameWidth, frameHeight)
-    -- Process sprite sheets into packed array texture layers
+
+-- Helper function to set outline parameters
+-- function characterAnimator.setOutline(width, color, enabled)
+--     if characterAnimator.shader then
+--         characterAnimator.shader:send("outlineWidth", width or 1.0)
+--         characterAnimator.shader:send("outlineColor", color or {1, 1, 1}) -- white by default
+--         characterAnimator.shader:send("enableOutline", enabled ~= false) -- enabled by default
+--     end
+-- end
+
+-- Example usage:
+-- characterAnimator.setOutline(2.0, {1, 0, 0}, true) -- Red outline, 2 pixels wide
+
+-- Function to create and save atlas to disk
+function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
+    -- Process sprite sheets into a single large texture atlas (same as original init)
     local allSpriteData = {}
     local framesPerImageList = {}
     
     -- First pass: extract all individual sprites
     for i, filename in ipairs(imageFiles) do
-        local directions = 8
+        local directions = config[i]
+        print("Processing " .. filename .. " with " .. directions .. " directions")
         local originalImageData = love.image.newImageData(filename)
         local spritesForThisImage = {}
 
@@ -255,42 +312,182 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
         framesPerImageList[i] = framesPerImage
     end
 
-    calculateFrameOffsets(framesPerImageList, imageFiles)
+    -- Create single texture atlas
+    local totalSprites = #allSpriteData
+    local spritesPerRow = math.ceil(math.sqrt(totalSprites))
+    local textureWidth = spritesPerRow * uniformWidth
+    local textureHeight = spritesPerRow * uniformHeight
     
-    -- Second pass: pack sprites into 2048x2048 layers
-    local numLayers = math.ceil(#allSpriteData / SPRITES_PER_LAYER)
-    local packedLayers = {}
+    -- Ensure power of 2 dimensions for better compatibility
+    textureWidth = math.pow(2, math.ceil(math.log(textureWidth) / math.log(2)))
+    textureHeight = math.pow(2, math.ceil(math.log(textureHeight) / math.log(2)))
     
-    for layer = 0, numLayers - 1 do
-        local layerImageData = love.image.newImageData(LAYER_SIZE, LAYER_SIZE)
+    -- Recalculate sprites per row based on final texture dimensions
+    spritesPerRow = math.floor(textureWidth / uniformWidth)
+    
+    print("Creating texture atlas: " .. textureWidth .. "x" .. textureHeight .. " (" .. spritesPerRow .. " sprites per row)")
+    
+    local atlasTexture = love.image.newImageData(textureWidth, textureHeight)
+    
+    -- Clear the texture with transparent pixels
+    for y = 0, textureHeight - 1 do
+        for x = 0, textureWidth - 1 do
+            atlasTexture:setPixel(x, y, 0, 0, 0, 0)
+        end
+    end
+    
+    -- Pack sprites into atlas
+    for i, spriteData in ipairs(allSpriteData) do
+        local spriteIndex = i - 1
+        local row = math.floor(spriteIndex / spritesPerRow)
+        local col = spriteIndex % spritesPerRow
+        local destX = col * uniformWidth
+        local destY = row * uniformHeight
         
-        for i = 0, SPRITES_PER_LAYER - 1 do
-            local spriteIndex = layer * SPRITES_PER_LAYER + i + 1
-            if spriteIndex <= #allSpriteData then
-                local spriteData = allSpriteData[spriteIndex]
-                local row = math.floor(i / SPRITES_PER_ROW)
-                local col = i % SPRITES_PER_ROW
-                local destX = col * uniformWidth
-                local destY = row * uniformHeight
-                
-                -- Copy sprite to packed layer
-                for y = 0, uniformHeight - 1 do
-                    for x = 0, uniformWidth - 1 do
-                        local r, g, b, a = spriteData:getPixel(x, y)
-                        layerImageData:setPixel(destX + x, destY + y, r, g, b, a)
-                    end
+        -- Copy sprite to atlas
+        for y = 0, uniformHeight - 1 do
+            for x = 0, uniformWidth - 1 do
+                if destX + x < textureWidth and destY + y < textureHeight then
+                    local r, g, b, a = spriteData:getPixel(x, y)
+                    atlasTexture:setPixel(destX + x, destY + y, r, g, b, a)
                 end
             end
         end
-        
-        table.insert(packedLayers, layerImageData)
     end
+    
+    -- Save the atlas texture as PNG in running directory
+    local fileData = atlasTexture:encode("png")
+    local success = pcall(function()
+        local file = io.open(atlasFilename, "wb")
+        if file then
+            file:write(fileData:getString())
+            file:close()
+            print("Saved atlas texture to: " .. atlasFilename .. " (in running directory)")
+        else
+            error("Could not open file for writing: " .. atlasFilename)
+        end
+    end)
+    
+    if not success then
+        -- Fallback to LÖVE filesystem if direct file access fails
+        love.filesystem.write(atlasFilename, fileData)
+        print("Saved atlas texture to: " .. atlasFilename .. " (in LÖVE save directory)")
+    end
+    
+    -- Save metadata needed for loading
+    local metadata = {
+        textureWidth = textureWidth,
+        textureHeight = textureHeight,
+        spritesPerRow = spritesPerRow,
+        uniformWidth = uniformWidth,
+        uniformHeight = uniformHeight,
+        framesPerImageList = framesPerImageList,
+        imageFiles = imageFiles,
+        totalSprites = totalSprites
+    }
+    
+    -- Convert metadata to string and save in running directory
+    local metadataString = "return " .. serializeTable(metadata)
+    local success2 = pcall(function()
+        local file = io.open(metadataFilename, "w")
+        if file then
+            file:write(metadataString)
+            file:close()
+            print("Saved metadata to: " .. metadataFilename .. " (in running directory)")
+        else
+            error("Could not open file for writing: " .. metadataFilename)
+        end
+    end)
+    
+    if not success2 then
+        -- Fallback to LÖVE filesystem if direct file access fails
+        love.filesystem.write(metadataFilename, metadataString)
+        print("Saved metadata to: " .. metadataFilename .. " (in LÖVE save directory)")
+    end
+    
+    return metadata
+end
 
-    arrayTexture = love.graphics.newArrayImage(packedLayers)
-    print("Created " .. numLayers .. " packed layers from " .. #allSpriteData .. " sprites")
+-- Helper function to serialize a table to string
+function serializeTable(t, indent)
+    indent = indent or ""
+    local result = "{\n"
+    for k, v in pairs(t) do
+        local key = type(k) == "string" and ("\"" .. k .. "\"") or tostring(k)
+        result = result .. indent .. "  [" .. key .. "] = "
+        
+        if type(v) == "table" then
+            result = result .. serializeTable(v, indent .. "  ")
+        elseif type(v) == "string" then
+            result = result .. "\"" .. v .. "\""
+        else
+            result = result .. tostring(v)
+        end
+        result = result .. ",\n"
+    end
+    result = result .. indent .. "}"
+    return result
+end
+
+-- Fast loading function that replaces the original init
+function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename)
+    -- Try to load metadata from running directory first
+    local metadata
+    -- local success = pcall(function()
+    --     local file = io.open(metadataFilename, "r")
+    --     if file then
+    --         local content = file:read("*a")
+    --         file:close()
+    --         local chunk = load(content)
+    --         if chunk then
+    --             metadata = chunk()
+    --             print("Loaded metadata from running directory: " .. metadataFilename)
+    --         end
+    --     end
+    -- end)
+    
+    -- if not success or not metadata then
+        -- Fallback to LÖVE filesystem
+        local metadataChunk = love.filesystem.load(metadataFilename)
+        if not metadataChunk then
+            error("Could not load metadata file: " .. metadataFilename)
+        end
+        metadata = metadataChunk()
+        print("Loaded metadata from LÖVE directory: " .. metadataFilename)
+    -- end
+    
+    -- Try to load atlas texture from running directory first
+    local atlasImageData
+    -- local success2 = pcall(function()
+    --     local file = io.open(atlasFilename, "rb")
+    --     if file then
+    --         local content = file:read("*a")
+    --         file:close()
+    --         local fileData = love.filesystem.newFileData(content, atlasFilename)
+    --         atlasImageData = love.image.newImageData(fileData)
+    --         print("Loaded atlas from running directory: " .. atlasFilename)
+    --     end
+    -- end)
+    
+    -- if not success2 or not atlasImageData then
+        -- Fallback to LÖVE filesystem
+        atlasImageData = love.image.newImageData(atlasFilename)
+        print("Loaded atlas from LÖVE directory: " .. atlasFilename)
+    -- end
+    
+    texture = love.graphics.newImage(atlasImageData)
+    texture:setFilter("nearest", "nearest") -- Prevent blurring for pixel art
+    
+    print("Loaded atlas texture: " .. metadata.textureWidth .. "x" .. metadata.textureHeight)
+    
+    -- Calculate frame offsets using loaded metadata
+    calculateFrameOffsets(metadata.framesPerImageList, metadata.imageFiles, 
+                         metadata.textureWidth, metadata.textureHeight, metadata.spritesPerRow)
+    
+    print("Loaded " .. metadata.totalSprites .. " sprites from atlas")
 
     -- Create mesh for a single quad
-    local size = uniformWidth / 2
+    local size = metadata.uniformWidth / 2
     local vertices = {
         { -size, -size, 0, 0 },
         { size,  -size, 1, 0 },
@@ -299,21 +496,21 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
     }
 
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
-    mesh:setTexture(arrayTexture)
+    mesh:setTexture(texture)
 
-    -- Create instance mesh with UV data
+    -- Create instance mesh
     local instanceFormat = {
         { "InstanceMatrix1", "float", 4 },
         { "InstanceMatrix2", "float", 4 },
         { "InstanceMatrix3", "float", 4 },
         { "InstanceMatrix4", "float", 4 },
-        { "InstanceLayer",   "float", 1 },
-        { "InstanceUVData",  "float", 4 }  -- u, v, uSize, vSize
+        { "InstanceUVData",  "float", 4 },  -- u, v, uSize, vSize
+        { "color",  "float", 4 }  -- u, v, uSize, vSize
     }
 
     local emptyInstanceData = {}
-    for i = 1, characterAnimator.instanceCount * 21 do  -- Updated for new attribute count
-        emptyInstanceData[i] = { 0 }
+    for i = 1, characterAnimator.instanceCount * 20 do  -- 20 floats per instance
+        table.insert(emptyInstanceData, {0})
     end
 
     instanceMesh = love.graphics.newMesh(instanceFormat, emptyInstanceData, nil, "stream")
@@ -322,8 +519,9 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
     mesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix3", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
-    mesh:attachAttribute("InstanceLayer", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
+    mesh:attachAttribute("color", instanceMesh, "perinstance")
+    
 
     -- Create multiple instances
     instances = {}
@@ -331,18 +529,71 @@ function characterAnimator.init(imageFiles, frameWidth, frameHeight)
         local instance = createInstance()
         instance.x = love.math.random(0, love.graphics.getWidth() * 2)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
-        instance.currentState = math.random(1,13)
+        instance.currentState = math.random(1, #metadata.imageFiles)
         instance.currentDirection = love.math.random(1, spriteTypes[instance.currentState].directions)
         instance.scale = 1
+        instance.color = {1,1,1,0} -- the alpha channel if on creates outline
+        -- instance.color = {math.random(0,1),math.random(0,1),math.random(0,1),1}
     end
 
-    print("Loaded " .. spriteCount .. " sprites into " .. numLayers .. " packed array texture layers")
     print("Created " .. #instances .. " instances")
     return instances
 end
 
--- Calculate layer and UV coordinates from direction and frame
-local function getLayerAndUV(instance)
+-- Function to check if files exist in running directory
+function characterAnimator.checkFilesExist(atlasFilename, metadataFilename)
+    -- Check running directory first
+    local atlasExists = false
+    local metadataExists = false
+    
+    pcall(function()
+        local file = io.open(atlasFilename, "r")
+        if file then
+            file:close()
+            atlasExists = true
+        end
+    end)
+    
+    pcall(function()
+        local file = io.open(metadataFilename, "r")
+        if file then
+            file:close()
+            metadataExists = true
+        end
+    end)
+    
+    -- If not found in running directory, check LÖVE filesystem
+    if not atlasExists then
+        atlasExists = love.filesystem.getInfo(atlasFilename) ~= nil
+    end
+    
+    if not metadataExists then
+        metadataExists = love.filesystem.getInfo(metadataFilename) ~= nil
+    end
+    
+    return atlasExists and metadataExists
+end
+
+-- Convenience function to check if atlas files exist and decide whether to create or load
+function characterAnimator.initFromCache(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
+    atlasFilename = atlasFilename or "atlas.png"
+    metadataFilename = metadataFilename or "atlas_metadata.lua"
+    
+    print("Looking for atlas files in running directory...")
+    
+    -- Check if both atlas and metadata files exist
+    if characterAnimator.checkFilesExist(atlasFilename, metadataFilename) then
+        print("Loading from cached atlas...")
+        return characterAnimator.loadFromAtlas(atlasFilename, metadataFilename)
+    else
+        print("Creating new atlas...")
+        characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
+        return characterAnimator.loadFromAtlas(atlasFilename, metadataFilename)
+    end
+end
+
+-- Calculate UV coordinates from direction and frame
+local function getUV(instance)
     local spriteType = spriteTypes[instance.currentState]
     local offset = frameOffsets[instance.currentState]
     local directions = spriteType.directions
@@ -350,10 +601,10 @@ local function getLayerAndUV(instance)
     
     local location = spriteLocationMap[globalIndex]
     if location then
-        return location.layer, location.u, location.v, location.uSize, location.vSize
+        return location.u, location.v, location.uSize, location.vSize
     else
         print("Warning: No location found for global index " .. globalIndex)
-        return 0, 0, 0, 1.0 / SPRITES_PER_ROW, 1.0 / SPRITES_PER_ROW
+        return 0, 0, 0.1, 0.1
     end
 end
 
@@ -389,20 +640,16 @@ function characterAnimator.populate()
             instance.x, instance.y, 0, 1
         }
 
-        local layer, u, v, uSize, vSize = getLayerAndUV(instance)
+        local u, v, uSize, vSize = getUV(instance)
 
-        local instanceRow = {}
-        for j = 1, 4 do instanceRow[j] = matrix[j] end
-        for j = 1, 4 do instanceRow[4 + j] = matrix[4 + j] end
-        for j = 1, 4 do instanceRow[8 + j] = matrix[8 + j] end
-        for j = 1, 4 do instanceRow[12 + j] = matrix[12 + j] end
-        instanceRow[17] = layer
-        instanceRow[18] = u
-        instanceRow[19] = v
-        instanceRow[20] = uSize
-        instanceRow[21] = vSize
-
-        instanceData[i] = instanceRow
+        instanceData[i] = {
+            matrix[1], matrix[2], matrix[3], matrix[4],      -- InstanceMatrix1
+            matrix[5], matrix[6], matrix[7], matrix[8],      -- InstanceMatrix2
+            matrix[9], matrix[10], matrix[11], matrix[12],   -- InstanceMatrix3
+            matrix[13], matrix[14], matrix[15], matrix[16],  -- InstanceMatrix4
+            u, v, uSize, vSize,                               -- InstanceUVData
+            instance.color[1],instance.color[2],instance.color[3],instance.color[4]
+        }
     end
 
     instanceMesh:setVertices(instanceData)
@@ -420,10 +667,10 @@ function characterAnimator.update(dt)
     if characterAnimator.frameTime > 1 / 24 then
         for i, instance in ipairs(instances) do
             instance.update(dt)
-            if i ~= 1 then
-                instance.x = instance.x + dt * 20
-                instance.y = instance.y + dt * 20
-            end
+            -- if i ~= 1 then
+            --     instance.x = instance.x + dt * 20
+            --     instance.y = instance.y + dt * 20
+            -- end
         end
         characterAnimator.frameTime = 0
     end

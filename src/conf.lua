@@ -1,8 +1,8 @@
 var = {}
 var.multiplayer = tonumber(arg[2])--temp logic -- set to nil for offline
 -- globals
-var.screen_height = 600
 var.screen_width = 800
+var.screen_height = 600
 var.screen_flags = {
     ["resizable"] = true,
     ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
@@ -13,9 +13,9 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 1000
+var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 400
+var.num_enemies = 100
 var.enemies_bods = {}
 
 var.max_grass = 20000 -- max grass blades per quadrant

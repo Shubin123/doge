@@ -353,12 +353,12 @@ function GrassRenderer:setWind(direction, strength, speed)
     self.windSpeed = speed or self.windSpeed
 end
 
-function GrassRenderer:drawToCanvas(canvas)
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear()
-    self:draw()
-    love.graphics.setCanvas()
-end
+-- function GrassRenderer:drawToCanvas(canvas)
+--     love.graphics.setCanvas(canvas)
+--     love.graphics.clear()
+--     self:draw()
+--     love.graphics.setCanvas()
+-- end
 
 -- Create demo instance
 local grass = GrassRenderer.new(800)

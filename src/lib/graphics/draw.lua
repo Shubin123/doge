@@ -35,7 +35,6 @@ function draw.mydraw()
     
 
     -- Populate and sort dynamic draw list if neccessary
-    -- love.graphics.setShader(objectShader)
     
     grass.public.draw()
     if var.multiplayer then

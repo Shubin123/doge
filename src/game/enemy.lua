@@ -1,4 +1,4 @@
-local Enemy = {}
+Enemy = {}
 Enemy.__index = Enemy
 
 function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed)
@@ -392,7 +392,7 @@ function enemy.updateProjectiles(dt)
         e:updateProjectiles(dt)
     end
 end
-
+channelPreserve = {1,0,1} -- its counter intuitive but you need to preserve the too channels that will get one color cycle, if you preserve 1 channel you get 2 color cycle
 function enemy.populate()
     for _, e in ipairs(enemy.enemies) do
         for _, proj in ipairs(e.projectiles) do
@@ -544,6 +544,9 @@ function enemy.populate()
         -- print(e:getDirectionToPlayer())
         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
         -- enemyInstance.setState(math.random(1,5))
+        -- characterAnimator.shader:send("outlineWidth", 1*math.sin(fire.t))
+        
+        enemyInstance.color = {math.cos(fire.t*2 + _)*channelPreserve[1],math.cos(fire.t*2 + _)*channelPreserve[2],math.cos(fire.t*2 + _)*channelPreserve[3],math.sin(fire.t*2 + _)}
     end
 end
 

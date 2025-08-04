@@ -1,7 +1,7 @@
 -- the intensity of a indivual light CAN be negative (weird) but no light can have negative range else all other direct lights break!!!
 local shadow = {}
 local lights = {}
-MAX_LIGHTS = 50
+MAX_LIGHTS = 150
 function shadow.addLight(x, y, intensity, range)
     if #lights >= MAX_LIGHTS then
         return false
@@ -36,52 +36,18 @@ function shadow.clearLights()
     lights = {}
 end
 
--- function shadow.update(dt)
---     -- Update first light to follow mouse
---     if #lights > 0 then
---         lights[1].x = love.mouse.getX()
---         lights[1].y = love.mouse.getY()
-
---         -- lights[2].x = player.body:getX()
---         -- lights[2].y = player.body:getY()
---     end
-    
---     -- Send data to shader
---     objectShader:send("numLights", #lights)
-    
---     if #lights > 0 then
---         local positions = {}
---         local intensities = {}
---         local ranges = {}
-        
---         for i, light in ipairs(lights) do
---             -- positions[i] = {light.x + camera.x, light.y + camera.y}
---             positions[i] = {light.x , light.y}
-
---             intensities[i] = light.intensity
---             ranges[i] = light.range
---         end
-        
---         objectShader:send("lightPositions", unpack(positions))
---         objectShader:send("lightIntensities", unpack(intensities))
---         objectShader:send("lightRanges", unpack(ranges))
---     end
--- end
-
-
-
 local objectShader
 local objectShaderWithCamera
 
 function shadow.load()
     -- Create the same shader code twice
     local shaderCode = [[
-        #define MAX_LIGHTS 50
+        #define MAX_LIGHTS 150
         uniform int numLights;
-        uniform vec2 lightPositions[MAX_LIGHTS];
-        uniform float lightIntensities[MAX_LIGHTS];
-        uniform float lightRanges[MAX_LIGHTS];
-        
+        //uniform vec2 lightPositions[MAX_LIGHTS];
+        //uniform float lightIntensities[MAX_LIGHTS];
+        //uniform float lightRanges[MAX_LIGHTS];
+        uniform vec4 lights[MAX_LIGHTS]; //posx[0],posy[1],intensity[2],range[3]
         varying vec2 pos;
         
         #ifdef VERTEX
@@ -100,13 +66,13 @@ function shadow.load()
             vec4 texColor = Texel(texture, texture_coords);
             float totalLight = 0.0;
             
-            for (int i = 0; i < 1000; i++) {
-                if (i == numLights && i == MAX_LIGHTS) { //cmp uniform this way
+            for (int i = 0; i < MAX_LIGHTS; i++) {
+                if (i == numLights) { //cmp uniform this way
                 break;
                 }
-                float distance = length(lightPositions[i] - pos);
-                float attenuation = 1.0 - clamp(distance / lightRanges[i], 0.0, 1.0);
-                totalLight += attenuation * lightIntensities[i];
+                float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
+                float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
+                totalLight += attenuation * lights[i][2];
             }
             
             totalLight = clamp(totalLight, 0.0, 1.0);
@@ -125,7 +91,7 @@ function shadow.load()
     shadow.addLight(100, 200, 1.0, 50)
     shadow.addLight(player.body:getX(), player.body:getY(), 1.0, 300)
     
-    for i=1,10 do
+    for i=1,100 do
     for j=1,10 do
 
     --     -- print("wow")
@@ -151,35 +117,41 @@ function shadow.updateBothShaders(dt)
     end
     
     if #lights > 0 then
-        local positions = {}
-        local positionsWithCamera = {}
-        local intensities = {}
-        local ranges = {}
-        
+        -- local positions = {}
+        -- local positionsWithCamera = {}
+        -- local intensities = {}
+        -- local ranges = {}
+        local lightData = {}
+        local lightDataCam = {}
         for i, light in ipairs(lights) do
-            positions[i] = {light.x, light.y}
-            positionsWithCamera[i] = {light.x*camera.zoom + camera.x, light.y*camera.zoom + camera.y}
-            intensities[i] = light.intensity
-            ranges[i] = light.range
+            -- positions[i] = {light.x, light.y}
+            -- positionsWithCamera[i] = {light.x*camera.zoom + camera.x, light.y*camera.zoom + camera.y}
+            -- intensities[i] = light.intensity
+            -- ranges[i] = light.range
+            lightData[i] = {light.x,light.y,light.intensity,light.range}
+            lightDataCam[i] = {light.x*camera.zoom + camera.x, light.y*camera.zoom + camera.y,light.intensity,light.range}
         end
+        
         
         -- Update first shader (without camera)
         objectShader:send("numLights", #lights)
-        objectShader:send("lightPositions", unpack(positions))
-        objectShader:send("lightIntensities", unpack(intensities))
-        objectShader:send("lightRanges", unpack(ranges))
+        objectShader:send("lights", unpack(lightData))
+
+        -- objectShader:send("lightPositions", unpack(positions))
+        -- objectShader:send("lightIntensities", unpack(intensities))
+        -- objectShader:send("lightRanges", unpack(ranges))
         
         -- Update second shader (with camera)
         objectShaderWithCamera:send("numLights", #lights)
-        objectShaderWithCamera:send("lightPositions", unpack(positionsWithCamera))
-        objectShaderWithCamera:send("lightIntensities", unpack(intensities))
-        objectShaderWithCamera:send("lightRanges", unpack(ranges))
+        objectShaderWithCamera:send("lights", unpack(lightDataCam))
+        -- objectShaderWithCamera:send("lightIntensities", unpack(intensities))
+        -- objectShaderWithCamera:send("lightRanges", unpack(ranges))
 
-        -- characterAnimator
+        -- characterAnimator (takes into account instanced vertex positions)
         characterAnimator.shader:send("numLights",#lights)
-        characterAnimator.shader:send("lightPositions",unpack(positions))
-        characterAnimator.shader:send("lightIntensities",unpack(intensities))
-        characterAnimator.shader:send("lightRanges",unpack(ranges))
+        characterAnimator.shader:send("lights",unpack(lightData))
+        -- characterAnimator.shader:send("lightIntensities",unpack(intensities))
+        -- characterAnimator.shader:send("lightRanges",unpack(ranges))
     end
 end
 

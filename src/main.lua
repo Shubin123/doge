@@ -47,6 +47,7 @@ command = require("ui.command") -- no admin seperatation for multiplayer yet! (k
 cmdn = require("ui.cmndX")      -- improved console - always active
 -- hotreloader / helpers
 local lurker = require("util.lurker")
+-- profiler = require("systems.profiler")
 json = require("util.json")
 
 -- Game variables
@@ -78,8 +79,8 @@ game_area_y = var.header_height
 -- dbg= require('mobdebug')
 
 function love.load()
-        preLoadDraw()
-         
+    preLoadDraw()
+
 
     -- love.draw = preLoadDraw
     -- love.mouse.setVisible(false)
@@ -105,12 +106,12 @@ function love.load()
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
 
-    fence_body = love.physics.newBody(world, 0, 0, "static")
-    fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
-        var.game_height + 50, 200,
-        var.game_height + 50)
-    fence_fixture = love.physics.newFixture(fence_body, fence_shape)
-    fence_fixture:setGroupIndex(4)
+    -- fence_body = love.physics.newBody(world, 0, 0, "static")
+    -- fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
+    --     var.game_height + 50, 200,
+    --     var.game_height + 50)
+    -- fence_fixture = love.physics.newFixture(fence_body, fence_shape)
+    -- fence_fixture:setGroupIndex(4)
 
     map.createArches(300, 200)
     map.createTree(400, 100)
@@ -133,17 +134,26 @@ function love.load()
     --     print(key,value)
     -- end
     characterAnimator.load()
-    
-   
+
+
     -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
 
     -- gun_enemies = characterAnimator.init({"gfx/3d/animated2.png"},128,128)
 
-    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png","gfx/watchmanOfDoom/cast.png","gfx/watchmanOfDoom/idle.png","gfx/watchmanOfDoom/walk.png","gfx/watchmanOfDoom/jump.png"},256,256,nil)
+    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{8,8,8},256,256,nil)
     -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
-    gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png", "gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png","gfx/3d/animated2.png"},128,128)
+    -- gun_enemies = characterAnimator.init(
+    --     { "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
+    --         "gfx/watchmanOfDoom_lowres/death.png", "gfx/watchmanOfDoom_lowres/punch.png",
+    --         "gfx/watchmanOfDoom_lowres/cast.png", "gfx/watchmanOfDoom_lowres/idle.png",
+    --         "gfx/watchmanOfDoom_lowres/jump.png",
+    --         "gfx/3d/princess/walk copy.png", "gfx/3d/princess/run copy.png", "gfx/3d/princess/shoot copy.png",
+    --         "gfx/3d/princess/jump copy.png", "gfx/3d/princess/roll3.png", "gfx/3d/animated2.png",
+    --         "gfx/vehicles/bike copy.png", "gfx/3d/apple_2.png", "gfx/3d/steve/walk lowres.png",
+    --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
+    --         "gfx/3d/mech/shoot_lowres.png" }, { 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,8, 1, 5, 8, 8, 8, 8, 8 }, 128, 128)
+    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png","gfx/atlas/atlas_metadata.lua")
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
-    
 
 
     multiplayer.load()
@@ -166,8 +176,8 @@ function love.load()
         coin_shape = love.physics.newCircleShape(5)
         createCoins(var.num_coins)
 
-        enemy_shape = love.physics.newCircleShape(10)
-        createEnemies(var.num_enemies)
+        -- enemy_shape = love.physics.newCircleShape(10)
+        -- createEnemies(var.num_enemies)
     end
 
     -- Graphics
@@ -217,20 +227,19 @@ local t = 0
 local frameCounter = 0
 local paused
 function love.update(dt) --assume online cannot pause right now. debugger still works
-
-    t = t + dt 
+    t = t + dt
     frameCounter = frameCounter + 1
     if t >= 1 then
-        print(frameCounter/t)
-        frameCounter = 0 
+        print(frameCounter / t)
+        frameCounter = 0
         t = 0
     end
 
 
 
--- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
+    -- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
-    
+
     map_c = map.addMapToDynamicDrawList(map.house, 0, 0, 0.8, 100)
 
     -- print(player.body:getLinearVelocity())
@@ -248,13 +257,13 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         menu.update(dt)
         -- if not var.multiplayer then
         if not paused then
-        paused = love.audio.pause() -- change this to stop other audio play menu
+            paused = love.audio.pause() -- change this to stop other audio play menu
         end
 
         return
     else
         if paused then
-            for _,v in pairs(paused) do            
+            for _, v in pairs(paused) do
                 love.audio.play(v)
                 paused = nil
             end
@@ -264,7 +273,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     characterAnimator.update(dt)
     teslaCoil.fireAt(love.mouse.getPosition())
-    
+
     -- love.audio.update()
     -- t = t + dt
     -- if t > 0.5 then
@@ -307,14 +316,13 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- wind.update(dt)
 
     -- t = 0
--- end
+    -- end
 
     -- world:update(dt)
     -- player.update(dt)
-    camera.update(dt,player)
+    camera.update(dt, player)
 
     -- t = t + 1
-
 end
 
 function love.resize(w, h)
@@ -339,7 +347,7 @@ function love.mousepressed(x, y, button, istouch, presses)
 
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
-        
+
         if nextStateAction == "running" then
             var.State = "running"
             -- player.health = 100
@@ -400,18 +408,17 @@ local zoomToggle = false;
 function love.keypressed(key)
     if key == "z" then
         -- print('nig')
-        
+
 
         if not zoomToggle then
             camera.setZoom(2)
             -- gun_enemy.setState(1)
-            
+
             -- player.body:applyForce(1000,0)
         else
             camera.setZoom(1)
-            
-            -- gun_enemy.setState(2)
 
+            -- gun_enemy.setState(2)
         end
 
         zoomToggle = not zoomToggle
@@ -497,27 +504,27 @@ function createCoins(n)
             "dynamic")
         table.insert(coin_bods, 1, _bod)
         _fixture = love.physics.newFixture(_bod, coin_shape)
-        
+
         _fixture:setGroupIndex(69)
     end
 end
 
-function createEnemies(n)
-    for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
-            "dynamic")
-        table.insert(enemies_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, enemy_shape)
-        _fixture:setGroupIndex(-777)
+-- function createEnemies(n)
+--     for _ = 1, n do
+--         local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
+--             math.random(50, var.game_height + 50),
+--             "dynamic")
+--         table.insert(enemies_bods, 1, _bod)
+--         _fixture = love.physics.newFixture(_bod, enemy_shape)
+--         _fixture:setGroupIndex(-777)
 
-        -- Set enemy mass and physics properties for proper knockback
-        _fixture:setDensity(2.0)    -- Give enemies substantial mass
-        _bod:resetMassData()        -- Apply the density changes
-        _bod:setLinearDamping(3.0)  -- Add damping so they don't slide forever
-        _bod:setAngularDamping(5.0) -- Prevent excessive spinning
-    end
-end
+--         -- Set enemy mass and physics properties for proper knockback
+--         _fixture:setDensity(2.0)    -- Give enemies substantial mass
+--         _bod:resetMassData()        -- Apply the density changes
+--         _bod:setLinearDamping(3.0)  -- Add damping so they don't slide forever
+--         _bod:setAngularDamping(5.0) -- Prevent excessive spinning
+--     end
+-- end
 
 function createAnimation(image, width, height, duration, numFrames)
     local animation = {}
