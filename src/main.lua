@@ -105,6 +105,9 @@ function love.load()
     -- Physics setup
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
+    -- print(world:isSleepingAllowed())
+    -- world:setSleepingAllowed(false)
+
 
     -- fence_body = love.physics.newBody(world, 0, 0, "static")
     -- fence_shape = love.physics.newChainShape(true, 200, 50, var.game_width + 200, 50, var.game_width + 200,
@@ -142,7 +145,7 @@ function love.load()
 
     -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{8,8,8},256,256,nil)
     -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
-    -- gun_enemies = characterAnimator.init(
+    -- gun_enemies = characterAnimator.initFromCache(
     --     { "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
     --         "gfx/watchmanOfDoom_lowres/death.png", "gfx/watchmanOfDoom_lowres/punch.png",
     --         "gfx/watchmanOfDoom_lowres/cast.png", "gfx/watchmanOfDoom_lowres/idle.png",
@@ -152,7 +155,10 @@ function love.load()
     --         "gfx/vehicles/bike copy.png", "gfx/3d/apple_2.png", "gfx/3d/steve/walk lowres.png",
     --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
     --         "gfx/3d/mech/shoot_lowres.png" }, { 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,8, 1, 5, 8, 8, 8, 8, 8 }, 128, 128)
-    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png","gfx/atlas/atlas_metadata.lua")
+
+    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png","gfx/atlas/atlas_metadata.lua")
+    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/out3.dds.zlib","gfx/atlas/atlas_metadata.lua",true)
+    
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 
 

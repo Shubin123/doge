@@ -15,7 +15,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 100
+var.num_enemies = 800
 var.enemies_bods = {}
 
 var.max_grass = 20000 -- max grass blades per quadrant
@@ -54,6 +54,7 @@ var.indoors = false
 
 function love.conf(t)
     t.window.depth = 16
+    -- t.window.fsaa = 20           
 -- print(t)
 for key, value in pairs(t) do
     -- print(key,value)
