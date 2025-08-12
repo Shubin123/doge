@@ -18,3 +18,6 @@ src/gfx/TileSet/Sprite-0001.aseprite
 src/gfx/atlas/out2.dds.zlib
 bc-encoder/a.out
 src/gfx/TileSet/Sprite-0001.aseprite
+src/gfx/atlas/atlas2.png
+
+*.png

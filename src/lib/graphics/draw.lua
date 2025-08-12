@@ -20,7 +20,6 @@ function draw.mydraw()
     -- if (shadowblock) then
     love.graphics.setShader(shadow.getShader(false))
     -- end
-
     love.graphics.setColor(1,1,1, 0.4)
     -- Draw map with blood effects
     -- if blood and blood.drawBackground then

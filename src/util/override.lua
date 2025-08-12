@@ -23,7 +23,7 @@ local function compressedImage(f, s)
 end
 
 -- Override the function
-love.graphics.newImage = compressedImage
+-- love.graphics.newImage = compressedImage
 
 -- ENDOF love.graphics.image override procedure --
 

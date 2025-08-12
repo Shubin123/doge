@@ -143,21 +143,25 @@ function love.load()
 
     -- gun_enemies = characterAnimator.init({"gfx/3d/animated2.png"},128,128)
 
-    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{8,8,8},256,256,nil)
-    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom_lowres/walk.png","gfx/watchmanOfDoom_lowres/shoot_pistol.png","gfx/watchmanOfDoom_lowres/death.png","gfx/watchmanOfDoom_lowres/punch.png","gfx/watchmanOfDoom_lowres/cast.png","gfx/watchmanOfDoom_lowres/idle.png","gfx/watchmanOfDoom_lowres/jump.png"},128,128)
-    -- gun_enemies = characterAnimator.initFromCache(
-    --     { "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
+    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{1,1,1},256,256,nil)
+    -- characterAnimator.createAndSaveAtlas({"gfx/TileSet/tree1.png","gfx/TileSet/arch.png","gfx/TileSet/coin128.png","gfx/TileSet/house128.png"},{1,1,1,1},128,128,"atlas2.png","atlas_metadata2.lua")
+    
+
+    -- gun_enemies = characterAnimator.createAndSaveAtlas(
+    --     {"gfx/3d/singleDimensionRotate/gun.png","gfx/3d/singleDimensionRotate/lauchergun.png","gfx/3d/singleDimensionRotate/portalGun.png", "gfx/3d/singleDimensionRotate/car copy.png", "gfx/3d/singleDimensionRotate/bike copy.png", "gfx/3d/singleDimensionRotate/apple_2.png", "gfx/3d/singleDimensionRotate/commodore64.png", "gfx/TileSet/tree1.png","gfx/TileSet/arch.png","gfx/TileSet/coin128.png","gfx/TileSet/house128.png",
+    --     "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
     --         "gfx/watchmanOfDoom_lowres/death.png", "gfx/watchmanOfDoom_lowres/punch.png",
     --         "gfx/watchmanOfDoom_lowres/cast.png", "gfx/watchmanOfDoom_lowres/idle.png",
     --         "gfx/watchmanOfDoom_lowres/jump.png",
     --         "gfx/3d/princess/walk copy.png", "gfx/3d/princess/run copy.png", "gfx/3d/princess/shoot copy.png",
     --         "gfx/3d/princess/jump copy.png", "gfx/3d/princess/roll3.png", "gfx/3d/animated2.png",
-    --         "gfx/vehicles/bike copy.png", "gfx/3d/apple_2.png", "gfx/3d/steve/walk lowres.png",
+    --         "gfx/3d/steve/walk lowres.png",
     --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
-    --         "gfx/3d/mech/shoot_lowres.png" }, { 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,8, 1, 5, 8, 8, 8, 8, 8 }, 128, 128)
+    --         "gfx/3d/mech/shoot_lowres.png" }, { 1,1,1,1,1,1,1,1,1,1,1,8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 }, 128, 128,"gfx/atlas/atlas2.png","gfx/atlas/atlas_metadata2.lua")
+    
 
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png","gfx/atlas/atlas_metadata.lua")
-    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/out3.dds.zlib","gfx/atlas/atlas_metadata.lua",true)
+    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atl.dds.zlib","gfx/atlas/atlas_metadata2.lua",true)
+    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/out3.dds.zlib","gfx/atlas/atlas_metadata.lua",true)
     
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 
@@ -410,11 +414,22 @@ lurker.preswap = function(file)
 end
 
 local zoomToggle = false;
-
+local zcycle = 0
 function love.keypressed(key)
     if key == "z" then
-        -- print('nig')
-
+        
+        if zcycle % 3 == 0 then
+        map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/houseInterior.png"), var.tile_w, var.tile_h)
+        map.map:setBatch()
+        
+        elseif zcycle % 3 == 1 then
+            map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png"), var.tile_w, var.tile_h)
+            map.map:setBatch()
+        else
+            map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/grounds.png"), var.tile_w, var.tile_h)
+            map.map:setBatch()
+        end
+        zcycle = zcycle + 1
 
         if not zoomToggle then
             camera.setZoom(2)

@@ -466,7 +466,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
         -- local decompressedData = love.data.decompress("data", "zlib", compressedData)
         -- atlasImageData = love.image.newCompressedData(decompressedData,"dds")
         -- Create compressed data object and image
-        atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib", love.filesystem.read(atlasFilename)), "dds")
+        atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib", love.filesystem.read(atlasFilename)), "ktx")
 
         
         -- decompressedData = nil
@@ -541,7 +541,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
         instance.currentState = math.random(1, #metadata.imageFiles)
         instance.currentDirection = love.math.random(1, spriteTypes[instance.currentState].directions)
-        instance.scale = math.random(0.5, 1)
+        -- instance.scale = math.random(0.5, 1)
         instance.color = { 1, 1, 1, 0 }
     end
 
@@ -585,8 +585,8 @@ end
 
 -- Convenience function to check if atlas files exist and decide whether to create or load
 function characterAnimator.initFromCache(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
-    atlasFilename = atlasFilename or "atlas.png"
-    metadataFilename = metadataFilename or "atlas_metadata.lua"
+    atlasFilename = atlasFilename or "atlas2.png"
+    metadataFilename = metadataFilename or "atlas_metadata2.lua"
 
     print("Looking for atlas files in running directory...")
 

@@ -188,20 +188,17 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
             end
         end
     end
-
+    
     map.draw = function(self, x, y, scale)
         scale = scale or 1
-        local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
-        local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
         
-        -- Initialize spriteBatch if not already created
-        if not self.spriteBatch then
-            self.spriteBatch = love.graphics.newSpriteBatch(self.tiles.tilesetImage, max_tiles_x * max_tiles_y)
-            self.dirty = true
-        end
+        
+        
         
         -- Rebuild spriteBatch only if map data has changed
         if self.dirty then
+            local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
+            local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
             self.spriteBatch:clear()
             for row = 1, max_tiles_y do
                 for col = 1, max_tiles_x do
@@ -226,6 +223,16 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         -- Draw the existing spriteBatch
         love.graphics.draw(self.spriteBatch)
     end
+    map.setBatch = function(self,scale)
+        scale = scale or 1
+    -- Initialize spriteBatch if not already created
+        -- if not self.spriteBatch then
+            local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
+            local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
+            self.spriteBatch = love.graphics.newSpriteBatch(self.tiles.tilesetImage, max_tiles_x * max_tiles_y)
+            self.dirty = true
+        -- end
+    end
 
     map.setTile = function(self, x, y, tileId)
         if x >= 1 and x <= self.width and y >= 1 and y <= self.height then
@@ -240,6 +247,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         end
         return 0
     end
+    map:setBatch()
     return map
 end
 

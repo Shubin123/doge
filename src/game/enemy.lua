@@ -325,19 +325,19 @@ function enemy.load()
 end
 
 function enemy.update(dt)
-    -- enemy.t = enemy.t + dt
-    -- enemy.particleSystem:update(dt)
+    enemy.t = enemy.t + dt
+    enemy.particleSystem:update(dt)
 
-    -- for i = #enemy.enemies, 1, -1 do
-    --     local e = enemy.enemies[i]
-    --     e:update(dt)
-    --     if e.dead then
-    --         table.remove(enemy.enemies, i)
-    --         enemy.last_fire_times[i] = nil
-    --         enemy.health[i] = nil
-    --         enemy.enemy_damaged[i] = nil
-    --     end
-    -- end
+    for i = #enemy.enemies, 1, -1 do
+        local e = enemy.enemies[i]
+        e:update(dt)
+        if e.dead then
+            table.remove(enemy.enemies, i)
+            enemy.last_fire_times[i] = nil
+            enemy.health[i] = nil
+            enemy.enemy_damaged[i] = nil
+        end
+    end
 end
 
 function enemy.damageEnemy(enemy_index, damage)
