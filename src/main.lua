@@ -282,7 +282,10 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     characterAnimator.update(dt)
-    teslaCoil.fireAt(love.mouse.getPosition())
+    -- teslaCoil.fireAt(love.mouse.getPosition())
+    -- teslaCoil.fireAt(player.body:getX() + gun.lastAimDirection.x*100, player.body:getY() + gun.lastAimDirection.y*100)
+    teslaCoil.update(dt)
+
 
     -- love.audio.update()
     -- t = t + dt
@@ -353,8 +356,9 @@ end
 
 function love.mousepressed(x, y, button, istouch, presses)
     -- Handle console mouse events first
+    teslaCoil.start()
     cmdn.mousepressed(x, y, button)
-
+    
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)
 

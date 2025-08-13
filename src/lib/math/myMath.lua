@@ -36,6 +36,9 @@ function myMath.retList(t)
   return t[1], t[2]
 end
 
+function myMath.lerpVec2(a, b, t)
+   return a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t
+end
 
   return myMath
 

@@ -111,14 +111,8 @@ function shadow.updateBothShaders(dt)
         lights[1].y = love.mouse.getY()
         lights[2].x = math.sin(fire.t) * 100
         lights[2].range = (math.cos(fire.t) + 1) * 100
-        lights[3].x, lights[3].y = player.body:getX(), player.body:getY()
-        -- for i=4,#lights do
-        -- lights[i].range = (math.cos(fire.t/i) + 1)*100
+        -- lights[3].x, lights[3].y = player.body:getX() + gun.currentVel.x*100, player.body:getY() + gun.currentVel.y*100
 
-        -- end
-    end
-
-    if #lights > 0 then
         -- local positions = {}
         -- local positionsWithCamera = {}
         -- local intensities = {}
@@ -137,8 +131,8 @@ function shadow.updateBothShaders(dt)
                 -- light.intensity = light.intensity + math.abs(math.sin(fire.t + i))
                 light.range = (math.cos(fire.t + i) + 1) * 100
             end
-            local halfW = var.screen_width / 2
-            local halfH = var.screen_height / 2
+            local halfW = var.screen_width / 2 + 100
+            local halfH = var.screen_height / 2 + 100
             local playerX,playerY = player.body:getPosition()
             
             -- If camera.x/y is center:

@@ -976,6 +976,7 @@ function renderer.renderSortedDrawList()
             end
         elseif drawable.draw_type == "light" then
             -- love.graphics.setShader()
+            
             light.renderLights(drawable)
             love.graphics.setShader(current_shader)
             -- elseif drawable.light_shader then

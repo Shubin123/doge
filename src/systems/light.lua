@@ -1,26 +1,27 @@
 local light = {}
-
+-- light.x,light.y = 0,0
 function light.load()
-      blueNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
-  blueNeon.godsray.exposure = 1 --number between 0 and 1
-  blueNeon.godsray.decay = 0.8 -- number between 0 and 1
-  blueNeon.godsray.density = 15 -- number between 0 and 1
-  blueNeon.godsray.weight = 1 -- number between 0 and 1
+  blueNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
+  blueNeon.godsray.exposure = 1  --number between 0 and 1
+  blueNeon.godsray.decay = 0.8   -- number between 0 and 1
+  blueNeon.godsray.density = 15  -- number between 0 and 1
+  blueNeon.godsray.weight = 1    -- number between 0 and 1
   blueNeon.godsray.light_x = 0.5 -- number
   blueNeon.godsray.light_y = 0.5 -- number
-  blueNeon.godsray.samples = 30 -- number >= 1
+  blueNeon.godsray.samples = 30  -- number >= 1
   blueNeon.glow.min_luma = 0
   blueNeon.glow.strength = 1
   blueNeon.fastgaussianblur.taps = 9
 
-  yellowNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
-  yellowNeon.godsray.exposure = 1 --number between 0 and 1
-  yellowNeon.godsray.decay = 0.8 -- number between 0 and 1
-  yellowNeon.godsray.density = 1 -- number between 0 and 1
-  yellowNeon.godsray.weight = 0.9 -- number between 0 and 1
+  yellowNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
+  .godsray)
+  yellowNeon.godsray.exposure = 1  --number between 0 and 1
+  yellowNeon.godsray.decay = 0.8   -- number between 0 and 1
+  yellowNeon.godsray.density = 1   -- number between 0 and 1
+  yellowNeon.godsray.weight = 0.9  -- number between 0 and 1
   yellowNeon.godsray.light_x = 0.5 -- number
   yellowNeon.godsray.light_y = 0.5 -- number
-  yellowNeon.godsray.samples = 30 -- this does nothing now since hardbaked since opengl es3 with js build
+  yellowNeon.godsray.samples = 30  -- this does nothing now since hardbaked since opengl es3 with js build
   yellowNeon.glow.min_luma = 20
   yellowNeon.glow.strength = 1
   yellowNeon.fastgaussianblur.taps = 9
@@ -29,88 +30,89 @@ function light.load()
 end
 
 function light.draw()
---   blueNeon(function()
---     love.graphics.setColor(0.17, 0.46, 1)
-    
---     -- Get car position and velocity
---     local carX = player.body:getX()
---     local carY = player.body:getY()
---     local velX, velY = player.body:getLinearVelocity()
-    
---     -- Calculate car's heading angle using the same logic as getSpriteForHeading
---     local angle = 0
---     if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
---         angle = math.atan2(velY, velX)
---     end
-    
---     -- Convert angle to direction vector for cone positioning
---     local dirX = math.cos(angle)
---     local dirY = math.sin(angle)
-    
---     -- Distance to place cone in front of car
---     local lightDistance = 50
-    
---     -- Calculate cone tip position in front of car based on heading
---     local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
---     local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
-        
---     -- Cone dimensions
---     local coneLength = 100 * camera.zoom
---     local coneWidth = 50 * camera.zoom
-    
---     -- Calculate perpendicular vector for cone base
---     local perpX = -dirY
---     local perpY = dirX
-    
---     -- Base of cone extends further in heading direction from tip
---     local baseX = tipX + dirX * coneLength
---     local baseY = tipY + dirY * coneLength
-    
---     -- Cone tip width (small rectangle at the tip)
---     local tipWidth = 20 * camera.zoom
-    
---     -- Tip corners (small rectangle at car end)
---     local tipCorner1X = tipX + perpX * tipWidth / 2
---     local tipCorner1Y = tipY + perpY * tipWidth / 2
---     local tipCorner2X = tipX - perpX * tipWidth / 2
---     local tipCorner2Y = tipY - perpY * tipWidth / 2
-    
---     -- Base corners (wide end of trapezoid)
---     local baseCorner1X = baseX + perpX * coneWidth / 2
---     local baseCorner1Y = baseY + perpY * coneWidth / 2
---     local baseCorner2X = baseX - perpX * coneWidth / 2
---     local baseCorner2Y = baseY - perpY * coneWidth / 2
-    
---     -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
---     love.graphics.polygon("fill", 
---         tipCorner1X, tipCorner1Y,    -- tip corner 1
---         baseCorner1X, baseCorner1Y,  -- base corner 1
---         baseCorner2X, baseCorner2Y,  -- base corner 2
---         tipCorner2X, tipCorner2Y)    -- tip corner 2
-    
---     love.graphics.setColor(1, 1, 1, 1)
--- end)
+  --   blueNeon(function()
+  --     love.graphics.setColor(0.17, 0.46, 1)
 
-    yellowNeon(function()
+  --     -- Get car position and velocity
+  --     local carX = player.body:getX()
+  --     local carY = player.body:getY()
+  --     local velX, velY = player.body:getLinearVelocity()
+
+  --     -- Calculate car's heading angle using the same logic as getSpriteForHeading
+  --     local angle = 0
+  --     if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
+  --         angle = math.atan2(velY, velX)
+  --     end
+
+  --     -- Convert angle to direction vector for cone positioning
+  --     local dirX = math.cos(angle)
+  --     local dirY = math.sin(angle)
+
+  --     -- Distance to place cone in front of car
+  --     local lightDistance = 50
+
+  --     -- Calculate cone tip position in front of car based on heading
+  --     local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
+  --     local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
+
+  --     -- Cone dimensions
+  --     local coneLength = 100 * camera.zoom
+  --     local coneWidth = 50 * camera.zoom
+
+  --     -- Calculate perpendicular vector for cone base
+  --     local perpX = -dirY
+  --     local perpY = dirX
+
+  --     -- Base of cone extends further in heading direction from tip
+  --     local baseX = tipX + dirX * coneLength
+  --     local baseY = tipY + dirY * coneLength
+
+  --     -- Cone tip width (small rectangle at the tip)
+  --     local tipWidth = 20 * camera.zoom
+
+  --     -- Tip corners (small rectangle at car end)
+  --     local tipCorner1X = tipX + perpX * tipWidth / 2
+  --     local tipCorner1Y = tipY + perpY * tipWidth / 2
+  --     local tipCorner2X = tipX - perpX * tipWidth / 2
+  --     local tipCorner2Y = tipY - perpY * tipWidth / 2
+
+  --     -- Base corners (wide end of trapezoid)
+  --     local baseCorner1X = baseX + perpX * coneWidth / 2
+  --     local baseCorner1Y = baseY + perpY * coneWidth / 2
+  --     local baseCorner2X = baseX - perpX * coneWidth / 2
+  --     local baseCorner2Y = baseY - perpY * coneWidth / 2
+
+  --     -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
+  --     love.graphics.polygon("fill",
+  --         tipCorner1X, tipCorner1Y,    -- tip corner 1
+  --         baseCorner1X, baseCorner1Y,  -- base corner 1
+  --         baseCorner2X, baseCorner2Y,  -- base corner 2
+  --         tipCorner2X, tipCorner2Y)    -- tip corner 2
+
+  --     love.graphics.setColor(1, 1, 1, 1)
+  -- end)
+
+  yellowNeon(function()
     love.graphics.setColor(1, 0.46, 0.3, var.indoors and 1 or 0)
     -- local mx = player.body:getX() + 20*math.sin(fire.t)
     -- local my = player.body:getY() + 20*math.cos(fire.t)
 
-    local mx = 500 -2
+    local mx = 500 - 2
     local my = 300 - 25
 
-    
-    
 
-      love.graphics.circle("fill",(camera.pos.x + (mx)*camera.zoom), (camera.pos.y +  (my)*camera.zoom)  , 8*camera.zoom)
-        
+
+
+    love.graphics.circle("fill", (camera.pos.x + (mx) * camera.zoom), (camera.pos.y + (my) * camera.zoom), 8 *
+    camera.zoom)
+
     -- love.graphics.setColor(1,1,1,1)
-    end)
+  end)
 end
 
 function light.populate()
   table.insert(dynamic_draw_list, {
-    sort_y =player.body:getY()+100,
+    sort_y = player.body:getY() + 100,
     x = 0,
     y = 0,
     draw_type = "light"
@@ -118,74 +120,110 @@ function light.populate()
 end
 
 function light.renderLights(drawable)
-    if drawable.draw_type == "light" then
-        love.graphics.push()
+  if drawable.draw_type == "light" then
+    love.graphics.push()
 
-        love.graphics.reset()
-        blueNeon(function()
-            love.graphics.setColor(0.17, 0.46, 1, 0.5)
+    love.graphics.reset()
+    blueNeon(function()
+      love.graphics.setColor(0.17, 0.46, 1, 0.5)
 
-            -- Get car position and velocity
-            local carX = player.body:getX()
-            local carY = player.body:getY()
-            local velX, velY = player.body:getLinearVelocity()
+      -- Get car position and velocity
+      local playerX, playerY = player.body:getPosition()
+      local playerVX, playerVY = player.body:getLinearVelocity()
 
-            -- Calculate car's heading angle using the same logic as getSpriteForHeading
-            local angle = 0
-            if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
-                angle = math.atan2(velY, velX)
-            end
+      -- local velX, velY = player.body:getLinearVelocity()
+      -- local velX, velY = gun.lastAimDirection.x,  gun.lastAimDirection.y
 
-            -- Convert angle to direction vector for cone positioning
-            local dirX = math.cos(angle)
-            local dirY = math.sin(angle)
+      -- if playerVX > 20 or playerVY > 20 then
 
-            -- Distance to place cone in front of car
-            local lightDistance = 25
+      --   -- velX, velY = playerVX , playerVY
+      --      velX, velY = mymath.lerpVec2({velX, velY}, {playerVX, playerVY}, 0.1)
 
-            -- Calculate cone tip position in front of car based on heading
-            local tipX = camera.pos.x + (carX + dirX * lightDistance) * camera.zoom
-            local tipY = camera.pos.y + (carY + dirY * lightDistance) * camera.zoom
+      -- end
 
-            -- Cone dimensions
-            local coneLength = 30 * camera.zoom
-            local coneWidth = 55 * camera.zoom
+      -- gun.currentVel = gun.currentVel or { x = gun.lastAimDirection.x, y = gun.lastAimDirection.y }
 
-            -- Calculate perpendicular vector for cone base
-            local perpX = -dirY
-            local perpY = dirX
+      -- Then in your update code:
+      -- Then in your update code:
+local targetVelX, targetVelY = gun.lastAimDirection.x, gun.lastAimDirection.y
+local playerSpeed = math.sqrt(playerVX * playerVX + playerVY * playerVY)
 
-            -- Base of cone extends further in heading direction from tip
-            local baseX = tipX + dirX * coneLength
-            local baseY = tipY + dirY * coneLength
+if playerSpeed > 50 then -- Adjust threshold as needed
+   -- Normalize player velocity
+   targetVelX, targetVelY = playerVX / playerSpeed, playerVY / playerSpeed
+end
 
-            -- Cone tip width (small rectangle at the tip)
-            local tipWidth = 20 * camera.zoom
+gun.currentVel.x, gun.currentVel.y = mymath.lerpVec2({gun.currentVel.x, gun.currentVel.y}, {targetVelX, targetVelY}, 0.1)
 
-            -- Tip corners (small rectangle at car end)
-            local tipCorner1X = tipX + perpX * tipWidth / 2
-            local tipCorner1Y = tipY + perpY * tipWidth / 2
-            local tipCorner2X = tipX - perpX * tipWidth / 2
-            local tipCorner2Y = tipY - perpY * tipWidth / 2
+-- Normalize gun.currentVel to keep it as a unit vector
+local currentSpeed = math.sqrt(gun.currentVel.x * gun.currentVel.x + gun.currentVel.y * gun.currentVel.y)
+if currentSpeed > 0 then
+   gun.currentVel.x = gun.currentVel.x / currentSpeed
+   gun.currentVel.y = gun.currentVel.y / currentSpeed
+end
 
-            -- Base corners (wide end of trapezoid)
-            local baseCorner1X = baseX + perpX * coneWidth / 2
-            local baseCorner1Y = baseY + perpY * coneWidth / 2
-            local baseCorner2X = baseX - perpX * coneWidth / 2
-            local baseCorner2Y = baseY - perpY * coneWidth / 2
+local velX, velY = gun.currentVel.x, gun.currentVel.y
 
-            -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
-            love.graphics.polygon("fill",
-                tipCorner1X, tipCorner1Y, -- tip corner 1
-                baseCorner1X, baseCorner1Y, -- base corner 1
-                baseCorner2X, baseCorner2Y, -- base corner 2
-                tipCorner2X, tipCorner2Y) -- tip corner 2
+      -- Calculate car's heading angle using the same logic as getSpriteForHeading
+      local angle = 0
+      if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
+        angle = math.atan2(velY, velX)
+      end
 
-            love.graphics.setColor(1, 1, 1, 1)
-        end)
+      -- Convert angle to direction vector for cone positioning
+      -- local dirX = math.cos(angle)
+      -- local dirY = math.sin(angle)
+      -- print(gun.lastAimDirection.x)
+      local dirX = math.cos(angle)
+      local dirY = math.sin(angle)
 
-        love.graphics.pop()
-    end
+
+      -- Distance to place cone in front of car
+      local lightDistance = 50
+
+      -- Calculate cone tip position in front of car based on heading
+      local tipX = camera.pos.x + (playerX + dirX * lightDistance) * camera.zoom
+      local tipY = camera.pos.y + (playerY + dirY * lightDistance) * camera.zoom
+
+      -- Cone dimensions
+      local coneLength = 60 * camera.zoom
+      local coneWidth = 55 * camera.zoom
+
+      -- Calculate perpendicular vector for cone base
+      local perpX = -dirY
+      local perpY = dirX
+
+      -- Base of cone extends further in heading direction from tip
+      local baseX = tipX + dirX * coneLength
+      local baseY = tipY + dirY * coneLength
+
+      -- Cone tip width (small rectangle at the tip)
+      local tipWidth = 20 * camera.zoom
+
+      -- Tip corners (small rectangle at car end)
+      local tipCorner1X = tipX + perpX * tipWidth / 2
+      local tipCorner1Y = tipY + perpY * tipWidth / 2
+      local tipCorner2X = tipX - perpX * tipWidth / 2
+      local tipCorner2Y = tipY - perpY * tipWidth / 2
+
+      -- Base corners (wide end of trapezoid)
+      local baseCorner1X = baseX + perpX * coneWidth / 2
+      local baseCorner1Y = baseY + perpY * coneWidth / 2
+      local baseCorner2X = baseX - perpX * coneWidth / 2
+      local baseCorner2Y = baseY - perpY * coneWidth / 2
+      -- light.x,light.y =baseX,baseY
+      -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
+      love.graphics.polygon("fill",
+        tipCorner1X, tipCorner1Y,           -- tip corner 1
+        baseCorner1X, baseCorner1Y,         -- base corner 1
+        baseCorner2X, baseCorner2Y,         -- base corner 2
+        tipCorner2X, tipCorner2Y)           -- tip corner 2
+
+      love.graphics.setColor(1, 1, 1, 1)
+    end)
+
+    love.graphics.pop()
+  end
 end
 
 return light

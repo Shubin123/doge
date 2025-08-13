@@ -135,7 +135,7 @@ end
 function characterAnimator.load()
     -- Universal shader that works on both desktop and web
     characterAnimator.shader = love.graphics.newShader([[
-        #define MAX_LIGHTS 150
+        #define MAX_LIGHTS 500
 
         uniform int numLights;
         //uniform vec2 lightPositions[MAX_LIGHTS];

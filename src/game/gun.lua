@@ -201,6 +201,16 @@ function Gun:shoot(mouseX, mouseY)
     self.cooldown = 1 / self.fireRate
 end
 
+-- Main GunTool module
+local GunTool = {}
+GunTool.currentGun = nil
+GunTool.guns = {}
+GunTool.currentWeaponIndex = 1
+GunTool.mousePressed = false  -- track mouse state for full auto
+GunTool.lastAimDirection = {}
+GunTool.currentVel = {}
+GunTool.lastAimDirection.x,GunTool.lastAimDirection.y = 0,0
+GunTool.currentVel.x,GunTool.currentVel.y = 0,0
 function Gun:drawBarrel()
     local playerX, playerY = player.getPosition()
     
@@ -216,6 +226,8 @@ function Gun:drawBarrel()
     if self.blockInstance then
         local vx = self.lastAimDirection.x
         local vy = self.lastAimDirection.y
+        GunTool.lastAimDirection.x =  self.lastAimDirection.x
+        GunTool.lastAimDirection.y =  self.lastAimDirection.y
         -- Adjust angle offset to align with aiming direction, compensating for the negated x-component in getSpriteForHeading
         self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 160,60,60)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
@@ -224,13 +236,6 @@ function Gun:drawBarrel()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-
--- Main GunTool module
-local GunTool = {}
-GunTool.currentGun = nil
-GunTool.guns = {}
-GunTool.currentWeaponIndex = 1
-GunTool.mousePressed = false  -- track mouse state for full auto
 
 function GunTool.load(world)
     -- Initialize bullet and rocket modules
