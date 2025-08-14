@@ -435,7 +435,25 @@ function GunTool.update(dt)
             GunTool.currentGun:shoot(mouseX, mouseY)
         end
     end
+
     
+    local playerVX, playerVY = player.body:getLinearVelocity()
+local playerSpeed = math.sqrt(playerVX * playerVX + playerVY * playerVY)
+
+if playerSpeed > 50 then -- Adjust threshold as needed
+   -- Normalize player velocity
+   gun.lastAimDirection.x, gun.lastAimDirection.y = playerVX / playerSpeed, playerVY / playerSpeed
+end
+
+gun.currentVel.x, gun.currentVel.y = mymath.lerpVec2({gun.currentVel.x, gun.currentVel.y}, {gun.lastAimDirection.x, gun.lastAimDirection.y}, 0.1)
+
+-- Normalize gun.currentVel to keep it as a unit vector
+local currentSpeed = math.sqrt(gun.currentVel.x * gun.currentVel.x + gun.currentVel.y * gun.currentVel.y)
+if currentSpeed > 0 then
+   gun.currentVel.x = gun.currentVel.x / currentSpeed
+   gun.currentVel.y = gun.currentVel.y / currentSpeed
+end
+
     -- Update bullet and rocket modules
     bullet.update(dt)
     rocket.update(dt)

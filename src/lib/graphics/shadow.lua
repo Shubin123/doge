@@ -111,7 +111,7 @@ function shadow.updateBothShaders(dt)
         lights[1].y = love.mouse.getY()
         lights[2].x = math.sin(fire.t) * 100
         lights[2].range = (math.cos(fire.t) + 1) * 100
-        -- lights[3].x, lights[3].y = player.body:getX() + gun.currentVel.x*100, player.body:getY() + gun.currentVel.y*100
+        lights[3].x, lights[3].y = player.body:getX() + gun.currentVel.x*100, player.body:getY() + gun.currentVel.y*100
 
         -- local positions = {}
         -- local positionsWithCamera = {}

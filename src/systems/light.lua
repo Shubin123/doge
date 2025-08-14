@@ -129,8 +129,8 @@ function light.renderLights(drawable)
 
       -- Get car position and velocity
       local playerX, playerY = player.body:getPosition()
-      local playerVX, playerVY = player.body:getLinearVelocity()
-
+      
+      -- local targetVelX, targetVelY = gun.lastAimDirection.x, gun.lastAimDirection.y
       -- local velX, velY = player.body:getLinearVelocity()
       -- local velX, velY = gun.lastAimDirection.x,  gun.lastAimDirection.y
 
@@ -144,23 +144,7 @@ function light.renderLights(drawable)
       -- gun.currentVel = gun.currentVel or { x = gun.lastAimDirection.x, y = gun.lastAimDirection.y }
 
       -- Then in your update code:
-      -- Then in your update code:
-local targetVelX, targetVelY = gun.lastAimDirection.x, gun.lastAimDirection.y
-local playerSpeed = math.sqrt(playerVX * playerVX + playerVY * playerVY)
 
-if playerSpeed > 50 then -- Adjust threshold as needed
-   -- Normalize player velocity
-   targetVelX, targetVelY = playerVX / playerSpeed, playerVY / playerSpeed
-end
-
-gun.currentVel.x, gun.currentVel.y = mymath.lerpVec2({gun.currentVel.x, gun.currentVel.y}, {targetVelX, targetVelY}, 0.1)
-
--- Normalize gun.currentVel to keep it as a unit vector
-local currentSpeed = math.sqrt(gun.currentVel.x * gun.currentVel.x + gun.currentVel.y * gun.currentVel.y)
-if currentSpeed > 0 then
-   gun.currentVel.x = gun.currentVel.x / currentSpeed
-   gun.currentVel.y = gun.currentVel.y / currentSpeed
-end
 
 local velX, velY = gun.currentVel.x, gun.currentVel.y
 
