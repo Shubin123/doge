@@ -44,7 +44,7 @@ function explosion.load()
             
             // Check if we're in the shockwave area
             MY_HIGHP_OR_MEDIUMP number waveFront = explosionRadius;
-            MY_HIGHP_OR_MEDIUMP number waveThickness = maxRadius * 0.15;
+            MY_HIGHP_OR_MEDIUMP number waveThickness = maxRadius * 0.55;
             
             if (dist < waveFront + waveThickness && dist > waveFront - waveThickness) {
                 // Calculate distortion based on distance from wave front
@@ -62,10 +62,10 @@ function explosion.load()
                 MY_HIGHP_OR_MEDIUMP vec2 distortedTC = tc + direction * distortionFactor * distortionStrength * (1.0 + ripple);
                 
                 // Sample with distorted coordinates
-                return Texel(tex, distortedTC) * color;
+                return Texel(tex, distortedTC) * mix(color, vec4(1,0,0,1),1);
             } else {
                 // Outside shockwave area, return normal texture
-                return Texel(tex, tc) * color;
+                return Texel(tex, tc) * mix(color, vec4(1,0,0,1),1);
             }
         }
     ]])
@@ -99,7 +99,7 @@ function explosion.create(x, y, explosion_type)
         currentTime = 0,
         completed = false,
         shockwaveRadius = 0,
-        shockwaveMaxRadius = explosion_type == explosion.TYPES.DEATH and 200 or 150,
+        shockwaveMaxRadius = explosion_type == explosion.TYPES.DEATH and 500 or 350,
         shockwaveDuration = 4
     }
     table.insert(explosion.explosions, inst)
@@ -164,12 +164,14 @@ function explosion.pass()
                 shader:send("explosionCenter", {screen_explosion_pos.x, screen_explosion_pos.y})
                 shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
                 shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
-                shader:send("distortionStrength", 0.02)
+                shader:send("distortionStrength", 0.5)
                 
                 -- Apply the distortion effect
+        
+
                 love.graphics.setShader(shader)
                 love.graphics.draw(scene_canvas)
-                love.graphics.setShader()
+                
                 
                 -- Only apply one explosion at a time to avoid conflicts
                 break

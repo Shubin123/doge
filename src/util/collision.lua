@@ -360,46 +360,46 @@ function collision.init()
     -- end)
     
     -- Rocket vs Player: Area damage with explosion and destroy rocket
-    collision.registerResponse("rocket", "player", function(fixtureA, fixtureB, contact)
-        local userData = fixtureA:getUserData()
-        if userData and not userData.destroyed then
-            userData.destroyed = true
-            local rocketBody = fixtureA:getBody()
-            local playerBody = fixtureB:getBody()
-            local x, y = rocketBody:getPosition()
-            local px, py = playerBody:getPosition()
-            local distance = ((px - x)^2 + (py - y)^2)^0.5
-            local damageRadius = userData.radius * 5
-            if distance <= damageRadius then
-                local damageFactor = 1 - (distance / damageRadius)
-                damageFactor = damageFactor * damageFactor
-                local baseDamage = 45
-                local actualDamage = math.floor(baseDamage * damageFactor)
-                if actualDamage < 5 and distance <= damageRadius * 0.8 then
-                    actualDamage = 5
-                end
-                local hit_client = false
-                for k, body in pairs(player.online.bodies) do
-                    if body == playerBody then
-                        player.online.health[k] = player.online.health[k] - actualDamage
-                        hit_client = true
-                        if blood and blood.onEnemyDamage then
-                            blood.onEnemyDamage(px, py, actualDamage)
-                        end
-                    end
-                end
-                if not hit_client then
-                    player.health = player.health - actualDamage
-                    if blood and blood.onEnemyDamage then
-                        blood.onEnemyDamage(px, py, actualDamage)
-                    end
-                end
-            end
-            if rocket and rocket.toDestroy then
-                table.insert(rocket.toDestroy, userData)
-            end
-        end
-    end)
+    -- collision.registerResponse("rocket", "player", function(fixtureA, fixtureB, contact)
+    --     local userData = fixtureA:getUserData()
+    --     if userData and not userData.destroyed then
+    --         userData.destroyed = true
+    --         local rocketBody = fixtureA:getBody()
+    --         local playerBody = fixtureB:getBody()
+    --         local x, y = rocketBody:getPosition()
+    --         local px, py = playerBody:getPosition()
+    --         local distance = ((px - x)^2 + (py - y)^2)^0.5
+    --         local damageRadius = userData.radius * 5
+    --         if distance <= damageRadius then
+    --             local damageFactor = 1 - (distance / damageRadius)
+    --             damageFactor = damageFactor * damageFactor
+    --             local baseDamage = 45
+    --             local actualDamage = math.floor(baseDamage * damageFactor)
+    --             if actualDamage < 5 and distance <= damageRadius * 0.8 then
+    --                 actualDamage = 5
+    --             end
+    --             local hit_client = false
+    --             for k, body in pairs(player.online.bodies) do
+    --                 if body == playerBody then
+    --                     player.online.health[k] = player.online.health[k] - actualDamage
+    --                     hit_client = true
+    --                     if blood and blood.onEnemyDamage then
+    --                         blood.onEnemyDamage(px, py, actualDamage)
+    --                     end
+    --                 end
+    --             end
+    --             if not hit_client then
+    --                 player.health = player.health - actualDamage
+    --                 if blood and blood.onEnemyDamage then
+    --                     blood.onEnemyDamage(px, py, actualDamage)
+    --                 end
+    --             end
+    --         end
+    --         if rocket and rocket.toDestroy then
+    --             table.insert(rocket.toDestroy, userData)
+    --         end
+    --     end
+    -- end)
     
     -- Map vs Player: Apply impulse only
     collision.registerResponse("map", "player", function(fixtureA, fixtureB, contact)
