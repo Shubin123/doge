@@ -205,8 +205,8 @@ function love.load()
         coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
     end
 
-    enemy_image = love.graphics.newImage("gfx/enemy.png")
-    enemy_width, enemy_height = enemy_image:getDimensions()
+    -- enemy_image = love.graphics.newImage("gfx/enemy.png")
+    -- enemy_width, enemy_height = enemy_image:getDimensions()
 
 
     editor.load(world, map)

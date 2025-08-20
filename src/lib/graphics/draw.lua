@@ -56,6 +56,7 @@ function draw.mydraw()
     -- gun_enemy.populate(10,10)
     -- flying_enemy.populate()
     -- princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
+    princess.x ,princess.y = player.body:getX(),player.body:getY()
     -- fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
     characterAnimator.draw()
     

@@ -126,20 +126,21 @@ function player.update(dt)
         player.body:setLinearVelocity(dodgeVX, dodgeVY)
         
         -- Set dodge animation
-        -- player.currentAnimation = princess.getState()
-        
-        -- princess.setState(4)
+        player.currentAnimation = princess.getCurrentAnimation()
+        if player.currentAnimation ~= "roll" then
+        princess.setAnimation("roll")
+        end
+
         return -- Skip normal movement during dodge
     else
         -- print(player.currentAnimation)
-        -- princess.setState(princess.getState())
+        -- princess.setAnimation("walk")
     end
     
     -- Normal movement (only when not dodging)
 
     
-    -- Get current velocity
-    local vx, vy = player.body:getLinearVelocity()
+    
     
     -- Track if keys are pressed for this frame
     local keyPressed = false
@@ -180,6 +181,7 @@ function player.update(dt)
     
     -- Smoothly interpolate toward target velocity
     local newVX, newVY
+    local vx, vy = player.body:getLinearVelocity()
     
     if keyPressed then
         -- When keys are pressed, accelerate toward target velocity
@@ -205,34 +207,46 @@ function player.update(dt)
     if player.animation.currentTime >= player.animation.duration then
         player.animation.currentTime = player.animation.currentTime - player.animation.duration
     end
+
+    -- Get current velocity
     
-    -- Update facing direction based on movement
-    if newVX ~= 0 or newVY ~= 0 then
-        -- Only update direction when actually moving
-        local moveMagnitude = math.sqrt(newVX * newVX + newVY * newVY)
-        if moveMagnitude > 10 then
-            -- Calculate direction angle
-            player.direction = math.atan2(newVY, newVX)
-            
-            -- Determine animation based on movement direction
-            if math.abs(newVX) > math.abs(newVY) then
-                if newVX > 0 then
-                    player.currentAnimation = "walkRight"
-                else
-                    player.currentAnimation = "walkLeft"
-                end
-            else
-                if newVY > 0 then
-                    player.currentAnimation = "walkDown"
-                else
-                    player.currentAnimation = "walkUp"
-                end
-            end
-        end
+    local linearScore = math.sqrt(newVX*newVX+newVY*newVY)
+    player.currentAnimation = princess.getCurrentAnimation()
+    princess.setDirection(player.getHeading())
+    if linearScore > 120 then
+    princess.setAnimation("run")
+    elseif  linearScore > 10 then
+    princess.setAnimation("walk", 2)
     else
-        -- Set idle animation when not moving
-        player.currentAnimation = "idle"
+    princess.setAnimation("shoot")
     end
+    -- Update facing direction based on movement
+    -- if newVX ~= 0 or newVY ~= 0 then
+    --     -- Only update direction when actually moving
+    --     local moveMagnitude = math.sqrt(newVX * newVX + newVY * newVY)
+    --     if moveMagnitude > 10 then
+    --         -- Calculate direction angle
+    --         player.direction = math.atan2(newVY, newVX)
+            
+    --         -- Determine animation based on movement direction
+    --         if math.abs(newVX) > math.abs(newVY) then
+    --             if newVX > 0 then
+    --                 player.currentAnimation = "walkRight"
+    --             else
+    --                 player.currentAnimation = "walkLeft"
+    --             end
+    --         else
+    --             if newVY > 0 then
+    --                 player.currentAnimation = "walkDown"
+    --             else
+    --                 player.currentAnimation = "walkUp"
+    --             end
+    --         end
+    --     end
+    -- else
+    --     -- Set idle animation when not moving
+    --     player.currentAnimation = "idle"
+    -- end
     
 end
 
@@ -326,6 +340,37 @@ function player.getDirection()
     -- Each direction spans 45 degrees, centered on 0°, 45°, 90°, etc.
     local direction = math.floor((angle_deg + 22.5) / 45) % 8 + 1
     
+    return direction
+end
+
+function player.getHeading(n)
+    if not n or type(n) ~= "number" or n < 1 then
+        n = 8
+    end
+    n = math.floor(n)
+    
+    -- Get velocity directly without scaling
+    local dx, dy = player.body:getLinearVelocity()
+    
+    -- Only check if we're moving at all
+    if math.abs(dx) < 1 and math.abs(dy) < 1 then
+        return player.lastHeading or 1 -- Keep last heading when barely moving
+    end
+    
+    -- Calculate angle directly from velocity
+    local angle = math.atan2(dx, dy)
+    
+    -- Convert to degrees and normalize
+    local angle_deg = math.deg(angle)
+    if angle_deg < 0 then
+        angle_deg = angle_deg + 360
+    end
+    
+    -- Map to direction
+    local sector_size = 360 / n
+    local direction = math.floor((angle_deg + sector_size / 2) / sector_size) % n + 1
+    
+    player.lastHeading = direction
     return direction
 end
 

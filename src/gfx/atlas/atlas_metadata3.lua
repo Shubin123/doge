@@ -98,4 +98,120 @@ return {
     [29] = 8,
   },
   ["textureHeight"] = 16384,
+  characterDefinitions = { -- single quad (1), 3d object rotated direction stored in single column (2), animated/ (animated-multi-spritesheet) (3).
+        
+        ["watchman"] = {
+            animations = {
+                ["walk"] = 12,      -- gfx/watchmanOfDoom_lowres/walk.png
+                ["shoot"] = 13,     -- gfx/watchmanOfDoom_lowres/shoot_pistol.png
+                ["death"] = 14,     -- gfx/watchmanOfDoom_lowres/death.png
+                ["punch"] = 15,     -- gfx/watchmanOfDoom_lowres/punch.png
+                ["cast"] = 16,      -- gfx/watchmanOfDoom_lowres/cast.png
+                ["idle"] = 17,      -- gfx/watchmanOfDoom_lowres/idle.png
+                ["jump"] = 18,      -- gfx/watchmanOfDoom_lowres/jump.png
+            },
+            defaultAnimation = "idle"
+        },
+        ["princess"] = {
+            animations = {
+                ["walk"] = 19,      -- gfx/3d/princess/walk copy.png
+                ["run"] = 20,       -- gfx/3d/princess/run copy.png
+                ["shoot"] = 21,     -- gfx/3d/princess/shoot copy.png
+                ["jump"] = 22,      -- gfx/3d/princess/jump copy.png
+                ["roll"] = 23,      -- gfx/3d/princess/roll3.png
+            },
+            defaultAnimation = "walk"
+        },
+        ["steve"] = {
+            animations = {
+                ["walk"] = 25,      -- gfx/3d/steve/walk lowres.png
+            },
+            defaultAnimation = "walk"
+        },
+        ["mech"] = {
+            animations = {
+                ["walk"] = 26,      -- gfx/3d/mech/mech_walklowlowres.png
+                ["attack"] = 27,    -- gfx/3d/mech/attack_lowres.png
+                ["death"] = 28,     -- gfx/3d/mech/dying_lowres.png
+                ["shoot"] = 29,     -- gfx/3d/mech/shoot_lowres.png
+            },
+            defaultAnimation = "walk"
+        },
+        -- Single-sprite objects (weapons, items, etc.)
+        ["gun"] = {
+            animations = {
+                ["default"] = 1,    -- gfx/3d/singleDimensionRotate/gun.png
+            },
+            defaultAnimation = "default"
+        },
+        ["launcher"] = {
+            animations = {
+                ["default"] = 2,    -- gfx/3d/singleDimensionRotate/lauchergun.png
+            },
+            defaultAnimation = "default"
+        },
+        ["portal_gun"] = {
+            animations = {
+                ["default"] = 3,    -- gfx/3d/singleDimensionRotate/portalGun.png
+            },
+            defaultAnimation = "default"
+        },
+        ["car"] = {
+            animations = {
+                ["default"] = 4,    -- gfx/3d/singleDimensionRotate/car copy.png
+            },
+            defaultAnimation = "default"
+        },
+        ["bike"] = {
+            animations = {
+                ["default"] = 5,    -- gfx/3d/singleDimensionRotate/bike copy.png
+            },
+            defaultAnimation = "default"
+        },
+        ["apple"] = {
+            animations = {
+                ["default"] = 6,    -- gfx/3d/singleDimensionRotate/apple_2.png
+            },
+            defaultAnimation = "default"
+        },
+        ["commodore64"] = {
+            animations = {
+                ["default"] = 7,    -- gfx/3d/singleDimensionRotate/commodore64.png
+            },
+            defaultAnimation = "default"
+        },
+        -- Static environment objects
+        ["tree"] = {
+            animations = {
+                ["default"] = 8,    -- gfx/TileSet/tree1.png
+            },
+            defaultAnimation = "default"
+        },
+        ["arch"] = {
+            animations = {
+                ["default"] = 9,    -- gfx/TileSet/arch.png
+            },
+            defaultAnimation = "default"
+        },
+        ["coin"] = {
+            animations = {
+                ["default"] = 10,   -- gfx/TileSet/coin128.png
+            },
+            defaultAnimation = "default"
+        },
+        ["house"] = {
+            animations = {
+                ["default"] = 11,   -- gfx/TileSet/house128.png
+            },
+            defaultAnimation = "default"
+        },
+        -- Special animated object
+        ["animated_special"] = {
+            animations = {
+                ["default"] = 24,   -- gfx/3d/animated2.png
+            },
+            defaultAnimation = "default"
+        }
+    
+    }
 }

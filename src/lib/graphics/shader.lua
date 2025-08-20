@@ -2,7 +2,7 @@ shader = {}
 
 -- shader.distance = 0.1
 -- shader.sample = 40
-shader.radiance = 1
+shader.radiance = 0
 
 function shader.load()
     -- Calculate GI resolution based on performance target

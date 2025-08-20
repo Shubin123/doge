@@ -251,7 +251,7 @@ function collision.init()
     
     -- Rocket vs Enemy: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)
-                    
+        
 
         local userData = fixtureA:getUserData()
 
@@ -263,7 +263,7 @@ function collision.init()
             local x, y = rocketBody:getPosition()
 
             audio.playSound("explosion", 0.1,0.5)
-            explosion.create(x,y, explosion.TYPES.ROCKET)
+                explosion.create(x,y, explosion.TYPES.ROCKET)
             if enemies_bods then
                 local splash_enemies = {}
                 for i, eb in ipairs(enemies_bods) do
@@ -325,6 +325,7 @@ function collision.init()
                 end
             end
             if rocket and rocket.toDestroy then
+                
                 table.insert(rocket.toDestroy, userData)
             end
         end
@@ -502,36 +503,36 @@ function collision.init()
                 end
             end
             -- Check for player damage
-            if player and player.body then
-                local px, py = player.body:getPosition()
-                local distance = ((px - x)^2 + (py - y)^2)^0.5
-                local damageRadius = userData.radius * 5
-                if distance <= damageRadius then
-                    local damageFactor = 1 - (distance / damageRadius)
-                    damageFactor = damageFactor * damageFactor
-                    local baseDamage = 45
-                    local actualDamage = math.floor(baseDamage * damageFactor)
-                    if actualDamage < 5 and distance <= damageRadius * 0.8 then
-                        actualDamage = 5
-                    end
-                    local hit_client = false
-                    for k, body in pairs(player.online.bodies) do
-                        if body == player.body then
-                            player.online.health[k] = player.online.health[k] - actualDamage
-                            hit_client = true
-                            if blood and blood.onEnemyDamage then
-                                blood.onEnemyDamage(px, py, actualDamage)
-                            end
-                        end
-                    end
-                    if not hit_client then
-                        player.health = player.health - actualDamage
-                        if blood and blood.onEnemyDamage then
-                            blood.onEnemyDamage(px, py, actualDamage)
-                        end
-                    end
-                end
-            end
+            -- if player and player.body then
+            --     local px, py = player.body:getPosition()
+            --     local distance = ((px - x)^2 + (py - y)^2)^0.5
+            --     local damageRadius = userData.radius * 5
+            --     if distance <= damageRadius then
+            --         local damageFactor = 1 - (distance / damageRadius)
+            --         damageFactor = damageFactor * damageFactor
+            --         local baseDamage = 45
+            --         local actualDamage = math.floor(baseDamage * damageFactor)
+            --         if actualDamage < 5 and distance <= damageRadius * 0.8 then
+            --             actualDamage = 5
+            --         end
+            --         local hit_client = false
+            --         for k, body in pairs(player.online.bodies) do
+            --             if body == player.body then
+            --                 player.online.health[k] = player.online.health[k] - actualDamage
+            --                 hit_client = true
+            --                 if blood and blood.onEnemyDamage then
+            --                     blood.onEnemyDamage(px, py, actualDamage)
+            --                 end
+            --             end
+            --         end
+            --         if not hit_client then
+            --             player.health = player.health - actualDamage
+            --             if blood and blood.onEnemyDamage then
+            --                 blood.onEnemyDamage(px, py, actualDamage)
+            --             end
+            --         end
+            --     end
+            -- end
             if rocket and rocket.toDestroy then
                 table.insert(rocket.toDestroy, userData)
             end

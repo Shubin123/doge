@@ -4,7 +4,7 @@ Enemy.__index = Enemy
 function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed)
     local self = setmetatable({}, Enemy)
     self.body = love.physics.newBody(world, x, y, "dynamic")
-    love.physics.newFixture(self.body, love.physics.newCircleShape(20))
+    love.physics.newFixture(self.body, love.physics.newCircleShape(20)):setGroupIndex(777)
 
     -- self.fixture = love.physics.newFixture(self.body, love.physics.newCircleShape(20))
     -- self.fixture:setGroupIndex(777)
@@ -538,8 +538,8 @@ function enemy.populate()
         --     blend_mode = { "alpha" },
         --     source_object_type = "enemy"
         -- })
-
-        local enemyInstance = gun_enemies[_] -- the drawn instances
+         
+        local enemyInstance = gun_enemies[math.min(_ + 1, #gun_enemies)] -- the drawn instances
         
         -- local princessInstance = princess[_]
         -- enemyInstance.x, enemyInstance.y = ex, ey

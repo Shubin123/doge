@@ -62,10 +62,12 @@ function explosion.load()
                 MY_HIGHP_OR_MEDIUMP vec2 distortedTC = tc + direction * distortionFactor * distortionStrength * (1.0 + ripple);
                 
                 // Sample with distorted coordinates
-                return Texel(tex, distortedTC) * mix(color, vec4(1,0,0,1),1);
+                //return Texel(tex, distortedTC) * mix(color, vec4(1,0,0,1),1);
+                return Texel(tex, distortedTC) * color;
             } else {
                 // Outside shockwave area, return normal texture
-                return Texel(tex, tc) * mix(color, vec4(1,0,0,1),1);
+                //return Texel(tex, tc) * mix(color, vec4(1,0,0,1),1);
+                return Texel(tex, tc) * color;
             }
         }
     ]])
