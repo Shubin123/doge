@@ -7,7 +7,7 @@ local DEFAULT_CONFIG = {
     frameRate = 60
 }
 
-characterAnimator.instanceCount = var.num_enemies -- for now just test with enemies
+characterAnimator.instanceCount = var.num_instances -- for now just test with enemies
 local uniformWidth = 128
 local uniformHeight = 128
 
@@ -517,8 +517,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     local atlasImageData
     if compressed then
         atlasImageData = love.image.newCompressedData(
-            love.data.decompress("data", "zlib", love.filesystem.read(atlasFilename)), 
-            "ktx"
+            love.data.decompress("data", "zlib", love.filesystem.read(atlasFilename))
         )
     else
         atlasImageData = love.image.newImageData(atlasFilename)

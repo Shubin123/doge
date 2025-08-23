@@ -1,7 +1,7 @@
 -- the intensity of a indivual light CAN be negative (weird) but no light can have negative range else all other direct lights break!!!
 local shadow = {}
 local lights = {}
-MAX_LIGHTS = 500
+MAX_LIGHTS = 5
 function shadow.addLight(x, y, intensity, range)
     if #lights >= MAX_LIGHTS then
         return false
@@ -19,6 +19,7 @@ end
 function shadow.removeLight(index)
     if index > 0 and index <= #lights then
         table.remove(lights, index)
+
     end
 end
 
@@ -107,7 +108,7 @@ end
 function shadow.updateBothShaders(dt)
     -- Update mouse light
     if #lights > 0 then
-        lights[1].x = love.mouse.getX()
+        lights[1].x = love.mouse.getX() 
         lights[1].y = love.mouse.getY()
         lights[2].x = math.sin(fire.t) * 100
         lights[2].range = (math.cos(fire.t) + 1) * 100

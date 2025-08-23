@@ -154,16 +154,34 @@ end
 
 -- Bresenham line plot
 function teslaCoil.renderPixelLine(drawable)
+    if var.graphics_high then
+        local currentShader =  love.graphics.getShader()
+    love.graphics.push()
+
+    love.graphics.reset()
+    
+    whiteNeon(function()
     for _, bolt in ipairs(state.bolts) do
+        for i = 1, #bolt - 1 do
+            drawPixelLine(camera.pos.x + bolt[i].x* camera.zoom,camera.pos.y + bolt[i].y * camera.zoom,camera.pos.x + bolt[i + 1].x * camera.zoom,camera.pos.y + bolt[i + 1].y * camera.zoom)
+        end
+    end
+  end)
+  love.graphics.pop()
+  love.graphics.setShader(currentShader)
+
+else
+     for _, bolt in ipairs(state.bolts) do
         for i = 1, #bolt - 1 do
             drawPixelLine(bolt[i].x, bolt[i].y, bolt[i + 1].x, bolt[i + 1].y)
         end
+    end
     end
 end
 
 local function populatePixelLineBatched(bolts)
     table.insert(dynamic_draw_list, {
-        sort_y = state.pos + 200,
+        sort_y = -state.pos + 300,
         bolt = bolts,
         draw_type = "teslaCoil"
     })

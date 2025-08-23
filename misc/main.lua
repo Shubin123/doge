@@ -1,5 +1,5 @@
 function love.load()
-    local filename = "atla.dds"
+    local filename = "bc5.dds"
 
     -- Load the raw DDS data using LÖVE
     local rawData, size = love.filesystem.read(filename)

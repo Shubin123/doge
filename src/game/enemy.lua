@@ -1,19 +1,20 @@
 Enemy = {}
 Enemy.__index = Enemy
 
-function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed)
+function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed, index)
     local self = setmetatable({}, Enemy)
     self.body = love.physics.newBody(world, x, y, "dynamic")
-    love.physics.newFixture(self.body, love.physics.newCircleShape(20)):setGroupIndex(777)
+    -- love.physics.newFixture(self.body, love.physics.newCircleShape(20)):setDensity(2.0):setGroupIndex(777)
 
-    -- self.fixture = love.physics.newFixture(self.body, love.physics.newCircleShape(20))
-    -- self.fixture:setGroupIndex(777)
-    -- self.fixture:setDensity(2.0)
+    self.fixture = love.physics.newFixture(self.body, love.physics.newCircleShape(20))
+    self.fixture:setGroupIndex(777)
+    self.fixture:setDensity(2.0)
+    self.fixture:setUserData(index)
     -- self.body:resetMassData()
     -- self.body:setLinearDamping(3.0)
     -- self.body:setAngularDamping(5.0)
 
-    self.health = max_health or 100
+    self.health = 1
     self.max_health = self.health
     self.scale = scale or 0.6
     self.fire_cooldown = fire_cooldown or 2.0                                       --ideally get the number of frames for shooting animation dynamically to determine this
@@ -291,7 +292,7 @@ local enemy = {
     fire_cooldown = 100,
     detection_range = 300,
     projectile_speed = 400,
-    max_health = 100,
+    max_health = 1,
     health = {},
     damage_indicators = {},
     enemy_damaged = {},
@@ -331,7 +332,7 @@ function enemy.update(dt)
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
         e:update(dt)
-        if e.dead then
+        if e.health <= 0 then
             table.remove(enemy.enemies, i)
             enemy.last_fire_times[i] = nil
             enemy.health[i] = nil
@@ -341,6 +342,7 @@ function enemy.update(dt)
 end
 
 function enemy.damageEnemy(enemy_index, damage)
+    -- print(enemy_index,"getting damaged")
     local e = enemy.enemies[enemy_index]
     if e then
         e:damageEnemy(damage)
@@ -357,13 +359,18 @@ function enemy.killEnemy(enemy_index)
 end
 
 function enemy.addEnemy(x, y)
-    local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown,
-        enemy.detection_range, enemy.projectile_speed)
-    table.insert(enemy.enemies, e)
     local index = #enemy.enemies
+    
+
+    local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown,
+        enemy.detection_range, enemy.projectile_speed, index)
+    table.insert(enemy.enemies, e)
+
     enemy.last_fire_times[index] = enemy.t - enemy.fire_cooldown
     enemy.health[index] = e.health
     enemy.enemy_damaged[index] = false
+    
+    
     return index, e.body
 end
 
@@ -394,9 +401,193 @@ function enemy.updateProjectiles(dt)
     end
 end
 channelPreserve = {1,0,1} -- its counter intuitive but you need to preserve the too channels that will get one color cycle, if you preserve 1 channel you get 2 color cycle
-function enemy.populate()
-    for _, e in ipairs(enemy.enemies) do
+-- function enemy.populate()
+--     -- print(#enemy.enemies)
+--     for _, e in ipairs(enemy.enemies) do
 
+--         for _, proj in ipairs(e.projectiles) do
+--             table.insert(dynamic_draw_list, {
+--                 sort_y = proj[1].y + 140,
+--                 image_or_particles = enemy.particleSystem,
+--                 quad = nil,
+--                 x = proj[1].x,
+--                 y = proj[1].y,
+--                 rotation = 0,
+--                 scale_x = 1,
+--                 scale_y = 1,
+--                 offset_x = 0,
+--                 offset_y = 0,
+--                 color = { 1, 0.4, 0.2, 1 },
+--                 blend_mode = { "lighten", "premultiplied" },
+--                 source_object_type = "fire_effect"
+--             })
+--         end
+
+--         -- for _, indicator in ipairs(e.damage_indicators) do
+--         --     local damage = indicator.damage
+--         --     local base_color, is_critical, is_mega_critical, is_splash = { 0.8, 0.2, 0.2 }, false, false,
+--         --         indicator.is_splash_indicator
+--         --     if is_splash then
+--         --         base_color = { 0.2, 0.8, 1 }
+--         --         is_critical = true
+--         --     elseif type(damage) == "string" then
+--         --         base_color = { 0.2, 0.8, 1 }
+--         --         is_critical = true
+--         --     elseif damage >= 35 then
+--         --         base_color = { 1, 0.2, 1 }
+--         --         is_mega_critical = true
+--         --         is_critical = true
+--         --     elseif damage >= 25 then
+--         --         base_color = { 1, 0.5, 0.1 }
+--         --         is_critical = true
+--         --     elseif damage >= 18 then
+--         --         base_color = { 1, 0.9, 0.2 }
+--         --         is_critical = true
+--         --     elseif damage >= 12 then
+--         --         base_color = { 1, 0.3, 0.1 }
+--         --     elseif damage >= 8 then
+--         --         base_color = { 1, 0.15, 0.15 }
+--         --     end
+
+--         --     local saturation_boost = math.min(1.3, 1.0 + (indicator.nearby_count * 0.05))
+--         --     local final_color = {
+--         --         math.min(1, base_color[1] * saturation_boost),
+--         --         math.min(1, base_color[2] * saturation_boost),
+--         --         math.min(1, base_color[3] * saturation_boost)
+--         --     }
+
+--         --     local y_offset = -200 - (indicator.nearby_count * 2)
+--         --     local final_scale = indicator.scale
+--         --     local display_text
+--         --     if is_splash then
+--         --         final_scale = final_scale * 1.6
+--         --         display_text = indicator.damage
+--         --     elseif type(damage) == "string" then
+--         --         final_scale = final_scale * 1.3
+--         --         display_text = damage
+--         --     else
+--         --         local text_prefix = is_mega_critical and "★-" or is_critical and "!-" or "-"
+--         --         final_scale = is_mega_critical and final_scale * 1.4 or is_critical and final_scale * 1.2 or final_scale
+--         --         display_text = text_prefix .. damage
+--         --     end
+
+--         --     table.insert(dynamic_draw_list, {
+--         --         sort_y = indicator.y + y_offset,
+--         --         text = display_text,
+--         --         x = indicator.x,
+--         --         y = indicator.y,
+--         --         font = gameFont,
+--         --         color = { final_color[1], final_color[2], final_color[3], indicator.alpha },
+--         --         scale = final_scale,
+--         --         outline_color = { 0, 0, 0, indicator.alpha * (is_critical and 1.0 or 0.9) },
+--         --         is_critical = is_critical,
+--         --         is_mega_critical = is_mega_critical,
+--         --         nearby_count = indicator.nearby_count,
+--         --         blend_mode = { "alpha" },
+--         --         source_object_type = "damage_indicator"
+--         --     })
+
+--         --     if is_mega_critical or is_splash then
+--         --         table.insert(dynamic_draw_list, {
+--         --             sort_y = indicator.y + y_offset - 1,
+--         --             text = display_text,
+--         --             x = indicator.x,
+--         --             y = indicator.y,
+--         --             font = gameFont,
+--         --             color = is_splash and { 0.5, 1, 1, indicator.alpha * 0.4 } or { 1, 1, 1, indicator.alpha * 0.3 },
+--         --             scale = final_scale * 1.1,
+--         --             outline_color = { 0, 0, 0, 0 },
+--         --             blend_mode = { "add" },
+--         --             source_object_type = "damage_indicator"
+--         --         })
+--         --     end
+--         -- end
+
+--         -- if e.damaged and e.health > 0 then
+--         --     local ex, ey = e.body:getPosition()
+--         --     local health_percent = e.health / e.max_health
+--         --     table.insert(dynamic_draw_list, {
+--         --         sort_y = ey - 50,
+--         --         rectangle = { x = ex - 25, y = ey - 35, width = 50, height = 6 },
+--         --         color = { 0.2, 0.2, 0.2, 0.8 },
+--         --         blend_mode = { "alpha" },
+--         --         source_object_type = "health_bar_bg"
+--         --     })
+--         --     table.insert(dynamic_draw_list, {
+--         --         sort_y = ey - 49,
+--         --         rectangle = { x = ex - 24, y = ey - 34, width = 48 * health_percent, height = 4 },
+--         --         color = health_percent > 0.3 and { 0.2, 0.8, 0.2, 0.9 } or { 0.8, 0.2, 0.2, 0.9 },
+--         --         blend_mode = { "alpha" },
+--         --         source_object_type = "health_bar_fill"
+--         --     })
+--         -- end
+
+--         -- local ex, ey = e.body:getPosition()
+--         -- local enemy_color = { 1, 1, 1, 1 }
+--         -- if e.health then
+--         --     local health_percent = e.health / e.max_health
+--         --     if health_percent <= 0.3 then
+--         --         local red_intensity = 1 - (health_percent / 0.3) * 0.3
+--         --         enemy_color = { 1, 1 - red_intensity, 1 - red_intensity, 1 }
+--         --     end
+--         -- end
+
+--         -- table.insert(dynamic_draw_list, {
+--         --     sort_y = ey + (enemy_image and enemy_image:getHeight() * 0.1 / 2 or 0) + 100,
+--         --     image_or_particles = enemy_image,
+--         --     x = ex,
+--         --     y = ey,
+--         --     rotation = 0,
+--         --     scale_x = 1,
+--         --     scale_y = 1,
+--         --     offset_x = enemy_image and enemy_image:getWidth() / 2 or 0,
+--         --     offset_y = enemy_image and enemy_image:getHeight() / 2 or 0,
+--         --     color = enemy_color,
+--         --     blend_mode = { "alpha" },
+--         --     source_object_type = "enemy"
+--         -- })
+                 
+--         local enemyInstance = gun_enemies[math.min(_ + 1,#enemy.enemies + 1)] -- the drawn instances
+        
+--         -- local princessInstance = princess[_]
+--         -- enemyInstance.x, enemyInstance.y = ex, ey
+--         enemyInstance.x, enemyInstance.y = e.body:getPosition()
+--         -- princessInstance.x,princessInstance.y = ex+10,ey+10
+--         -- print(player.velocity_x)
+--         -- print(e:getDirectionToPlayer())
+--         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+--         -- enemyInstance.setState(math.random(1,5))
+--         -- characterAnimator.shader:send("outlineWidth", 1*math.sin(fire.t))
+        
+--         -- enemyInstance.color = {math.cos(fire.t*2 + _)*channelPreserve[1],math.cos(fire.t*2 + _)*channelPreserve[2],math.cos(fire.t*2 + _)*channelPreserve[3],math.sin(fire.t*2 + _)}
+--     end
+-- end
+
+
+function enemy.populate()
+    -- Clear or reset gun_enemies positions for dead enemies
+    for i = 1, #gun_enemies do
+        gun_enemies[i].active = false -- Mark as inactive initially
+    end
+    
+    -- Map living enemies to gun_enemies based on their stored index
+    for _, e in ipairs(enemy.enemies) do
+        if e.fixture and e.fixture:getUserData() then
+            local enemy_index = e.fixture:getUserData()
+            
+            -- Ensure we don't go out of bounds
+            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+                local enemyInstance = gun_enemies[enemy_index + 2] -- Lua arrays start at 1
+                
+                if enemyInstance then
+                    enemyInstance.active = true
+                    enemyInstance.x, enemyInstance.y = e.body:getPosition()
+                    enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+                end
+            end
+        end
+
+        -- Handle projectiles (unchanged)
         for _, proj in ipairs(e.projectiles) do
             table.insert(dynamic_draw_list, {
                 sort_y = proj[1].y + 140,
@@ -405,8 +596,8 @@ function enemy.populate()
                 x = proj[1].x,
                 y = proj[1].y,
                 rotation = 0,
-                scale_x = e.scale,
-                scale_y = e.scale,
+                scale_x = 1,
+                scale_y = 1,
                 offset_x = 0,
                 offset_y = 0,
                 color = { 1, 0.4, 0.2, 1 },
@@ -414,145 +605,6 @@ function enemy.populate()
                 source_object_type = "fire_effect"
             })
         end
-
-        -- for _, indicator in ipairs(e.damage_indicators) do
-        --     local damage = indicator.damage
-        --     local base_color, is_critical, is_mega_critical, is_splash = { 0.8, 0.2, 0.2 }, false, false,
-        --         indicator.is_splash_indicator
-        --     if is_splash then
-        --         base_color = { 0.2, 0.8, 1 }
-        --         is_critical = true
-        --     elseif type(damage) == "string" then
-        --         base_color = { 0.2, 0.8, 1 }
-        --         is_critical = true
-        --     elseif damage >= 35 then
-        --         base_color = { 1, 0.2, 1 }
-        --         is_mega_critical = true
-        --         is_critical = true
-        --     elseif damage >= 25 then
-        --         base_color = { 1, 0.5, 0.1 }
-        --         is_critical = true
-        --     elseif damage >= 18 then
-        --         base_color = { 1, 0.9, 0.2 }
-        --         is_critical = true
-        --     elseif damage >= 12 then
-        --         base_color = { 1, 0.3, 0.1 }
-        --     elseif damage >= 8 then
-        --         base_color = { 1, 0.15, 0.15 }
-        --     end
-
-        --     local saturation_boost = math.min(1.3, 1.0 + (indicator.nearby_count * 0.05))
-        --     local final_color = {
-        --         math.min(1, base_color[1] * saturation_boost),
-        --         math.min(1, base_color[2] * saturation_boost),
-        --         math.min(1, base_color[3] * saturation_boost)
-        --     }
-
-        --     local y_offset = -200 - (indicator.nearby_count * 2)
-        --     local final_scale = indicator.scale
-        --     local display_text
-        --     if is_splash then
-        --         final_scale = final_scale * 1.6
-        --         display_text = indicator.damage
-        --     elseif type(damage) == "string" then
-        --         final_scale = final_scale * 1.3
-        --         display_text = damage
-        --     else
-        --         local text_prefix = is_mega_critical and "★-" or is_critical and "!-" or "-"
-        --         final_scale = is_mega_critical and final_scale * 1.4 or is_critical and final_scale * 1.2 or final_scale
-        --         display_text = text_prefix .. damage
-        --     end
-
-        --     table.insert(dynamic_draw_list, {
-        --         sort_y = indicator.y + y_offset,
-        --         text = display_text,
-        --         x = indicator.x,
-        --         y = indicator.y,
-        --         font = gameFont,
-        --         color = { final_color[1], final_color[2], final_color[3], indicator.alpha },
-        --         scale = final_scale,
-        --         outline_color = { 0, 0, 0, indicator.alpha * (is_critical and 1.0 or 0.9) },
-        --         is_critical = is_critical,
-        --         is_mega_critical = is_mega_critical,
-        --         nearby_count = indicator.nearby_count,
-        --         blend_mode = { "alpha" },
-        --         source_object_type = "damage_indicator"
-        --     })
-
-        --     if is_mega_critical or is_splash then
-        --         table.insert(dynamic_draw_list, {
-        --             sort_y = indicator.y + y_offset - 1,
-        --             text = display_text,
-        --             x = indicator.x,
-        --             y = indicator.y,
-        --             font = gameFont,
-        --             color = is_splash and { 0.5, 1, 1, indicator.alpha * 0.4 } or { 1, 1, 1, indicator.alpha * 0.3 },
-        --             scale = final_scale * 1.1,
-        --             outline_color = { 0, 0, 0, 0 },
-        --             blend_mode = { "add" },
-        --             source_object_type = "damage_indicator"
-        --         })
-        --     end
-        -- end
-
-        -- if e.damaged and e.health > 0 then
-        --     local ex, ey = e.body:getPosition()
-        --     local health_percent = e.health / e.max_health
-        --     table.insert(dynamic_draw_list, {
-        --         sort_y = ey - 50,
-        --         rectangle = { x = ex - 25, y = ey - 35, width = 50, height = 6 },
-        --         color = { 0.2, 0.2, 0.2, 0.8 },
-        --         blend_mode = { "alpha" },
-        --         source_object_type = "health_bar_bg"
-        --     })
-        --     table.insert(dynamic_draw_list, {
-        --         sort_y = ey - 49,
-        --         rectangle = { x = ex - 24, y = ey - 34, width = 48 * health_percent, height = 4 },
-        --         color = health_percent > 0.3 and { 0.2, 0.8, 0.2, 0.9 } or { 0.8, 0.2, 0.2, 0.9 },
-        --         blend_mode = { "alpha" },
-        --         source_object_type = "health_bar_fill"
-        --     })
-        -- end
-
-        -- local ex, ey = e.body:getPosition()
-        -- local enemy_color = { 1, 1, 1, 1 }
-        -- if e.health then
-        --     local health_percent = e.health / e.max_health
-        --     if health_percent <= 0.3 then
-        --         local red_intensity = 1 - (health_percent / 0.3) * 0.3
-        --         enemy_color = { 1, 1 - red_intensity, 1 - red_intensity, 1 }
-        --     end
-        -- end
-
-        -- table.insert(dynamic_draw_list, {
-        --     sort_y = ey + (enemy_image and enemy_image:getHeight() * 0.1 / 2 or 0) + 100,
-        --     image_or_particles = enemy_image,
-        --     x = ex,
-        --     y = ey,
-        --     rotation = 0,
-        --     scale_x = 1,
-        --     scale_y = 1,
-        --     offset_x = enemy_image and enemy_image:getWidth() / 2 or 0,
-        --     offset_y = enemy_image and enemy_image:getHeight() / 2 or 0,
-        --     color = enemy_color,
-        --     blend_mode = { "alpha" },
-        --     source_object_type = "enemy"
-        -- })
-         
-        local enemyInstance = gun_enemies[math.min(_ + 1, #gun_enemies)] -- the drawn instances
-        
-        -- local princessInstance = princess[_]
-        -- enemyInstance.x, enemyInstance.y = ex, ey
-        enemyInstance.x, enemyInstance.y = e.body:getPosition()
-        -- princessInstance.x,princessInstance.y = ex+10,ey+10
-        -- print(player.velocity_x)
-        -- print(e:getDirectionToPlayer())
-        enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-        -- enemyInstance.setState(math.random(1,5))
-        -- characterAnimator.shader:send("outlineWidth", 1*math.sin(fire.t))
-        
-        enemyInstance.color = {math.cos(fire.t*2 + _)*channelPreserve[1],math.cos(fire.t*2 + _)*channelPreserve[2],math.cos(fire.t*2 + _)*channelPreserve[3],math.sin(fire.t*2 + _)}
     end
 end
-
 return enemy

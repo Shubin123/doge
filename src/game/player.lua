@@ -212,7 +212,8 @@ function player.update(dt)
     
     local linearScore = math.sqrt(newVX*newVX+newVY*newVY)
     player.currentAnimation = princess.getCurrentAnimation()
-    princess.setDirection(player.getHeading())
+    
+    princess.setDirection(player.getHeading(8,linearScore))
     if linearScore > 120 then
     princess.setAnimation("run")
     elseif  linearScore > 10 then
@@ -343,7 +344,7 @@ function player.getDirection()
     return direction
 end
 
-function player.getHeading(n)
+function player.getHeading(n,linearScore)
     if not n or type(n) ~= "number" or n < 1 then
         n = 8
     end
@@ -353,8 +354,11 @@ function player.getHeading(n)
     local dx, dy = player.body:getLinearVelocity()
     
     -- Only check if we're moving at all
-    if math.abs(dx) < 1 and math.abs(dy) < 1 then
+    if linearScore < 15 then
         return player.lastHeading or 1 -- Keep last heading when barely moving
+    elseif gun.mousePressed then
+        princess.setAnimation("shoot",5)
+        dx, dy  = -dx, -dy 
     end
     
     -- Calculate angle directly from velocity

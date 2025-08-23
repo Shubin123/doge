@@ -168,7 +168,7 @@ function love.load()
 
 
     gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/out3.dds.zlib","gfx/atlas/atlas_metadata.lua",true)
+    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas3 copy.png", "gfx/atlas/atlas_metadata3.lua")
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 

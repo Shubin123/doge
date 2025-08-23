@@ -26,6 +26,21 @@ function light.load()
   yellowNeon.glow.strength = 1
   yellowNeon.fastgaussianblur.taps = 9
 
+  whiteNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
+  .godsray)
+  whiteNeon.godsray.exposure = 1  --number between 0 and 1
+  whiteNeon.godsray.decay = 0.8   -- number between 0 and 1
+  whiteNeon.godsray.density = 0.5   -- number between 0 and 1
+  whiteNeon.godsray.weight = 0.9  -- number between 0 and 1
+  whiteNeon.godsray.light_x = 0.5 -- number
+  whiteNeon.godsray.light_y = 0.5 -- number
+  whiteNeon.godsray.samples = 30  -- this does nothing now since hardbaked since opengl es3 with js build
+  whiteNeon.glow.min_luma = 20
+  whiteNeon.glow.strength = 1
+  whiteNeon.fastgaussianblur.taps = 9
+
+  
+
   pixelate = moonshine(moonshine.effects.pixelate)
 end
 
@@ -108,6 +123,72 @@ function light.draw()
 
     -- love.graphics.setColor(1,1,1,1)
   end)
+
+--   yellowNeon(function()
+--     love.graphics.setColor(1, 0.46, 0.3, var.indoors and 0.8 or 0)
+    
+--     local mx = 500 - 2
+--     local my = 300 - 25
+    
+--     -- Transform coordinates for camera
+--     local screenX = camera.pos.x + mx * camera.zoom
+--     local screenY = camera.pos.y + my * camera.zoom
+    
+--     -- God rays parameters
+--     local numRays = 8  -- Number of rays
+--     local rayLength = 120 * camera.zoom  -- Length of each ray
+--     local rayWidth = 15 * camera.zoom    -- Width at the base of rays
+--     local raySpread = math.pi * 0.6      -- Spread angle of the rays (in radians)
+--     local startAngle = -math.pi/2 - raySpread/2  -- Start angle (pointing downward)
+    
+--     -- Optional: Add some subtle animation
+--     local time = love.timer.getTime()
+--     local flicker = 0.9 + 0.1 * math.sin(time * 2)
+    
+--     -- Draw each god ray
+--     for i = 0, numRays - 1 do
+--         local angle = startAngle + (raySpread * i / (numRays - 1))
+        
+--         -- Add slight randomness to each ray for more natural look
+--         local rayLengthVariation = rayLength * (0.8 + 0.4 * math.sin(time * 0.5 + i))
+        
+--         -- Calculate ray endpoints
+--         local endX = screenX + math.cos(angle) * rayLengthVariation
+--         local endY = screenY + math.sin(angle) * rayLengthVariation
+        
+--         -- Create trapezoid shape for the ray
+--         local halfWidth = rayWidth * 0.5
+--         local taperedWidth = rayWidth * 0.1  -- Ray gets thinner at the end
+        
+--         -- Calculate perpendicular vectors for ray width
+--         local perpX = -math.sin(angle)
+--         local perpY = math.cos(angle)
+        
+--         -- Ray vertices (trapezoid)
+--         local vertices = {
+--             screenX - perpX * halfWidth, screenY - perpY * halfWidth,  -- Base left
+--             screenX + perpX * halfWidth, screenY + perpY * halfWidth,  -- Base right
+--             endX + perpX * taperedWidth, endY + perpY * taperedWidth,  -- End right
+--             endX - perpX * taperedWidth, endY - perpY * taperedWidth   -- End left
+--         }
+        
+--         -- Set opacity with flicker effect
+--         love.graphics.setColor(1, 0.46, 0.3, (var.indoors and 0.3 or 0) * flicker)
+--         love.graphics.polygon("fill", vertices)
+        
+--         -- Optional: Add a brighter center line for each ray
+--         love.graphics.setColor(1, 0.6, 0.4, (var.indoors and 0.5 or 0) * flicker)
+--         love.graphics.setLineWidth(2 * camera.zoom)
+--         love.graphics.line(screenX, screenY, endX, endY)
+--     end
+    
+--     -- Optional: Add a bright source point at the window/ceiling
+--     love.graphics.setColor(1, 0.7, 0.5, var.indoors and 0.8 or 0)
+--     love.graphics.circle("fill", screenX, screenY, 4 * camera.zoom)
+    
+--     -- Reset line width
+--     love.graphics.setLineWidth(1)
+-- end)
 end
 
 function light.populate()
@@ -124,6 +205,7 @@ function light.renderLights(drawable)
     love.graphics.push()
 
     love.graphics.reset()
+    
     blueNeon(function()
       love.graphics.setColor(0.17, 0.46, 1, 0.5)
 

@@ -82,7 +82,7 @@ function collision.init()
     -- Player vs Enemy: Damage player and destroy enemy
     collision.registerResponse("player", "enemy", function(fixtureA, fixtureB, contact)
         if player then
-            player.health = player.health - 1
+            -- player.health = player.health - 1
             local x, y = fixtureA:getBody():getPosition()
             if blood and blood.onEnemyDamage then
                 blood.onEnemyDamage(x, y, 1)
@@ -215,40 +215,63 @@ function collision.init()
 
             -- end
         end
-        
+  
         -- Apply slight attraction force to absorber towards absorbed coin position
         local direction = {x = (bx - ax) * 0.1, y = (by - ay) * 0.1}
         absorber:applyLinearImpulse(direction.x, direction.y)
     end)
-    
+
     -- Projectile vs Enemy: Damage enemy and destroy projectile (specific to bullets)
     collision.registerResponse("projectile", "enemy", function(fixtureA, fixtureB, contact)
-        local userData = fixtureA:getUserData()
-        if userData then
-            local enemyBody = fixtureB:getBody()
-            local x, y = enemyBody:getPosition()
-            if blood and blood.onEnemyDamage then
-                blood.onEnemyDamage(x, y, 1, {x=1, y=1})
-            end
-            for i = 1, #enemies_bods do
-                if enemies_bods[i] and enemies_bods[i] == enemyBody then
-                    if enemy and enemy.damageEnemy then
-                        local damage_amount = math.random(8, 15)
-                        enemy.damageEnemy(i, damage_amount)
-                        local bullet_force = 40
-                        local knockback_x = userData.dir and userData.dir.x * bullet_force or math.random() * bullet_force
-                        local knockback_y = userData.dir and userData.dir.y * bullet_force or math.random() * bullet_force
-                        enemyBody:applyLinearImpulse(knockback_x, knockback_y)
-                    end
-                    break
-                end
-            end
-            if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
-                table.insert(bullet.toReturn, userData)
-            end
-        end
-    end)
-    
+    local groupA = fixtureA:getGroupIndex()
+    local groupB = fixtureB:getGroupIndex()
+
+    local projectileFixture, enemyFixture
+
+    if groupA == collision.groups.projectile and groupB == collision.groups.enemy then
+        projectileFixture, enemyFixture = fixtureA, fixtureB
+    elseif groupA == collision.groups.enemy and groupB == collision.groups.projectile then
+        projectileFixture, enemyFixture = fixtureB, fixtureA
+    else
+        -- Not the expected collision groups
+        -- return
+    end
+
+    -- Pull userdata
+    local bulletData = projectileFixture:getUserData()
+    local enemyIndex = enemyFixture:getUserData()
+    -- print(enemyIndex)
+    if not bulletData or not enemyIndex then
+        return -- safety
+    end
+
+    -- Apply effects
+    local enemyBody = enemyFixture:getBody()
+    local x, y = enemyBody:getPosition()
+
+    if blood and blood.onEnemyDamage then
+        blood.onEnemyDamage(x, y, 1, {x=1, y=1})
+    end
+
+    local damage_amount = math.random(8, 15)
+    enemy.damageEnemy(enemyIndex, damage_amount)
+
+    -- Knockback (optional)
+    if bulletData.dir then
+        local bullet_force = 40
+        enemyBody:applyLinearImpulse(
+            bulletData.dir.x * bullet_force,
+            bulletData.dir.y * bullet_force
+        )
+    end
+
+    -- Bullet pooling return
+    if bullet and bullet.toReturn and bulletData.speed and not bulletData.topSpeed then
+        table.insert(bullet.toReturn, bulletData)
+    end
+end)
+
+
     -- Rocket vs Enemy: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)
         
@@ -330,7 +353,7 @@ function collision.init()
             end
         end
     end)
-    
+
     -- Projectile vs Player: Damage player and destroy projectile (specific to bullets)
     -- collision.registerResponse("projectile", "player", function(fixtureA, fixtureB, contact)
     --     local userData = fixtureA:getUserData()
@@ -359,7 +382,7 @@ function collision.init()
     --         end
     --     end
     -- end)
-    
+
     -- Rocket vs Player: Area damage with explosion and destroy rocket
     -- collision.registerResponse("rocket", "player", function(fixtureA, fixtureB, contact)
     --     local userData = fixtureA:getUserData()

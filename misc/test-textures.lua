@@ -1,0 +1,57 @@
+for key, value in pairs(love.graphics.getImageFormats()) do
+    print(key, value)
+end
+-- on web
+-- EACrgs    false
+-- love.js:9 BC4    true
+-- love.js:9 r16    false
+-- love.js:9 ETC2rgba    false
+-- love.js:9 rgba4    true
+-- love.js:9 BC5    true
+-- love.js:9 rgb5a1    true
+-- love.js:9 EACrs    false
+-- love.js:9 DXT5    false
+-- love.js:9 rgb10a2    false
+-- love.js:9 ASTC5x5    false
+-- love.js:9 ASTC12x12    false
+-- love.js:9 rgba8    true
+-- love.js:9 EACr    false
+-- love.js:9 BC4s    true
+-- love.js:9 ASTC10x8    false
+-- love.js:9 ETC2rgba1    false
+-- love.js:9 rg32f    false
+-- love.js:9 rgba16    false
+-- love.js:9 ASTC10x6    false
+-- love.js:9 BC6h    false
+-- love.js:9 BC5s    true
+-- love.js:9 ETC2rgb    false
+-- love.js:9 ASTC10x5    false
+-- love.js:9 rgba16f    true
+-- love.js:9 ASTC8x8    false
+-- love.js:9 ASTC8x6    false
+-- love.js:9 rg11b10f    false
+-- love.js:9 ASTC8x5    false
+-- love.js:9 rgba32f    true
+-- love.js:9 ASTC6x6    false
+-- love.js:9 r8    true
+-- love.js:9 rg16f    false
+-- love.js:9 ASTC6x5    false
+-- love.js:9 DXT3    false
+-- love.js:9 ASTC12x10    false
+-- love.js:9 ASTC5x4    false
+-- love.js:9 BC6hs    false
+-- love.js:9 ASTC4x4    false
+-- love.js:9 ETC1    false
+-- love.js:9 EACrg    false
+-- love.js:9 ASTC10x10    false
+-- love.js:9 PVR1rgba4    false
+-- love.js:9 DXT1    false
+-- love.js:9 PVR1rgb4    false
+-- love.js:9 PVR1rgba2    false
+-- love.js:9 rg8    false
+-- love.js:9 PVR1rgb2    false
+-- love.js:9 r32f    false
+-- love.js:9 BC7    false
+-- love.js:9 rgb565    true
+-- love.js:9 r16f    false
+-- love.js:9 rg16
