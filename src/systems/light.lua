@@ -39,7 +39,18 @@ function light.load()
   whiteNeon.glow.strength = 1
   whiteNeon.fastgaussianblur.taps = 9
 
-  
+  spriteNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
+  .godsray)
+  spriteNeon.godsray.exposure = 0.9  --number between 0 and 1
+  spriteNeon.godsray.decay = 0.5  -- number between 0 and 1
+  spriteNeon.godsray.density = 1   -- number between 0 and 1
+  spriteNeon.godsray.weight = 0.9  -- number between 0 and 1
+  spriteNeon.godsray.light_x = 0.5 -- number
+  spriteNeon.godsray.light_y = 0.5 -- number
+  spriteNeon.godsray.samples = 30  -- this does nothing now since hardbaked since opengl es3 with js build
+  spriteNeon.glow.min_luma = 20
+  spriteNeon.glow.strength = 1
+  spriteNeon.fastgaussianblur.taps = 3
 
   pixelate = moonshine(moonshine.effects.pixelate)
 end

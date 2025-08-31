@@ -19,7 +19,7 @@ local fullscreenButton = { y = 250, text = "Fullscreen: " }
 local vsyncButton = { y = 280, text = "V-Sync: " }
 local particlesButton = { y = 310, text = "Particles: " }
 local highqualityButton = { y = 350, text = "Toggle Quality: " }
-local backSettingsButton = { y = 390, text = "[ Back ]" }
+local backSettingsButton = { y = 430, text = "[ Back ]" }
 
 -- Saves menu buttons
 local saveGameButton = { y = 220, text = "[ Save Game ]" }
@@ -66,33 +66,33 @@ function menu.load(screenInfo)
     particle = love.graphics.newImage("gfx/doge.png")
     love.graphics.setFont(font)
 
-    ps = love.graphics.newParticleSystem(particle, 1000)
-    ps:setParticleLifetime(6, 12)
-    ps:setEmissionRate(10)
-    ps:setSizes(2)
-    ps:setColors({0.5,0.5,0.5,0}, {0.5,0.5,0.5,0.5}, {0.5,0.5,0.5,0})
-    ps:setSpeed(50, 100)
-    ps:setDirection(math.pi / 2)
-    ps:setSpread(0.4)
-    ps:setEmissionArea("uniform", screenInfo.screen_width, 1)
-    ps:setPosition(screenInfo.screen_width / 2, -50)
-    ps:setEmitterLifetime(-1)
-    ps:start()
+    -- ps = love.graphics.newParticleSystem(particle, 1000)
+    -- ps:setParticleLifetime(6, 12)
+    -- ps:setEmissionRate(10)
+    -- ps:setSizes(2)
+    -- ps:setColors({0.5,0.5,0.5,0}, {0.5,0.5,0.5,0.5}, {0.5,0.5,0.5,0})
+    -- ps:setSpeed(50, 100)
+    -- ps:setDirection(math.pi / 2)
+    -- ps:setSpread(0.4)
+    -- ps:setEmissionArea("uniform", screenInfo.screen_width, 1)
+    -- ps:setPosition(screenInfo.screen_width / 2, -50)
+    -- ps:setEmitterLifetime(-1)
+    -- ps:start()
 end
 
 function menu.update(dt)
-    if graphicsSettings.particles then
-        ps:update(dt)
-    end
+    -- if graphicsSettings.particles then
+    --     ps:update(dt)
+    -- end
 end
 
 function menu.draw()
     
 
 
-    if graphicsSettings.particles then
-        love.graphics.draw(ps)
-    end
+    -- if graphicsSettings.particles then
+    --     love.graphics.draw(ps)
+    -- end
 
     love.graphics.setColor(1, 1, 1, 1)
 
@@ -200,6 +200,7 @@ function menu.mousepressed(x, y, button, screenInfo)
         if inBounds({y = highqualityButton.y, text = highqualityButton.text .. ht}) then
             graphicsSettings.particles = not graphicsSettings.particles
             var.graphics_high = not var.graphics_high
+            
             return nil
         end
 

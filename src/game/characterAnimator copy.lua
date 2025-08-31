@@ -401,21 +401,22 @@ local function createInstance()
 end
 
 function characterAnimator.load()
+    -- Universal shader that works on both desktop and web
+    characterAnimator.shader = love.graphics.newShader([[
+        #define MAX_LIGHTS 500
 
-characterAnimator.shader = love.graphics.newShader([[
-    #define MAX_LIGHTS 500
+        uniform int numLights;
+        uniform vec4 lights[MAX_LIGHTS];
 
-    uniform int numLights;
-    uniform vec4 lights[MAX_LIGHTS];
-    uniform float outlineWidth;
-    uniform vec3 outlineColor;
-    
-    varying vec4 VColor;
-    varying vec2 VaryingUV;
-    varying vec2 pos;
-    varying float instanceDepth;
+        // Outline uniforms
+        uniform float outlineWidth;
+        uniform vec3 outlineColor;
+        
+        varying vec4 VColor;
+        varying vec2 VaryingUV;
+        varying vec2 pos;
 
-    #ifdef VERTEX
+        #ifdef VERTEX
 attribute vec4 InstanceUVData; 
 attribute vec4 color;
 attribute vec3 InstanceMatrix1; 
@@ -438,69 +439,68 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
 
     vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
     pos = worldPos.xy;
-    instanceDepth = clamp((pos.y - VaryingUV.y)/love_ScreenSize.y, 0.0, 1.0);
 
     return transform_projection * vec4(worldPos.xy, 0, 1.0);
 }
 #endif
 
-    #ifdef PIXEL
-    uniform Image MainTex;
+        #ifdef PIXEL
+        uniform Image MainTex;
 
-    void effect() {
-        vec4 texColor = Texel(MainTex, VaryingUV);
-        
-        // CRITICAL: Discard transparent fragments BEFORE depth testing
-        // This prevents large transparent quads from blocking other sprites
-        if (texColor.a < 0.1) {
-            discard;
-        }
-        
-        // Set depth for opaque fragments only
-        gl_FragDepth = 1.0 - instanceDepth;
-        
-        // Calculate lighting
-        float totalLight = 0.0;
-        for (int i = 0; i < MAX_LIGHTS; i++) {
-            if (i >= numLights) {
-                break;
+        void effect() {
+            vec4 texColor = Texel(MainTex, VaryingUV);
+            
+            // Calculate lighting
+            float totalLight = 0.0;
+            for (int i = 0; i < MAX_LIGHTS; i++) {
+                if (i >= numLights) {
+                    break;
+                }
+                float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
+                float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
+                totalLight += attenuation * lights[i][2];
             }
-            float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
-            float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
-            totalLight += attenuation * lights[i][2];
-        }
 
-        totalLight = clamp(totalLight, 0.0, 1.0);
-        vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
-        
-        // Outline detection (only for opaque pixels)
-        vec4 finalColor = vec4(litColor, texColor.a);
+            totalLight = clamp(totalLight, 0.0, 1.0);
+            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
 
-        if (VColor.w > 0.0) {
-            float pixelOffset = VColor.w * 0.0001;
+            // Outline detection
+            vec4 finalColor = vec4(litColor, texColor.a);
 
-            // 8-directional sampling for outline detection
-            for (int x = -1; x <= 1; x++) {
-                for (int y = -1; y <= 1; y++) {
-                    if (x == 0 && y == 0) continue;
+            if (VColor.w > 0.0) {
+                // If current pixel is transparent, check if any nearby pixels are opaque
+                if (texColor.a < 0.1) {
+                    float outline = 0.0;
 
-                    vec2 offset = vec2(float(x), float(y)) * pixelOffset;
-                    vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
+                    // Use a small fixed offset for sampling (adjust based on your atlas resolution)
+                    float pixelOffset = VColor.w * 0.0001; // Adjust this value as needed
 
-                    if (sampleColor.a > 0.1) {
-                        // Found opaque neighbor, this could be outline
+                    // 8-directional sampling for outline detection
+                    for (int x = -1; x <= 1; x++) {
+                        for (int y = -1; y <= 1; y++) {
+                            if (x == 0 && y == 0) continue;
+
+                            vec2 offset = vec2(float(x), float(y)) * pixelOffset;
+                            vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
+
+                            if (sampleColor.a > 0.1) {
+                                outline = 1.0;
+                                break;
+                            }
+                        }
+                        if (outline > 0.0) break;
+                    }
+
+                    if (outline > 0.0) {
                         finalColor = VColor;
-                        break;
                     }
                 }
             }
-        }
-        
-        love_Canvases[0] = finalColor;
-    }
-    #endif
-]])
 
+            love_Canvases[0] = finalColor;
+        }
+        #endif
+    ]])
     -- below shader is for fully lit sprites so no need for shadow/light info
     characterAnimator.shaderWithTransforms = love.graphics.newShader([[
         uniform vec3 cameraPosition; // z component is zoom
@@ -774,11 +774,10 @@ local function getUV(instance)
     end
 end
 
-local sortedIndices = {}
-local instanceData = {}
-    
 function characterAnimator.populate()
-   local activeInstanceCount = 0
+    local sortedIndices = {}
+    local instanceData = {}
+    local activeInstanceCount = 0
 
     for i, instance in ipairs(instances) do
         if instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex] then
@@ -788,10 +787,10 @@ function characterAnimator.populate()
             print("Warning: Invalid sprite index for instance " .. i)
         end
     end
-    -- disable cpu sorting (dont delete yet)
-    -- table.sort(sortedIndices, function(a, b)
-    --     return instances[a].y < instances[b].y
-    -- end)
+
+    table.sort(sortedIndices, function(a, b)
+        return instances[a].y < instances[b].y
+    end)
 
     for i = 1, activeInstanceCount do
         local instance = instances[sortedIndices[i]]
@@ -816,39 +815,29 @@ end
 function characterAnimator.draw()
     -- spriteNeon.godsray.light_x ,spriteNeon.godsray.light_y = math.sin(fire.t), math.sin(fire.t)
     
-    -- if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
-    -- love.graphics.push()
-    -- love.graphics.reset()
+    if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
+    love.graphics.push()
+    love.graphics.reset()
             
-    -- spriteNeon.godsray.exposure = math.abs(math.sin(fire.t))
-    -- spriteNeon(function()
-    -- local camPos = {camera.pos.x,camera.pos.y,camera.zoom}
-    -- characterAnimator.shaderWithTransforms:send("cameraPosition",camPos)
-    -- love.graphics.setShader(characterAnimator.shaderWithTransforms)
-    -- love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
-    -- love.graphics.setShader()
+    spriteNeon.godsray.exposure = math.abs(math.sin(fire.t))
+    spriteNeon(function()
+    local camPos = {camera.pos.x,camera.pos.y,camera.zoom}
+    -- camPos[0] = {camera.pos.x,camera.pos.y}
+    -- camPos[1] = {camera.pos.y}
+    characterAnimator.shaderWithTransforms:send("cameraPosition",camPos)
+    love.graphics.setShader(characterAnimator.shaderWithTransforms)
+    love.graphics.drawInstanced(litmesh, characterAnimator.instanceCount)
+    love.graphics.setShader()
     
-    -- end)
-    -- love.graphics.pop()
-    
-    -- else 
-    
-    
-    -- love.graphics.setShader(characterAnimator.shader)
-    -- love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
-    -- love.graphics.setShader()
-    
+    end)
+    love.graphics.pop()
+    else 
 
-    -- end
-
-
-    love.graphics.setCanvas({scene_canvas, depthstencil=depth})
-    love.graphics.setDepthMode("lequal", true)  -- Enable depth testing
-    
     love.graphics.setShader(characterAnimator.shader)
     love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
     love.graphics.setShader()
-    love.graphics.setDepthMode()  -- Reset depth mode
+
+    end
 
 
 end

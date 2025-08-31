@@ -132,6 +132,7 @@ end
 
 -- Apply the water effect
 function water.pass()
+    
     -- Send the reflection texture to the shader
     
     water_final_shader:send("reflectionTexture", reflection_canvas)

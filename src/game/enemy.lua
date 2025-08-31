@@ -571,40 +571,41 @@ function enemy.populate()
     end
     
     -- Map living enemies to gun_enemies based on their stored index
-    for _, e in ipairs(enemy.enemies) do
-        if e.fixture and e.fixture:getUserData() then
-            local enemy_index = e.fixture:getUserData()
+    -- for _, e in ipairs(enemy.enemies) do
+    --     if e.fixture and e.fixture:getUserData() then
+    --         local enemy_index = e.fixture:getUserData()
             
-            -- Ensure we don't go out of bounds
-            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
-                local enemyInstance = gun_enemies[enemy_index + 2] -- Lua arrays start at 1
+    --         -- Ensure we don't go out of bounds
+    --         if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+    --             local enemyInstance = gun_enemies[enemy_index + 2] -- Lua arrays start at 1
                 
-                if enemyInstance then
-                    enemyInstance.active = true
-                    enemyInstance.x, enemyInstance.y = e.body:getPosition()
-                    enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-                end
-            end
-        end
+    --             if enemyInstance then
+    --                 enemyInstance.active = true
+    --                 enemyInstance.x, enemyInstance.y = e.body:getPosition()
+    --                 enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+    --                 enemyInstance.color = {math.cos(fire.t*2 + _)*channelPreserve[1],math.cos(fire.t*2 + _)*channelPreserve[2],math.cos(fire.t*2 + _)*channelPreserve[3],math.sin(fire.t*2 + _)}
+    --             end
+    --         end
+    --     end
 
-        -- Handle projectiles (unchanged)
-        for _, proj in ipairs(e.projectiles) do
-            table.insert(dynamic_draw_list, {
-                sort_y = proj[1].y + 140,
-                image_or_particles = enemy.particleSystem,
-                quad = nil,
-                x = proj[1].x,
-                y = proj[1].y,
-                rotation = 0,
-                scale_x = 1,
-                scale_y = 1,
-                offset_x = 0,
-                offset_y = 0,
-                color = { 1, 0.4, 0.2, 1 },
-                blend_mode = { "lighten", "premultiplied" },
-                source_object_type = "fire_effect"
-            })
-        end
-    end
+    --     -- Handle projectiles (unchanged)
+    --     for _, proj in ipairs(e.projectiles) do
+    --         table.insert(dynamic_draw_list, {
+    --             sort_y = proj[1].y + 140,
+    --             image_or_particles = enemy.particleSystem,
+    --             quad = nil,
+    --             x = proj[1].x,
+    --             y = proj[1].y,
+    --             rotation = 0,
+    --             scale_x = 1,
+    --             scale_y = 1,
+    --             offset_x = 0,
+    --             offset_y = 0,
+    --             color = { 1, 0.4, 0.2, 1 },
+    --             blend_mode = { "lighten", "premultiplied" },
+    --             source_object_type = "fire_effect"
+    --         })
+    --     end
+    -- end
 end
 return enemy

@@ -16,7 +16,7 @@ function shader.load()
     
     -- Create canvases with specific formats
     scene_canvas = love.graphics.newCanvas(W, H, {format  = "rgba4"}) -- rgba8
-
+    depth = love.graphics.newCanvas(W, H, { format = "depth24" })
     -- JFA needs two canvases for ping-pong, RG for UV (at GI resolution)
     jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = "rgba16f"}) --rg16f 
     jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = "rgba16f"})

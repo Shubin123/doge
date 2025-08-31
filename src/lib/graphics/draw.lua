@@ -9,9 +9,9 @@ function draw.mydraw()
     -- end
 
 
-    if var.graphics_high then
+    -- if var.graphics_high then
         shader.prepass()
-    end
+    -- end
 
     love.graphics.push() --push all camera transforms (move everything when player moves)
 
@@ -20,7 +20,7 @@ function draw.mydraw()
     -- if (shadowblock) then
     love.graphics.setShader(shadow.getShader(false))
     -- end
-    love.graphics.setColor(1,1,1, 0.4)
+    love.graphics.setColor(1,1,1, var.graphics_high and 0.4 or 0.8)
     -- Draw map with blood effects
     -- if blood and blood.drawBackground then
     --     -- blood.drawBackground(map.map, game_area_x, game_area_y)
@@ -56,15 +56,16 @@ function draw.mydraw()
     -- gun_enemy.populate(10,10)
     -- flying_enemy.populate()
     -- princess.populate(player.body:getX() - 50,player.body:getY() - 50, 1, 0)
+    -- princess.x ,princess.y = player.body:getX(),player.body:getY()
     princess.x ,princess.y = player.body:getX(),player.body:getY()
     -- fighter.populate(player.body:getX() - 30,player.body:getY() - 50, 1, 0)
     characterAnimator.draw()
     
     
 
-    if var.graphics_high then
+    -- if var.graphics_high then
         light.populate()
-    end
+    -- end
 
     gun.drawWorld()
     -- characterAnimator.populate(200,200,1,0)
@@ -90,18 +91,19 @@ function draw.mydraw()
     -- explosion.draw()
 
 
-
+    -- light.draw()
     if var.graphics_high then
-        light.draw()
         shader.pass()
-        explosion.pass()
-        -- smoke.pass()
-        water.pass()
-        crtShader.endCapture()
-
-        -- blur.pass()
     end
+    explosion.pass()
+    smoke.pass()
+    water.pass()
+    
+    crtShader.endCapture()
+    -- end
+    
 
+    love.graphics.setShader()
     menu.drawUI() -- ui last
     command.draw()  -- Draw console on top
     cmdn.draw()     -- Draw improved console on top

@@ -6,7 +6,7 @@ local instanceData = {}
 local instanceData2 = {}
 
 function love.load()
-    love.window.setMode(1000, 1000, { resizable=false, vsync=true, depth=16 })
+    -- love.window.setMode(1000, 1000, { resizable=false, vsync=true, depth=16 })
     -- we can just sort on the default canvas or screen, and across shaders!
     -- canvas = love.graphics.newCanvas(1000, 1000, {format="rgba4"}) 
     -- depth  = love.graphics.newCanvas(1000, 1000, {format="depth16"})
@@ -67,7 +67,7 @@ function love.load()
     vec4 position(mat4 transform_projection, vec4 vertex_position) {
         vec4 pos = vertex_position;
         pos.xy += InstanceData.xy;
-        VZ = InstanceData.y/love_ScreenSize.y;
+        VZ = InstanceData.z;
         return transform_projection * pos;
     }
     #endif
@@ -97,7 +97,7 @@ shader2 = love.graphics.newShader([[
     vec4 position(mat4 transform_projection, vec4 vertex_position) {
         vec4 pos = vertex_position;
         pos.xy += InstanceData.xy;
-        VZ = InstanceData.y/love_ScreenSize.y;
+        VZ = InstanceData.z;
         return transform_projection * pos;
     }
     #endif
@@ -118,7 +118,7 @@ shader2 = love.graphics.newShader([[
     #endif
 ]])
 
-love.graphics.setDepthMode("lequal", true)
+-- love.graphics.setDepthMode("lequal", true)
 end
 local t = 0
 function love.update(dt)
@@ -128,7 +128,7 @@ function love.update(dt)
     if mx and my then
         instanceData[1][1] = mx - image:getWidth()/2
         instanceData[1][2] = my - image:getHeight()/2
-        instanceData[1][3] = (my)/1000 -- z
+        -- instanceData[1][3] = (my*2*math.abs(math.sin(t)))/1000 -- z
         instanceMesh:setVertices(instanceData)
     end
 end

@@ -221,7 +221,7 @@ function love.load()
 
     shader.load()
     water.load()
-    -- smoke.load()
+    smoke.load()
     portal.load()
     crt.load()
     blur.load()
@@ -236,8 +236,9 @@ function love.load()
 
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
-
     love.draw = mydraw.mydraw
+    love.graphics.setDepthMode("less", true)  -- Enable depth testing
+
 end
 
 local t = 0
@@ -271,7 +272,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     editor.update(dt)
 
     if var.State == "menu" then
-        menu.update(dt)
+        -- menu.update(dt)
         -- if not var.multiplayer then
         if not paused then
             paused = love.audio.pause() -- change this to stop other audio play menu

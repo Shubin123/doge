@@ -276,7 +276,7 @@ end
 
 -- End capture and apply the CRT effect to the entire screen
 function crt.endCapture()
-    -- love.graphics.setCanvas()
+    love.graphics.setCanvas()
     
     -- Store current graphics state
     -- local currentShader = love.graphics.getShader()
@@ -286,15 +286,17 @@ function crt.endCapture()
     -- local screenWidth, screenHeight = love.graphics.getDimensions()
     
     -- Apply the CRT shader to the entire screen
+    if crtt ~= nil then
     love.graphics.setShader(crtShader.shader)
+    end
     -- love.graphics.setBlendMode("add", "premultiplied")
-    love.graphics.draw(scene_canvas, 0, 0, 0, 1, 1)
+    -- love.graphics.draw(scene_canvas, 0, 0, 0, 1, 1)
+    love.graphics.draw(scene_canvas)
     
     -- Restore previous graphics state
     
     love.graphics.setShader()
-    
-    
+
     -- love.graphics.setBlendMode(currentBlendMode)
 end
 

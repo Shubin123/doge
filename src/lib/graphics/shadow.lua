@@ -108,7 +108,7 @@ end
 function shadow.updateBothShaders(dt)
     -- Update mouse light
     if #lights > 0 then
-        lights[1].x = love.mouse.getX() 
+        lights[1].x = love.mouse.getX()
         lights[1].y = love.mouse.getY()
         lights[2].x = math.sin(fire.t) * 100
         lights[2].range = (math.cos(fire.t) + 1) * 100

@@ -175,7 +175,7 @@ end
 
 -- Apply the smoke effect
 function smoke.pass()
-    
+    love.graphics.setCanvas()
     
     -- Send the reflection texture to the shader
     smoke_final_shader:send("reflectionTexture", reflection_canvas)

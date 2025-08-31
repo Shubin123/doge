@@ -15,7 +15,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 30
+var.num_enemies = 5
 var.num_instances = var.num_enemies + 1
 
 var.enemies_bods = {}
@@ -51,11 +51,15 @@ var.sprite_width = 100
  var.header_height = 50
 
 var.graphics_high = true -- for now just a high settings for all the shaders or nothing
+var.graphics_lights = false
+
+
 
 var.indoors = false
 
 function love.conf(t)
     t.window.depth = 16
+    
     -- t.window.fsaa = 20           
 -- print(t)
 for key, value in pairs(t) do

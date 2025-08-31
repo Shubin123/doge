@@ -21,3 +21,6 @@ src/gfx/TileSet/Sprite-0001.aseprite
 src/gfx/atlas/atlas2.png
 src/gfx/atlas/out3.dds.zlib
 *.png
+/srcCleaned
+misc/apple.png
+misc/apple.png
