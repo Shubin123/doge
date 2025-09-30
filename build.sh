@@ -1,4 +1,4 @@
-cd ./srcCleaned && zip -9 -r ../misc/game.love .
+cd ./src && zip -9 -r ../misc/game.love .
 cd ..
 cp -r /Applications/love.app/ ./misc/game.app
 cp  ./misc/game.love ./misc/game.app/Contents/Resources/
