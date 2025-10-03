@@ -5,7 +5,8 @@ var.screen_width = 800
 var.screen_height = 600
 var.screen_flags = {
     ["resizable"] = true,
-    ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
+    ["vsync"] = true, -- doesnt always work (could cause performance hit with worse fps)
+    ["depth"] = 16
 }
 
 var.character_rotation = 0
@@ -15,7 +16,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 5
+var.num_enemies = 30
 var.num_instances = var.num_enemies + 1
 
 var.enemies_bods = {}
@@ -58,7 +59,7 @@ var.graphics_lights = false
 var.indoors = false
 
 function love.conf(t)
-    t.window.depth = 16
+    -- t.window.depth = 16
     
     -- t.window.fsaa = 20           
 -- print(t)

@@ -83,7 +83,7 @@ function love.load()
         // write depth per instance
         gl_FragDepth = 1.0 - VZ;
 
-        return texColor;
+        return vec4(gl_FragDepth,gl_FragDepth,gl_FragDepth,1);
     }
     #endif
 ]])
@@ -142,7 +142,7 @@ function love.draw()
     love.graphics.drawInstanced(mesh, instanceCount)
     -- love.graphics.setShader()
 
-    love.graphics.setShader(shader2)
+    love.graphics.setShader(shader)
     -- draw all instances
     love.graphics.drawInstanced(mesh2, instanceCount)
     love.graphics.setShader()

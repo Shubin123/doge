@@ -237,7 +237,7 @@ function love.load()
     water.setWaterArea(320, 238, 165, 67)
     smoke.setsmokeArea(320, 138, 165, 67)
     love.draw = mydraw.mydraw
-    love.graphics.setDepthMode("less", true)  -- Enable depth testing
+    love.graphics.setDepthMode("lequal", true)  -- Enable depth testing
 
 end
 
