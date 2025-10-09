@@ -39,7 +39,19 @@ function light.load()
   whiteNeon.glow.strength = 1
   whiteNeon.fastgaussianblur.taps = 9
 
-  
+  pixelNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
+  .godsray).chain(moonshine.effects.pixelate)
+  pixelNeon.godsray.exposure = 10  --number between 0 and 1
+  pixelNeon.godsray.decay = 0.8   -- number between 0 and 1
+  pixelNeon.godsray.density = 0.5   -- number between 0 and 1
+  pixelNeon.godsray.weight = 0.1  -- number between 0 and 1
+  pixelNeon.godsray.light_x = 0.1 -- number
+  pixelNeon.godsray.light_y = 0.1 -- number
+  pixelNeon.godsray.samples = 1  -- this does nothing now since hardbaked since opengl es3 with js build
+  pixelNeon.glow.min_luma = 10
+  pixelNeon.glow.strength = 10
+  pixelNeon.fastgaussianblur.taps = 9
+
 
   pixelate = moonshine(moonshine.effects.pixelate)
 end
@@ -201,7 +213,7 @@ function light.populate()
 end
 
 function light.renderLights(drawable)
-  if drawable.draw_type == "light" then
+  if drawable.draw_type == "light" and player.lightsOn then
     love.graphics.push()
 
     love.graphics.reset()

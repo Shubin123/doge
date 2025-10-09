@@ -23,38 +23,38 @@ fire_draw_data = {}
 
 fire.effects = {
     {path = 'gfx/firelowres.png', grid = {8, 8}},
-    {path = 'gfx/fx/Spritesheets/Smoke-Sheet.png', grid = {4, 5}},
-    {path = 'gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png', grid = {5, 6}},
-    {path = 'gfx/fx/Spritesheets/Blood Splat.png', grid = {5, 2}},
-    {path = 'gfx/fx/Spritesheets/Eletric A-Sheet.png', grid = {3, 3}},
-    {path = 'gfx/fx/Spritesheets/Eletric Aura.png', grid = {5, 2}},
+    -- {path = 'gfx/fx/Spritesheets/Smoke-Sheet.png', grid = {4, 5}},
+    -- {path = 'gfx/fx/Spritesheets/Water Vortex Splash-Sheet.png', grid = {5, 6}},
+    -- {path = 'gfx/fx/Spritesheets/Blood Splat.png', grid = {5, 2}},
+    -- {path = 'gfx/fx/Spritesheets/Eletric A-Sheet.png', grid = {3, 3}},
+    -- {path = 'gfx/fx/Spritesheets/Eletric Aura.png', grid = {5, 2}},
     
     
-    {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {5, 5}},
-    
-    
-
-    -- {path = 'gfx/fx/Spritesheets/Gravity-Sheet.png', grid = {4, 5}},
-    
+    -- {path = 'gfx/fx/Spritesheets/Fire+Sparks-Sheet.png', grid = {5, 5}},
     
     
 
-    {path = 'gfx/fx/Spritesheets/Poison Cloud-Sheet.png', grid = {4, 4}},
-    {path = 'gfx/fx/Spritesheets/Regen.png', grid = {5, 3}},
-
-
-    {path = 'gfx/fx/Spritesheets/Leaves-Sheet.png', grid = {5, 3}},
-
-    {path = 'gfx/fx/Spritesheets/Sakuras.png', grid = {5, 2}},
+    -- -- {path = 'gfx/fx/Spritesheets/Gravity-Sheet.png', grid = {4, 5}},
     
-    -- {path = 'gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png', grid = {6, 3}},
-    -- {path = 'gfx/fx/Spritesheets/Flamethrower-Sheet.png', grid = {4, 3}},
-    -- {path = 'gfx/fx/Spritesheets/Smoke2-Sheet.png', grid = {5, 8}},
-    -- {path = 'gfx/fx/Spritesheets/Holy Light Aura.png', grid = {4, 3}},
+    
+    
 
-    {path = 'gfx/fx/Spritesheets/Spark1-Sheet.png', grid = {4, 3}},
-    {path = 'gfx/fx/Spritesheets/Sparks-Sheet.png', grid = {5, 8}},
-    {path = 'gfx/fx/Spritesheets/Splatter-Sheet.png', grid = {4, 4}}
+    -- {path = 'gfx/fx/Spritesheets/Poison Cloud-Sheet.png', grid = {4, 4}},
+    -- {path = 'gfx/fx/Spritesheets/Regen.png', grid = {5, 3}},
+
+
+    -- {path = 'gfx/fx/Spritesheets/Leaves-Sheet.png', grid = {5, 3}},
+
+    -- {path = 'gfx/fx/Spritesheets/Sakuras.png', grid = {5, 2}},
+    
+    -- -- {path = 'gfx/fx/Spritesheets/Rocket Fire 2-Sheet.png', grid = {6, 3}},
+    -- -- {path = 'gfx/fx/Spritesheets/Flamethrower-Sheet.png', grid = {4, 3}},
+    -- -- {path = 'gfx/fx/Spritesheets/Smoke2-Sheet.png', grid = {5, 8}},
+    -- -- {path = 'gfx/fx/Spritesheets/Holy Light Aura.png', grid = {4, 3}},
+
+    -- {path = 'gfx/fx/Spritesheets/Spark1-Sheet.png', grid = {4, 3}},
+    -- {path = 'gfx/fx/Spritesheets/Sparks-Sheet.png', grid = {5, 8}},
+    -- {path = 'gfx/fx/Spritesheets/Splatter-Sheet.png', grid = {4, 4}}
 }
 
 

@@ -24,7 +24,7 @@ local state = {
 }
 teslaCoil.firing = false
 teslaCoil.timer = 0
-teslaCoil.cooldown = 1
+teslaCoil.cooldown = 0
 
 -- Generate a Collatz sequence
 local function collatz(n)
@@ -159,7 +159,6 @@ function teslaCoil.renderPixelLine(drawable)
     love.graphics.push()
 
     love.graphics.reset()
-    
     whiteNeon(function()
     for _, bolt in ipairs(state.bolts) do
         for i = 1, #bolt - 1 do

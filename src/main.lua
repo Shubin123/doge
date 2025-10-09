@@ -471,6 +471,11 @@ function love.keypressed(key)
         -- blur.set_radius(0.00001)
     end
 
+    if key == "f" then
+        player.lightsOn = not player.lightsOn
+    end
+
+
     editor.keypressed(key)
     command.keypressed(key)
     cmdn.keypressed(key)

@@ -289,6 +289,7 @@ function crt.endCapture()
     love.graphics.setShader(crtShader.shader)
     -- love.graphics.setBlendMode("add", "premultiplied")
     love.graphics.draw(scene_canvas, 0, 0, 0, 1, 1)
+    -- love.graphics.draw(gi_canvas, 0, 0, 0, 1, 1)
     
     -- Restore previous graphics state
     

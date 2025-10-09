@@ -753,16 +753,16 @@ function bullet.drawSingleTracer(inst, x, y, distance)
     -- love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
     
     -- Draw fading trail (with distance fade)
-    if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
-        for i = 1, #inst.trail - 1 do
-            local p1 = inst.trail[i]
-            local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
-            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-        end
-    end
+    -- if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
+    --     for i = 1, #inst.trail - 1 do
+    --         local p1 = inst.trail[i]
+    --         local p2 = inst.trail[i + 1]
+    --         local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
+    --         love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+    --         love.graphics.setLineWidth(2)
+    --         love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+    --     end
+    -- end
     
     -- Draw bullet impact point (with distance fade)
     love.graphics.setColor(1, 1, 1, fade_factor)

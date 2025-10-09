@@ -17,7 +17,8 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.health = 1
     self.max_health = self.health
     self.scale = scale or 0.6
-    self.fire_cooldown = fire_cooldown or 2.0                                       --ideally get the number of frames for shooting animation dynamically to determine this
+    self.fire_cooldown = fire_cooldown or
+    2.0                                       --ideally get the number of frames for shooting animation dynamically to determine this
     self.detection_range = detection_range or 300
     self.projectile_speed = projectile_speed or 400
     self.last_fire_time = 0
@@ -188,46 +189,51 @@ end
 
 function Enemy:damageEnemy(damage)
     self.health = self.health - damage
-    self.damaged = true
+    -- self.damaged = true
 
-    local ex, ey = self.body:getPosition()
-    local nearby_count = 0
-    for _, ind in ipairs(self.damage_indicators) do
-        local dist = math.sqrt((ind.x - ex) ^ 2 + (ind.y - ey) ^ 2)
-        if dist < 50 then
-            nearby_count = nearby_count + 1
-        end
-    end
+    -- local ex, ey = self.body:getPosition()
+    -- local nearby_count = 0
+    -- for _, ind in ipairs(self.damage_indicators) do
+    --     local dist = math.sqrt((ind.x - ex) ^ 2 + (ind.y - ey) ^ 2)
+    --     if dist < 50 then
+    --         nearby_count = nearby_count + 1
+    --     end
+    -- end
 
-    local angle = (nearby_count * 45) % 360
-    local spread_radius = math.min(15 + nearby_count * 3, 35)
-    local spread_x = math.cos(math.rad(angle)) * spread_radius
-    local spread_y = math.sin(math.rad(angle)) * spread_radius * 0.5
-    local base_duration = 1.0
-    local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))
-    local final_duration = base_duration * duration_multiplier
+    -- local angle = (nearby_count * 45) % 360
+    -- local spread_radius = math.min(15 + nearby_count * 3, 35)
+    -- local spread_x = math.cos(math.rad(angle)) * spread_radius
+    -- local spread_y = math.sin(math.rad(angle)) * spread_radius * 0.5
+    -- local base_duration = 1.0
+    -- local duration_multiplier = math.max(0.3, 1.0 - (nearby_count * 0.1))
+    -- local final_duration = base_duration * duration_multiplier
 
-    table.insert(self.damage_indicators, {
-        x = ex + spread_x,
-        y = ey - 10 + spread_y,
-        damage = damage,
-        time = 0,
-        duration = final_duration,
-        velocity_y = -80 - (nearby_count * 5),
-        velocity_x = math.random(-10, 10) + spread_x * 0.3,
-        alpha = 1,
-        scale = 1.2,
-        bounce_factor = 0.95,
-        nearby_count = nearby_count
-    })
+    -- table.insert(self.damage_indicators, {
+    --     x = ex + spread_x,
+    --     y = ey - 10 + spread_y,
+    --     damage = damage,
+    --     time = 0,
+    --     duration = final_duration,
+    --     velocity_y = -80 - (nearby_count * 5),
+    --     velocity_x = math.random(-10, 10) + spread_x * 0.3,
+    --     alpha = 1,
+    --     scale = 1.2,
+    --     bounce_factor = 0.95,
+    --     nearby_count = nearby_count
+    -- })
 
     if self.health <= 0 then
+        print(self.fixture:getUserData())
+        gun_enemies[self.fixture:getUserData() + 2].on = false
+        -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
         self:killEnemy()
     end
 end
 
 function Enemy:killEnemy()
     self.body:destroy()
+    self.fixture:destroy()
+    self.fixture = nil
     self.dead = true
 end
 
@@ -333,7 +339,7 @@ function enemy.update(dt)
         local e = enemy.enemies[i]
         e:update(dt)
         if e.health <= 0 then
-            table.remove(enemy.enemies, i)
+            -- table.remove(enemy.enemies, i)
             enemy.last_fire_times[i] = nil
             enemy.health[i] = nil
             enemy.enemy_damaged[i] = nil
@@ -343,7 +349,9 @@ end
 
 function enemy.damageEnemy(enemy_index, damage)
     -- print(enemy_index,"getting damaged")
-    local e = enemy.enemies[enemy_index]
+
+    local e = enemy.enemies[enemy_index + 1]
+    print(enemy.enemies[enemy_index])
     if e then
         e:damageEnemy(damage)
         enemy.health[enemy_index] = e.health
@@ -360,8 +368,6 @@ end
 
 function enemy.addEnemy(x, y)
     local index = #enemy.enemies
-    
-
     local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown,
         enemy.detection_range, enemy.projectile_speed, index)
     table.insert(enemy.enemies, e)
@@ -369,8 +375,8 @@ function enemy.addEnemy(x, y)
     enemy.last_fire_times[index] = enemy.t - enemy.fire_cooldown
     enemy.health[index] = e.health
     enemy.enemy_damaged[index] = false
-    
-    
+
+
     return index, e.body
 end
 
@@ -400,7 +406,8 @@ function enemy.updateProjectiles(dt)
         e:updateProjectiles(dt)
     end
 end
-channelPreserve = {1,0,1} -- its counter intuitive but you need to preserve the too channels that will get one color cycle, if you preserve 1 channel you get 2 color cycle
+
+channelPreserve = { 1, 0, 1 } -- its counter intuitive but you need to preserve the too channels that will get one color cycle, if you preserve 1 channel you get 2 color cycle
 -- function enemy.populate()
 --     -- print(#enemy.enemies)
 --     for _, e in ipairs(enemy.enemies) do
@@ -546,9 +553,9 @@ channelPreserve = {1,0,1} -- its counter intuitive but you need to preserve the 
 --         --     blend_mode = { "alpha" },
 --         --     source_object_type = "enemy"
 --         -- })
-                 
+
 --         local enemyInstance = gun_enemies[math.min(_ + 1,#enemy.enemies + 1)] -- the drawn instances
-        
+
 --         -- local princessInstance = princess[_]
 --         -- enemyInstance.x, enemyInstance.y = ex, ey
 --         enemyInstance.x, enemyInstance.y = e.body:getPosition()
@@ -558,7 +565,7 @@ channelPreserve = {1,0,1} -- its counter intuitive but you need to preserve the 
 --         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
 --         -- enemyInstance.setState(math.random(1,5))
 --         -- characterAnimator.shader:send("outlineWidth", 1*math.sin(fire.t))
-        
+
 --         -- enemyInstance.color = {math.cos(fire.t*2 + _)*channelPreserve[1],math.cos(fire.t*2 + _)*channelPreserve[2],math.cos(fire.t*2 + _)*channelPreserve[3],math.sin(fire.t*2 + _)}
 --     end
 -- end
@@ -569,20 +576,25 @@ function enemy.populate()
     for i = 1, #gun_enemies do
         gun_enemies[i].active = false -- Mark as inactive initially
     end
-    
+
     -- Map living enemies to gun_enemies based on their stored index
     for _, e in ipairs(enemy.enemies) do
-        if e.fixture and e.fixture:getUserData() then
-            local enemy_index = e.fixture:getUserData()
-            
-            -- Ensure we don't go out of bounds
-            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
-                local enemyInstance = gun_enemies[enemy_index + 2] -- Lua arrays start at 1
-                
-                if enemyInstance then
-                    enemyInstance.active = true
-                    enemyInstance.x, enemyInstance.y = e.body:getPosition()
-                    enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+        if e.fixture then
+            if e.fixture:getUserData() then
+                local enemy_index = e.fixture:getUserData()
+
+
+                -- Ensure we don't go out of bounds
+                if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+                    local enemyInstance = gun_enemies
+                    [enemy_index + 2]                              -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                    if enemyInstance then
+                        enemyInstance.active = true
+                        enemyInstance.x, enemyInstance.y = e.body:getPosition()
+                        enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+                        enemyInstance.color = { math.cos(fire.t * 2 + _) * channelPreserve[1], math.cos(fire.t * 2 + _) *
+                        channelPreserve[2], math.cos(fire.t * 2 + _) * channelPreserve[3], math.sin(fire.t * 2 + _) }
+                    end
                 end
             end
         end
@@ -607,4 +619,5 @@ function enemy.populate()
         end
     end
 end
+
 return enemy

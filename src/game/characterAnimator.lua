@@ -11,7 +11,7 @@ characterAnimator.instanceCount = var.num_instances -- for now just test with en
 local uniformWidth = 128
 local uniformHeight = 128
 
-local mesh, instanceMesh, texture, shader
+local mesh,litmesh, instanceMesh, texture, shader
 local spriteTypes = {}       -- {name = {directions, framesPerDirection, totalFrames}}
 local frameOffsets = {}      -- Starting frame index for each sprite type
 local characterDefinitions = {} -- Character types with their animation states
@@ -306,6 +306,7 @@ local function createInstance()
     instance.y = 0
     instance.scale = 1
     instance.rotation = 0
+    instance.on = true
  
     function instance.update(dt)
         if not instance.currentSpriteIndex then return end
@@ -422,8 +423,10 @@ attribute vec4 color;
 attribute vec3 InstanceMatrix1; 
 attribute vec3 InstanceMatrix2; 
 attribute vec3 InstanceMatrix4; 
+attribute float onoff;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
+if (onoff == 1) {
     vec2 localUV = VaryingTexCoord.xy;
     VColor = vec4(color);
     VaryingUV = vec2(
@@ -441,6 +444,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     pos = worldPos.xy;
 
     return transform_projection * vec4(worldPos.xy, 0, 1.0);
+}
 }
 #endif
 
@@ -501,6 +505,98 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         }
         #endif
     ]])
+    -- below shader is for fully lit sprites so no need for shadow/light info
+    characterAnimator.shaderWithTransforms = love.graphics.newShader([[
+        uniform vec3 cameraPosition; // z component is zoom
+        //uniform int numLights;
+        //uniform vec4 lights[MAX_LIGHTS];
+
+        // Outline uniforms
+        uniform float outlineWidth;
+        uniform vec3 outlineColor;
+        
+        varying vec4 VColor;
+        varying vec2 VaryingUV;
+        varying vec2 pos;
+
+        #ifdef VERTEX
+attribute vec4 InstanceUVData; 
+attribute vec4 color;
+attribute vec3 InstanceMatrix1; 
+attribute vec3 InstanceMatrix2; 
+attribute vec3 InstanceMatrix4; 
+attribute float onoff;
+
+vec4 position(mat4 transform_projection, vec4 vertex_position) {
+if (onoff == 0) {
+    vec2 localUV = VaryingTexCoord.xy;
+    VColor = vec4(color);
+    VaryingUV = vec2(
+        InstanceUVData.x + localUV.x * InstanceUVData.z,
+        InstanceUVData.y + localUV.y * InstanceUVData.w
+    );
+
+    mat3 instance_matrix = mat3(
+        InstanceMatrix1,
+        InstanceMatrix2, 
+        InstanceMatrix4
+    );
+
+    vec3 worldPos = instance_matrix * vec3(vertex_position.xy*cameraPosition.z + cameraPosition.xy, cameraPosition.z);
+    
+
+    pos = worldPos.xy;
+
+    return transform_projection * vec4(worldPos.xy, 0, 1.0);
+}
+}
+#endif
+
+        #ifdef PIXEL
+        uniform Image MainTex;
+
+        void effect() {
+            vec4 texColor = Texel(MainTex, VaryingUV);
+            
+            vec4 finalColor = vec4(texColor);
+
+            if (VColor.w > 0.0) {
+                // If current pixel is transparent, check if any nearby pixels are opaque
+                if (texColor.a < 0.1) {
+                    float outline = 0.0;
+
+                    // Use a small fixed offset for sampling (adjust based on your atlas resolution)
+                    float pixelOffset = VColor.w * 0.0001; // Adjust this value as needed
+
+                    // 8-directional sampling for outline detection
+                    for (int x = -1; x <= 1; x++) {
+                        for (int y = -1; y <= 1; y++) {
+                            if (x == 0 && y == 0) continue;
+
+                            vec2 offset = vec2(float(x), float(y)) * pixelOffset;
+                            vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
+
+                            if (sampleColor.a > 0.1) {
+                                outline = 1.0;
+                                break;
+                            }
+                        }
+                        if (outline > 0.0) break;
+                    }
+
+                    if (outline > 0.0) {
+                        finalColor = VColor;
+                    }
+                }
+            }
+
+            love_Canvases[0] = finalColor;
+        }
+        #endif
+    ]])
+
+
+
 end
 
 -- Fast loading function that uses ONLY metadata
@@ -552,7 +648,9 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     }
 
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
+    litmesh = love.graphics.newMesh(vertices, "fan", "stream")
     mesh:setTexture(texture)
+    litmesh:setTexture(texture)
 
     -- Instance format for 3x3 matrix
     local instanceFormat = {
@@ -561,6 +659,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         { "InstanceMatrix1", "float", 3 },
         { "InstanceMatrix2", "float", 3 },
         { "InstanceMatrix4", "float", 3 },
+        { "onoff", "float", 1 }, --bit repr for each instance
     }
 
     local emptyInstanceData = {}
@@ -574,6 +673,14 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     mesh:attachAttribute("InstanceMatrix1", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
+    mesh:attachAttribute("onoff", instanceMesh, "perinstance")
+
+    litmesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
+    litmesh:attachAttribute("color", instanceMesh, "perinstance")
+    litmesh:attachAttribute("InstanceMatrix1", instanceMesh, "perinstance")
+    litmesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
+    litmesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
+    litmesh:attachAttribute("onoff", instanceMesh, "perinstance")
 
     -- Create instances with character types
     instances = {}
@@ -690,11 +797,11 @@ function characterAnimator.populate()
             print("Warning: Invalid sprite index for instance " .. i)
         end
     end
-
+    
     table.sort(sortedIndices, function(a, b)
         return instances[a].y < instances[b].y
     end)
-
+    
     for i = 1, activeInstanceCount do
         local instance = instances[sortedIndices[i]]
         local cos_r = math.cos(instance.rotation)
@@ -702,13 +809,14 @@ function characterAnimator.populate()
         local scale = instance.scale
 
         local u, v, uSize, vSize = getUV(instance)
-
+        
         instanceData[i] = {
             u, v, uSize, vSize,                        -- InstanceUVData
             instance.color[1], instance.color[2], instance.color[3], instance.color[4],
             cos_r * scale, sin_r * scale, 0,           -- InstanceMatrix1 (row 1)
             -sin_r * scale, cos_r * scale, 0,          -- InstanceMatrix2 (row 2)  
             instance.x, instance.y, 1,                 -- InstanceMatrix4 (row 3)
+            instance.on and 1 or 0
         }
     end
 
@@ -716,9 +824,33 @@ function characterAnimator.populate()
 end
 
 function characterAnimator.draw()
+    -- yellowNeon.godsray.light_x ,yellowNeon.godsray.light_y = gun.lastAimDirection.x, gun.lastAimDirection.y
+    
+    -- if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
+    love.graphics.push()
+    love.graphics.reset()
+            
+    yellowNeon.godsray.exposure = math.abs(math.sin(fire.t))
+    yellowNeon(function()
+    local camPos = {camera.pos.x,camera.pos.y,camera.zoom}
+    -- camPos[0] = {camera.pos.x,camera.pos.y}
+    -- camPos[1] = {camera.pos.y}
+    characterAnimator.shaderWithTransforms:send("cameraPosition",camPos)
+    love.graphics.setShader(characterAnimator.shaderWithTransforms)
+    love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
+    love.graphics.setShader()
+    
+    end)
+    love.graphics.pop()
+    -- else 
+
     love.graphics.setShader(characterAnimator.shader)
     love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
     love.graphics.setShader()
+
+    -- end
+
+
 end
 
 -- Helper functions to interact with instances

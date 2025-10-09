@@ -4,6 +4,7 @@ player.online = {}
 player.online.bodies = {}
 player.online.health = {}
 player.scale = 0.8
+player.lightsOn = true
 
     player.maxSpeed = 200
     player.acceleration = 1000

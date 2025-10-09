@@ -41,21 +41,21 @@ function collision.getType(fixture)
         return "map"
     elseif groupIndex == collision.groups.rocket then
         return "rocket"
-    -- elseif groupIndex == collision.groups.houseTrigger then
-    --     return "houseTrigger"
+        -- elseif groupIndex == collision.groups.houseTrigger then
+        --     return "houseTrigger"
     end
-    
+
     local userData = fixture:getUserData()
     if userData then
         if userData.type then
             return userData.type
-        elseif userData.topSpeed then -- Specific check for rockets
+        elseif userData.topSpeed then                        -- Specific check for rockets
             return "rocket"
         elseif userData.speed and not userData.topSpeed then -- Specific check for bullets
             return "bullet"
         end
     end
-    
+
     return "unknown"
 end
 
@@ -65,13 +65,13 @@ function collision.handle(fixtureA, fixtureB, contact)
     if var.multiplayer and var.multiplayer ~= 1 then
         return
     end
-    
+
     local typeA = collision.getType(fixtureA)
     local typeB = collision.getType(fixtureB)
-    
+
     local key = typeA .. "_" .. typeB
     local responseFunc = collision.responses[key]
-    
+
     if responseFunc then
         return responseFunc(fixtureA, fixtureB, contact)
     end
@@ -97,7 +97,7 @@ function collision.init()
             end
         end
     end)
-    
+
     -- Player vs Coin: Collect coin and update score
     collision.registerResponse("player", "coin", function(fixtureA, fixtureB, contact)
         if player then
@@ -123,25 +123,25 @@ function collision.init()
             end
         end
     end)
-    
+
     -- Coin vs Coin: Agar-like absorption mechanic
     collision.registerResponse("coin", "coin", function(fixtureA, fixtureB, contact)
         local bodyA = fixtureA:getBody()
         local bodyB = fixtureB:getBody()
         local userDataA = fixtureA:getUserData() or {}
         local userDataB = fixtureB:getUserData() or {}
-        
+
         -- Initialize coin data if not present
         if not userDataA.value then userDataA.value = 1 end
         if not userDataB.value then userDataB.value = 1 end
         if not userDataA.size then userDataA.size = 0.5 end
         if not userDataB.size then userDataB.size = 0.5 end
-        
+
         -- Determine which coin absorbs which (larger absorbs smaller, or first one if equal)
         local absorber, absorbed
         local absorberFixture, absorbedFixture
         local absorberData, absorbedData
-        
+
         if userDataA.size > userDataB.size then
             absorber = bodyA
             absorbed = bodyB
@@ -165,17 +165,17 @@ function collision.init()
             absorberData = userDataA
             absorbedData = userDataB
         end
-        
+
         -- Calculate new properties for absorbing coin
         local growthFactor = 0.1 -- How much the coin grows per absorption
         local newSize = absorberData.size + (absorbedData.size * growthFactor)
         local newValue = absorberData.value + absorbedData.value
-        
+
         -- Update absorber coin properties
         absorberData.size = newSize
         absorberData.value = newValue
         absorberFixture:setUserData(absorberData)
-        
+
         -- Scale the absorber coin's visual size (if you have a scaling system)
         -- local scaleFactor = 1.0002
         -- if absorberData.originalRadius then
@@ -184,13 +184,13 @@ function collision.init()
         --     -- Note: You'd need to recreate the fixture with new radius in your coin system
         --     -- This is a placeholder for that functionality
         -- end
-        
+
         -- Add visual/audio feedback
         -- if audio then
         --     local pitch = math.min(1 + (newSize * 0.1), 2) -- Higher pitch for bigger coins
         --     audio.playSound("coin", 0.05, pitch)
         -- end
-        
+
         -- Create absorption effect (if you have particle systems)
         local ax, ay = absorber:getPosition()
         local bx, by = absorbed:getPosition()
@@ -198,7 +198,7 @@ function collision.init()
         --     -- Repurpose blood effect for coin absorption visual
         --     blood.onEnemyDamage(bx, by, 1, {x = (ax - bx) / 10, y = (ay - by) / 10})
         -- end
-        
+
         -- Remove absorbed coin
         for i = 1, #coin_bods do
             if coin_bods[i] == absorbed then
@@ -210,89 +210,86 @@ function collision.init()
 
             -- if coin_bods[i] == absorber then
 
-                    -- local new_size = coin_bods[i]:getUserData().size + 0.1
-                    -- coin_bods[i]:setUserData(new_size).size
+            -- local new_size = coin_bods[i]:getUserData().size + 0.1
+            -- coin_bods[i]:setUserData(new_size).size
 
             -- end
         end
-  
+
         -- Apply slight attraction force to absorber towards absorbed coin position
-        local direction = {x = (bx - ax) * 0.1, y = (by - ay) * 0.1}
+        local direction = { x = (bx - ax) * 0.1, y = (by - ay) * 0.1 }
         absorber:applyLinearImpulse(direction.x, direction.y)
     end)
 
     -- Projectile vs Enemy: Damage enemy and destroy projectile (specific to bullets)
     collision.registerResponse("projectile", "enemy", function(fixtureA, fixtureB, contact)
-    local groupA = fixtureA:getGroupIndex()
-    local groupB = fixtureB:getGroupIndex()
+        local groupA = fixtureA:getGroupIndex()
+        local groupB = fixtureB:getGroupIndex()
 
-    local projectileFixture, enemyFixture
+        local projectileFixture, enemyFixture
 
-    if groupA == collision.groups.projectile and groupB == collision.groups.enemy then
-        projectileFixture, enemyFixture = fixtureA, fixtureB
-    elseif groupA == collision.groups.enemy and groupB == collision.groups.projectile then
-        projectileFixture, enemyFixture = fixtureB, fixtureA
-    else
-        -- Not the expected collision groups
-        -- return
-    end
+        if groupA == collision.groups.projectile and groupB == collision.groups.enemy then
+            projectileFixture, enemyFixture = fixtureA, fixtureB
+        elseif groupA == collision.groups.enemy and groupB == collision.groups.projectile then
+            projectileFixture, enemyFixture = fixtureB, fixtureA
+        else
+            -- Not the expected collision groups
+            -- return
+        end
 
-    -- Pull userdata
-    local bulletData = projectileFixture:getUserData()
-    local enemyIndex = enemyFixture:getUserData()
-    -- print(enemyIndex)
-    if not bulletData or not enemyIndex then
-        return -- safety
-    end
+        -- Pull userdata
+        local bulletData = projectileFixture:getUserData()
+        local enemyIndex = enemyFixture:getUserData()
+        -- print(enemyIndex)
+        if not bulletData or not enemyIndex then
+            return -- safety
+        end
 
-    -- Apply effects
-    local enemyBody = enemyFixture:getBody()
-    local x, y = enemyBody:getPosition()
+        -- Apply effects
+        local enemyBody = enemyFixture:getBody()
+        local x, y = enemyBody:getPosition()
 
-    if blood and blood.onEnemyDamage then
-        blood.onEnemyDamage(x, y, 1, {x=1, y=1})
-    end
+        if blood and blood.onEnemyDamage then
+            blood.onEnemyDamage(x, y, 1, { x = 1, y = 1 })
+        end
 
-    local damage_amount = math.random(8, 15)
-    enemy.damageEnemy(enemyIndex, damage_amount)
+        local damage_amount = math.random(8, 15)
+        print(enemyIndex)
+        enemy.damageEnemy(enemyIndex, damage_amount)
 
-    -- Knockback (optional)
-    if bulletData.dir then
-        local bullet_force = 40
-        enemyBody:applyLinearImpulse(
-            bulletData.dir.x * bullet_force,
-            bulletData.dir.y * bullet_force
-        )
-    end
+        -- Knockback (optional)
+        if bulletData.dir then
+            local bullet_force = 40
+            enemyBody:applyLinearImpulse(
+                bulletData.dir.x * bullet_force,
+                bulletData.dir.y * bullet_force
+            )
+        end
 
-    -- Bullet pooling return
-    if bullet and bullet.toReturn and bulletData.speed and not bulletData.topSpeed then
-        table.insert(bullet.toReturn, bulletData)
-    end
-end)
+        -- Bullet pooling return
+        if bullet and bullet.toReturn and bulletData.speed and not bulletData.topSpeed then
+            table.insert(bullet.toReturn, bulletData)
+        end
+    end)
 
 
     -- Rocket vs Enemy: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)
-        
-
         local userData = fixtureA:getUserData()
 
         if userData and not userData.destroyed then
-                
-            
             userData.destroyed = true
             local rocketBody = fixtureA:getBody()
             local x, y = rocketBody:getPosition()
 
-            audio.playSound("explosion", 0.1,0.5)
-                explosion.create(x,y, explosion.TYPES.ROCKET)
+            audio.playSound("explosion", 0.1, 0.5)
+            explosion.create(x, y, explosion.TYPES.ROCKET)
             if enemies_bods then
                 local splash_enemies = {}
                 for i, eb in ipairs(enemies_bods) do
                     if eb then
                         local ex, ey = eb:getPosition()
-                        local distance = ((ex - x)^2 + (ey - y)^2)^0.5
+                        local distance = ((ex - x) ^ 2 + (ey - y) ^ 2) ^ 0.5
                         local damageRadius = userData.radius * 5
                         if distance <= damageRadius then
                             local damageFactor = 1 - (distance / damageRadius)
@@ -303,12 +300,13 @@ end)
                                 actualDamage = 5
                             end
                             if blood and blood.onEnemyDamage and actualDamage > 0 then
-                                local direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
                                 blood.onEnemyDamage(ex, ey, actualDamage, direction)
                             end
                             if enemy and enemy.damageEnemy and actualDamage > 0 then
                                 enemy.damageEnemy(i, actualDamage)
-                                local knockback_direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local knockback_direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) /
+                                (distance + 0.1) }
                                 local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
                                 local final_force = 150 * distance_factor
                                 if distance <= userData.radius then
@@ -348,7 +346,6 @@ end)
                 end
             end
             if rocket and rocket.toDestroy then
-                
                 table.insert(rocket.toDestroy, userData)
             end
         end
@@ -424,45 +421,44 @@ end)
     --         end
     --     end
     -- end)
-    
+
     -- Map vs Player: Apply impulse only
     collision.registerResponse("map", "player", function(fixtureA, fixtureB, contact)
         local playerBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
-        local hit = {x = nx * 200, y = ny * 200}
+        local hit = { x = nx * 200, y = ny * 200 }
         playerBody:applyLinearImpulse(hit.x, hit.y)
     end)
-    
+
     -- -- House Trigger vs Player: Toggle indoors state without collision
     -- collision.registerResponse("houseTrigger", "player", function(fixtureA, fixtureB, contact)
     --     var.indoors = not var.indoors
     -- end)
-    
+
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)
     collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
-        local hit = {x = nx * 200, y = ny * 200}
+        local hit = { x = nx * 200, y = ny * 200 }
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
             table.insert(bullet.toReturn, userData)
         end
     end)
-    
+
     -- Map vs Rocket: Apply impulse, trigger explosion, and destroy rocket
     collision.registerResponse("map", "rocket", function(fixtureA, fixtureB, contact)
-            
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
-        local x,y = contact:getPositions()
-        local hit = {x = nx * 200, y = ny * 200}
+        local x, y = contact:getPositions()
+        local hit = { x = nx * 200, y = ny * 200 }
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and not userData.destroyed then
-            audio.playSound("explosion", 0.1,0.5)
-            explosion.create(x,y, explosion.TYPES.ROCKET)
-            
+            audio.playSound("explosion", 0.1, 0.5)
+            explosion.create(x, y, explosion.TYPES.ROCKET)
+
             userData.destroyed = true
             local x, y = otherBody:getPosition()
             if enemies_bods then
@@ -470,7 +466,7 @@ end)
                 for i, eb in ipairs(enemies_bods) do
                     if eb then
                         local ex, ey = eb:getPosition()
-                        local distance = ((ex - x)^2 + (ey - y)^2)^0.5
+                        local distance = ((ex - x) ^ 2 + (ey - y) ^ 2) ^ 0.5
                         local damageRadius = userData.radius * 5
                         if distance <= damageRadius then
                             local damageFactor = 1 - (distance / damageRadius)
@@ -481,12 +477,13 @@ end)
                                 actualDamage = 5
                             end
                             if blood and blood.onEnemyDamage and actualDamage > 0 then
-                                local direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
                                 blood.onEnemyDamage(ex, ey, actualDamage, direction)
                             end
                             if enemy and enemy.damageEnemy and actualDamage > 0 then
                                 enemy.damageEnemy(i, actualDamage)
-                                local knockback_direction = {x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1)}
+                                local knockback_direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) /
+                                (distance + 0.1) }
                                 local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
                                 local final_force = 150 * distance_factor
                                 if distance <= userData.radius then
@@ -561,12 +558,12 @@ end)
             end
         end
     end)
-    
+
     -- Map vs Enemy: Apply impulse
     collision.registerResponse("map", "enemy", function(fixtureA, fixtureB, contact)
         local enemyBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
-        local hit = {x = nx * 200, y = ny * 200}
+        local hit = { x = nx * 200, y = ny * 200 }
         enemyBody:applyLinearImpulse(hit.x, hit.y)
     end)
 end

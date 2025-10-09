@@ -878,7 +878,16 @@ function renderer.renderSortedDrawList()
             love.graphics.setBlendMode(current_blend_mode)
             love.graphics.setShader(current_shader)
         elseif drawable.source_object_type == "bullet_tracer" then
-            bullet.drawSingleTracer(drawable.bullet_data, drawable.x, drawable.y, drawable.distance)
+            -- love.graphics.push()
+            -- love.graphics.reset()
+            -- pixelNeon(function()
+            -- love.graphics.setCanvas(scene_canvas)
+                -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x*camera.zoom + camera.pos.x, drawable.y*camera.zoom + camera.pos.y, 100)
+                bullet.drawSingleTracer(drawable.bullet_data, drawable.x,drawable.y,drawable.distance)
+                
+            -- end)
+            -- love.graphics.pop()
+            
         elseif drawable.source_object_type == "networked_bullet_tracer" then
             bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
         elseif drawable.source_object_type == "blood_drop" then
