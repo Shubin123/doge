@@ -223,7 +223,7 @@ function Enemy:damageEnemy(damage)
     -- })
 
     if self.health <= 0 then
-        print(self.fixture:getUserData())
+        -- print(self.fixture:getUserData())
         gun_enemies[self.fixture:getUserData() + 2].on = false
         -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
         self:killEnemy()
@@ -298,7 +298,7 @@ local enemy = {
     fire_cooldown = 100,
     detection_range = 300,
     projectile_speed = 400,
-    max_health = 1,
+    max_health = 20,
     health = {},
     damage_indicators = {},
     enemy_damaged = {},
@@ -351,7 +351,7 @@ function enemy.damageEnemy(enemy_index, damage)
     -- print(enemy_index,"getting damaged")
 
     local e = enemy.enemies[enemy_index + 1]
-    print(enemy.enemies[enemy_index])
+    -- print(enemy.enemies[enemy_index])
     if e then
         e:damageEnemy(damage)
         enemy.health[enemy_index] = e.health

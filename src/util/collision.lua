@@ -252,10 +252,14 @@ function collision.init()
         if blood and blood.onEnemyDamage then
             blood.onEnemyDamage(x, y, 1, { x = 1, y = 1 })
         end
-
+        local imageData = scene_canvas:newImageData()
+        -- print(x+camera.pos.x, y+camera.pos.y)
+        local r,g,b = imageData:getPixel(x+camera.pos.x, y+camera.pos.y)
+        local brightness = 0.2126*r+0.7152*g+0.07722*b
+        print(brightness)
         local damage_amount = math.random(8, 15)
-        print(enemyIndex)
-        enemy.damageEnemy(enemyIndex, damage_amount)
+        -- print(enemyIndex)
+        enemy.damageEnemy(enemyIndex, brightness)
 
         -- Knockback (optional)
         if bulletData.dir then
