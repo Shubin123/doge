@@ -41,8 +41,8 @@ characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
 teslaCoil = require("lib.graphics.teslaCoil")
-BehaviourTree = require('lib.behaviourTrees')
-
+BehaviourTree = require("lib.behaviourTrees")
+sampleScreen = require("lib.graphics.sampleScreen")
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 cmdn = require("ui.cmndX")      -- improved console - always active
 -- hotreloader / helpers
@@ -182,8 +182,11 @@ function love.load()
     bullet.load(world)
     rocket.load(world)
 
+    sampleScreen.load()
+    
     command.load()
     cmdn.load()
+    
     -- Coins and enemies
 
     -- physics
@@ -243,6 +246,7 @@ end
 local t = 0
 local frameCounter = 0
 local paused
+imageData = nil
 function love.update(dt) --assume online cannot pause right now. debugger still works
     t = t + dt
     frameCounter = frameCounter + 1

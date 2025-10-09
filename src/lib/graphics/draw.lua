@@ -101,6 +101,7 @@ function draw.mydraw()
 
         -- blur.pass()
     end
+    sampleScreen.pass()
 
     menu.drawUI() -- ui last
     command.draw()  -- Draw console on top

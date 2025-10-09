@@ -197,6 +197,8 @@ function shader.pass()
     upscale_shader:send("giTexture", gi_canvas)
     love.graphics.draw(scene_canvas)
     
+
+
     love.graphics.setShader()
 end
 

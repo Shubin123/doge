@@ -426,7 +426,7 @@ attribute vec3 InstanceMatrix4;
 attribute float onoff;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-if (onoff == 1) {
+if (int(onoff) == 1) {
     vec2 localUV = VaryingTexCoord.xy;
     VColor = vec4(color);
     VaryingUV = vec2(
@@ -528,7 +528,7 @@ attribute vec3 InstanceMatrix4;
 attribute float onoff;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-if (onoff == 0) {
+if (int(onoff) == 0) {
     vec2 localUV = VaryingTexCoord.xy;
     VColor = vec4(color);
     VaryingUV = vec2(
