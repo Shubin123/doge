@@ -254,18 +254,18 @@ function collision.init()
         end
         sampleScreen.x = x + camera.pos.x
         sampleScreen.y = y + camera.pos.x
-        local imageData = sampleScreen.canvas:newImageData()
-                            
+        -- local imageData = sampleScreen.canvas:newImageData()
+        
         -- print(x+camera.pos.x, y+camera.pos.y)
-        local brightness = 0
+        -- local brightness = 0
         -- if  var.screen_width > x+camera.pos.x and x+camera.pos.x > 0 and var.screen_height > y+camera.pos.y and y+camera.pos.y > 0 then
-        local r,g,b = imageData:getPixel(0,0)
-        brightness = 0.2126*r+0.7152*g+0.07722*b
+        -- local r,g,b = imageData:getPixel(0,0)
+        -- brightness = 0.2126*r+0.7152*g+0.07722*b
         -- end
-        print(brightness)
+        print(sampleScreen.brightness)
         local damage_amount = math.random(8, 15)
         -- print(enemyIndex)
-        enemy.damageEnemy(enemyIndex, brightness)
+        enemy.damageEnemy(enemyIndex, sampleScreen.brightness)
 
         -- Knockback (optional)
         if bulletData.dir then

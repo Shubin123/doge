@@ -28,5 +28,17 @@ function sampleScreen.pass()
     love.graphics.setCanvas()
 end
 
+function sampleScreen.sample()
+    sample = coroutine.create(function()
+        coroutine.yield()
+        local imageData = sampleScreen.canvas:newImageData()
+        coroutine.yield()
+        local r,g,b = imageData:getPixel(0,0)
+        sampleScreen.brightness = 0.2126*r+0.7152*g+0.07722*b
+        coroutine.yield()
+        -- coroutine.yield()
+    end)
+end
+
 
 return sampleScreen

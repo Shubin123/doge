@@ -826,7 +826,7 @@ end
 function characterAnimator.draw()
     -- yellowNeon.godsray.light_x ,yellowNeon.godsray.light_y = gun.lastAimDirection.x, gun.lastAimDirection.y
     
-    -- if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
+    if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
     love.graphics.push()
     love.graphics.reset()
             
@@ -842,6 +842,7 @@ function characterAnimator.draw()
     
     end)
     love.graphics.pop()
+    end
     -- else 
 
     love.graphics.setShader(characterAnimator.shader)

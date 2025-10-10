@@ -183,6 +183,9 @@ function love.load()
     rocket.load(world)
 
     sampleScreen.load()
+    sampleScreen.sample() --load coroutine for sample
+    sample = nil
+    imageData = nil
     
     command.load()
     cmdn.load()
@@ -246,18 +249,9 @@ end
 local t = 0
 local frameCounter = 0
 local paused
-imageData = nil
+
 function love.update(dt) --assume online cannot pause right now. debugger still works
-    t = t + dt
-    frameCounter = frameCounter + 1
-    if t >= 1 then
-        print(frameCounter / t)
-        frameCounter = 0
-        t = 0
-    end
-
-
-
+   
     -- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
 
@@ -347,6 +341,25 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     camera.update(dt, player)
 
     -- t = t + 1
+
+
+     t = t + dt
+    frameCounter = frameCounter + 1
+    if t >= 1 then
+        print(frameCounter / t)
+        frameCounter = 0
+        t = 0
+        -- imageData = sampleScreen.canvas:newImageData()
+        
+        -- print(sample)
+        if sample and coroutine.status(sample) ~= "dead" then
+            coroutine.resume(sample)
+        -- print(s,e)
+        else
+            sampleScreen.sample() --load coroutine for sample
+        end
+    end
+
 end
 
 function love.resize(w, h)
