@@ -352,12 +352,12 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         -- imageData = sampleScreen.canvas:newImageData()
         
         -- print(sample)
-        if sample and coroutine.status(sample) ~= "dead" then
-            coroutine.resume(sample)
-        -- print(s,e)
-        else
-            sampleScreen.sample() --load coroutine for sample
-        end
+        -- if sample and coroutine.status(sample) ~= "dead" then
+        --     coroutine.resume(sample)
+        -- -- print(s,e)
+        -- else
+        --     sampleScreen.sample() --load coroutine for sample
+        -- end
     end
 
 end
@@ -427,7 +427,7 @@ function love.mousepressed(x, y, button, istouch, presses)
 
     editor.mousepressed(x, y, button)
 
-    lurker.scan()
+    -- lurker.scan()
 end
 
 function love.textinput(text)
