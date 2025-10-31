@@ -183,7 +183,7 @@ function love.load()
     rocket.load(world)
 
     sampleScreen.load()
-    sampleScreen.sample() --load coroutine for sample
+    -- sampleScreen.sample() --load coroutine for sample
     sample = nil
     imageData = nil
     
