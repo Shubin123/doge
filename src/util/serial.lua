@@ -216,7 +216,7 @@ function serial.saveToFile(filename)
 
     -- Convert to JSON and compress
     local json_string = json.encode(game_state)
-    local compressed_data = love.data.compress("string", "zlib", json_string, 9)
+    local compressed_data = love.data.compress("data", "zlib", json_string, 9)
 
     -- Write to file
     local f = io.open(filename, "w")
@@ -224,7 +224,7 @@ function serial.saveToFile(filename)
         return false, "Failed to open file for writing"
     end
 
-    f:write(compressed_data) -- 3x smaller than raw json even on small data
+    f:write(compressed_data:getString()) -- 3x smaller than raw json even on small data
     f:close()
 
     return true, "Game saved successfully"
@@ -264,9 +264,10 @@ function serial.loadFromFile(filename)
     if not compressed_data or compressed_data == "" then
         return false, "Failed to read save file"
     end
-    
+
     -- Decompress and decode JSON
-    local success, decompressed_data = pcall(love.data.decompress, "string", "zlib", compressed_data)
+    -- print(compressed_data)
+    local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
     if not success then
         return false, "Failed to decompress save file"
     end
@@ -278,7 +279,7 @@ function serial.loadFromFile(filename)
     
     -- Apply the loaded state
     local apply_success, apply_message = serial.apply(game_state)
-    
+
     return apply_success, apply_message
 end
 
@@ -359,7 +360,7 @@ function serial.getSaveInfo(filename)
         return nil, "Failed to read save file"
     end
     
-    local success, decompressed_data = pcall(love.data.decompress, "string", "zlib", compressed_data)
+    local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
     if not success then
         return nil, "Failed to decompress save file"
     end

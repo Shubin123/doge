@@ -4,7 +4,7 @@
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
     directions = 8,
-    frameRate = 60
+    animationSpeed = 0.5
 }
 
 characterAnimator.instanceCount = var.num_instances -- for now just test with enemies
@@ -318,7 +318,9 @@ local function createInstance()
         end
 
         instance.timeAccumulator = instance.timeAccumulator + dt
-        local frameInterval = 1 / instance.config.frameRate
+        -- local frameInterval = 1 / instance.config.frameRate
+        -- local frameInterval = dt*math.sin(fire.t)
+        local frameInterval = dt/instance.config.animationSpeed
         
         
         if instance.timeAccumulator >= frameInterval then
@@ -332,10 +334,6 @@ local function createInstance()
         else
             instance.priority = 0
         end
-        
-
-        
-
     end
 
     function instance.setDirection(direction)

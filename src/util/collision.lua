@@ -82,7 +82,7 @@ function collision.init()
     -- Player vs Enemy: Damage player and destroy enemy
     collision.registerResponse("player", "enemy", function(fixtureA, fixtureB, contact)
         if player then
-            -- player.health = player.health - 1
+            player.health = player.health - 1
             local x, y = fixtureA:getBody():getPosition()
             if blood and blood.onEnemyDamage then
                 blood.onEnemyDamage(x, y, 1)
@@ -269,8 +269,17 @@ function collision.init()
         -- local damage_amount = math.random(8, 15)
         -- print(enemyIndex)
         -- enemy.damageEnemy(enemyIndex, sampleScreen.brightness)
+        -- print(projectileFixture:getUserData())
+        -- if (projectileFixture:getUserData() ~= "fireball") then
+        --     for index, value in pairs(projectileFixture:getUserData()) do
+        --         print(index,value)
+        --     end
+        -- end
+        if (projectileFixture:getUserData()[1] ~= "fireball") then
         enemy.damageEnemy(enemyIndex, brightness)
-
+        else
+        enemy.damageEnemy(enemyIndex, brightness*projectileFixture:getUserData()[2])
+        end
         -- Knockback (optional)
         if bulletData.dir then
             local bullet_force = 40
@@ -367,6 +376,7 @@ function collision.init()
 
     -- Projectile vs Player: Damage player and destroy projectile (specific to bullets)
     -- collision.registerResponse("projectile", "player", function(fixtureA, fixtureB, contact)
+    --     print("enemy bullet hit player")
     --     local userData = fixtureA:getUserData()
     --     if userData then
     --         local playerBody = fixtureB:getBody()

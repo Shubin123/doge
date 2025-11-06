@@ -5,6 +5,7 @@ player.online.bodies = {}
 player.online.health = {}
 player.scale = 0.8
 player.lightsOn = true
+player.linearDelta = 0
 
     player.maxSpeed = 200
     player.acceleration = 1000
@@ -211,17 +212,28 @@ function player.update(dt)
 
     -- Get current velocity
     
-    local linearScore = math.sqrt(newVX*newVX+newVY*newVY)
-    player.currentAnimation = princess.getCurrentAnimation()
-    
-    princess.setDirection(player.getHeading(8,linearScore))
-    if linearScore > 120 then
-    princess.setAnimation("run")
-    elseif  linearScore > 10 then
-    princess.setAnimation("walk", 2)
-    else
-    princess.setAnimation("shoot")
-    end
+    local linearScore = math.sqrt(newVX*newVX + newVY*newVY)
+player.currentAnimation = princess.getCurrentAnimation()
+princess.setDirection(player.getHeading(8, linearScore))
+local newAnimation
+
+-- player.linearDelta = linearScore - (player.linearDelta or 0)
+-- print(player.linearDelta)
+
+if linearScore > 120 then
+    newAnimation = "run"
+elseif linearScore > 10 then
+    newAnimation = "walk"
+else
+    newAnimation = "shoot"
+end
+
+-- Only set animation if it changed, to avoid resetting the animation
+if player.currentAnimation ~= newAnimation then
+    princess.setAnimation(newAnimation, 1)
+    player.currentAnimation = newAnimation
+end
+
     -- Update facing direction based on movement
     -- if newVX ~= 0 or newVY ~= 0 then
     --     -- Only update direction when actually moving

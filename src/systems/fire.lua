@@ -7,7 +7,7 @@ fire.t = 0
 fire.fireables = {}
 fire.online_fireables = {}
 fire.count = 1
-fire.max_fireballs = 1
+fire.max_fireballs = 7
 fire.pierce = true
 fire.loaded_effects = {}
 fire.current_effect_index = 1
@@ -182,7 +182,8 @@ function fire.update(dt)
                 local _bod = love.physics.newBody(world, fireable[1].x, fireable[1].y, "dynamic")
                 table.insert(fire_bodies, i, _bod)
                 local _fixture = love.physics.newFixture(_bod, love.physics.newCircleShape(20))
-                _fixture:setGroupIndex(-1)
+                _fixture:setGroupIndex(-2)
+                _fixture:setUserData({"fireball", 10}) -- needs to be different from bullets else it will do same damage as bullet
                 fireable[3] = 1 -- initialized
 
             else
@@ -251,10 +252,10 @@ function fire.collision(fixture_a, fixture_b, contact)
 
     local not_fire
     local firef
-    if fixture_a:getGroupIndex() == -1 then
+    if fixture_a:getGroupIndex() == -2 then
         not_fire = fixture_b
         firef = fixture_a
-    elseif fixture_b:getGroupIndex() == -1 then
+    elseif fixture_b:getGroupIndex() == -2 then
         not_fire = fixture_a
         firef = fixture_b
     end

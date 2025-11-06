@@ -18,7 +18,7 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.max_health = self.health
     self.scale = scale or 0.6
     self.fire_cooldown = fire_cooldown or
-    2.0                                       --ideally get the number of frames for shooting animation dynamically to determine this
+        2.0 --ideally get the number of frames for shooting animation dynamically to determine this
     self.detection_range = detection_range or 300
     self.projectile_speed = projectile_speed or 400
     self.last_fire_time = 0
@@ -64,6 +64,10 @@ function Enemy:initBehaviourTree()
                     name = "fire_at_player",
                     run = function(task, enemy)
                         if enemy.t - enemy.last_fire_time >= enemy.fire_cooldown + math.random() then
+                            
+                            local a = gun_enemies[enemy.fixture:getUserData() + 2]
+                            a.setAnimation("shoot")
+
                             enemy:fireAtPlayer()
                             enemy.last_fire_time = enemy.t
                             task:success()
@@ -79,13 +83,25 @@ function Enemy:initBehaviourTree()
                         local dx = enemy.target.dx
                         local dy = enemy.target.dy
                         local distance = enemy.target.distance
-                        local ideal_distance = 150
+                        local ideal_distance = 100
+
+                        local a = gun_enemies[enemy.fixture:getUserData() + 2]
+                            
+
                         if distance > ideal_distance + 50 then
-                            local move_force = 500
-                            enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
+                            local move_force = 500 * math.random(1, 5)
+                            enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
+                            a.setAnimation("walk")
                         elseif distance < ideal_distance - 50 then
-                            local move_force = 200
+                            local move_force = 200 * math.random(1, 5)
                             enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
+                            a.setAnimation("run")
+
+                        elseif distance < 10 then
+                            local move_force = 2000 * math.random(1, 5)
+                            enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
+                            a.setAnimation("punch")
+
                         end
                         task:success()
                     end
@@ -117,7 +133,7 @@ function Enemy:fireAtPlayer()
 
     local proj_body = love.physics.newBody(world, ex, ey, "dynamic")
     local proj_fixture = love.physics.newFixture(proj_body, love.physics.newCircleShape(15))
-    proj_fixture:setGroupIndex(-777)
+    proj_fixture:setGroupIndex(777)
 
     table.insert(self.projectiles, projectile)
     table.insert(self.projectile_bodies, proj_body)
@@ -223,10 +239,12 @@ function Enemy:damageEnemy(damage)
     -- })
 
     if self.health <= 0 then
-        -- print(self.fixture:getUserData())
-        gun_enemies[self.fixture:getUserData() + 2].on = false
-        -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
-        self:killEnemy()
+        if self.fixture then
+            -- print(self.fixture:getUserData())
+            gun_enemies[self.fixture:getUserData() + 2].on = false
+            -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
+            self:killEnemy()
+        end
     end
 end
 
@@ -295,7 +313,7 @@ local enemy = {
     scale = 0.6,
     t = 0,
     max_projectiles_per_enemy = 30,
-    fire_cooldown = 100,
+    fire_cooldown = 1,
     detection_range = 300,
     projectile_speed = 400,
     max_health = 20,
@@ -586,8 +604,8 @@ function enemy.populate()
 
                 -- Ensure we don't go out of bounds
                 if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
-                    local enemyInstance = gun_enemies
-                    [enemy_index + 2]                              -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                    -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                    local enemyInstance = gun_enemies[enemy_index + 2]
                     if enemyInstance then
                         enemyInstance.active = true
                         enemyInstance.x, enemyInstance.y = e.body:getPosition()

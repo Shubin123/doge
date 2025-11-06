@@ -40,7 +40,7 @@ explosion = require("systems.explosion")
 characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
-teslaCoil = require("lib.graphics.teslaCoil")
+teslaCoil = require("lib.graphics.teslaCoil") -- gun submodule (load and update within gun.lua)
 BehaviourTree = require("lib.behaviourTrees")
 sampleScreen = require("lib.graphics.sampleScreen")
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -289,7 +289,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     characterAnimator.update(dt)
     -- teslaCoil.fireAt(love.mouse.getPosition())
     -- teslaCoil.fireAt(player.body:getX() + gun.lastAimDirection.x*100, player.body:getY() + gun.lastAimDirection.y*100)
-    teslaCoil.update(dt)
+    -- teslaCoil.update(dt)
 
 
     -- love.audio.update()
@@ -346,7 +346,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
      t = t + dt
     frameCounter = frameCounter + 1
     if t >= 1 then
-        print(frameCounter / t)
+        -- print(frameCounter / t)
+         love.window.setTitle("fps: ".. frameCounter / t)
         frameCounter = 0
         t = 0
         -- imageData = sampleScreen.canvas:newImageData()
@@ -380,7 +381,7 @@ end
 
 function love.mousepressed(x, y, button, istouch, presses)
     -- Handle console mouse events first
-    teslaCoil.start()
+    -- teslaCoil.start()
     cmdn.mousepressed(x, y, button)
 
     if var.State == "menu" then
@@ -410,7 +411,7 @@ function love.mousepressed(x, y, button, istouch, presses)
     local normalized_direction = vec2.norm(direction)
 
     -- Check if we have fireballs available in the ring
-    if fire.getAvailableCount() > 0 then
+    if fire.getAvailableCount() > 0 and button == 2 then
         -- Get the position of the last fireball in the ring
         local fireball_pos = fire_instances[#fire_instances].pos
 

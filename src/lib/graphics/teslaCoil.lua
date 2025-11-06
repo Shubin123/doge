@@ -3,9 +3,9 @@ local config = {
     base_x = 0,
     base_y = 0,
     coil_height = 10,
-    spark_count = 10,
+    spark_count = 5,
     spark_range = 10,
-    bolt_segments = 10,
+    bolt_segments = 10, --with statup
     bolt_deviation = 50,
     endpoint_spread = 80, -- How much the endpoints spread out
     endpoint_deviation = 30, -- Additional random deviation at endpoints
@@ -24,7 +24,7 @@ local state = {
 }
 teslaCoil.firing = false
 teslaCoil.timer = 0
-teslaCoil.cooldown = 0
+teslaCoil.cooldown = 5
 
 -- Generate a Collatz sequence
 local function collatz(n)
@@ -233,7 +233,7 @@ function teslaCoil.fireAt(x, y, world)
     end
 end
 
-function teslaCoil.update(dt)
+function teslaCoil:update(dt)
     teslaCoil.timer = teslaCoil.timer + dt
     if teslaCoil.timer < teslaCoil.cooldown and teslaCoil.firing then
         -- You'll need to pass the physics world here
@@ -252,7 +252,11 @@ function teslaCoil.update(dt)
     end
 end
 
-function teslaCoil.start()
+--  inherited function
+function teslaCoil:drawBarrel()
+end
+
+function teslaCoil:shoot()
     teslaCoil.firing = true
 end
 
