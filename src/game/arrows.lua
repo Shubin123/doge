@@ -2,7 +2,7 @@ local bezierArrow = {}
 
 local config = {
     arrow_count = 8,
-    arrow_speed = 400,
+    arrow_speed = 800,
     arrow_length = 25,
     arrow_width = 4,
     curve_height = 150, -- How high the bezier curve goes
