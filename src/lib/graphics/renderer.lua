@@ -1024,8 +1024,9 @@ function renderer.renderSortedDrawList()
             end
         elseif drawable.draw_type == "teslaCoil" then
             teslaCoil.renderPixelLine(drawable)
-        elseif drawable.source_object_type == "character_animator" then
-            
+        elseif drawable.draw_type == "bezierArrow" then
+            arrows.renderArrows()
+        -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))
             -- love.graphics.drawInstanced(drawable.mesh, 100000)

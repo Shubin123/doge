@@ -366,7 +366,7 @@ local function createInstance()
         local spriteIndex = charDef.animations[animationName]
         
         if not spriteIndex then
-            print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
+            -- print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
             return false
         end
         

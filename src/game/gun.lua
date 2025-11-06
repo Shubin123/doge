@@ -104,9 +104,12 @@ function Gun:shoot(mouseX, mouseY)
     elseif gun.currentWeaponIndex == 5 then
         soundType = "fire"      -- Rocket Launcher uses fire sound
     elseif gun.currentWeaponIndex == 6 then
-        soundType = "teslaCoil" -- Rocket Launcher uses fire sound
-        return
+        -- soundType = "teslaCoil" -- Rocket Launcher uses fire sound
+        return -- early return cause no bullet stuff
+    elseif gun.currentWeaponIndex == 7 then
+        return -- early return cause no bullet stuff
     end
+
     audio.playSound(soundType, 1 / self.fireRate)
 
     -- Create particle effects (gunpowder confetti) from barrel tip
@@ -433,6 +436,7 @@ function GunTool.load(world)
         }
     })
     GunTool.guns[6] = teslaCoil
+    GunTool.guns[7] = arrows
     -- teslaCoil.updateAiming = GunTool.guns[5]:updateAiming()
 
 

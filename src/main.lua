@@ -40,7 +40,8 @@ explosion = require("systems.explosion")
 characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
-teslaCoil = require("lib.graphics.teslaCoil") -- gun submodule (load and update within gun.lua)
+teslaCoil = require("game.teslaCoil") -- gun submodule (load and update within gun.lua)
+arrows = require("game.arrows") -- gun submodule (load and update within gun.lua)
 BehaviourTree = require("lib.behaviourTrees")
 sampleScreen = require("lib.graphics.sampleScreen")
 command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
@@ -49,6 +50,7 @@ cmdn = require("ui.cmndX")      -- improved console - always active
 local lurker = require("util.lurker")
 -- profiler = require("systems.profiler")
 json = require("util.json")
+
 
 -- Game variables
 world = 0
