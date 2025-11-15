@@ -1,6 +1,5 @@
 -- Manages character animations from sprite sheets with 8-directional support using instanced rendering
 -- WebGL/Emscripten compatible version - supports multiple animation states per character
-
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
     directions = 8,
@@ -11,13 +10,13 @@ characterAnimator.instanceCount = var.num_instances -- for now just test with en
 local uniformWidth = 128
 local uniformHeight = 128
 
-local mesh,litmesh, instanceMesh, texture, shader
-local spriteTypes = {}       -- {name = {directions, framesPerDirection, totalFrames}}
-local frameOffsets = {}      -- Starting frame index for each sprite type
+local mesh, litmesh, instanceMesh, texture, shader
+local spriteTypes = {} -- {name = {directions, framesPerDirection, totalFrames}}
+local frameOffsets = {} -- Starting frame index for each sprite type
 local characterDefinitions = {} -- Character types with their animation states
 
 local spriteCount = 0
-local instances = {}         -- Store all instances for populate
+local instances = {} -- Store all instances for populate
 local spriteLocationMap = {} -- Maps global sprite index to {u, v, uSize, vSize} coordinates
 
 -- Define character types and their associated animation states
@@ -52,30 +51,30 @@ local function calculateFrameOffsetsFromMetadata(metadata)
     spriteTypes = {}
     frameOffsets = {}
     spriteLocationMap = {}
-    
+
     -- Process each sprite type from metadata
     for i, framesCount in ipairs(metadata.framesPerImageList) do
         local filename = metadata.imageFiles[i]
         local spriteName = filename:match("^(.-)%.png$") or filename
-        
+
         -- Calculate directions based on the total frames and standard patterns
         local directions = 1
         local framesPerDirection = framesCount
-        
+
         -- For multi-frame sprites, try to infer direction count
         if framesCount > 1 then
             if framesCount % 8 == 0 and framesCount >= 8 then
                 directions = 8
                 framesPerDirection = framesCount / 8
-            -- elseif framesCount % 4 == 0 and framesCount >= 4 then
-            --     directions = 4
-            --     framesPerDirection = framesCount / 4
+                -- elseif framesCount % 4 == 0 and framesCount >= 4 then
+                --     directions = 4
+                --     framesPerDirection = framesCount / 4
             else
                 directions = 1
                 framesPerDirection = framesCount
             end
         end
-        
+
         spriteTypes[i] = {
             directions = directions,
             framesPerDirection = framesPerDirection,
@@ -101,16 +100,17 @@ local function calculateFrameOffsetsFromMetadata(metadata)
         offset = offset + framesCount
     end
     spriteCount = offset
-    
+
     print("Calculated frame offsets from metadata:")
     for i, spriteType in ipairs(spriteTypes) do
-        print(string.format("  Sprite %d (%s): %d directions, %d frames/dir, offset %d", 
-              i, spriteType.filename, spriteType.directions, spriteType.framesPerDirection, frameOffsets[i]))
+        print(string.format("  Sprite %d (%s): %d directions, %d frames/dir, offset %d", i, spriteType.filename,
+            spriteType.directions, spriteType.framesPerDirection, frameOffsets[i]))
     end
 end
 
 -- Enhanced metadata creation that includes direction information
-function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
+function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename,
+    metadataFilename)
     local allSpriteData = {}
     local framesPerImageList = {}
     local directionsPerImageList = {}
@@ -173,7 +173,8 @@ function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, fr
     -- Recalculate sprites per row based on final texture dimensions
     spritesPerRow = math.floor(textureWidth / uniformWidth)
 
-    print("Creating texture atlas: " .. textureWidth .. "x" .. textureHeight .. " (" .. spritesPerRow .. " sprites per row)")
+    print("Creating texture atlas: " .. textureWidth .. "x" .. textureHeight .. " (" .. spritesPerRow ..
+              " sprites per row)")
 
     local atlasTexture = love.image.newImageData(textureWidth, textureHeight)
 
@@ -289,15 +290,15 @@ local function createInstance()
 
     -- Initialize instance data (x, y, id)
     for i = 1, characterAnimator.instanceCount do
-        local ref = { i * 100, 100 + i, i }
+        local ref = {i * 100, 100 + i, i}
         table.insert(instance.instanceData, ref)
         instance.instanceLookup[i] = i
     end
 
     -- Character and animation state
-    instance.characterType = nil        -- e.g., "watchman", "princess"
-    instance.currentAnimation = nil     -- e.g., "idle", "walk", "shoot"
-    instance.currentSpriteIndex = 1     -- The actual sprite sheet index being used
+    instance.characterType = nil -- e.g., "watchman", "princess"
+    instance.currentAnimation = nil -- e.g., "idle", "walk", "shoot"
+    instance.currentSpriteIndex = 1 -- The actual sprite sheet index being used
     instance.currentDirection = 1
     instance.currentFrame = 1
     instance.timeAccumulator = 0
@@ -307,10 +308,12 @@ local function createInstance()
     instance.scale = 1
     instance.rotation = 0
     instance.on = true
- 
+
     function instance.update(dt)
-        if not instance.currentSpriteIndex then return end
-        
+        if not instance.currentSpriteIndex then
+            return
+        end
+
         local stateData = spriteTypes[instance.currentSpriteIndex]
         if not stateData then
             print("Warning: Invalid sprite index '" .. tostring(instance.currentSpriteIndex) .. "' for instance")
@@ -320,15 +323,15 @@ local function createInstance()
         instance.timeAccumulator = instance.timeAccumulator + dt
         -- local frameInterval = 1 / instance.config.frameRate
         -- local frameInterval = dt*math.sin(fire.t)
-        local frameInterval = dt/instance.config.animationSpeed
-        
-        
+        local frameInterval = dt / instance.config.animationSpeed
+
         if instance.timeAccumulator >= frameInterval then
             if stateData.directions > 1 then
-            instance.currentFrame = (instance.currentFrame % stateData.framesPerDirection) + 1
+                instance.currentFrame = (instance.currentFrame % stateData.framesPerDirection) + 1
             else
                 -- instance.currentFrame = math.floor(math.abs((stateData.framesPerDirection)*math.sin(fire.t))) + 1
-                instance.currentFrame = mymath.heading(gun.lastAimDirection.x,gun.lastAimDirection.y,stateData.framesPerDirection)
+                instance.currentFrame = mymath.heading(gun.lastAimDirection.x, gun.lastAimDirection.y,
+                    stateData.framesPerDirection)
             end
             instance.timeAccumulator = instance.timeAccumulator - frameInterval
         else
@@ -337,7 +340,9 @@ local function createInstance()
     end
 
     function instance.setDirection(direction)
-        if not instance.currentSpriteIndex then return end
+        if not instance.currentSpriteIndex then
+            return
+        end
         local stateData = spriteTypes[instance.currentSpriteIndex]
         instance.currentDirection = math.max(1, math.min(direction, stateData.directions))
     end
@@ -349,7 +354,7 @@ local function createInstance()
             print("Warning: Unknown character type '" .. characterType .. "'")
             return false
         end
-        
+
         instance.characterType = characterType
         instance.setAnimation(charDef.defaultAnimation)
         return true
@@ -361,15 +366,15 @@ local function createInstance()
             print("Warning: No character type set for instance")
             return false
         end
-        
+
         local charDef = characterDefinitions[instance.characterType]
         local spriteIndex = charDef.animations[animationName]
-        
+
         if not spriteIndex then
             -- print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
             return false
         end
-        
+
         if priority then
             if instance.priority >= priority then
                 return false -- Current animation has higher or equal priority
@@ -378,12 +383,12 @@ local function createInstance()
         else
             instance.priority = 0
         end
-        
+
         instance.currentAnimation = animationName
         instance.currentSpriteIndex = spriteIndex
         -- instance.currentFrame = 1
         instance.timeAccumulator = 0
-        
+
         return true
     end
 
@@ -593,8 +598,6 @@ if (int(onoff) == 0) {
         #endif
     ]])
 
-
-
 end
 
 -- Fast loading function that uses ONLY metadata
@@ -610,9 +613,8 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     -- Load atlas texture
     local atlasImageData
     if compressed then
-        atlasImageData = love.image.newCompressedData(
-            love.data.decompress("data", "zlib", love.filesystem.read(atlasFilename))
-        )
+        atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib",
+            love.filesystem.read(atlasFilename)))
     else
         atlasImageData = love.image.newImageData(atlasFilename)
     end
@@ -620,7 +622,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     texture = love.graphics.newImage(atlasImageData)
     atlasImageData = nil
     collectgarbage()
-    
+
     return characterAnimator.instancesFromTexture(texture, metadata)
 end
 
@@ -631,19 +633,14 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     -- Use metadata-only calculation
     calculateFrameOffsetsFromMetadata(metadata)
-    
+
     -- Define character types after loading sprite data
     defineCharacterTypes(metadata)
 
     print("Loaded " .. metadata.totalSprites .. " sprites from atlas")
 
     local size = metadata.uniformWidth / 2
-    local vertices = {
-        { -size, -size, 0, 0 },
-        { size,  -size, 1, 0 },
-        { size,  size,  1, 1 },
-        { -size, size,  0, 1 }
-    }
+    local vertices = {{-size, -size, 0, 0}, {size, -size, 1, 0}, {size, size, 1, 1}, {-size, size, 0, 1}}
 
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
     litmesh = love.graphics.newMesh(vertices, "fan", "stream")
@@ -651,18 +648,13 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     litmesh:setTexture(texture)
 
     -- Instance format for 3x3 matrix
-    local instanceFormat = {
-        { "InstanceUVData",  "float", 4 },
-        { "color",           "float", 4 },
-        { "InstanceMatrix1", "float", 3 },
-        { "InstanceMatrix2", "float", 3 },
-        { "InstanceMatrix4", "float", 3 },
-        { "onoff", "float", 1 }, --bit repr for each instance
+    local instanceFormat = {{"InstanceUVData", "float", 4}, {"color", "float", 4}, {"InstanceMatrix1", "float", 3},
+                            {"InstanceMatrix2", "float", 3}, {"InstanceMatrix4", "float", 3}, {"onoff", "float", 1} -- bit repr for each instance
     }
 
     local emptyInstanceData = {}
     for i = 1, characterAnimator.instanceCount * 17 do -- 17 floats per instance
-        table.insert(emptyInstanceData, { 0 })
+        table.insert(emptyInstanceData, {0})
     end
 
     instanceMesh = love.graphics.newMesh(instanceFormat, emptyInstanceData, nil, "stream")
@@ -683,25 +675,25 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     -- Create instances with character types
     instances = {}
     local characterTypes = getCharacterTypes()
-    
+
     for i = 1, characterAnimator.instanceCount do
         local instance = createInstance()
         instance.x = love.math.random(0, love.graphics.getWidth() * 2)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
-        
+
         -- Randomly assign character types
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
         instance.setCharacterType(randomCharType)
         -- instance.setCharacterType("mech")
-        
+
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
             local stateData = spriteTypes[instance.currentSpriteIndex]
             instance.currentDirection = love.math.random(1, stateData.directions)
         end
-        
-        instance.color = { 1, 1, 1, 0 }
+
+        instance.color = {1, 1, 1, 0}
     end
 
     print("Created " .. #instances .. " instances with character types")
@@ -757,7 +749,8 @@ function characterAnimator.initFromCache(imageFiles, config, frameWidth, frameHe
         return characterAnimator.loadFromAtlas(atlasFilename, metadataFilename)
     else
         print("Creating new atlas...")
-        characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename, metadataFilename)
+        characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename,
+            metadataFilename)
         return characterAnimator.loadFromAtlas(atlasFilename, metadataFilename)
     end
 end
@@ -767,7 +760,7 @@ local function getUV(instance)
     if not instance.currentSpriteIndex then
         return 0, 0, 0.1, 0.1
     end
-    
+
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
     local directions = spriteType.directions
@@ -795,11 +788,11 @@ function characterAnimator.populate()
             print("Warning: Invalid sprite index for instance " .. i)
         end
     end
-    
+
     table.sort(sortedIndices, function(a, b)
         return instances[a].y < instances[b].y
     end)
-    
+
     for i = 1, activeInstanceCount do
         local instance = instances[sortedIndices[i]]
         local cos_r = math.cos(instance.rotation)
@@ -807,15 +800,12 @@ function characterAnimator.populate()
         local scale = instance.scale
 
         local u, v, uSize, vSize = getUV(instance)
-        
-        instanceData[i] = {
-            u, v, uSize, vSize,                        -- InstanceUVData
-            instance.color[1], instance.color[2], instance.color[3], instance.color[4],
-            cos_r * scale, sin_r * scale, 0,           -- InstanceMatrix1 (row 1)
-            -sin_r * scale, cos_r * scale, 0,          -- InstanceMatrix2 (row 2)  
-            instance.x, instance.y, 1,                 -- InstanceMatrix4 (row 3)
-            instance.on and 1 or 0
-        }
+
+        instanceData[i] = {u, v, uSize, vSize, -- InstanceUVData
+        instance.color[1], instance.color[2], instance.color[3], instance.color[4], cos_r * scale, sin_r * scale, 0, -- InstanceMatrix1 (row 1)
+                           -sin_r * scale, cos_r * scale, 0, -- InstanceMatrix2 (row 2)  
+        instance.x, instance.y, 1, -- InstanceMatrix4 (row 3)
+        instance.on and 1 or 0}
     end
 
     instanceMesh:setVertices(instanceData)
@@ -823,23 +813,23 @@ end
 
 function characterAnimator.draw()
     -- yellowNeon.godsray.light_x ,yellowNeon.godsray.light_y = gun.lastAimDirection.x, gun.lastAimDirection.y
-    
+
     if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
-    love.graphics.push()
-    love.graphics.reset()
-            
-    yellowNeon.godsray.exposure = math.abs(math.sin(fire.t))
-    yellowNeon(function()
-    local camPos = {camera.pos.x,camera.pos.y,camera.zoom}
-    -- camPos[0] = {camera.pos.x,camera.pos.y}
-    -- camPos[1] = {camera.pos.y}
-    characterAnimator.shaderWithTransforms:send("cameraPosition",camPos)
-    love.graphics.setShader(characterAnimator.shaderWithTransforms)
-    love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
-    love.graphics.setShader()
-    
-    end)
-    love.graphics.pop()
+        love.graphics.push()
+        love.graphics.reset()
+
+        yellowNeon.godsray.exposure = math.abs(math.sin(fire.t))
+        yellowNeon(function()
+            local camPos = {camera.pos.x, camera.pos.y, camera.zoom}
+            -- camPos[0] = {camera.pos.x,camera.pos.y}
+            -- camPos[1] = {camera.pos.y}
+            characterAnimator.shaderWithTransforms:send("cameraPosition", camPos)
+            love.graphics.setShader(characterAnimator.shaderWithTransforms)
+            love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
+            love.graphics.setShader()
+
+        end)
+        love.graphics.pop()
     end
     -- else 
 
@@ -848,7 +838,6 @@ function characterAnimator.draw()
     love.graphics.setShader()
 
     -- end
-
 
 end
 
@@ -859,8 +848,10 @@ end
 
 function characterAnimator.getAnimationsForCharacter(characterType)
     local charDef = characterDefinitions[characterType]
-    if not charDef then return {} end
-    
+    if not charDef then
+        return {}
+    end
+
     local animations = {}
     for animName, _ in pairs(charDef.animations) do
         table.insert(animations, animName)
@@ -883,7 +874,9 @@ function characterAnimator.testAnimationSwitching()
                 end
                 currentIndex = currentIndex + 1
             end
-            if currentIndex > #animations then currentIndex = 1 end
+            if currentIndex > #animations then
+                currentIndex = 1
+            end
             instance.setAnimation(animations[currentIndex])
             print("Switched to animation: " .. animations[currentIndex])
         elseif instance.characterType == "princess" then
@@ -897,7 +890,9 @@ function characterAnimator.testAnimationSwitching()
                 end
                 currentIndex = currentIndex + 1
             end
-            if currentIndex > #animations then currentIndex = 1 end
+            if currentIndex > #animations then
+                currentIndex = 1
+            end
             instance.setAnimation(animations[currentIndex])
             print("Switched to animation: " .. animations[currentIndex])
         end

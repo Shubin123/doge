@@ -133,7 +133,8 @@ function Enemy:fireAtPlayer()
 
     local proj_body = love.physics.newBody(world, ex, ey, "dynamic")
     local proj_fixture = love.physics.newFixture(proj_body, love.physics.newCircleShape(15))
-    proj_fixture:setGroupIndex(777)
+    proj_fixture:setGroupIndex(778)
+    proj_fixture:setUserData(#self.projectiles)
 
     table.insert(self.projectiles, projectile)
     table.insert(self.projectile_bodies, proj_body)
@@ -142,10 +143,11 @@ end
 function Enemy:updateProjectiles(dt)
     for i = #self.projectiles, 1, -1 do
         local proj = self.projectiles[i]
+        pcall(function()
         if self.t > proj[5] then
             if self.projectile_bodies[i] then
-                self.projectile_bodies[i]:destroy()
-                table.remove(self.projectile_bodies, i)
+                -- self.projectile_bodies[i]:destroy()
+                -- table.remove(self.projectile_bodies, i)
             end
             table.remove(self.projectiles, i)
         else
@@ -154,6 +156,7 @@ function Enemy:updateProjectiles(dt)
                 self.projectile_bodies[i]:setPosition(proj[1].x, proj[1].y)
             end
         end
+        end)
     end
 end
 
@@ -264,46 +267,46 @@ function Enemy:update(dt)
         local x, y = self.body:getPosition()
         self.body:setPosition(x + (self.target.dx) * dt * 0.3, y + (self.target.dy) * dt * 0.3)
     end
-    for i = #self.damage_indicators, 1, -1 do
-        local indicator = self.damage_indicators[i]
-        indicator.time = indicator.time + dt
-        local progress = indicator.time / indicator.duration
-        local ease_out = 1 - math.pow(1 - progress, 3)
+    -- for i = #self.damage_indicators, 1, -1 do
+    --     local indicator = self.damage_indicators[i]
+    --     indicator.time = indicator.time + dt
+    --     local progress = indicator.time / indicator.duration
+    --     local ease_out = 1 - math.pow(1 - progress, 3)
 
-        indicator.y = indicator.y + indicator.velocity_y * dt * indicator.bounce_factor
-        indicator.x = indicator.x + indicator.velocity_x * dt
-        indicator.velocity_y = indicator.velocity_y * 0.98
-        indicator.velocity_x = indicator.velocity_x * 0.95
+    --     indicator.y = indicator.y + indicator.velocity_y * dt * indicator.bounce_factor
+    --     indicator.x = indicator.x + indicator.velocity_x * dt
+    --     indicator.velocity_y = indicator.velocity_y * 0.98
+    --     indicator.velocity_x = indicator.velocity_x * 0.95
 
-        local fade_start = indicator.nearby_count > 3 and 0.5 or 0.7
-        if progress > fade_start then
-            local fade_progress = (progress - fade_start) / (1.0 - fade_start)
-            indicator.alpha = 1 - math.pow(fade_progress, 1.5)
-        else
-            indicator.alpha = 1
-        end
+    --     local fade_start = indicator.nearby_count > 3 and 0.5 or 0.7
+    --     if progress > fade_start then
+    --         local fade_progress = (progress - fade_start) / (1.0 - fade_start)
+    --         indicator.alpha = 1 - math.pow(fade_progress, 1.5)
+    --     else
+    --         indicator.alpha = 1
+    --     end
 
-        indicator.scale = 1.2 - (ease_out * 0.4)
+    --     indicator.scale = 1.2 - (ease_out * 0.4)
 
-        for j, other in ipairs(self.damage_indicators) do
-            if i ~= j and other.time < other.duration then
-                local dx = indicator.x - other.x
-                local dy = indicator.y - other.y
-                local dist = math.sqrt(dx * dx + dy * dy)
-                if dist < 20 and dist > 0 then
-                    local separation_force = (20 - dist) / 20 * 15
-                    local norm_x = dx / dist
-                    local norm_y = dy / dist
-                    indicator.velocity_x = indicator.velocity_x + norm_x * separation_force * dt
-                    indicator.velocity_y = indicator.velocity_y + norm_y * separation_force * dt
-                end
-            end
-        end
+        -- for j, other in ipairs(self.damage_indicators) do
+        --     if i ~= j and other.time < other.duration then
+        --         local dx = indicator.x - other.x
+        --         local dy = indicator.y - other.y
+        --         local dist = math.sqrt(dx * dx + dy * dy)
+        --         if dist < 20 and dist > 0 then
+        --             local separation_force = (20 - dist) / 20 * 15
+        --             local norm_x = dx / dist
+        --             local norm_y = dy / dist
+        --             indicator.velocity_x = indicator.velocity_x + norm_x * separation_force * dt
+        --             indicator.velocity_y = indicator.velocity_y + norm_y * separation_force * dt
+        --         end
+        --     end
+        -- end
 
-        if indicator.time >= indicator.duration then
-            table.remove(self.damage_indicators, i)
-        end
-    end
+        -- if indicator.time >= indicator.duration then
+        --     table.remove(self.damage_indicators, i)
+        -- end
+    -- end
 end
 
 -- Global enemy manager

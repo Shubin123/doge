@@ -5,3 +5,4 @@ serialization on windows not working
 grouped collision for instances,
 indoor lighting (block everything outside)
 auto arrows, auto bullets, melee attack, melee grab, auto melee
+change shockwave shader run after instance drawn

@@ -143,7 +143,8 @@ function shadow.updateBothShaders(dt)
                     light.y + light.range < playerY - halfH or
                     light.y - light.range > playerY + halfH)
             then
-                lightData[numLights] = { light.x, light.y, light.intensity, light.range }
+                light.intensity = var.indoors and 0 or 1
+                lightData[numLights] = { light.x, light.y,light.intensity, light.range } 
                 lightDataCam[numLights] = { light.x * camera.zoom + camera.x, light.y * camera.zoom + camera.y, light.intensity, light.range }
                 numLights = numLights + 1
             else
@@ -175,6 +176,8 @@ function shadow.updateBothShaders(dt)
             -- characterAnimator.shader:send("lightRanges",unpack(ranges))
         -- end
     end
+
+    
 end
 
 function shadow.getShader(useCamera)

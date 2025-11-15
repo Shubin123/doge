@@ -6,6 +6,7 @@ collision.groups = {
     player = -1,
     projectile = -2,
     enemy = 777,
+    enemyProjectile = 778,
     coin = 69,
     map = 4,
     rocket = -3,
@@ -41,6 +42,8 @@ function collision.getType(fixture)
         return "map"
     elseif groupIndex == collision.groups.rocket then
         return "rocket"
+    elseif groupIndex == collision.groups.enemyProjectile then
+        return "enemyProjectile"
         -- elseif groupIndex == collision.groups.houseTrigger then
         --     return "houseTrigger"
     end
@@ -459,11 +462,36 @@ function collision.init()
     --     var.indoors = not var.indoors
     -- end)
 
+    -- collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)
+    --     local otherBody = fixtureB:getBody()
+    --     local nx, ny = contact:getNormal()
+    --     local hit = { x = nx * 200, y = ny * 200 }
+    --     -- otherBody:applyLinearImpulse(hit.x*10000, hit.y)
+    --     -- local userData = fixtureB:getUserData()
+    --     -- if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
+    --     --     table.insert(bullet.toReturn, userData)
+    --     -- end
+    -- end)
+
+    collision.registerResponse("map", "enemyProjectile", function(fixtureA, fixtureB, contact)
+    local projectileBody = fixtureB:getBody()
+    local projectileIndex = fixtureB:getUserData()
+    -- print(fixtureB.userData())
+    -- table.remove(enemy.projectiles, checkDestroy(enemy.projectiles,fixtureA))
+    -- print(checkDestroy(enemy.projectiles,fixtureB))
+    print(projectileIndex)
+    projectileBody:destroy()
+    table.remove(enemy.projectile_bodies, projectileIndex)
+    table.remove(enemy.projectiles,projectileIndex)
+    -- print(otherBody)
+    end)
+
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)
     collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local hit = { x = nx * 200, y = ny * 200 }
+        print(otherBody)
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
