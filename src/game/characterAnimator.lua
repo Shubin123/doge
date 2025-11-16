@@ -343,8 +343,8 @@ local function createInstance()
         if not instance.currentSpriteIndex then
             return
         end
-        local stateData = spriteTypes[instance.currentSpriteIndex]
-        instance.currentDirection = math.max(1, math.min(direction, stateData.directions))
+        -- local stateData = spriteTypes[instance.currentSpriteIndex]
+        instance.currentDirection = math.max(1, 8)
     end
 
     -- Set character type and initialize with default animation
@@ -371,7 +371,7 @@ local function createInstance()
         local spriteIndex = charDef.animations[animationName]
 
         if not spriteIndex then
-            -- print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
+            print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
             return false
         end
 
@@ -406,7 +406,7 @@ end
 
 function characterAnimator.load()
     -- Universal shader that works on both desktop and web
-    characterAnimator.shader = love.graphics.newShader([[
+   characterAnimator.shader = love.graphics.newShader([[
         #define MAX_LIGHTS 500
 
         uniform int numLights;
@@ -415,6 +415,13 @@ function characterAnimator.load()
         // Outline uniforms
         uniform float outlineWidth;
         uniform vec3 outlineColor;
+        
+        // Normal map uniform
+        uniform Image NormalTex;
+        uniform bool useNormalMap;
+        
+        // UV bounds for Steve's walk animation
+        uniform vec4 steveWalkUVBounds; // minU, minV, maxU, maxV
         
         varying vec4 VColor;
         varying vec2 VaryingUV;
@@ -454,23 +461,73 @@ if (int(onoff) == 1) {
         #ifdef PIXEL
         uniform Image MainTex;
 
+        vec3 decodeNormal(vec3 encodedNormal) {
+            // Decode from 0-1 range back to -1 to 1 range
+            return normalize(encodedNormal * 2.0 - 1.0);
+        }
+
+        float calculateNormalLighting(vec3 normal, vec2 lightPos, vec2 fragPos) {
+            // Calculate light direction from fragment to light
+            vec2 lightDir2D = normalize(lightPos - fragPos);
+            
+            // For 2D sprites, we assume the normal is in view space
+            // and the light direction is in the XY plane
+            vec3 lightDir3D = normalize(vec3(lightDir2D, 1.0));
+            
+            // Calculate diffuse lighting using Lambert's cosine law
+            float diffuse = max(dot(normal, lightDir3D), 0.0);
+            
+            // Add ambient term so surfaces aren't completely black
+            float ambient = 0.3;
+            
+            return ambient + diffuse * (1.0 - ambient);
+        }
+
         void effect() {
             vec4 texColor = Texel(MainTex, VaryingUV);
             
-            // Calculate lighting
+            // Check if current UV is within Steve's walk animation bounds
+            bool isSteveWalk = useNormalMap && 
+                               VaryingUV.x >= steveWalkUVBounds.x && 
+                               VaryingUV.x <= steveWalkUVBounds.z &&
+                               VaryingUV.y >= steveWalkUVBounds.y && 
+                               VaryingUV.y <= steveWalkUVBounds.w;
+            
+            // Sample normal map only if we're in Steve's walk region
+            vec3 normal = vec3(0.0, 0.0, 1.0); // Default normal pointing forward
+            //if (isSteveWalk) {
+                vec4 normalSample = Texel(NormalTex, VaryingUV);
+                //normal = decodeNormal(normalSample.rgb);
+                normal = normalSample.rgb;
+            //}
+            
+            // Calculate lighting with normal maps
             float totalLight = 0.0;
             for (int i = 0; i < MAX_LIGHTS; i++) {
                 if (i >= numLights) {
                     break;
                 }
-                float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
-                float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
-                totalLight += attenuation * lights[i][2];
+                
+                vec2 lightPos = vec2(lights[i][0], lights[i][1]);
+                float lightIntensity = lights[i][2];
+                float lightRadius = lights[i][3];
+                
+                float distance = length(lightPos - pos);
+                float attenuation = 1.0 - clamp(distance / lightRadius, 0.0, 1.0);
+                
+                // Apply normal map lighting only for Steve's walk
+                float normalFactor = 1.0;
+                //if (isSteveWalk) {
+                    normalFactor = calculateNormalLighting(normal, lightPos, pos);
+                    //normalFactor = 1;
+                //}
+                
+                totalLight += attenuation * lightIntensity * normalFactor;
             }
 
             totalLight = clamp(totalLight, 0.0, 1.0);
-            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
-
+            //vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
+            vec3 litColor = mix(vec3(0.0), vec3(1.0), totalLight);
             // Outline detection
             vec4 finalColor = vec4(litColor, texColor.a);
 
@@ -508,6 +565,14 @@ if (int(onoff) == 1) {
         }
         #endif
     ]])
+    
+    -- Initialize shader uniforms
+    characterAnimator.shader:send("NormalTex", love.graphics.newImage("gfx/3d/steve/normals/walkNormal16Column.png"))
+    characterAnimator.shader:send("useNormalMap", true)
+    
+    -- UV bounds will be set after metadata is loaded
+    characterAnimator.shader:send("steveWalkUVBounds", {0, 0, 0, 0})
+    
     -- below shader is for fully lit sprites so no need for shadow/light info
     characterAnimator.shaderWithTransforms = love.graphics.newShader([[
         uniform vec3 cameraPosition; // z component is zoom
@@ -600,6 +665,42 @@ if (int(onoff) == 0) {
 
 end
 
+-- Add this helper function to calculate and set Steve's UV bounds
+function characterAnimator.setSteveWalkUVBounds(metadata)
+    -- Steve walk is sprite index 25
+    local steveWalkIndex = 25
+    local offset = frameOffsets[steveWalkIndex]
+    local spriteType = spriteTypes[steveWalkIndex]
+    
+    if not spriteType then
+        print("Warning: Could not find Steve walk sprite data")
+        return
+    end
+    
+    -- Calculate the UV bounds for all frames of Steve's walk animation
+    local minU, minV = 1, 1
+    local maxU, maxV = 0, 0
+    
+    local totalFrames = spriteType.totalFrames
+    
+    for frameIdx = 0, totalFrames - 1 do
+        local globalIndex = offset + frameIdx
+        local location = spriteLocationMap[globalIndex]
+        
+        if location then
+            minU = math.min(minU, location.u)
+            minV = math.min(minV, location.v)
+            maxU = math.max(maxU, location.u + location.uSize)
+            maxV = math.max(maxV, location.v + location.vSize)
+        end
+    end
+    
+    print(string.format("Steve walk UV bounds: minU=%.4f, minV=%.4f, maxU=%.4f, maxV=%.4f", 
+                        minU, minV, maxU, maxV))
+    
+    characterAnimator.shader:send("steveWalkUVBounds", {minU, minV, maxU, maxV})
+end
+
 -- Fast loading function that uses ONLY metadata
 function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compressed)
     -- Load metadata
@@ -623,7 +724,12 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     atlasImageData = nil
     collectgarbage()
 
-    return characterAnimator.instancesFromTexture(texture, metadata)
+    local instances = characterAnimator.instancesFromTexture(texture, metadata)
+    
+    -- Set Steve's UV bounds after everything is loaded
+    characterAnimator.setSteveWalkUVBounds(metadata)
+    
+    return instances
 end
 
 function characterAnimator.instancesFromTexture(texture, metadata)
@@ -683,14 +789,15 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
         -- Randomly assign character types
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
+        
         -- local randomCharType = characterTypes[1]
         instance.setCharacterType(randomCharType)
         -- instance.setCharacterType("mech")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
-            local stateData = spriteTypes[instance.currentSpriteIndex]
-            instance.currentDirection = love.math.random(1, stateData.directions)
+            -- local stateData = spriteTypes[instance.currentSpriteIndex]
+            instance.currentDirection = love.math.random(1, 8)
         end
 
         instance.color = {1, 1, 1, 0}
@@ -700,7 +807,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     princess = instances[1]
     -- table.remove(instances, 1)
-    princess.setCharacterType("princess")
+    -- princess.setCharacterType("princess")
 
     return instances
 end
@@ -763,8 +870,8 @@ local function getUV(instance)
 
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
-    local directions = spriteType.directions
-    local globalIndex = offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    local directions = 8
+    local globalIndex = 5 + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
 
     local location = spriteLocationMap[globalIndex]
     if location then
@@ -781,7 +888,7 @@ function characterAnimator.populate()
     local activeInstanceCount = 0
 
     for i, instance in ipairs(instances) do
-        if instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex] then
+        if instance.currentSpriteIndex  then
             activeInstanceCount = activeInstanceCount + 1
             sortedIndices[activeInstanceCount] = i
         else

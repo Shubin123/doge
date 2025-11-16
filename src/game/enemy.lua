@@ -66,7 +66,7 @@ function Enemy:initBehaviourTree()
                         if enemy.t - enemy.last_fire_time >= enemy.fire_cooldown + math.random() then
                             
                             local a = gun_enemies[enemy.fixture:getUserData() + 2]
-                            a.setAnimation("shoot")
+                            -- a.setAnimation("shoot")
 
                             enemy:fireAtPlayer()
                             enemy.last_fire_time = enemy.t
