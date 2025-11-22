@@ -531,7 +531,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             
             vec3 normal = vec3(0.0, 0.0, 1.0); // Default normal
             
-            //if (isSteveWalk) {
+            if (isSteveWalk) {
                 // Remap atlas UV to normal map UV
                 vec2 normalMapUV = remapAtlasUVToNormalMap(
                     VaryingUV, 
@@ -544,7 +544,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                 
                 vec4 normalSample = Texel(NormalTex, normalMapUV);
                 normal = decodeNormal(normalSample.rgb);
-            //}
+            }
             
             // Calculate lighting
             float totalLight = 0.0;
@@ -847,7 +847,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         -- print(characterTypes["steve"])
         -- instance.setCharacterType(randomCharType)
         -- instance.setCharacterType("mech")
-        instance.setCharacterType("steve")
+        instance.setCharacterType("house")
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
             -- local stateData = spriteTypes[instance.currentSpriteIndex]
@@ -924,9 +924,9 @@ local function getUV(instance)
 
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
-    -- print(frameOffsets[2])
+    -- print(offset)
     local directions = 8
-    local globalIndex = frameOffsets[instance.currentSpriteIndex] + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    local globalIndex = offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
 
     local location = spriteLocationMap[globalIndex]
     if location then

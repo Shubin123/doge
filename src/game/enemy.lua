@@ -91,7 +91,7 @@ function Enemy:initBehaviourTree()
                         if distance > ideal_distance + 50 then
                             local move_force = 500 * math.random(1, 5)
                             enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
-                            a.setAnimation("walk")
+                            -- a.setAnimation("walk")
                         elseif distance < ideal_distance - 50 then
                             local move_force = 200 * math.random(1, 5)
                             enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
