@@ -842,8 +842,8 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         -- Randomly assign character types
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
-        -- instance.setCharacterType(randomCharType)
-        instance.setCharacterType("house")
+        instance.setCharacterType(randomCharType)
+        -- instance.setCharacterType("house")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
