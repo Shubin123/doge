@@ -605,9 +605,10 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     
     -- Initialize shader uniforms
-    local normalMapTexture = love.graphics.newImage("gfx/3d/steve/normals/walk.png.wow")
+    local normalMapTexture = love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
+
     
     -- Calculate sprite size in normal map UV space
     -- If normal map is 2048×128 (16 columns, 1 row), each sprite is 128×128
@@ -618,9 +619,9 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     characterAnimator.shader:send("normalMapSpriteSize", {spriteSizeU, spriteSizeV})
     characterAnimator.shader:send("steveColumns", 8)
     
-    characterAnimator.shader:send("steveAtlasUVBounds", {0, 0, 0, 0})
-    characterAnimator.shader:send("steveFrameOffset", 0)
-    characterAnimator.shader:send("steveTotalFrames", 200)
+    -- characterAnimator.shader:send("steveAtlasUVBounds", {0, 0, 0, 0})
+    -- characterAnimator.shader:send("steveFrameOffset", 0)
+    -- characterAnimator.shader:send("steveTotalFrames", 200)
     
     -- UV bounds will be set after metadata is loaded
     -- characterAnimator.shader:send("steveWalkUVBounds", {0, 0, 0, 0})
@@ -720,7 +721,7 @@ end
 -- Add this helper function to calculate and set Steve's UV bounds
 -- Updated function to set Steve's UV bounds correctly
 function characterAnimator.setSteveWalkUVBounds(metadata)
-    local steveWalkIndex = 25
+    local steveWalkIndex = 19
     local offset = frameOffsets[steveWalkIndex]
     local spriteType = spriteTypes[steveWalkIndex]
     
@@ -750,7 +751,7 @@ function characterAnimator.setSteveWalkUVBounds(metadata)
     
     characterAnimator.shader:send("steveAtlasUVBounds", {minU, minV, maxU, maxV})
     characterAnimator.shader:send("steveFrameOffset", offset)
-    characterAnimator.shader:send("steveTotalFrames", spriteType.totalFrames)
+    -- characterAnimator.shader:send("steveTotalFrames", spriteType.totalFrames)
 end
 
 -- Fast loading function that uses ONLY metadata
@@ -842,8 +843,8 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         -- Randomly assign character types
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
-        instance.setCharacterType(randomCharType)
-        -- instance.setCharacterType("house")
+        -- instance.setCharacterType(randomCharType)
+        instance.setCharacterType("princess")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
