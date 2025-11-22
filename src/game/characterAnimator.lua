@@ -66,9 +66,9 @@ local function calculateFrameOffsetsFromMetadata(metadata)
             if framesCount % 8 == 0 and framesCount >= 8 then
                 directions = 8
                 framesPerDirection = framesCount / 8
-                -- elseif framesCount % 4 == 0 and framesCount >= 4 then
-                --     directions = 4
-                --     framesPerDirection = framesCount / 4
+                elseif framesCount % 4 == 0 and framesCount >= 4 then
+                    directions = 4
+                    framesPerDirection = framesCount / 4
             else
                 directions = 1
                 framesPerDirection = framesCount
@@ -344,7 +344,7 @@ local function createInstance()
             return
         end
         -- local stateData = spriteTypes[instance.currentSpriteIndex]
-        instance.currentDirection = math.max(1, 8)
+        instance.currentDirection = math.max(1, direction)
     end
 
     -- Set character type and initialize with default animation
@@ -416,12 +416,16 @@ function characterAnimator.load()
         uniform float outlineWidth;
         uniform vec3 outlineColor;
         
-        // Normal map uniform
+        // Normal map uniforms
         uniform Image NormalTex;
         uniform bool useNormalMap;
         
-        // UV bounds for Steve's walk animation
-        uniform vec4 steveWalkUVBounds; // minU, minV, maxU, maxV
+        // Steve's atlas bounds and frame info
+        uniform vec4 steveAtlasUVBounds;  // minU, minV, maxU, maxV in main atlas
+        uniform int steveFrameOffset;      // Starting frame index in atlas
+        uniform int steveTotalFrames;      // Total number of frames (200 for Steve)
+        uniform int steveColumns;          // Columns in normal map (16)
+        uniform vec2 normalMapSpriteSize;  // Size of one sprite in normal map UV space
         
         varying vec4 VColor;
         varying vec2 VaryingUV;
@@ -436,73 +440,115 @@ attribute vec3 InstanceMatrix4;
 attribute float onoff;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-if (int(onoff) == 1) {
-    vec2 localUV = VaryingTexCoord.xy;
-    VColor = vec4(color);
-    VaryingUV = vec2(
-        InstanceUVData.x + localUV.x * InstanceUVData.z,
-        InstanceUVData.y + localUV.y * InstanceUVData.w
-    );
+    if (int(onoff) == 1) {
+        vec2 localUV = VaryingTexCoord.xy;
+        VColor = vec4(color);
+        VaryingUV = vec2(
+            InstanceUVData.x + localUV.x * InstanceUVData.z,
+            InstanceUVData.y + localUV.y * InstanceUVData.w
+        );
 
-    mat3 instance_matrix = mat3(
-        InstanceMatrix1,
-        InstanceMatrix2, 
-        InstanceMatrix4
-    );
+        mat3 instance_matrix = mat3(
+            InstanceMatrix1,
+            InstanceMatrix2, 
+            InstanceMatrix4
+        );
 
-    vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
-    pos = worldPos.xy;
+        vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
+        pos = worldPos.xy;
 
-    return transform_projection * vec4(worldPos.xy, 0, 1.0);
+        return transform_projection * vec4(worldPos.xy, 0, 1.0);
+    }
 }
-}
-#endif
+        #endif
 
         #ifdef PIXEL
         uniform Image MainTex;
 
         vec3 decodeNormal(vec3 encodedNormal) {
-            // Decode from 0-1 range back to -1 to 1 range
             return normalize(encodedNormal * 2.0 - 1.0);
         }
 
+        // Calculate which frame we're rendering and map to normal map coordinates
+        vec2 remapAtlasUVToNormalMap(vec2 atlasUV, vec4 atlasUVBounds, int frameOffset, 
+                                     int totalFrames, int columns, vec2 spriteSize) {
+            // Atlas has 128 sprites per row (16384 / 128)
+            float atlasSpritesPerRow = 128.0;
+            float atlasSpriteSize = 1.0 / atlasSpritesPerRow; // UV size of one sprite
+            
+            // Calculate which sprite we're in within the atlas
+            float atlasCol = floor(atlasUV.x / atlasSpriteSize);
+            float atlasRow = floor(atlasUV.y / atlasSpriteSize);
+            int globalSpriteIndex = int(atlasRow * atlasSpritesPerRow + atlasCol);
+            
+            // Convert to frame index relative to Steve's frames (0-199)
+            int relativeFrameIndex = globalSpriteIndex - frameOffset;
+            
+            // Get local UV within the current sprite (0-1)
+            vec2 localUV = vec2(
+                fract(atlasUV.x / atlasSpriteSize),
+                fract(atlasUV.y / atlasSpriteSize)
+            );
+            
+            // Calculate position in normal map grid
+            int normalMapCol = int(mod(float(relativeFrameIndex), float(columns)));
+            int normalMapRow = relativeFrameIndex / columns;
+            
+            // Map to normal map UV space
+            vec2 normalMapUV = vec2(
+                (float(normalMapCol) + localUV.x) * spriteSize.x,
+                (float(normalMapRow) + localUV.y) * spriteSize.y
+            );
+            
+            return normalMapUV;
+        }
+
         float calculateNormalLighting(vec3 normal, vec2 lightPos, vec2 fragPos) {
-            // Calculate light direction from fragment to light
-            vec2 lightDir2D = normalize(lightPos - fragPos);
+            vec2 toLight2D = lightPos - fragPos;
+            float dist = length(toLight2D);
+            float lightHeight = 50.0;
+            vec3 toLight3D = (dist == 0.0) 
+                ? vec3(0.0, 0.0, 1.0) 
+                : normalize(vec3(toLight2D, lightHeight));
             
-            // For 2D sprites, we assume the normal is in view space
-            // and the light direction is in the XY plane
-            vec3 lightDir3D = normalize(vec3(lightDir2D, 1.0));
+            float NdotL = max(dot(normal, toLight3D), 0.0);
             
-            // Calculate diffuse lighting using Lambert's cosine law
-            float diffuse = max(dot(normal, lightDir3D), 0.0);
+            float attenuation = 1.0 / (0.001 + 0.02 * dist);
+            float ambient = 0.12;
             
-            // Add ambient term so surfaces aren't completely black
-            float ambient = 0.3;
-            
-            return ambient + diffuse * (1.0 - ambient);
+            return ambient + NdotL * attenuation * (1.0 - ambient);
         }
 
         void effect() {
             vec4 texColor = Texel(MainTex, VaryingUV);
             
-            // Check if current UV is within Steve's walk animation bounds
+            // Check if current UV is within Steve's atlas bounds
             bool isSteveWalk = useNormalMap && 
-                               VaryingUV.x >= steveWalkUVBounds.x && 
-                               VaryingUV.x <= steveWalkUVBounds.z &&
-                               VaryingUV.y >= steveWalkUVBounds.y && 
-                               VaryingUV.y <= steveWalkUVBounds.w;
+                               VaryingUV.x >= steveAtlasUVBounds.x && 
+                               VaryingUV.x <= steveAtlasUVBounds.z &&
+                               VaryingUV.y >= steveAtlasUVBounds.y && 
+                               VaryingUV.y <= steveAtlasUVBounds.w;
             
-            // Sample normal map only if we're in Steve's walk region
-            vec3 normal = vec3(0.0, 0.0, 1.0); // Default normal pointing forward
+            vec3 normal = vec3(0.0, 0.0, 1.0); // Default normal
+            
             //if (isSteveWalk) {
-                vec4 normalSample = Texel(NormalTex, VaryingUV);
-                //normal = decodeNormal(normalSample.rgb);
-                normal = normalSample.rgb;
+                // Remap atlas UV to normal map UV
+                vec2 normalMapUV = remapAtlasUVToNormalMap(
+                    VaryingUV, 
+                    steveAtlasUVBounds, 
+                    steveFrameOffset,
+                    steveTotalFrames,
+                    steveColumns,
+                    normalMapSpriteSize
+                );
+                
+                vec4 normalSample = Texel(NormalTex, normalMapUV);
+                normal = decodeNormal(normalSample.rgb);
             //}
             
-            // Calculate lighting with normal maps
+            // Calculate lighting
             float totalLight = 0.0;
+            
             for (int i = 0; i < MAX_LIGHTS; i++) {
                 if (i >= numLights) {
                     break;
@@ -515,31 +561,21 @@ if (int(onoff) == 1) {
                 float distance = length(lightPos - pos);
                 float attenuation = 1.0 - clamp(distance / lightRadius, 0.0, 1.0);
                 
-                // Apply normal map lighting only for Steve's walk
-                float normalFactor = 1.0;
-                //if (isSteveWalk) {
-                    normalFactor = calculateNormalLighting(normal, lightPos, pos);
-                    //normalFactor = 1;
-                //}
-                
+                float normalFactor = calculateNormalLighting(normal, lightPos, pos);
                 totalLight += attenuation * lightIntensity * normalFactor;
             }
 
             totalLight = clamp(totalLight, 0.0, 1.0);
-            //vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
-            vec3 litColor = mix(vec3(0.0), vec3(1.0), totalLight);
-            // Outline detection
+            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
+            
             vec4 finalColor = vec4(litColor, texColor.a);
 
+            // Outline detection
             if (VColor.w > 0.0) {
-                // If current pixel is transparent, check if any nearby pixels are opaque
                 if (texColor.a < 0.1) {
                     float outline = 0.0;
+                    float pixelOffset = VColor.w * 0.0001;
 
-                    // Use a small fixed offset for sampling (adjust based on your atlas resolution)
-                    float pixelOffset = VColor.w * 0.0001; // Adjust this value as needed
-
-                    // 8-directional sampling for outline detection
                     for (int x = -1; x <= 1; x++) {
                         for (int y = -1; y <= 1; y++) {
                             if (x == 0 && y == 0) continue;
@@ -566,12 +602,27 @@ if (int(onoff) == 1) {
         #endif
     ]])
     
+    
     -- Initialize shader uniforms
-    characterAnimator.shader:send("NormalTex", love.graphics.newImage("gfx/3d/steve/normals/walkNormal16Column.png"))
+    local normalMapTexture = love.graphics.newImage("gfx/3d/steve/normals/walk.png")
+    characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
     
+    -- Calculate sprite size in normal map UV space
+    -- If normal map is 2048×128 (16 columns, 1 row), each sprite is 128×128
+    local normalMapWidth = normalMapTexture:getWidth()
+    local normalMapHeight = normalMapTexture:getHeight()
+    local spriteSizeU = 128.0 / normalMapWidth  -- 128/2048 = 0.0625
+    local spriteSizeV = 128.0 / normalMapHeight -- 128/128 = 1.0
+    characterAnimator.shader:send("normalMapSpriteSize", {spriteSizeU, spriteSizeV})
+    characterAnimator.shader:send("steveColumns", 8)
+    
+    characterAnimator.shader:send("steveAtlasUVBounds", {0, 0, 0, 0})
+    characterAnimator.shader:send("steveFrameOffset", 0)
+    characterAnimator.shader:send("steveTotalFrames", 200)
+    
     -- UV bounds will be set after metadata is loaded
-    characterAnimator.shader:send("steveWalkUVBounds", {0, 0, 0, 0})
+    -- characterAnimator.shader:send("steveWalkUVBounds", {0, 0, 0, 0})
     
     -- below shader is for fully lit sprites so no need for shadow/light info
     characterAnimator.shaderWithTransforms = love.graphics.newShader([[
@@ -666,8 +717,8 @@ if (int(onoff) == 0) {
 end
 
 -- Add this helper function to calculate and set Steve's UV bounds
+-- Updated function to set Steve's UV bounds correctly
 function characterAnimator.setSteveWalkUVBounds(metadata)
-    -- Steve walk is sprite index 25
     local steveWalkIndex = 25
     local offset = frameOffsets[steveWalkIndex]
     local spriteType = spriteTypes[steveWalkIndex]
@@ -677,13 +728,11 @@ function characterAnimator.setSteveWalkUVBounds(metadata)
         return
     end
     
-    -- Calculate the UV bounds for all frames of Steve's walk animation
+    -- Calculate atlas UV bounds for all Steve frames
     local minU, minV = 1, 1
     local maxU, maxV = 0, 0
     
-    local totalFrames = spriteType.totalFrames
-    
-    for frameIdx = 0, totalFrames - 1 do
+    for frameIdx = 0, spriteType.totalFrames - 1 do
         local globalIndex = offset + frameIdx
         local location = spriteLocationMap[globalIndex]
         
@@ -695,10 +744,12 @@ function characterAnimator.setSteveWalkUVBounds(metadata)
         end
     end
     
-    print(string.format("Steve walk UV bounds: minU=%.4f, minV=%.4f, maxU=%.4f, maxV=%.4f", 
+    print(string.format("Steve atlas UV bounds: minU=%.4f, minV=%.4f, maxU=%.4f, maxV=%.4f", 
                         minU, minV, maxU, maxV))
     
-    characterAnimator.shader:send("steveWalkUVBounds", {minU, minV, maxU, maxV})
+    characterAnimator.shader:send("steveAtlasUVBounds", {minU, minV, maxU, maxV})
+    characterAnimator.shader:send("steveFrameOffset", offset)
+    characterAnimator.shader:send("steveTotalFrames", spriteType.totalFrames)
 end
 
 -- Fast loading function that uses ONLY metadata
@@ -788,12 +839,15 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
 
         -- Randomly assign character types
+        
+        
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         
         -- local randomCharType = characterTypes[1]
-        instance.setCharacterType(randomCharType)
+        -- print(characterTypes["steve"])
+        -- instance.setCharacterType(randomCharType)
         -- instance.setCharacterType("mech")
-
+        instance.setCharacterType("steve")
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
             -- local stateData = spriteTypes[instance.currentSpriteIndex]
@@ -807,7 +861,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     princess = instances[1]
     -- table.remove(instances, 1)
-    -- princess.setCharacterType("princess")
+    princess.setCharacterType("princess")
 
     return instances
 end
@@ -870,8 +924,9 @@ local function getUV(instance)
 
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
+    -- print(frameOffsets[2])
     local directions = 8
-    local globalIndex = 5 + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    local globalIndex = frameOffsets[instance.currentSpriteIndex] + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
 
     local location = spriteLocationMap[globalIndex]
     if location then
@@ -1012,6 +1067,7 @@ function characterAnimator.update(dt)
     if characterAnimator.frameTime > 1 / 24 then
         for i, instance in ipairs(instances) do
             instance.update(dt)
+            -- characterAnimator.shader:send("time",fire.t)
         end
         characterAnimator.frameTime = 0
     end

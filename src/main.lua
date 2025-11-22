@@ -168,8 +168,8 @@ function love.load()
     --     { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 }, 128, 128,
     --     "atlas3.png", "atlas_metadata3.lua")
     -- local mt = characterAnimator.createAndSaveAtlas({"gfx/3d/steve/walk lowres.png"}, {8},128, 128, "steveTest.png", "steveTestMetadata.lua")
-    gun_enemies = characterAnimator.loadFromAtlas("gfx/3d/steve/normals/steveTest.png", "gfx/3d/steve/normals/steveTestMetadata.lua")
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
+    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/3d/steve/normals/steveTest.png", "gfx/3d/steve/normals/steveTestMetadata.lua")
+    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
     -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png", "gfx/atlas/atlas_metadata3.lua")
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
