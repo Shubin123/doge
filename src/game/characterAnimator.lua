@@ -66,9 +66,9 @@ local function calculateFrameOffsetsFromMetadata(metadata)
             if framesCount % 8 == 0 and framesCount >= 8 then
                 directions = 8
                 framesPerDirection = framesCount / 8
-                elseif framesCount % 4 == 0 and framesCount >= 4 then
-                    directions = 4
-                    framesPerDirection = framesCount / 4
+                -- elseif framesCount % 4 == 0 and framesCount >= 4 then
+                --     directions = 4
+                --     framesPerDirection = framesCount / 4
             else
                 directions = 1
                 framesPerDirection = framesCount
@@ -343,8 +343,8 @@ local function createInstance()
         if not instance.currentSpriteIndex then
             return
         end
-        -- local stateData = spriteTypes[instance.currentSpriteIndex]
-        instance.currentDirection = math.max(1, direction)
+        local stateData = spriteTypes[instance.currentSpriteIndex]
+        instance.currentDirection = math.max(1, math.min(direction, stateData.directions))
     end
 
     -- Set character type and initialize with default animation
@@ -371,7 +371,7 @@ local function createInstance()
         local spriteIndex = charDef.animations[animationName]
 
         if not spriteIndex then
-            print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
+            -- print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
             return false
         end
 
@@ -567,6 +567,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
 
             totalLight = clamp(totalLight, 0.0, 1.0);
             vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
+            //vec3 litColor = mix(vec3(0.0), vec3(1.0), totalLight);
             
             vec4 finalColor = vec4(litColor, texColor.a);
 
@@ -839,19 +840,15 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
 
         -- Randomly assign character types
-        
-        
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
-        
         -- local randomCharType = characterTypes[1]
-        -- print(characterTypes["steve"])
         instance.setCharacterType(randomCharType)
-        -- instance.setCharacterType("mech")
-        -- instance.setCharacterType("steve")
+        -- instance.setCharacterType("house")
+
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
-            -- local stateData = spriteTypes[instance.currentSpriteIndex]
-            instance.currentDirection = love.math.random(1, 8)
+            local stateData = spriteTypes[instance.currentSpriteIndex]
+            instance.currentDirection = love.math.random(1, stateData.directions)
         end
 
         instance.color = {1, 1, 1, 0}
@@ -924,8 +921,7 @@ local function getUV(instance)
 
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
-    -- print(offset)
-    local directions = 8
+    local directions = spriteType.directions
     local globalIndex = offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
 
     local location = spriteLocationMap[globalIndex]
@@ -943,7 +939,7 @@ function characterAnimator.populate()
     local activeInstanceCount = 0
 
     for i, instance in ipairs(instances) do
-        if instance.currentSpriteIndex  then
+        if instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex] then
             activeInstanceCount = activeInstanceCount + 1
             sortedIndices[activeInstanceCount] = i
         else
@@ -1067,7 +1063,6 @@ function characterAnimator.update(dt)
     if characterAnimator.frameTime > 1 / 24 then
         for i, instance in ipairs(instances) do
             instance.update(dt)
-            -- characterAnimator.shader:send("time",fire.t)
         end
         characterAnimator.frameTime = 0
     end
