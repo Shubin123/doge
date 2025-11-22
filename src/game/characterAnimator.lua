@@ -605,7 +605,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     
     -- Initialize shader uniforms
-    local normalMapTexture = love.graphics.newImage("gfx/3d/steve/normals/walk.png")
+    local normalMapTexture = love.graphics.newImage("gfx/3d/steve/normals/walk.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
     
