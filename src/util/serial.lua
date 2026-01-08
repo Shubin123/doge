@@ -224,7 +224,8 @@ function serial.saveToFile(filename)
         return false, "Failed to open file for writing"
     end
 
-    f:write(compressed_data:getString()) -- 3x smaller than raw json even on small data
+    -- f:write(compressed_data:getString()) -- 3x smaller than raw json even on small data
+    f:write(json_string) -- 3x smaller than raw json even on small data
     f:close()
 
     return true, "Game saved successfully"
@@ -267,12 +268,13 @@ function serial.loadFromFile(filename)
 
     -- Decompress and decode JSON
     -- print(compressed_data)
-    local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
-    if not success then
-        return false, "Failed to decompress save file"
-    end
+    -- local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
+    -- if not success then
+    --     return false, "Failed to decompress save file"
+    -- end
     
-    local success, game_state = pcall(json.decode, decompressed_data)
+    -- local success, game_state = pcall(json.decode, decompressed_data)
+    local success, game_state = pcall(json.decode, compressed_data)
     if not success then
         return false, "Failed to parse save file"
     end

@@ -419,6 +419,7 @@ function characterAnimator.load()
         // Normal map uniforms
         uniform Image NormalTex;
         uniform bool useNormalMap;
+        uniform bool showTexture;
         
         // Steve's atlas bounds and frame info
         uniform vec4 steveAtlasUVBounds;  // minU, minV, maxU, maxV in main atlas
@@ -566,8 +567,13 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             }
 
             totalLight = clamp(totalLight, 0.0, 1.0);
-            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
-            //vec3 litColor = mix(vec3(0.0), vec3(1.0), totalLight);
+            vec3 litColor;
+            if (showTexture){
+                litColor = mix(vec3(0.0), texColor.rgb, totalLight);
+
+            } else {
+                litColor = mix(vec3(0.0), vec3(1.0), totalLight);
+            }
             
             vec4 finalColor = vec4(litColor, texColor.a);
 
@@ -608,6 +614,8 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     local normalMapTexture = love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
+    characterAnimator.shader:send("showTexture", true)
+    characterAnimator.shader:send("NormalTex", love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow"))
 
     
     -- Calculate sprite size in normal map UV space
@@ -843,8 +851,8 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         -- Randomly assign character types
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
-        -- instance.setCharacterType(randomCharType)
-        instance.setCharacterType("princess")
+        instance.setCharacterType(randomCharType)
+        -- instance.setCharacterType("princess")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
