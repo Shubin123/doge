@@ -616,7 +616,7 @@ function renderer.populateDynamicDrawList()
     -- Local player from physics
     local px, py = player.body:getX(), player.body:getY()
     local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
-    1
+        1
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
     addPortal(290, 150, 315)
 
@@ -625,7 +625,7 @@ function renderer.populateDynamicDrawList()
     --     addLightEffect(blueNeon,-camera.pos.x, -camera.pos.y, 100, 3, 10000, { 0.1, 0.46, 1, 1 }, "player_neon")
     -- end
 
-    
+
     addCoinsFromBodies()
 
 
@@ -753,9 +753,9 @@ local function renderDrawType(drawable)
         end
     elseif d.draw_type == "explosion" then
         love.graphics.draw(d.image, d.quad, d.x, d.y, 0, d.scale_x, d.scale_y, d.offset_x, d.offset_y)
-    -- elseif d.draw_type == "shockwave" then
+        -- elseif d.draw_type == "shockwave" then
         -- local current_shader = love.graphics.getShader()
-        
+
         -- love.graphics.setShader(d.shader)
         -- d.shader:send("center", { d.x, d.y })
         -- d.shader:send("radius", d.radius)
@@ -828,9 +828,8 @@ function renderer.renderSortedDrawList()
             -- Reset shader
             -- love.graphics.setShader()
             love.graphics.setShader(current_shader)
-
         elseif drawable.source_object_type == "fire_effect" then -- naturally lit objects dont have shadow!
-        -- since we only want to do this for fire effect it needs to go first
+            -- since we only want to do this for fire effect it needs to go first
             love.graphics.setShader()
             love.graphics.draw(
                 drawable.image_or_particles,
@@ -880,14 +879,14 @@ function renderer.renderSortedDrawList()
         elseif drawable.source_object_type == "bullet_tracer" then
             -- love.graphics.push()
             -- love.graphics.reset()
-            -- pixelNeon(function()
-            -- love.graphics.setCanvas(scene_canvas)
-                -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x*camera.zoom + camera.pos.x, drawable.y*camera.zoom + camera.pos.y, 100)
-                bullet.drawSingleTracer(drawable.bullet_data, drawable.x,drawable.y,drawable.distance)
-                
+            -- bulletNeon(function()
+            -- -- love.graphics.setCanvas(scene_canvas)
+            --     -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x*camera.zoom + camera.pos.x, drawable.y*camera.zoom + camera.pos.y, 100)
+                -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x,drawable.y,drawable.distance)
+            --     love.graphics.circle("fill", drawable.x + camera.pos.x ,drawable.y + camera.pos.y , 10)
+
             -- end)
             -- love.graphics.pop()
-            
         elseif drawable.source_object_type == "networked_bullet_tracer" then
             bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
         elseif drawable.source_object_type == "blood_drop" then
@@ -987,7 +986,7 @@ function renderer.renderSortedDrawList()
             end
         elseif drawable.draw_type == "light" then
             -- love.graphics.setShader()
-            
+
             light.renderLights(drawable)
             love.graphics.setShader(current_shader)
             -- elseif drawable.light_shader then
@@ -996,8 +995,7 @@ function renderer.renderSortedDrawList()
             --     renderShader(drawable)
             -- elseif drawable.image_or_particles then
             --     renderImage(drawable)
-        elseif drawable.image_or_particles then      --default draw
-        
+        elseif drawable.image_or_particles then --default draw
             if drawable.quad then
                 love.graphics.draw(
                     drawable.image_or_particles,
@@ -1026,7 +1024,7 @@ function renderer.renderSortedDrawList()
             teslaCoil.renderPixelLine(drawable)
         elseif drawable.draw_type == "bezierArrow" then
             arrows.renderArrows()
-        -- elseif drawable.source_object_type == "character_animator" then
+            -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))
             -- love.graphics.drawInstanced(drawable.mesh, 100000)
@@ -1042,6 +1040,15 @@ function renderer.renderSortedDrawList()
     end
 
 
+    love.graphics.push()
+    love.graphics.reset()
+    yellowNeon(function()
+        -- love.graphics.setCanvas(scene_canvas)
+        -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x*camera.zoom + camera.pos.x, drawable.y*camera.zoom + camera.pos.y, 100)
+        -- bullet.drawSingleTracer(drawable.bullet_data, drawable.x,drawable.y,drawable.distance)
+        love.graphics.draw(bulletBatch)
+    end)
+    love.graphics.pop()
 
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])

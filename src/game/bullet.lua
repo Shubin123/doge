@@ -44,6 +44,25 @@ function bullet.load(world)
     -- Create canvas for muzzle flash rendering
     local width, height = love.graphics.getDimensions()
     bullet.muzzleFlashCanvas = love.graphics.newCanvas(width, height)
+
+
+    -- bullet canvas initialzation
+
+    local size = 64
+    local bulletCanvas = love.graphics.newCanvas(size, size)
+    
+    -- Draw a circle to the canvas
+    love.graphics.setCanvas(bulletCanvas)
+    love.graphics.clear(0, 0, 0, 0)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.circle("fill", size/2, size/2, size/2 - 2)
+    love.graphics.setCanvas()
+    
+    -- Create spritebatch with the circle texture
+    local circleImage = love.graphics.newImage(bulletCanvas:newImageData())
+    bulletBatch = love.graphics.newSpriteBatch(circleImage, 10000)
+
+
 end
 
 -- Factory: create a new bullet (with pooling)
@@ -259,6 +278,9 @@ function bullet.populate()
             color = {1, 1, 1, 1},
             blend_mode = {"alpha"}
         })
+
+        bulletBatch:add(x*camera.zoom + camera.pos.x, y*camera.zoom + camera.pos.y, 0.2*camera.zoom,0.2*camera.zoom, 0.2*camera.zoom,0.2*camera.zoom)
+        -- bulletBatch:add(x,y, 0.5,0.5, 0.5,0.5)
     end
 end
 

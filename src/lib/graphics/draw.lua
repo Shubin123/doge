@@ -7,6 +7,7 @@ function draw.mydraw()
     --     blur.enable()
     --     --     return
     -- end
+        bulletBatch:clear()
 
 
     if var.graphics_high then
@@ -45,7 +46,7 @@ function draw.mydraw()
     else
         renderer.populateDynamicDrawList()
     end
-    
+
     bullet.populate()
     explosion.populate()
     rocket.populate()

@@ -22,9 +22,11 @@ function light.load()
   yellowNeon.godsray.light_x = 0.5 -- number
   yellowNeon.godsray.light_y = 0.5 -- number
   yellowNeon.godsray.samples = 30  -- this does nothing now since hardbaked since opengl es3 with js build
+  yellowNeon.godsray.invert = true  -- this does nothing now since hardbaked since opengl es3 with js build
   yellowNeon.glow.min_luma = 20
   yellowNeon.glow.strength = 1
   yellowNeon.fastgaussianblur.taps = 9
+
 
   whiteNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
   .godsray)
@@ -51,6 +53,20 @@ function light.load()
   pixelNeon.glow.min_luma = 10
   pixelNeon.glow.strength = 10
   pixelNeon.fastgaussianblur.taps = 9
+  -- pixelNeon.pixelate.feedback = 10
+
+  bulletNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur)
+  -- bulletNeon.godsray.exposure = 10  --number between 0 and 1
+  -- bulletNeon.godsray.decay = 0.8   -- number between 0 and 1
+  -- bulletNeon.godsray.density = 0.5   -- number between 0 and 1
+  -- bulletNeon.godsray.weight = 0.1  -- number between 0 and 1
+  -- bulletNeon.godsray.light_x = 0.1 -- number
+  -- bulletNeon.godsray.light_y = 0.1 -- number
+  -- bulletNeon.godsray.samples = 1  -- this does nothing now since hardbaked since opengl es3 with js build
+  bulletNeon.glow.min_luma = 10
+  bulletNeon.glow.strength = 10
+  bulletNeon.fastgaussianblur.taps = 9
+
 
 
   pixelate = moonshine(moonshine.effects.pixelate)

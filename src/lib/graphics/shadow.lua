@@ -1,7 +1,7 @@
 -- the intensity of a indivual light CAN be negative (weird) but no light can have negative range else all other direct lights break!!!
 local shadow = {}
 local lights = {}
-MAX_LIGHTS = 5
+MAX_LIGHTS = 1000
 function shadow.addLight(x, y, intensity, range)
     if #lights >= MAX_LIGHTS then
         return false
@@ -114,6 +114,7 @@ function shadow.updateBothShaders(dt)
         lights[2].range = (math.cos(fire.t) + 1) * 100
         lights[3].x, lights[3].y = player.body:getX() + gun.currentVel.x*100, player.body:getY() + gun.currentVel.y*100
 
+        
         -- local positions = {}
         -- local positionsWithCamera = {}
         -- local intensities = {}
@@ -126,12 +127,23 @@ function shadow.updateBothShaders(dt)
             -- positionsWithCamera[i] = {light.x*camera.zoom + camera.x, light.y*camera.zoom + camera.y}
             -- intensities[i] = light.intensity
             -- ranges[i] = light.range
-            if i > 4 then
+            if 4 < i and i < 500 then
                 light.x = light.x + math.sin(fire.t + i)
                 light.y = light.y + math.cos(fire.t + i)
                 -- light.intensity = light.intensity + math.abs(math.sin(fire.t + i))
                 light.range = (math.cos(fire.t + i) + 1) * 100
             end
+
+            if 500 < i then
+                -- print(bullet.instances[math.abs(501 - i)])
+                   if bullet.instances[math.abs(501 - i)] then
+                    local x, y = bullet.instances[math.abs(501 - i)].body:getPosition()
+                    -- print(x,y)
+                    light.x = x
+                    light.y = y
+                   end
+            end
+
             local halfW = var.screen_width / 2 + 100
             local halfH = var.screen_height / 2 + 100
             local playerX,playerY = player.body:getPosition()

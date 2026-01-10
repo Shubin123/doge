@@ -134,7 +134,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
 
     //Apply bloom if enabled
     MY_HIGHP_OR_MEDIUMP vec4 col = vec4(0.0);
-    MY_HIGHP_OR_MEDIUMP float bloom = 0.0;
+    MY_HIGHP_OR_MEDIUMP float bloom = 1.0;
 
     if (bloom_fac > 0.00001 && crt_intensity > 0.000001){
         bloom = 0.03*(max(0., (crt_intensity)/(0.16*0.3)));
