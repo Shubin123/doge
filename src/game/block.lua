@@ -60,7 +60,7 @@ function block:getSpriteForHeading(vx, vy, maxFrames, angleOffset, mod, invert)
     
     local normalizedAngle = (angle % (2 * math.pi) + 2 * math.pi) % (2 * math.pi)
     local degrees = math.deg(normalizedAngle) + 1
-    local adjustedDegrees = (degrees + (angleOffset or 155)) % (mod or 400)
+    local adjustedDegrees = (degrees + (angleOffset or 155)) % (80)
     local spriteFrame = math.floor(adjustedDegrees) + 1
     
     -- Ensure frame is within bounds

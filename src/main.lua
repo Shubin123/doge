@@ -150,10 +150,10 @@ function love.load()
 
 
     -- local metadata = characterAnimator.createAndSaveAtlas(
-    --     { "gfx/3d/sdr2/gun.png", "gfx/3d/sdr2/lauchergun.png",
-    --         "gfx/3d/sdr2/portalGun.png", "gfx/3d/sdr2/car copy.png",
-    --         "gfx/3d/sdr2/bike copy.png", "gfx/3d/sdr2/apple_2.png",
-    --         "gfx/3d/sdr2/commodore64.png",            
+    --     { "gfx/3d/gun.png", "gfx/3d/lauchergun.png",
+    --         "gfx/3d/portalGun.png", "gfx/vehicles/car.png",
+    --         "gfx/vehicles/bike.png", "gfx/3d/apple_2.png",
+    --         "gfx/3d/commodore64.png",            
     --         "gfx/TileSet/tree1.png", "gfx/TileSet/arch.png",
     --         "gfx/TileSet/coin128.png", "gfx/TileSet/house128.png",
     --         "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
@@ -166,10 +166,11 @@ function love.load()
     --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
     --         "gfx/3d/mech/shoot_lowres.png" },
     --     { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 }, 128, 128,
-    --     "atlas3.png", "atlas_metadata3.lua")
+    --     "atlas.png", "atlas_metadatad.lua")
     -- local mt = characterAnimator.createAndSaveAtlas({"gfx/3d/steve/walk lowres.png"}, {8},128, 128, "steveTest.png", "steveTestMetadata.lua")
     -- gun_enemies = characterAnimator.loadFromAtlas("gfx/3d/steve/normals/steveTest.png", "gfx/3d/steve/normals/steveTestMetadata.lua")
-    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
+    gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata.lua", true)
+    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas2.png", "gfx/atlas/atlas_metadatad.lua")
     -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png", "gfx/atlas/atlas_metadata3.lua")
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)

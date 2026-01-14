@@ -804,7 +804,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     -- Define character types after loading sprite data
     defineCharacterTypes(metadata)
 
-    print("Loaded " .. metadata.totalSprites .. " sprites from atlas")
+    -- print("Loaded " .. metadata.totalSprites .. " sprites from atlas")
 
     local size = metadata.uniformWidth / 2
     local vertices = {{-size, -size, 0, 0}, {size, -size, 1, 0}, {size, size, 1, 1}, {-size, size, 0, 1}}
