@@ -407,7 +407,7 @@ end
 function characterAnimator.load()
     -- Universal shader that works on both desktop and web
    characterAnimator.shader = love.graphics.newShader([[
-        #define MAX_LIGHTS 500
+        #define MAX_LIGHTS 1000
 
         uniform int numLights;
         uniform vec4 lights[MAX_LIGHTS];
@@ -611,11 +611,12 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     
     -- Initialize shader uniforms
-    local normalMapTexture = love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow")
+    local normalMapTexture = love.graphics.newImage("gfx/3d/table/normals/resized_table_side_normal.png")
+    -- local normalMapTexture = love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
     characterAnimator.shader:send("showTexture", true)
-    characterAnimator.shader:send("NormalTex", love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow"))
+    -- characterAnimator.shader:send("NormalTex", love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow"))
 
     
     -- Calculate sprite size in normal map UV space
@@ -728,8 +729,8 @@ end
 
 -- Add this helper function to calculate and set Steve's UV bounds
 -- Updated function to set Steve's UV bounds correctly
-function characterAnimator.setSteveWalkUVBounds(metadata)
-    local steveWalkIndex = 19
+function characterAnimator.setSteveWalkUVBounds()
+    local steveWalkIndex = 31
     local offset = frameOffsets[steveWalkIndex]
     local spriteType = spriteTypes[steveWalkIndex]
     
@@ -788,7 +789,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     local instances = characterAnimator.instancesFromTexture(texture, metadata)
     
     -- Set Steve's UV bounds after everything is loaded
-    characterAnimator.setSteveWalkUVBounds(metadata)
+    characterAnimator.setSteveWalkUVBounds()
     
     return instances
 end
@@ -852,7 +853,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
         instance.setCharacterType(randomCharType)
-        -- instance.setCharacterType("princess")
+        instance.setCharacterType("table")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then
