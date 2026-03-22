@@ -246,7 +246,7 @@ function Gun:drawBarrel()
         -- GunTool.lastAimDirection.x = self.lastAimDirection.x
         -- GunTool.lastAimDirection.y = self.lastAimDirection.y
         -- Adjust angle offset to align with aiming direction, compensating for the negated x-component in getSpriteForHeading
-        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 160, 60, 60)
+        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 180, 60, 60)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
     end
 

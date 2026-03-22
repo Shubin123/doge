@@ -65,7 +65,7 @@ function Enemy:initBehaviourTree()
                     run = function(task, enemy)
                         if enemy.t - enemy.last_fire_time >= enemy.fire_cooldown + math.random() then
                             
-                            local a = gun_enemies[enemy.fixture:getUserData() + 2]
+                            -- local a = gun_enemies[enemy.fixture:getUserData() + 2]
                             -- a.setAnimation("shoot")
 
                             enemy:fireAtPlayer()
@@ -77,34 +77,34 @@ function Enemy:initBehaviourTree()
                     end
                 }),
                 BehaviourTree.Task:new({
-                    name = "move_toward_player",
-                    run = function(task, enemy)
-                        local ex, ey = enemy.body:getPosition()
-                        local dx = enemy.target.dx
-                        local dy = enemy.target.dy
-                        local distance = enemy.target.distance
-                        local ideal_distance = 100
+                    -- name = "move_toward_player",
+                    -- run = function(task, enemy)
+                    --     local ex, ey = enemy.body:getPosition()
+                    --     local dx = enemy.target.dx
+                    --     local dy = enemy.target.dy
+                    --     local distance = enemy.target.distance
+                    --     local ideal_distance = 100
 
-                        local a = gun_enemies[enemy.fixture:getUserData() + 2]
+                    --     local a = gun_enemies[enemy.fixture:getUserData() + 2]
                             
 
-                        if distance > ideal_distance + 50 then
-                            local move_force = 500 * math.random(1, 5)
-                            enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
-                            a.setAnimation("walk")
-                        elseif distance < ideal_distance - 50 then
-                            local move_force = 200 * math.random(1, 5)
-                            enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
-                            -- a.setAnimation("run")
+                    --     if distance > ideal_distance + 50 then
+                    --         local move_force = 500 * math.random(1, 5)
+                    --         enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
+                    --         a.setAnimation("walk")
+                    --     elseif distance < ideal_distance - 50 then
+                    --         local move_force = 200 * math.random(1, 5)
+                    --         enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
+                    --         -- a.setAnimation("run")
 
-                        elseif distance < 10 then
-                            local move_force = 2000 * math.random(1, 5)
-                            enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
-                            -- a.setAnimation("punch")
+                    --     elseif distance < 10 then
+                    --         local move_force = 2000 * math.random(1, 5)
+                    --         enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
+                    --         -- a.setAnimation("punch")
 
-                        end
-                        task:success()
-                    end
+                    --     end
+                    --     task:success()
+                    -- end
                 })
             }
         })
@@ -244,7 +244,7 @@ function Enemy:damageEnemy(damage)
     if self.health <= 0 then
         if self.fixture then
             -- print(self.fixture:getUserData())
-            gun_enemies[self.fixture:getUserData() + 2].on = false
+            gun_enemies[self.fixture:getUserData() + 1].on = false
             -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
             self:killEnemy()
         end
@@ -608,7 +608,7 @@ function enemy.populate()
                 -- Ensure we don't go out of bounds
                 if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
                     -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
-                    local enemyInstance = gun_enemies[enemy_index + 2]
+                    local enemyInstance = gun_enemies[enemy_index + 1]
                     if enemyInstance then
                         enemyInstance.active = true
                         enemyInstance.x, enemyInstance.y = e.body:getPosition()

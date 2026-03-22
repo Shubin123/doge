@@ -730,7 +730,7 @@ end
 -- Add this helper function to calculate and set Steve's UV bounds
 -- Updated function to set Steve's UV bounds correctly
 function characterAnimator.setSteveWalkUVBounds()
-    local steveWalkIndex = 31
+    local steveWalkIndex = 31 -- IMPORTANT THIS OFFSETS NORMAL MAP FOR ONE INDIVIDUAL TEXTURE OF THE ATLAS TODO: MAKE IT SO THIS IS AN ARRAY OF UV OFFSETS FOR NORMAL TEXTURE TO ALBEDO ATLAS (NOT ALL THINGS IN ATLAS WILL HAVE NORMAL MAP SOME ASSETS ARE 2D TO BEGIN WITH)
     local offset = frameOffsets[steveWalkIndex]
     local spriteType = spriteTypes[steveWalkIndex]
     
@@ -853,7 +853,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
         local randomCharType = characterTypes[math.random(1, #characterTypes)]
         -- local randomCharType = characterTypes[1]
         instance.setCharacterType(randomCharType)
-        instance.setCharacterType("table")
+        -- instance.setCharacterType("table")
 
         -- Randomly choose direction if the character supports multiple directions
         if instance.currentSpriteIndex then

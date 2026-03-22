@@ -1,11 +1,35 @@
 -- block.lua - A superclass for game objects with 360-degree sprite rotation and physics collision
 local block = {}
 block.__index = block
+local block_counter = 0 -- for offsets in instances array
 
 -- Constructor for a new block instance
+-- function block.new(spriteSheetPath, frameWidth, frameHeight, duration, numFrames, scale, world, x, y)
+--     local self = setmetatable({}, block)
+--     self.spriteSheet = love.graphics.newImage(spriteSheetPath)
+--     self.scale = scale or 1
+--     self.width, self.height = self.spriteSheet:getDimensions()
+--     self.animation = self:newAnimation(frameWidth, frameHeight, duration or 1, numFrames)
+--     self.inUse = false
+--     -- Physics setup
+--     if world then
+--         self.body = love.physics.newBody(world, x or 0, y or 0, "dynamic")
+--         self.shape = love.physics.newRectangleShape(frameWidth * self.scale * 0.5, frameHeight * self.scale * 0.5)
+--         self.fixture = love.physics.newFixture(self.body, self.shape)
+--         self.fixture:setGroupIndex(-2) -- Default group to avoid initial collisions
+--     end
+--     return self
+-- end
+
 function block.new(spriteSheetPath, frameWidth, frameHeight, duration, numFrames, scale, world, x, y)
     local self = setmetatable({}, block)
     self.spriteSheet = love.graphics.newImage(spriteSheetPath)
+    local spriteName = spriteSheetPath:match("([^/]+)%.png$")
+    print(static_instances)
+    block_counter = block_counter + 1
+    self.id = block_counter
+    static_instances[self.id].setCharacterType(spriteName)
+
     self.scale = scale or 1
     self.width, self.height = self.spriteSheet:getDimensions()
     self.animation = self:newAnimation(frameWidth, frameHeight, duration or 1, numFrames)
@@ -17,6 +41,7 @@ function block.new(spriteSheetPath, frameWidth, frameHeight, duration, numFrames
         self.fixture = love.physics.newFixture(self.body, self.shape)
         self.fixture:setGroupIndex(-2) -- Default group to avoid initial collisions
     end
+
     return self
 end
 
@@ -100,6 +125,9 @@ function block:addToDrawList(drawList, x, y, vx, vy, sortYOffset, offsetX, offse
         blend_mode = { "alpha" },
         source_object_type = "block"
     })
+
+
+    static_instances[self.id].x,static_instances[self.id].y = x,y
 end
 
 -- Function to update physics properties
