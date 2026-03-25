@@ -3,6 +3,8 @@ shader = {}
 -- shader.distance = 0.1
 -- shader.sample = 40
 shader.radiance = 0
+shader.useGlassGI = false  -- Toggle glass-aware GI (refraction/fresnel)
+shader.ior = 1.5           -- Glass index of refraction (1.0 = no bend, ~1.5 = glass, ~2.4 = diamond)
 
 function shader.load()
     -- Calculate GI resolution based on performance target
@@ -131,6 +133,113 @@ function shader.load()
     }
 ]])
 
+    -- Glass-aware GI shader variant
+    -- Detects glass surfaces via alpha in [0.15, 0.40], refracts rays, tints light
+    glass_gi_shader = love.graphics.newShader([[
+    //#pragma language glsl3
+    
+    #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
+        #define MY_HIGHP_OR_MEDIUMP highp
+    #else
+        #define MY_HIGHP_OR_MEDIUMP mediump
+    #endif
+    
+    uniform sampler2D surfaceTexture;
+    const MY_HIGHP_OR_MEDIUMP number PI = 3.14159265359;
+    
+    extern MY_HIGHP_OR_MEDIUMP number baseRadiance;
+    extern MY_HIGHP_OR_MEDIUMP number ior;
+    
+    const MY_HIGHP_OR_MEDIUMP number GLASS_ALPHA_MIN = 0.15;
+    const MY_HIGHP_OR_MEDIUMP number GLASS_ALPHA_MAX = 0.40;
+    
+    MY_HIGHP_OR_MEDIUMP number rand(vec2 co) {
+      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+    
+    bool isGlass(vec4 p) {
+        return p.a >= GLASS_ALPHA_MIN && p.a <= GLASS_ALPHA_MAX;
+    }
+    
+    vec2 getNormal(Image dfTex, vec2 tc) {
+        vec2 ts = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
+        float dL = Texel(dfTex, tc - vec2(ts.x, 0.0)).r;
+        float dR = Texel(dfTex, tc + vec2(ts.x, 0.0)).r;
+        float dU = Texel(dfTex, tc - vec2(0.0, ts.y)).r;
+        float dD = Texel(dfTex, tc + vec2(0.0, ts.y)).r;
+        vec2 g = vec2(dR - dL, dD - dU);
+        float l = length(g);
+        return l > 0.001 ? g / l : vec2(0.0, 1.0);
+    }
+    
+    vec2 refract2D(vec2 inc, vec2 n, float eta) {
+        float cosI = -dot(inc, n);
+        if (cosI < 0.0) { n = -n; cosI = -cosI; }
+        float sinT2 = eta * eta * (1.0 - cosI * cosI);
+        if (sinT2 > 1.0) return inc - 2.0 * dot(inc, n) * n;
+        float cosT = sqrt(1.0 - sinT2);
+        return eta * inc + (eta * cosI - cosT) * n;
+    }
+    
+    float fresnel(float cosT, float n1, float n2) {
+        float r0 = (n1 - n2) / (n1 + n2);
+        r0 = r0 * r0;
+        return r0 + (1.0 - r0) * pow(1.0 - cosT, 5.0);
+    }
+    
+    vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+        MY_HIGHP_OR_MEDIUMP number oneOverRays = 1.0 / 30.0;
+        MY_HIGHP_OR_MEDIUMP number tauOverRays = 2.0 * PI * oneOverRays;
+        vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
+        vec2 ratio = normalize(oneOverSize);
+        MY_HIGHP_OR_MEDIUMP number minStepSize = min(oneOverSize.x, oneOverSize.y) * 0.1;
+        vec3 radiance = vec3(baseRadiance);
+        MY_HIGHP_OR_MEDIUMP number noise = rand(tc);
+        
+        MY_HIGHP_OR_MEDIUMP number stepMultiplier = 1.0 + distance(tc, vec2(0.5)) * 0.3;
+        
+        for(MY_HIGHP_OR_MEDIUMP number i = 0.0; i < 30.0; i += 1.0) {
+            MY_HIGHP_OR_MEDIUMP number angle = (0.5 + i + noise) * tauOverRays;
+            vec2 rayDir = vec2(cos(angle), sin(angle));
+            vec2 pos = tc;
+            vec3 tint = vec3(1.0);
+            int bounces = 2;
+            MY_HIGHP_OR_MEDIUMP number totalDist = 0.0;
+            
+            for (MY_HIGHP_OR_MEDIUMP number step = 0.0; step < 8.0; step += 1.0) {
+              MY_HIGHP_OR_MEDIUMP number df = Texel(tex, pos).r;
+              pos += rayDir * df * ratio * stepMultiplier;
+              totalDist += df;
+              
+              if (pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0) break;
+              
+              if (df <= minStepSize) {
+                vec4 hit = Texel(surfaceTexture, pos);
+                
+                // Glass: refract and continue
+                if (isGlass(hit) && bounces > 0) {
+                    bounces--;
+                    vec2 n = getNormal(tex, pos);
+                    float cosT = abs(dot(rayDir, n));
+                    float refl = fresnel(cosT, 1.0, ior);
+                    vec3 gc = pow(hit.rgb, vec3(2.2));
+                    tint *= mix(gc, vec3(1.0), 0.3);
+                    radiance += gc * (1.0 - smoothstep(0.0, 8.0, totalDist)) * refl * 0.4;
+                    rayDir = normalize(refract2D(rayDir, n, 1.0 / ior));
+                    pos += rayDir * minStepSize * 5.0 * ratio;
+                    continue;
+                }
+                
+                // Opaque hit
+                radiance.rgb += pow(hit.rgb, vec3(2.2)) * tint;
+                break;
+              }
+            }
+        }
+        return vec4(pow(radiance * oneOverRays, vec3(1.0 / 2.2)), 1.0);
+    }
+    ]])
+
     -- Upscale shader for final composite
     upscale_shader = love.graphics.newShader([[
         //#pragma language glsl3
@@ -168,9 +277,16 @@ function shader.pass()
     love.graphics.setShader(seed_shader)
     love.graphics.draw(scene_canvas, 0, 0, 0, shader.gi_scale, shader.gi_scale)
     
-    gi_shader:send("surfaceTexture", scene_canvas)
-    -- gi_shader:send("sampleCount", shader.sample)
-    gi_shader:send("baseRadiance", shader.radiance)
+    -- Select GI shader based on glass toggle
+    local active_gi = shader.useGlassGI and glass_gi_shader or gi_shader
+    
+    active_gi:send("surfaceTexture", scene_canvas)
+    active_gi:send("baseRadiance", shader.radiance)
+    
+    -- Send glass-specific uniforms when using glass GI
+    if shader.useGlassGI then
+        active_gi:send("ior", shader.ior)
+    end
     
     -- JFA passes at GI resolution
     local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))  + 20
@@ -188,8 +304,8 @@ function shader.pass()
     -- Distance field pass at GI resolution
     render(jfa_canvas1, df_shader, df_canvas)
     
-    -- Global illumination pass at GI resolution
-    render(df_canvas, gi_shader, gi_canvas)
+    -- Global illumination pass at GI resolution (standard or glass-aware)
+    render(df_canvas, active_gi, gi_canvas)
     
     -- Final composite: upscale GI and blend with scene
     love.graphics.setCanvas()
