@@ -294,7 +294,6 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- teslaCoil.update(dt)
 
 
-    -- love.audio.update()
     -- t = t + dt
     -- if t > 0.5 then
     -- print(dt)
@@ -303,6 +302,10 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- end
 
     player.update(dt)
+
+    -- Spatial audio: keep the listener on the player, reap finished voices.
+    audio.setListener(player.getPosition())
+    audio.update(dt)
 
     -- Update player interpolation for smooth multiplayer movement
     if var.multiplayer then

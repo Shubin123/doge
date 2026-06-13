@@ -114,12 +114,13 @@ function collision.init()
                     end
                     var.player_score = var.player_score + coinValue
                     var.num_coins = var.num_coins - 1
+                    local coinX, coinY = coinBody:getPosition()
                     table.remove(coin_bods, i)
                     coinBody:destroy()
                     if fire and fire.addFireball then
                         fire.addFireball()
                     end
-                    audio.playSound("coin", 0.1)
+                    audio.playSoundAt("coin", coinX, coinY, 0.1)
                     break
                 end
             end
@@ -307,7 +308,7 @@ function collision.init()
             local rocketBody = fixtureA:getBody()
             local x, y = rocketBody:getPosition()
 
-            audio.playSound("explosion", 0.1, 0.5)
+            audio.playSoundAt("explosion", x, y, 0.1, 0.5)
             explosion.create(x, y, explosion.TYPES.ROCKET)
             if enemies_bods then
                 local splash_enemies = {}
@@ -507,7 +508,7 @@ function collision.init()
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and not userData.destroyed then
-            audio.playSound("explosion", 0.1, 0.5)
+            audio.playSoundAt("explosion", x, y, 0.1, 0.5)
             explosion.create(x, y, explosion.TYPES.ROCKET)
 
             userData.destroyed = true
