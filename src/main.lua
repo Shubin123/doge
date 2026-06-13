@@ -465,6 +465,7 @@ function love.keypressed(key)
             -- gun_enemy.setState(1)
 
             -- player.body:applyForce(1000,0)
+            -- hit.markHit("player", 1.0, 50) -- Strong distortion for 0.5 seconds
         else
             camera.setZoom(1)
 
