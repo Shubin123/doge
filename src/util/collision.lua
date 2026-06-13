@@ -5,13 +5,12 @@ local collision = {}
 collision.groups = {
     player = -1,
     projectile = -2,
-    enemy = 777,
+    enemy = -777, -- negative: enemies don't collide with each other
     enemyProjectile = 778,
     coin = 69,
     map = 4,
     rocket = -3,
     -- houseTrigger = -4, -- cant check leaving the collider =(
-    -- Add other groups as needed
 }
 
 -- Table to store collision response functions

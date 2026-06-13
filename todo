@@ -1,8 +1,8 @@
 add statics and obstacles (indoor?)
 add player unlocks
-use enemy animations
-serialization on windows not working
-grouped collision for instances,
+[done] use enemy animations
+[done] serialization on windows not working
+[done] grouped collision for instances,
 indoor lighting (block everything outside)
 auto arrows, auto bullets, melee attack, melee grab, auto melee
-change shockwave shader run after instance drawn
+[done] change shockwave shader run after instance drawn

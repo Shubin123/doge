@@ -218,8 +218,8 @@ function serial.saveToFile(filename)
     local json_string = json.encode(game_state)
     local compressed_data = love.data.compress("data", "zlib", json_string, 9)
 
-    -- Write to file
-    local f = io.open(filename, "w")
+    -- Write to file (binary mode required on Windows to prevent newline translation)
+    local f = io.open(filename, "wb")
     if not f then
         return false, "Failed to open file for writing"
     end
@@ -233,17 +233,14 @@ end
 function serial.saveToFileUncompressed(filename)
     local game_state = serial.create()
 
-    -- Convert to JSON and compress
     local json_string = json.encode(game_state)
-    -- local compressed_data = love.data.compress("string", "zlib", json_string, 9)
 
-    -- Write to file
     local f = io.open(filename, "w")
     if not f then
         return false, "Failed to open file for writing"
     end
 
-    f:write(json_string) -- 3x smaller than raw json even on small data
+    f:write(json_string)
     f:close()
 
     return true, "Game saved successfully"
@@ -252,7 +249,7 @@ end
 -- Load game state from file
 function serial.loadFromFile(filename)
     -- Check if file exists by trying to open it
-    local f = io.open(filename, "r")
+    local f = io.open(filename, "rb") -- binary mode required on Windows
     if not f then
         return false, "Save file not found"
     end
@@ -283,50 +280,29 @@ function serial.loadFromFile(filename)
     return apply_success, apply_message
 end
 
--- Get list of available save files
+-- Get list of available save files (cross-platform using love.filesystem)
 function serial.getSaveFiles()
     local save_files = {}
-    
-    -- Use io.popen to list files in current directory
-    local handle = io.popen("ls *.sav 2>/dev/null") -- Unix/Linux/Mac
-    -- For Windows, use: local handle = io.popen("dir *.sav /b 2>nul")
-    
-    if handle then
-        for filename in handle:lines() do
-            -- Get file attributes using io.open and file:seek
-            local f = io.open(filename, "r")
-            if f then
-                local size = f:seek("end")
-                f:close()
-                
-                -- Get modification time using os.execute and stat (Unix/Linux/Mac)
-                local stat_handle = io.popen("stat -c %Y " .. filename .. " 2>/dev/null")
-                -- For Windows, use: local stat_handle = io.popen("forfiles /m " .. filename .. " /c \"cmd /c echo @fdate @ftime\"")
-                
-                local modtime = 0
-                if stat_handle then
-                    local time_str = stat_handle:read("*line")
-                    if time_str then
-                        modtime = tonumber(time_str) or 0
-                    end
-                    stat_handle:close()
-                end
-                
+
+    -- love.filesystem.getDirectoryItems lists files in the save directory
+    local items = love.filesystem.getDirectoryItems("")
+    for _, filename in ipairs(items) do
+        if filename:match("%.sav$") then
+            local info = love.filesystem.getInfo(filename)
+            if info then
                 table.insert(save_files, {
                     filename = filename,
-                    size = size,
-                    modified = modtime
+                    size = info.size or 0,
+                    modified = info.modtime or 0
                 })
             end
         end
-        handle:close()
     end
-    
-    -- Sort by modification time (newest first)
+
     table.sort(save_files, function(a, b)
         return a.modified > b.modified
     end)
-    
+
     return save_files
 end
 

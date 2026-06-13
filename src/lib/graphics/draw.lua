@@ -94,8 +94,8 @@ function draw.mydraw()
 
     if var.graphics_high then
         light.draw()
+        explosion.applyShockwave() -- distort scene_canvas before GI processes it
         shader.pass()
-        explosion.pass()
         -- smoke.pass()
         water.pass()
         crtShader.endCapture()

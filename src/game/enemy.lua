@@ -4,10 +4,9 @@ Enemy.__index = Enemy
 function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed, index)
     local self = setmetatable({}, Enemy)
     self.body = love.physics.newBody(world, x, y, "dynamic")
-    -- love.physics.newFixture(self.body, love.physics.newCircleShape(20)):setDensity(2.0):setGroupIndex(777)
 
     self.fixture = love.physics.newFixture(self.body, love.physics.newCircleShape(20))
-    self.fixture:setGroupIndex(777)
+    self.fixture:setGroupIndex(-777) -- negative = enemies never collide with each other
     self.fixture:setDensity(2.0)
     self.fixture:setUserData(index)
     -- self.body:resetMassData()
@@ -64,10 +63,11 @@ function Enemy:initBehaviourTree()
                     name = "fire_at_player",
                     run = function(task, enemy)
                         if enemy.t - enemy.last_fire_time >= enemy.fire_cooldown + math.random() then
-                            
                             local a = gun_enemies[enemy.fixture:getUserData() + 2]
-                            -- a.setAnimation("shoot")
-
+                            if a then
+                                a.setAnimation("shoot")
+                                enemy.shootAnimTimer = 0.5
+                            end
                             enemy:fireAtPlayer()
                             enemy.last_fire_time = enemy.t
                             task:success()
@@ -86,22 +86,22 @@ function Enemy:initBehaviourTree()
                         local ideal_distance = 100
 
                         local a = gun_enemies[enemy.fixture:getUserData() + 2]
-                            
 
                         if distance > ideal_distance + 50 then
                             local move_force = 500 * math.random(1, 5)
                             enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
-                            a.setAnimation("walk")
+                            if a and not (enemy.shootAnimTimer and enemy.shootAnimTimer > 0) then
+                                a.setAnimation("walk")
+                            end
                         elseif distance < ideal_distance - 50 then
                             local move_force = 200 * math.random(1, 5)
                             enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
-                            -- a.setAnimation("run")
-
+                            if a and not (enemy.shootAnimTimer and enemy.shootAnimTimer > 0) then
+                                a.setAnimation("run")
+                            end
                         elseif distance < 10 then
                             local move_force = 2000 * math.random(1, 5)
                             enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
-                            -- a.setAnimation("punch")
-
                         end
                         task:success()
                     end
@@ -261,6 +261,9 @@ end
 function Enemy:update(dt)
     if self.dead then return end
     self.t = self.t + dt
+    if self.shootAnimTimer then
+        self.shootAnimTimer = math.max(0, self.shootAnimTimer - dt)
+    end
     self.btree:run()
     self:updateProjectiles(dt)
     if self.target then

@@ -151,31 +151,62 @@ function explosion.populate()
     end
 end
 
--- Apply shockwave distortion pass (call this after scene is rendered to canvas, like water.pass())
+-- Apply shockwave distortion into scene_canvas using a temp canvas (avoids read/write hazard).
+-- Call this BEFORE shader.pass() so the GI pass processes the distorted scene.
+function explosion.applyShockwave()
+    local shockwave_shader = explosion.SHADERS["shockwave"]
+    if not shockwave_shader then return end
+
+    for _, e in ipairs(explosion.explosions) do
+        if not e.completed and e.currentTime <= e.shockwaveDuration then
+            -- Lazily create (or recreate on resize) the intermediate canvas
+            if not explosion.temp_canvas or
+               explosion.temp_canvas:getWidth() ~= W or
+               explosion.temp_canvas:getHeight() ~= H then
+                explosion.temp_canvas = love.graphics.newCanvas(W, H, {format = "rgba4"})
+            end
+
+            local screen_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
+            shockwave_shader:send("time", explosion.current_time)
+            shockwave_shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
+            shockwave_shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
+            shockwave_shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
+            shockwave_shader:send("distortionStrength", 0.5)
+
+            -- Render distorted version of scene_canvas into temp_canvas
+            love.graphics.setCanvas(explosion.temp_canvas)
+            love.graphics.clear(0, 0, 0, 0)
+            love.graphics.setShader(shockwave_shader)
+            love.graphics.draw(scene_canvas)
+            love.graphics.setShader()
+
+            -- Write distorted result back into scene_canvas
+            love.graphics.setCanvas(scene_canvas)
+            love.graphics.clear(0, 0, 0, 0)
+            love.graphics.draw(explosion.temp_canvas)
+
+            break -- only apply one explosion per frame
+        end
+    end
+
+    love.graphics.setCanvas(scene_canvas)
+end
+
+-- Legacy pass kept for low-graphics mode (draws scene_canvas to screen with shockwave overlay)
 function explosion.pass()
     local shader = explosion.SHADERS["shockwave"]
     if shader then
-        -- Find active explosions and apply their distortion
         for _, e in ipairs(explosion.explosions) do
             if not e.completed and e.currentTime <= e.shockwaveDuration then
-                -- Convert world space explosion position to screen space by applying camera offset
-                local screen_explosion_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
-                
-                -- Set shader parameters for this explosion (using screen coordinates)
+                local screen_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
                 shader:send("time", explosion.current_time)
-                shader:send("explosionCenter", {screen_explosion_pos.x, screen_explosion_pos.y})
+                shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
                 shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
                 shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
                 shader:send("distortionStrength", 0.5)
-                
-                -- Apply the distortion effect
-        
-
                 love.graphics.setShader(shader)
                 love.graphics.draw(scene_canvas)
-                
-                
-                -- Only apply one explosion at a time to avoid conflicts
+                love.graphics.setShader()
                 break
             end
         end
