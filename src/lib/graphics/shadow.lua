@@ -1,187 +1,231 @@
--- the intensity of a indivual light CAN be negative (weird) but no light can have negative range else all other direct lights break!!!
-local shadow = {}
+--[[============================================================================
+  Lighting subsystem
+  (historically `shadow.lua`; kept at this path / global name `shadow` so existing
+   call sites keep working — the module is a deferred-shaded point-light system,
+   not an occlusion/shadow system. True occlusion is handled by the JFA global
+   illumination pass in `shader.lua`.)
+
+  Responsibilities
+  ----------------
+    1. LightSet ........ an encapsulated, capacity-bounded pool of point lights.
+    2. Object shader ... screen-space forward lighting for ordinary (non-instanced)
+                         sprite/map draws.
+    3. Frame upload .... per frame, cull lights to the view, then push them to the
+                         object shader (screen space) and to the instanced
+                         character shader (world space).
+
+  Coordinate spaces — the bug this rewrite fixes
+  ----------------------------------------------
+    `camera.apply()` does  scale(zoom) ; translate(camera.{x,y}/zoom)
+    so a world point maps to the screen as:
+
+        screen = world * zoom + camera.{x,y}
+
+    Ordinary draws (map, sorted sprites) have NO per-object model matrix exposed
+    to their shader, so the old code's `pos` varying (derived from an *unbound*
+    `InstancePosition` attribute) was meaningless — lighting was computed in local
+    quad space and never matched the lights. We instead light those draws in screen
+    space using the built-in `screen_coords`, and upload lights pre-transformed to
+    screen space (position AND range scaled by zoom, so falloff matches the world).
+
+    The instanced character shader (`characterAnimator.shader`) reconstructs a real
+    world position from its instance matrix, so it is fed lights in world space.
+    Both spaces use the identical attenuation model, so everything stays consistent.
+============================================================================]]--
+
+local lighting = {}
+
+--==========================================================================--
+-- Configuration
+--==========================================================================--
+
+-- Hard cap on simultaneous lights. Must not exceed the array size declared in
+-- the shaders (object shader below + characterAnimator's `lights[MAX_LIGHTS]`).
+lighting.MAX_LIGHTS = 64
+
+-- Ambient floor: unlit / indoor areas are dimmed to this, never pure black.
+lighting.ambient = 0.20
+
+-- Default key light that follows the player so the play area is always lit.
+lighting.PLAYER_LIGHT_RANGE     = 450
+lighting.PLAYER_LIGHT_INTENSITY = 1.0
+
+--==========================================================================--
+-- LightSet — encapsulated light pool
+--
+-- A light is { x, y, intensity, range }. `intensity` may be negative (a
+-- "dark" light) but `range` must be > 0 or the light is ignored (a zero range
+-- previously produced divide-by-zero NaNs -> black speckles).
+--==========================================================================--
+
 local lights = {}
-MAX_LIGHTS = 5
-function shadow.addLight(x, y, intensity, range)
-    if #lights >= MAX_LIGHTS then
-        return false
-    end
 
-    table.insert(lights, {
-        x = x or 0,
-        y = y or 0,
+--- Add a light. Returns its index, or nil if the pool is full.
+function lighting.addLight(x, y, intensity, range)
+    if #lights >= lighting.MAX_LIGHTS then
+        return nil
+    end
+    lights[#lights + 1] = {
+        x         = x or 0,
+        y         = y or 0,
         intensity = intensity or 1.0,
-        range = range or 200
-    })
-    return true
+        range     = range or 200,
+    }
+    return #lights
 end
 
-function shadow.removeLight(index)
-    if index > 0 and index <= #lights then
+function lighting.removeLight(index)
+    if index and index > 0 and index <= #lights then
         table.remove(lights, index)
-
     end
 end
 
-function shadow.updateLight(index, x, y, intensity, range)
-    if index > 0 and index <= #lights then
-        local light = lights[index]
-        light.x = x or light.x
-        light.y = y or light.y
-        light.intensity = intensity or light.intensity
-        light.range = range or light.range
-    end
+function lighting.updateLight(index, x, y, intensity, range)
+    local l = lights[index]
+    if not l then return end
+    l.x         = x         or l.x
+    l.y         = y         or l.y
+    l.intensity = intensity or l.intensity
+    l.range     = range     or l.range
 end
 
-function shadow.clearLights()
+function lighting.clearLights()
     lights = {}
 end
 
+function lighting.count()
+    return #lights
+end
+
+--==========================================================================--
+-- Shaders
+--==========================================================================--
+
+-- The one true forward-lighting model, shared (in spirit) with the character
+-- shader. Lights and the fragment are expressed in the SAME space by the caller
+-- (screen space here), so the math is space-agnostic.
+local OBJECT_SHADER_SRC = [[
+    #define MAX_LIGHTS 64
+
+    uniform int   numLights;
+    uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
+    uniform float u_ambient;          // ambient floor; <= 0 falls back to 0.20
+
+    vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
+        vec4 texColor = Texel(tex, tc);
+
+        float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
+
+        float totalLight = 0.0;
+        for (int i = 0; i < MAX_LIGHTS; i++) {
+            if (i >= numLights) break;               // honour the live count
+
+            float range = lights[i].w;
+            if (range <= 0.0) continue;              // skip empty / zero-range slots
+
+            float dist = distance(lights[i].xy, screen_coords);
+            if (dist >= range) continue;             // outside this light's reach
+
+            float att = 1.0 - dist / range;          // smooth quadratic falloff
+            att *= att;
+            totalLight += att * lights[i].z;
+        }
+
+        // Saturate toward full albedo when well lit; bottom out at the ambient floor.
+        float lit = min(1.0, ambient + totalLight);
+        return vec4(texColor.rgb * lit * color.rgb, texColor.a * color.a);
+    }
+]]
+
 local objectShader
-local objectShaderWithCamera
 
-function shadow.load()
-    -- Create the same shader code twice
-    local shaderCode = [[
-        #define MAX_LIGHTS 350
-        uniform int numLights;
-        //uniform vec2 lightPositions[MAX_LIGHTS];
-        //uniform float lightIntensities[MAX_LIGHTS];
-        //uniform float lightRanges[MAX_LIGHTS];
-        uniform vec4 lights[MAX_LIGHTS]; //posx[0],posy[1],intensity[2],range[3]
-        varying vec2 pos;
+function lighting.load()
+    objectShader = love.graphics.newShader(OBJECT_SHADER_SRC)
+    lighting.clearLights()
+    lighting.setupDefaultLights()
+end
 
-        #ifdef VERTEX
-        attribute vec2 InstancePosition;
-        vec4 position(mat4 transform_projection, vec4 vertex_position) {
-            //pos = vertex_position.xy;
-            //return transform_projection * vertex_position;
-            vec4 instancedPosition = vertex_position + vec4(InstancePosition.xy, 0.0, 0.0);
-            pos = instancedPosition.xy;
-            return transform_projection * instancedPosition;
-        }
-        #endif
+--- Seed the scene with the default key light (index 1) that tracks the player.
+function lighting.setupDefaultLights()
+    lighting.addLight(0, 0, lighting.PLAYER_LIGHT_INTENSITY, lighting.PLAYER_LIGHT_RANGE)
+end
 
-        #ifdef PIXEL
-        vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
-            vec4 texColor = Texel(texture, texture_coords);
-            float totalLight = 0.0;
+--- Returns the forward-lighting shader for ordinary draws.
+-- `useCamera` is retained for call-site compatibility; both the map pass and the
+-- sprite pass now light in screen space, so a single shader serves both.
+function lighting.getShader(useCamera)
+    return objectShader
+end
 
-            for (int i = 0; i < MAX_LIGHTS; i++) {
-                if (i == numLights) { //cmp uniform this way
-                break;
-                }
+--==========================================================================--
+-- Per-frame upload
+--==========================================================================--
 
+-- Reused scratch tables so the hot path allocates nothing per frame.
+local screenLights = {}
+local worldLights  = {}
 
-                float distance = length(vec2(lights[i][0],lights[i][1]) - pos);
-                if (distance > lights[i][3]) continue; // skip if out of range
+--- Cull lights to the visible region, build the screen- and world-space arrays,
+--- and upload them to the object shader and the instanced character shader.
+function lighting.update(dt)
+    -- Keep the key light locked to the player; dimmed to nothing while indoors
+    -- (indoor illumination is provided by the neon/god-ray pass in light.lua).
+    if lights[1] and player and player.body then
+        lights[1].x, lights[1].y = player.body:getPosition()
+        lights[1].intensity = var.indoors and 0 or lighting.PLAYER_LIGHT_INTENSITY
+    end
 
-                float attenuation = 1.0 - clamp(distance / lights[i][3], 0.0, 1.0);
-                totalLight += attenuation * lights[i][2];
-            }
+    local zoom = camera.zoom
+    local camX, camY = camera.x, camera.y
 
-            totalLight = clamp(totalLight, 0.0, 1.0);
-            vec3 finalColor = mix(vec3(0.0), texColor.rgb, totalLight);
+    -- View bounds in world space (padded), centred on the player.
+    local halfW = var.screen_width  / 2 + 100
+    local halfH = var.screen_height / 2 + 100
+    local viewX, viewY = 0, 0
+    if player and player.body then
+        viewX, viewY = player.body:getPosition()
+    end
 
-            return vec4(finalColor * color.rgb, texColor.a * color.a);
-        }
-        #endif
-    ]]
+    local n = 0
+    for i = 1, #lights do
+        local l = lights[i]
+        if l.range > 0 and not (
+                l.x + l.range < viewX - halfW or
+                l.x - l.range > viewX + halfW or
+                l.y + l.range < viewY - halfH or
+                l.y - l.range > viewY + halfH) then
+            n = n + 1
+            -- World space for the instanced character shader.
+            worldLights[n]  = { l.x, l.y, l.intensity, l.range }
+            -- Screen space for ordinary draws: position AND range scaled by zoom
+            -- so on-screen falloff matches the world falloff at any zoom.
+            screenLights[n] = { l.x * zoom + camX, l.y * zoom + camY, l.intensity, l.range * zoom }
+        end
+    end
+    -- Drop stale trailing entries from previous, busier frames.
+    for i = #screenLights, n + 1, -1 do
+        screenLights[i] = nil
+        worldLights[i]  = nil
+    end
 
-    objectShader = love.graphics.newShader(shaderCode)
-    objectShaderWithCamera = love.graphics.newShader(shaderCode)
+    -- Object shader (screen space). Always set the count; only unpack a non-empty
+    -- array (unpack of an empty table errors). count == 0 -> ambient-only fallback.
+    objectShader:send("numLights", n)
+    objectShader:send("u_ambient", lighting.ambient)
+    if n > 0 then
+        objectShader:send("lights", unpack(screenLights))
+    end
 
-    -- Initialize lights
-    shadow.addLight(love.mouse.getX(), love.mouse.getY(), 1.0, 200)
-    shadow.addLight(100, 200, 1.0, 50)
-    shadow.addLight(player.body:getX(), player.body:getY(), 1.0, 300)
-
-    for i = 1, 100 do
-        for j = 1, 10 do
-            --     -- print("wow")
-            -- shadow.addLight(math.random(150,300), math.random(100,300),  1, math.random(10,50))
-            shadow.addLight(100 * i, 200 * j, 1.0, 500)
+    -- Instanced character shader (world space).
+    if characterAnimator and characterAnimator.shader then
+        characterAnimator.shader:send("numLights", n)
+        if n > 0 then
+            characterAnimator.shader:send("lights", unpack(worldLights))
         end
     end
 end
 
-function shadow.updateBothShaders(dt)
-    -- Update mouse light
-    if #lights > 0 then
-        -- lights[1].x = love.mouse.getX()
-        -- lights[1].y = love.mouse.getY()
-        lights[2].x = math.sin(fire.t) * 100
-        lights[2].range = (math.cos(fire.t) + 1) * 100
-        lights[3].x, lights[3].y = player.body:getX() + gun.currentVel.x*100, player.body:getY() + gun.currentVel.y*100
+-- Legacy alias: main.lua calls shadow.updateBothShaders(dt).
+lighting.updateBothShaders = lighting.update
 
-        -- local positions = {}
-        -- local positionsWithCamera = {}
-        -- local intensities = {}
-        -- local ranges = {}
-        local lightData = {}
-        local lightDataCam = {}
-        local numLights = 1
-        for i, light in ipairs(lights) do
-            -- positions[i] = {light.x, light.y}
-            -- positionsWithCamera[i] = {light.x*camera.zoom + camera.x, light.y*camera.zoom + camera.y}
-            -- intensities[i] = light.intensity
-            -- ranges[i] = light.range
-            if i > 4 then
-                light.x = light.x + math.sin(fire.t + i)
-                light.y = light.y + math.cos(fire.t + i)
-                -- light.intensity = light.intensity + math.abs(math.sin(fire.t + i))
-                light.range = (math.cos(fire.t + i) + 1) * 100
-            end
-            local halfW = var.screen_width / 2 + 100
-            local halfH = var.screen_height / 2 + 100
-            local playerX,playerY = player.body:getPosition()
-            
-            -- If camera.x/y is center:
-            if not (
-                    light.x + light.range < playerX - halfW or
-                    light.x - light.range > playerX + halfW or
-                    light.y + light.range < playerY - halfH or
-                    light.y - light.range > playerY + halfH)
-            then
-                light.intensity = var.indoors and 0 or 1
-                lightData[numLights] = { light.x, light.y,light.intensity, light.range } 
-                lightDataCam[numLights] = { light.x * camera.zoom + camera.x, light.y * camera.zoom + camera.y, light.intensity, light.range }
-                numLights = numLights + 1
-            else
-                -- print("excluding light",i)
-            end
-        end
-
-
-        -- Update first shader (without camera)
-
-        -- if #lightData > 0 then
-            objectShader:send("numLights", numLights)
-            objectShader:send("lights", unpack(lightData))
-
-            -- objectShader:send("lightPositions", unpack(positions))
-            -- objectShader:send("lightIntensities", unpack(intensities))
-            -- objectShader:send("lightRanges", unpack(ranges))
-
-            -- Update second shader (with camera)
-            objectShaderWithCamera:send("numLights", numLights)
-            objectShaderWithCamera:send("lights", unpack(lightDataCam))
-            -- objectShaderWithCamera:send("lightIntensities", unpack(intensities))
-            -- objectShaderWithCamera:send("lightRanges", unpack(ranges))
-
-            -- characterAnimator (takes into account instanced vertex positions)
-            characterAnimator.shader:send("numLights", numLights)
-            characterAnimator.shader:send("lights", unpack(lightData))
-            -- characterAnimator.shader:send("lightIntensities",unpack(intensities))
-            -- characterAnimator.shader:send("lightRanges",unpack(ranges))
-        -- end
-    end
-
-    
-end
-
-function shadow.getShader(useCamera)
-    return useCamera and objectShaderWithCamera or objectShader
-end
-
-return shadow
+return lighting

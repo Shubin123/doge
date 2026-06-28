@@ -25,50 +25,67 @@ function explosion.load()
     
     -- Create shockwave distortion shader like water.lua
     explosion.SHADERS["shockwave"] = love.graphics.newShader([[
-        
+
         #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
         #define MY_HIGHP_OR_MEDIUMP highp
         #else
         #define MY_HIGHP_OR_MEDIUMP mediump
         #endif
+        #define HP MY_HIGHP_OR_MEDIUMP
 
-        extern MY_HIGHP_OR_MEDIUMP number time;
-        extern MY_HIGHP_OR_MEDIUMP vec2 explosionCenter;
-        extern MY_HIGHP_OR_MEDIUMP number explosionRadius;
-        extern MY_HIGHP_OR_MEDIUMP number maxRadius;
-        extern MY_HIGHP_OR_MEDIUMP number distortionStrength;
-        
+        extern HP number time;
+        extern HP vec2  explosionCenter;   // wavefront origin, screen pixels
+        extern HP number explosionRadius;  // current wavefront radius, screen pixels
+        extern HP number maxRadius;        // radius at which the wave dissipates, screen pixels
+        extern HP number distortionStrength; // peak refraction, in PIXELS (not tex units)
+
+        // A real blast distorts the scene like a thin moving lens: the compressed
+        // air at the front refracts light outward just ahead of the shell and pulls
+        // it back just behind, the energy bleeds off as the shell expands, and the
+        // superheated front glows and splits colour (chromatic refraction). We model
+        // all of that around a narrow gaussian shell instead of a hard if() band.
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Calculate distance from explosion center
-            MY_HIGHP_OR_MEDIUMP number dist = distance(sc, explosionCenter);
-            
-            // Check if we're in the shockwave area
-            MY_HIGHP_OR_MEDIUMP number waveFront = explosionRadius;
-            MY_HIGHP_OR_MEDIUMP number waveThickness = maxRadius * 0.55;
-            
-            if (dist < waveFront + waveThickness && dist > waveFront - waveThickness) {
-                // Calculate distortion based on distance from wave front
-                MY_HIGHP_OR_MEDIUMP number distFromWave = abs(dist - waveFront);
-                MY_HIGHP_OR_MEDIUMP number distortionFactor = 1.0 - (distFromWave / waveThickness);
-                distortionFactor = distortionFactor * distortionFactor; // Square for sharper falloff
-                
-                // Calculate direction from explosion center
-                MY_HIGHP_OR_MEDIUMP vec2 direction = normalize(sc - explosionCenter);
-                
-                // Add some ripple effects
-                MY_HIGHP_OR_MEDIUMP number ripple = sin(dist * 0.1 + time * 5.0) * 0.9;
-                
-                // Apply radial distortion to texture coordinates
-                MY_HIGHP_OR_MEDIUMP vec2 distortedTC = tc + direction * distortionFactor * distortionStrength * (1.0 + ripple);
-                
-                // Sample with distorted coordinates
-                //return Texel(tex, distortedTC) * mix(color, vec4(1,0,0,1),1);
-                return Texel(tex, distortedTC) * color;
-            } else {
-                // Outside shockwave area, return normal texture
-                //return Texel(tex, tc) * mix(color, vec4(1,0,0,1),1);
-                return Texel(tex, tc) * color;
-            }
+            HP vec2  toCenter = sc - explosionCenter;
+            HP number dist = length(toCenter);
+            HP vec2  dir  = dist > 0.001 ? toCenter / dist : vec2(0.0);
+
+            // pixels -> texture coords for THIS canvas
+            HP vec2 texel = 1.0 / love_ScreenSize.xy;
+
+            // Narrow shell centred on the wavefront. Signed, normalised distance.
+            HP number thickness = max(maxRadius * 0.10, 8.0);
+            HP number d = (dist - explosionRadius) / thickness;
+            HP number gauss = exp(-d * d * 2.5);     // bright at the shell, 0 elsewhere
+            HP number lens  = -d * gauss;            // outward push ahead, inward pull behind
+
+            // Energy fades as the shell grows; fade faster late in its life.
+            HP number expand = clamp(explosionRadius / maxRadius, 0.0, 1.0);
+            HP number decay  = (1.0 - expand) * (1.0 - expand);
+
+            // Heat shimmer riding the shell: two detuned waves so it never repeats cleanly.
+            HP number shimmer = sin(dist * 0.35 - time * 18.0)
+                              + sin(dist * 0.17 + time * 11.0);
+
+            HP number amp = distortionStrength * decay
+                          * (lens + 0.12 * gauss * shimmer);
+
+            HP vec2 disp = dir * amp * texel;
+
+            // Chromatic refraction: the lens bends wavelengths by slightly different
+            // amounts, so split the channels along the displacement direction.
+            HP vec2 ca = dir * amp * 0.35 * texel;
+            HP number r = Texel(tex, tc + disp + ca).r;
+            HP number g = Texel(tex, tc + disp).g;
+            vec4     bs = Texel(tex, tc + disp - ca);
+            HP number b = bs.b;
+
+            vec4 outc = vec4(r, g, b, bs.a);
+
+            // Incandescent rim: hot, sharp at the shell, fading with the blast.
+            HP number rim = gauss * decay;
+            outc.rgb += vec3(1.0, 0.55, 0.22) * rim * 0.28;
+
+            return outc * color;
         }
     ]])
     
@@ -78,7 +95,7 @@ function explosion.load()
         explosionCenter = {400, 300},
         explosionRadius = 0,
         maxRadius = 150,
-        distortionStrength = 0.02
+        distortionStrength = 22.0 -- peak refraction in screen pixels
     }
 end
 
@@ -163,7 +180,7 @@ function explosion.applyShockwave()
             if not explosion.temp_canvas or
                explosion.temp_canvas:getWidth() ~= W or
                explosion.temp_canvas:getHeight() ~= H then
-                explosion.temp_canvas = love.graphics.newCanvas(W, H, {format = "rgba4"})
+                explosion.temp_canvas = love.graphics.newCanvas(W, H, {format = "rgba8"})
             end
 
             local screen_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
@@ -171,7 +188,7 @@ function explosion.applyShockwave()
             shockwave_shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
             shockwave_shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
             shockwave_shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
-            shockwave_shader:send("distortionStrength", 0.5)
+            shockwave_shader:send("distortionStrength", 22.0)
 
             -- Render distorted version of scene_canvas into temp_canvas
             love.graphics.setCanvas(explosion.temp_canvas)
@@ -203,7 +220,7 @@ function explosion.pass()
                 shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
                 shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
                 shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
-                shader:send("distortionStrength", 0.5)
+                shader:send("distortionStrength", 22.0)
                 love.graphics.setShader(shader)
                 love.graphics.draw(scene_canvas)
                 love.graphics.setShader()

@@ -268,7 +268,6 @@ function collision.init()
         brightness = 0.2126*r+0.7152*g+0.07722*b
         end
         -- print(sampleScreen.brightness)
-        print(brightness)
         -- local damage_amount = math.random(8, 15)
         -- print(enemyIndex)
         -- enemy.damageEnemy(enemyIndex, sampleScreen.brightness)
@@ -479,7 +478,6 @@ function collision.init()
     -- print(fixtureB.userData())
     -- table.remove(enemy.projectiles, checkDestroy(enemy.projectiles,fixtureA))
     -- print(checkDestroy(enemy.projectiles,fixtureB))
-    print(projectileIndex)
     projectileBody:destroy()
     table.remove(enemy.projectile_bodies, projectileIndex)
     table.remove(enemy.projectiles,projectileIndex)
@@ -491,7 +489,6 @@ function collision.init()
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local hit = { x = nx * 200, y = ny * 200 }
-        print(otherBody)
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
         if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then

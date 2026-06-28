@@ -141,22 +141,29 @@ function Enemy:fireAtPlayer()
 end
 
 function Enemy:updateProjectiles(dt)
+    -- Iterate backwards so table.remove() is safe. The projectiles and
+    -- projectile_bodies arrays are kept index-aligned (both pushed together in
+    -- fireAtPlayer, both removed together here).
     for i = #self.projectiles, 1, -1 do
         local proj = self.projectiles[i]
-        pcall(function()
-        if self.t > proj[5] then
-            if self.projectile_bodies[i] then
-                -- self.projectile_bodies[i]:destroy()
-                -- table.remove(self.projectile_bodies, i)
+        local body = self.projectile_bodies[i]
+        local destroyed = body and body:isDestroyed()
+
+        if self.t > proj[5] or destroyed then
+            -- Expired, or its body was already destroyed by a wall hit. Free the
+            -- body and drop both entries so enemy projectile bodies stop leaking
+            -- into the physics world (the previous code left them alive forever).
+            if body and not destroyed then
+                body:destroy()
             end
             table.remove(self.projectiles, i)
+            table.remove(self.projectile_bodies, i)
         else
             proj[1] = proj[1] + proj[2] * dt
-            if self.projectile_bodies[i] then
-                self.projectile_bodies[i]:setPosition(proj[1].x, proj[1].y)
+            if body then
+                body:setPosition(proj[1].x, proj[1].y)
             end
         end
-        end)
     end
 end
 
@@ -361,12 +368,28 @@ function enemy.update(dt)
 
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
-        e:update(dt)
-        if e.health <= 0 then
-            -- table.remove(enemy.enemies, i)
-            enemy.last_fire_times[i] = nil
-            enemy.health[i] = nil
-            enemy.enemy_damaged[i] = nil
+        if e.dead then
+            -- One-time teardown for a dead enemy. A dead enemy no longer runs
+            -- updateProjectiles, so release its behaviour tree and any in-flight
+            -- projectile bodies here or they leak in the physics world forever.
+            -- (Safe: enemy.update runs after world:update, not inside a contact
+            -- callback.) Note: enemy.enemies is NOT compacted, because the fixture
+            -- userData stores a fixed index into it that damage/gun_enemies rely on.
+            if not e.cleanedUp then
+                e.cleanedUp = true
+                for j = 1, #e.projectile_bodies do
+                    local b = e.projectile_bodies[j]
+                    if b and not b:isDestroyed() then b:destroy() end
+                end
+                e.projectiles = {}
+                e.projectile_bodies = {}
+                e.btree = nil
+                enemy.last_fire_times[i] = nil
+                enemy.health[i] = nil
+                enemy.enemy_damaged[i] = nil
+            end
+        else
+            e:update(dt)
         end
     end
 end
