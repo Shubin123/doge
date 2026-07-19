@@ -94,38 +94,33 @@ function rocket.update(dt)
         local vx, vy = r.dir.x * r.currentSpeed, r.dir.y * r.currentSpeed
         r.body:setLinearVelocity(vx, vy)
 
-        -- add exhaust particles
-        local x, y = r.body:getPosition()
-        local exhaustPos = vec2.new(x, y) - r.dir * (r.radius * 1.5)
-
-        -- add exhaust trail particles
-        for j = 1, math.ceil(r.thrustIntensity * 3) do
-            local spread = (math.random() - 0.5) * 0.3
-            local exhaustDir = vec2.new(
-                -r.dir.x + spread * r.dir.y,
-                -r.dir.y - spread * r.dir.x
-            )
-
-            table.insert(r.exhaustTrail, {
-                pos = vec2.new(exhaustPos.x, exhaustPos.y),
-                vel = exhaustDir * (50 + math.random() * 50),
-                life = 0.3 + math.random() * 0.2,
-                maxLife = 0.5,
-                size = 2 + math.random() * 3
-            })
-        end
-
-        -- update exhaust particles
-        for j = #r.exhaustTrail, 1, -1 do
-            local particle = r.exhaustTrail[j]
-            particle.life = particle.life - dt
-            particle.pos = particle.pos + particle.vel * dt
-            particle.vel = particle.vel * 0.95 -- friction
-
-            if particle.life <= 0 then
-                table.remove(r.exhaustTrail, j)
-            end
-        end
+        -- Exhaust particle simulation disabled (rendering commented out in populate)
+        -- Uncomment below block when exhaust rendering is re-enabled in rocket.populate()
+        -- local x, y = r.body:getPosition()
+        -- local exhaustPos = vec2.new(x, y) - r.dir * (r.radius * 1.5)
+        -- for j = 1, math.ceil(r.thrustIntensity * 3) do
+        --     local spread = (math.random() - 0.5) * 0.3
+        --     local exhaustDir = vec2.new(
+        --         -r.dir.x + spread * r.dir.y,
+        --         -r.dir.y - spread * r.dir.x
+        --     )
+        --     table.insert(r.exhaustTrail, {
+        --         pos = vec2.new(exhaustPos.x, exhaustPos.y),
+        --         vel = exhaustDir * (50 + math.random() * 50),
+        --         life = 0.3 + math.random() * 0.2,
+        --         maxLife = 0.5,
+        --         size = 2 + math.random() * 3
+        --     })
+        -- end
+        -- for j = #r.exhaustTrail, 1, -1 do
+        --     local particle = r.exhaustTrail[j]
+        --     particle.life = particle.life - dt
+        --     particle.pos = particle.pos + particle.vel * dt
+        --     particle.vel = particle.vel * 0.95
+        --     if particle.life <= 0 then
+        --         table.remove(r.exhaustTrail, j)
+        --     end
+        -- end
         -- lifetime check
         if now - r.birthTime > 10 then
             -- rocket.destroyRocket(r, i)

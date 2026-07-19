@@ -50,6 +50,8 @@ cmdn = require("ui.cmndX")      -- improved console - always active
 local lurker = require("util.lurker")
 -- profiler = require("systems.profiler")
 json = require("util.json")
+profiler = require("systems.profiler")
+benchmark = require("util.benchmark")
 
 
 -- Game variables
@@ -107,8 +109,8 @@ function love.load()
     -- Physics setup
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
-    -- print(world:isSleepingAllowed())
-    -- world:setSleepingAllowed(false)
+    -- Allow sleeping for distant bodies (huge perf win at 1000+ bodies)
+    world:setSleepingAllowed(true)
 
 
     -- fence_body = love.physics.newBody(world, 0, 0, "static")
@@ -253,7 +255,9 @@ local frameCounter = 0
 local paused
 
 function love.update(dt) --assume online cannot pause right now. debugger still works
-   
+
+    profiler.frameUpdate(dt)
+
     -- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
 
@@ -348,8 +352,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
      t = t + dt
     frameCounter = frameCounter + 1
     if t >= 1 then
-        -- print(frameCounter / t)
-         love.window.setTitle("fps: ".. frameCounter / t)
+        local fps = frameCounter / t
+        love.window.setTitle(string.format("fps: %.1f | ents: %d | list: %d | mem: %.0fMB",
+            fps, #enemy.enemies, #dynamic_draw_list, collectgarbage("count") / 1024))
         frameCounter = 0
         t = 0
         -- imageData = sampleScreen.canvas:newImageData()
@@ -447,6 +452,21 @@ end
 local zoomToggle = false;
 local zcycle = 0
 function love.keypressed(key)
+    if key == "f1" then
+        profiler.overlay_visible = not profiler.overlay_visible
+        if profiler.overlay_visible then
+            profiler.overlay_detail = (profiler.overlay_detail % 2) + 1
+        end
+    end
+    if key == "f2" then
+        profiler.reset()
+        profiler.overlay_visible = true
+        profiler.overlay_detail = 2
+        print("Benchmark mode: FPS/reset, observe overlay for 5 seconds")
+    end
+    if key == "f3" then
+        profiler.report()
+    end
     if key == "z" then
         if zcycle % 3 == 0 then
             map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/houseInterior.png"), var.tile_w, var.tile_h)

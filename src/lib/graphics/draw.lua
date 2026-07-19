@@ -104,6 +104,8 @@ function draw.mydraw()
     end
     sampleScreen.pass()
 
+    profiler.drawOverlay()
+
     menu.drawUI() -- ui last
     command.draw()  -- Draw console on top
     cmdn.draw()     -- Draw improved console on top

@@ -15,7 +15,7 @@ var.linear_score = 0
 var.player_score = 0
 var.num_coins = 100
 var.coin_bods = {}
-var.num_enemies = 20
+var.num_enemies = 100  -- increase to 500/1000 to stress-test
 var.num_instances = var.num_enemies + 1
 
 var.enemies_bods = {}

@@ -43,7 +43,7 @@ local objectShaderWithCamera
 function shadow.load()
     -- Create the same shader code twice
     local shaderCode = [[
-        #define MAX_LIGHTS 350
+        #define MAX_LIGHTS 32
         uniform int numLights;
         //uniform vec2 lightPositions[MAX_LIGHTS];
         //uniform float lightIntensities[MAX_LIGHTS];
@@ -97,9 +97,7 @@ function shadow.load()
     shadow.addLight(player.body:getX(), player.body:getY(), 1.0, 300)
 
     for i = 1, 100 do
-        for j = 1, 10 do
-            --     -- print("wow")
-            -- shadow.addLight(math.random(150,300), math.random(100,300),  1, math.random(10,50))
+        for j = 1, 2 do
             shadow.addLight(100 * i, 200 * j, 1.0, 500)
         end
     end

@@ -143,20 +143,21 @@ end
 function Enemy:updateProjectiles(dt)
     for i = #self.projectiles, 1, -1 do
         local proj = self.projectiles[i]
-        pcall(function()
+        if not proj then goto continue end
         if self.t > proj[5] then
-            if self.projectile_bodies[i] then
-                -- self.projectile_bodies[i]:destroy()
-                -- table.remove(self.projectile_bodies, i)
+            local pb = self.projectile_bodies[i]
+            if pb and not pb:isDestroyed() then
+                -- body expired, just remove reference
             end
             table.remove(self.projectiles, i)
         else
             proj[1] = proj[1] + proj[2] * dt
-            if self.projectile_bodies[i] then
-                self.projectile_bodies[i]:setPosition(proj[1].x, proj[1].y)
+            local pb = self.projectile_bodies[i]
+            if pb and not pb:isDestroyed() then
+                pb:setPosition(proj[1].x, proj[1].y)
             end
         end
-        end)
+        ::continue::
     end
 end
 
@@ -264,7 +265,19 @@ function Enemy:update(dt)
     if self.shootAnimTimer then
         self.shootAnimTimer = math.max(0, self.shootAnimTimer - dt)
     end
-    self.btree:run()
+    -- Only run behaviour tree if player is within reasonable range
+    if player and player.body then
+        local ex, ey = self.body:getPosition()
+        local px, py = player.body:getPosition()
+        local dx, dy = px - ex, py - ey
+        local dist_sq = dx * dx + dy * dy
+        -- Skip full BT walk if player is very far (>600px); use simple move-toward
+        if dist_sq < 360000 then  -- 600^2
+            self.btree:run()
+        elseif dist_sq < 16000000 then  -- 4000^2, still apply gentle follow
+            self.body:applyForce(dx * 0.5, dy * 0.5)
+        end
+    end
     self:updateProjectiles(dt)
     if self.target then
         local x, y = self.body:getPosition()
@@ -328,7 +341,12 @@ local enemy = {
     enemy_damaged = {},
     last_fire_times = {},
     projectiles = {},
-    projectile_bodies = {}
+    projectile_bodies = {},
+    -- Staggered loading state
+    spawnQueue = {},       -- remaining enemies to spawn
+    spawnBatchSize = 20,   -- spawn N enemies per frame during load (tunable)
+    spawningComplete = false,
+    totalToSpawn = 0,
 }
 
 function enemy.load()
@@ -350,14 +368,40 @@ function enemy.load()
     enemy.particleSystem:setOffset(sprite:getTileSize())
     enemy.particleSystem:setInsertMode('bottom')
 
+    -- Staggered spawn: queue all enemies, spawn a few per frame
+    enemy.spawnQueue = {}
+    enemy.totalToSpawn = var.num_enemies
+    local enemyTypes = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
     for i = 1, var.num_enemies do
-        enemy.addEnemy(math.random(100, var.screen_width), math.random(100, var.screen_height))
+        local x = math.random(100, var.screen_width)
+        local y = math.random(100, var.screen_height)
+        local charType = enemyTypes[((i - 1) % #enemyTypes) + 1]
+        table.insert(enemy.spawnQueue, {x = x, y = y, charType = charType, index = i - 1})
     end
+    enemy.spawningComplete = false
 end
 
 function enemy.update(dt)
     enemy.t = enemy.t + dt
     enemy.particleSystem:update(dt)
+
+    -- Staggered enemy spawning: create a batch per frame to avoid load-time freeze
+    if not enemy.spawningComplete and #enemy.spawnQueue > 0 then
+        local batch = math.min(enemy.spawnBatchSize, #enemy.spawnQueue)
+        for _ = 1, batch do
+            local spawn = table.remove(enemy.spawnQueue)
+            if spawn then
+                enemy.addEnemy(spawn.x, spawn.y)
+                -- Assign character type to the gun_enemies instance
+                if gun_enemies[spawn.index + 2] then
+                    gun_enemies[spawn.index + 2]:setCharacterType(spawn.charType)
+                end
+            end
+        end
+    elseif not enemy.spawningComplete and #enemy.spawnQueue == 0 then
+        enemy.spawningComplete = true
+        print("All " .. enemy.totalToSpawn .. " enemies spawned (staggered)")
+    end
 
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
@@ -601,45 +645,76 @@ function enemy.populate()
         gun_enemies[i].active = false -- Mark as inactive initially
     end
 
+    -- Viewport bounds for culling (camera-relative)
+    if not camera or not camera.pos then
+        -- fallback: skip populate if camera not ready
+        return
+    end
+    local halfW = var.screen_width / camera.zoom / 2 + 100
+    local halfH = var.screen_height / camera.zoom / 2 + 100
+    local camX = -camera.pos.x / camera.zoom
+    local camY = -camera.pos.y / camera.zoom
+    local viewLeft = camX - halfW
+    local viewRight = camX + halfW
+    local viewTop = camY - halfH
+    local viewBottom = camY + halfH
+
+    -- Pre-compute color phase for all enemies (avoids 3 trig calls per enemy)
+    local colorPhase = math.cos(fire.t * 2)
+
     -- Map living enemies to gun_enemies based on their stored index
     for _, e in ipairs(enemy.enemies) do
-        if e.fixture then
-            if e.fixture:getUserData() then
-                local enemy_index = e.fixture:getUserData()
+        if e.fixture and e.fixture:getUserData() then
+            local enemy_index = e.fixture:getUserData()
+            if not enemy_index or enemy_index < 0 or enemy_index >= #gun_enemies then
+                goto continue_enemy
+            end
 
+            local ex, ey = e.body:getPosition()
 
-                -- Ensure we don't go out of bounds
-                if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
-                    -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
-                    local enemyInstance = gun_enemies[enemy_index + 2]
-                    if enemyInstance then
-                        enemyInstance.active = true
-                        enemyInstance.x, enemyInstance.y = e.body:getPosition()
-                        enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-                        enemyInstance.color = { math.cos(fire.t * 2 + _) * channelPreserve[1], math.cos(fire.t * 2 + _) *
-                        channelPreserve[2], math.cos(fire.t * 2 + _) * channelPreserve[3], math.sin(fire.t * 2 + _) }
-                    end
-                end
+            -- Viewport culling: skip enemies outside camera view
+            if ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom then
+                goto continue_enemy
+            end
+
+            -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+            local enemyInstance = gun_enemies[enemy_index + 2]
+            if enemyInstance then
+                enemyInstance.active = true
+                enemyInstance.x, enemyInstance.y = ex, ey
+                enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+                -- Pre-computed color: use enemy_index offset for per-enemy variation
+                local idx_offset = enemy_index * 0.3
+                enemyInstance.color = {
+                    math.cos(colorPhase + idx_offset) * channelPreserve[1],
+                    math.cos(colorPhase + idx_offset) * channelPreserve[2],
+                    math.cos(colorPhase + idx_offset) * channelPreserve[3],
+                    math.sin(colorPhase + idx_offset)
+                }
             end
         end
+        ::continue_enemy::
 
-        -- Handle projectiles (unchanged)
+        -- Projectiles: only populate if within viewport
         for _, proj in ipairs(e.projectiles) do
-            table.insert(dynamic_draw_list, {
-                sort_y = proj[1].y + 140,
-                image_or_particles = enemy.particleSystem,
-                quad = nil,
-                x = proj[1].x,
-                y = proj[1].y,
-                rotation = 0,
-                scale_x = 1,
-                scale_y = 1,
-                offset_x = 0,
-                offset_y = 0,
-                color = { 1, 0.4, 0.2, 1 },
-                blend_mode = { "lighten", "premultiplied" },
-                source_object_type = "fire_effect"
-            })
+            local py = proj[1].y
+            if py >= viewTop - 100 and py <= viewBottom + 100 then
+                table.insert(dynamic_draw_list, {
+                    sort_y = py + 140,
+                    image_or_particles = enemy.particleSystem,
+                    quad = nil,
+                    x = proj[1].x,
+                    y = py,
+                    rotation = 0,
+                    scale_x = 1,
+                    scale_y = 1,
+                    offset_x = 0,
+                    offset_y = 0,
+                    color = { 1, 0.4, 0.2, 1 },
+                    blend_mode = { "lighten", "premultiplied" },
+                    source_object_type = "fire_effect"
+                })
+            end
         end
     end
 end

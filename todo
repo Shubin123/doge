@@ -6,3 +6,13 @@ add player unlocks
 indoor lighting (block everything outside)
 auto arrows, auto bullets, melee attack, melee grab, auto melee
 [done] change shockwave shader run after instance drawn
+[done] profiler rewrite (F1 overlay, F2 benchmark, F3 report)
+[done] benchmark framework + 3 test suites
+[done] pcall removal in enemy projectiles
+[done] canvas:newImageData removal in collision handler
+[done] last_color reference bug fix in renderer
+[done] shadow shader MAX_LIGHTS 350->32
+[done] shockwave early-exit guard
+[done] rocket exhaust sim disabled (not drawn)
+[done] behaviour tree short-circuit when far from player
+[done] console commands: /profile, /benchmark, /spawn
