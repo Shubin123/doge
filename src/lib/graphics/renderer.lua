@@ -769,6 +769,11 @@ end
 
 
 function renderer.renderSortedDrawList()
+    -- Track draw list size for profiler
+    if profiler then
+        profiler.draw_list_size = #dynamic_draw_list
+    end
+
     -- Store current graphics state
     local current_color = { love.graphics.getColor() }
     local current_blend_mode = love.graphics.getBlendMode()
@@ -786,7 +791,8 @@ function renderer.renderSortedDrawList()
         if color[1] ~= last_color[1] or color[2] ~= last_color[2] or
             color[3] ~= last_color[3] or color[4] ~= last_color[4] then
             love.graphics.setColor(color[1], color[2], color[3], color[4])
-            last_color = color
+            last_color[1], last_color[2], last_color[3], last_color[4] =
+                color[1], color[2], color[3], color[4]
         end
 
         -- Set blend mode if different from last (with nil check)

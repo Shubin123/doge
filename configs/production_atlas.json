@@ -1,0 +1,86 @@
+{
+  "_notes": [
+    "This reconstructs the roster the shipping gfx/atlas/atla.dds.zlib was built from (see atlas_metadata3.lua), with two corrections found while rebuilding it through the new one-step pipeline:",
+    "1. Paths under the old gfx/3d/sdr2/ folder were fixed to where those files actually live now (gfx/3d/*.png, gfx/vehicles/car.png, gfx/vehicles/bike.png).",
+    "2. Those 7 single-item turntable sheets (gun, launchergun, portalGun, car, bike, apple_2, commodore64) are all 640px wide today. The old commented-out main.lua call used directions=1 for them, which only reads the leftmost 128px column and would silently produce a garbled 1/5-width atlas. directions=5 is what actually matches: 640/5=128px per column, and rows*5 reproduces the exact frame counts recorded in the shipping atlas_metadata3.lua (455, 460, 450, 460, 460, 455, 455) — strong evidence 5 is correct and 1 was stale/wrong, not a deliberate choice.",
+    "3. Four sources from the old config no longer exist anywhere in the repo (gfx/TileSet/tree1.png, arch.png, coin128.png, house128.png) and are omitted here — their characterDefinitions entries (tree/arch/coin/house) are dropped too. Re-add them once those sprites are re-sourced."
+  ],
+  "uniformWidth": 128,
+  "uniformHeight": 128,
+  "sources": [
+    { "path": "gfx/3d/gun.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/lauchergun.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/portalGun.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/vehicles/car.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/vehicles/bike.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/apple_2.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/commodore64.png", "directions": 5, "frameWidth": 128, "frameHeight": 128 },
+
+    { "path": "gfx/watchmanOfDoom_lowres/walk.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/shoot_pistol.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/death.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/punch.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/cast.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/idle.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/watchmanOfDoom_lowres/jump.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+
+    { "path": "gfx/3d/princess/walk copy.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/princess/run copy.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/princess/shoot copy.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/princess/jump copy.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/princess/roll3.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+
+    { "path": "gfx/3d/animated2.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/steve/walk lowres.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+
+    { "path": "gfx/3d/mech/mech_walklowlowres.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/mech/attack_lowres.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/mech/dying_lowres.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 },
+    { "path": "gfx/3d/mech/shoot_lowres.png", "directions": 8, "frameWidth": 128, "frameHeight": 128 }
+  ],
+  "characterDefinitions": {
+    "watchman": {
+      "animations": {
+        "walk": "gfx/watchmanOfDoom_lowres/walk.png",
+        "shoot": "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
+        "death": "gfx/watchmanOfDoom_lowres/death.png",
+        "punch": "gfx/watchmanOfDoom_lowres/punch.png",
+        "cast": "gfx/watchmanOfDoom_lowres/cast.png",
+        "idle": "gfx/watchmanOfDoom_lowres/idle.png",
+        "jump": "gfx/watchmanOfDoom_lowres/jump.png"
+      },
+      "defaultAnimation": "idle"
+    },
+    "princess": {
+      "animations": {
+        "walk": "gfx/3d/princess/walk copy.png",
+        "run": "gfx/3d/princess/run copy.png",
+        "shoot": "gfx/3d/princess/shoot copy.png",
+        "jump": "gfx/3d/princess/jump copy.png",
+        "roll": "gfx/3d/princess/roll3.png"
+      },
+      "defaultAnimation": "walk"
+    },
+    "steve": {
+      "animations": { "walk": "gfx/3d/steve/walk lowres.png" },
+      "defaultAnimation": "walk"
+    },
+    "mech": {
+      "animations": {
+        "walk": "gfx/3d/mech/mech_walklowlowres.png",
+        "attack": "gfx/3d/mech/attack_lowres.png",
+        "death": "gfx/3d/mech/dying_lowres.png",
+        "shoot": "gfx/3d/mech/shoot_lowres.png"
+      },
+      "defaultAnimation": "walk"
+    },
+    "gun": { "animations": { "default": "gfx/3d/gun.png" }, "defaultAnimation": "default" },
+    "launcher": { "animations": { "default": "gfx/3d/lauchergun.png" }, "defaultAnimation": "default" },
+    "portal_gun": { "animations": { "default": "gfx/3d/portalGun.png" }, "defaultAnimation": "default" },
+    "car": { "animations": { "default": "gfx/vehicles/car.png" }, "defaultAnimation": "default" },
+    "bike": { "animations": { "default": "gfx/vehicles/bike.png" }, "defaultAnimation": "default" },
+    "apple": { "animations": { "default": "gfx/3d/apple_2.png" }, "defaultAnimation": "default" },
+    "commodore64": { "animations": { "default": "gfx/3d/commodore64.png" }, "defaultAnimation": "default" },
+    "animated_special": { "animations": { "default": "gfx/3d/animated2.png" }, "defaultAnimation": "default" }
+  }
+}

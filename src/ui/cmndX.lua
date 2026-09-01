@@ -35,6 +35,7 @@ local showingAutocomplete = false
 local commandIndex = {
     -- Console commands
     "help", "clear", "exit", "reload", "tp", "save", "load", "boss",
+    "profile", "benchmark", "spawn",
     
     -- Lua built-ins
     "print", "type", "pairs", "ipairs", "math", "string", "table", "io", "os", "debug",
@@ -462,6 +463,86 @@ function cmdn.execute(cmd)
             end
         else
             cmdn.addOutput("{red}Error:{/red} Boss module not loaded", errorColor)
+        end
+    elseif string.find(cmd, "profile") then
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        if profiler then
+            if tokens[2] == "report" then
+                profiler.report(tonumber(tokens[3]) or 0)
+            elseif tokens[2] == "reset" then
+                profiler.reset()
+                cmdn.addOutput("Profiler reset", outputColor)
+            elseif tokens[2] == "off" then
+                profiler.disable()
+                cmdn.addOutput("Profiler disabled", outputColor)
+            elseif tokens[2] == "on" then
+                profiler.enable()
+                cmdn.addOutput("Profiler enabled", outputColor)
+            elseif tokens[2] == "export" then
+                local fn = tokens[3] or "profile_export.json"
+                profiler.exportJSON(fn)
+                cmdn.addOutput("Profiler data exported to " .. fn, outputColor)
+            else
+                cmdn.addOutput("Usage: profile report [min_ms] | profile reset | profile on/off | profile export [file]", outputColor)
+            end
+        else
+            cmdn.addOutput("{red}Error:{/red} Profiler not loaded", errorColor)
+        end
+    elseif string.find(cmd, "benchmark") then
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        if profiler then
+            if tokens[2] == "run" then
+                local duration = tonumber(tokens[3]) or 5
+                cmdn.addOutput("Running benchmark for " .. duration .. "s...", outputColor)
+                profiler.reset()
+                profiler.enable()
+                -- Schedule report after duration
+                local start = love.timer.getTime()
+                -- We can't block, so just toggle overlay and let user observe
+                profiler.overlay_visible = true
+                cmdn.addOutput("Watch the overlay for " .. duration .. " seconds (press F1 to hide)", outputColor)
+            elseif tokens[2] == "report" then
+                profiler.report()
+            elseif tokens[2] == "export" then
+                local fn = tokens[3] or "benchmark_export.json"
+                profiler.exportJSON(fn)
+                cmdn.addOutput("Benchmark data exported to " .. fn, outputColor)
+            else
+                cmdn.addOutput("Usage: benchmark run [seconds] | benchmark report | benchmark export [file]", outputColor)
+            end
+        else
+            cmdn.addOutput("{red}Error:{/red} Profiler not loaded", errorColor)
+        end
+    elseif string.find(cmd, "spawn") then
+        local tokens = {}
+        for token in cmd:gmatch("%S+") do
+            table.insert(tokens, token)
+        end
+        if tokens[2] == "enemies" then
+            local count = tonumber(tokens[3]) or 10
+            local old = var.num_enemies
+            var.num_enemies = count
+            -- Despawn existing and re-create
+            for _, e in ipairs(enemy.enemies) do
+                if e.fixture then e:killEnemy() end
+            end
+            enemy.enemies = {}
+            for i = 1, count do
+                enemy.addEnemy(math.random(100, var.screen_width), math.random(100, var.screen_height))
+            end
+            cmdn.addOutput(string.format("Spawned %d enemies (was %d)", count, old), outputColor)
+        elseif tokens[2] == "coins" then
+            local count = tonumber(tokens[3]) or 50
+            var.num_coins = count
+            cmdn.addOutput("Set coin count to " .. count .. " (restart to apply)", outputColor)
+        else
+            cmdn.addOutput("Usage: spawn enemies <count> | spawn coins <count>", outputColor)
         end
     else
         local success, result = pcall(function()

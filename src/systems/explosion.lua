@@ -174,6 +174,18 @@ function explosion.applyShockwave()
     local shockwave_shader = explosion.SHADERS["shockwave"]
     if not shockwave_shader then return end
 
+    -- Fast path: skip if no explosions are active
+    if #explosion.explosions == 0 then return end
+
+    local has_active = false
+    for _, e in ipairs(explosion.explosions) do
+        if not e.completed and e.currentTime <= e.shockwaveDuration then
+            has_active = true
+            break
+        end
+    end
+    if not has_active then return end
+
     for _, e in ipairs(explosion.explosions) do
         if not e.completed and e.currentTime <= e.shockwaveDuration then
             -- Lazily create (or recreate on resize) the intermediate canvas

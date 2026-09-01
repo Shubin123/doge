@@ -50,6 +50,8 @@ cmdn = require("ui.cmndX")      -- improved console - always active
 local lurker = require("util.lurker")
 -- profiler = require("systems.profiler")
 json = require("util.json")
+profiler = require("systems.profiler")
+benchmark = require("util.benchmark")
 
 
 -- Game variables
@@ -107,8 +109,8 @@ function love.load()
     -- Physics setup
     world = love.physics.newWorld(0, 0)
     world:setCallbacks(beginContact, endContact, preSolve, postSolve)
-    -- print(world:isSleepingAllowed())
-    -- world:setSleepingAllowed(false)
+    -- Allow sleeping for distant bodies (huge perf win at 1000+ bodies)
+    world:setSleepingAllowed(true)
 
 
     -- fence_body = love.physics.newBody(world, 0, 0, "static")
@@ -140,37 +142,22 @@ function love.load()
     -- end
     characterAnimator.load()
 
-
-    -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
-
-    -- gun_enemies = characterAnimator.init({"gfx/3d/animated2.png"},128,128)
-
-    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{1,1,1},256,256,nil)
-    -- characterAnimator.createAndSaveAtlas({"gfx/TileSet/tree1.png","gfx/TileSet/arch.png","gfx/TileSet/coin128.png","gfx/TileSet/house128.png"},{1,1,1,1},128,128,"atlas2.png","atlas_metadata2.lua")
-
-
-    -- local metadata = characterAnimator.createAndSaveAtlas(
-    --     { "gfx/3d/sdr2/gun.png", "gfx/3d/sdr2/lauchergun.png",
-    --         "gfx/3d/sdr2/portalGun.png", "gfx/3d/sdr2/car copy.png",
-    --         "gfx/3d/sdr2/bike copy.png", "gfx/3d/sdr2/apple_2.png",
-    --         "gfx/3d/sdr2/commodore64.png",            
-    --         "gfx/TileSet/tree1.png", "gfx/TileSet/arch.png",
-    --         "gfx/TileSet/coin128.png", "gfx/TileSet/house128.png",
-    --         "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
-    --         "gfx/watchmanOfDoom_lowres/death.png", "gfx/watchmanOfDoom_lowres/punch.png",
-    --         "gfx/watchmanOfDoom_lowres/cast.png", "gfx/watchmanOfDoom_lowres/idle.png",
-    --         "gfx/watchmanOfDoom_lowres/jump.png",
-    --         "gfx/3d/princess/walk copy.png", "gfx/3d/princess/run copy.png", "gfx/3d/princess/shoot copy.png",
-    --         "gfx/3d/princess/jump copy.png", "gfx/3d/princess/roll3.png", "gfx/3d/animated2.png",
-    --         "gfx/3d/steve/walk lowres.png",
-    --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
-    --         "gfx/3d/mech/shoot_lowres.png" },
-    --     { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 }, 128, 128,
-    --     "atlas3.png", "atlas_metadata3.lua")
-    -- local mt = characterAnimator.createAndSaveAtlas({"gfx/3d/steve/walk lowres.png"}, {8},128, 128, "steveTest.png", "steveTestMetadata.lua")
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/3d/steve/normals/steveTest.png", "gfx/3d/steve/normals/steveTestMetadata.lua")
+    -- The sprite atlas (gfx/atlas/atla.dds.zlib + atlas_metadata3.lua) is no
+    -- longer built by hand-editing this file, running the game once, then
+    -- separately compiling/running bc-encoder and misc/compress.lua.
+    -- It's now one command:
+    --
+    --   python3 tools/pack_atlas.py --config configs/production_atlas.json \
+    --       --gfx-root src --out-atlas src/gfx/atlas/atla.dds.zlib \
+    --       --out-metadata src/gfx/atlas/atlas_metadata.lua
+    --
+    -- See tools/README.md for the config format (sources + characterDefinitions,
+    -- both by path — no more hand-kept-in-sync sprite indices) and
+    -- tests/ for the pipeline's own test suite. The old
+    -- characterAnimator.createAndSaveAtlas(...) escape hatch below still
+    -- works for one-off in-editor experiments; it just isn't how the
+    -- shipping atlas gets built any more.
     gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png", "gfx/atlas/atlas_metadata3.lua")
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 
@@ -253,7 +240,9 @@ local frameCounter = 0
 local paused
 
 function love.update(dt) --assume online cannot pause right now. debugger still works
-   
+
+    profiler.frameUpdate(dt)
+
     -- if t > (math.sin(fire.t) +1)*50*dt then --this slows down physics updates. before testing this consider consistency of frametimes lag spikes etc...
     map.houseInstances[1].color = { 1, 1, 1, var.indoors and 0 or 1 }
 
@@ -351,8 +340,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
      t = t + dt
     frameCounter = frameCounter + 1
     if t >= 1 then
-        -- print(frameCounter / t)
-         love.window.setTitle("fps: ".. frameCounter / t)
+        local fps = frameCounter / t
+        love.window.setTitle(string.format("fps: %.1f | ents: %d | list: %d | mem: %.0fMB",
+            fps, #enemy.enemies, #dynamic_draw_list, collectgarbage("count") / 1024))
         frameCounter = 0
         t = 0
         -- imageData = sampleScreen.canvas:newImageData()
@@ -450,6 +440,21 @@ end
 local zoomToggle = false;
 local zcycle = 0
 function love.keypressed(key)
+    if key == "f1" then
+        profiler.overlay_visible = not profiler.overlay_visible
+        if profiler.overlay_visible then
+            profiler.overlay_detail = (profiler.overlay_detail % 2) + 1
+        end
+    end
+    if key == "f2" then
+        profiler.reset()
+        profiler.overlay_visible = true
+        profiler.overlay_detail = 2
+        print("Benchmark mode: FPS/reset, observe overlay for 5 seconds")
+    end
+    if key == "f3" then
+        profiler.report()
+    end
     if key == "z" then
         if zcycle % 3 == 0 then
             map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/houseInterior.png"), var.tile_w, var.tile_h)

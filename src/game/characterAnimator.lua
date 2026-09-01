@@ -109,6 +109,17 @@ local function calculateFrameOffsetsFromMetadata(metadata)
 end
 
 -- Enhanced metadata creation that includes direction information
+--
+-- NOTE: for the shipping atlas, this is superseded by tools/pack_atlas.py
+-- (see the repo root README / tools/README.md) — a one-step CLI that does
+-- this same extraction+packing plus BC3 encoding and zlib compression in
+-- a single call, with a test suite and alpha-padding dilation the manual
+-- LÖVE+bc-encoder+compress.lua workflow never had. This function is kept
+-- as-is for quick in-editor one-off experiments (it's what the pipeline's
+-- Python atlas_lib.extract_frames_from_source/pack_atlas were ported from,
+-- and are tested for bit-for-bit fidelity against — see
+-- tests/test_stage1_extraction.py); it just isn't how the
+-- shipping gfx/atlas/atla.dds.zlib gets rebuilt any more.
 function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename,
     metadataFilename)
     local allSpriteData = {}
@@ -940,15 +951,12 @@ end
 
 function characterAnimator.populate()
     local sortedIndices = {}
-    local instanceData = {}
     local activeInstanceCount = 0
 
     for i, instance in ipairs(instances) do
         if instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex] then
             activeInstanceCount = activeInstanceCount + 1
             sortedIndices[activeInstanceCount] = i
-        else
-            print("Warning: Invalid sprite index for instance " .. i)
         end
     end
 
@@ -956,19 +964,35 @@ function characterAnimator.populate()
         return instances[a].y < instances[b].y
     end)
 
-    for i = 1, activeInstanceCount do
-        local instance = instances[sortedIndices[i]]
-        local cos_r = math.cos(instance.rotation)
-        local sin_r = math.sin(instance.rotation)
-        local scale = instance.scale
+    -- Build instance data, pad to full instanceCount to prevent stale/ghost sprites
+    local instanceData = {}
+    local totalInstances = characterAnimator.instanceCount
+    local defaultUV = {0, 0, 0.001, 0.001}  -- tiny UV to avoid sampling wrong texture
 
-        local u, v, uSize, vSize = getUV(instance)
+    for i = 1, totalInstances do
+        if i <= activeInstanceCount then
+            local instance = instances[sortedIndices[i]]
+            local cos_r = math.cos(instance.rotation)
+            local sin_r = math.sin(instance.rotation)
+            local scale = instance.scale
 
-        instanceData[i] = {u, v, uSize, vSize, -- InstanceUVData
-        instance.color[1], instance.color[2], instance.color[3], instance.color[4], cos_r * scale, sin_r * scale, 0, -- InstanceMatrix1 (row 1)
-                           -sin_r * scale, cos_r * scale, 0, -- InstanceMatrix2 (row 2)  
-        instance.x, instance.y, 1, -- InstanceMatrix4 (row 3)
-        instance.on and 1 or 0}
+            local u, v, uSize, vSize = getUV(instance)
+
+            instanceData[i] = {u, v, uSize, vSize, -- InstanceUVData
+            instance.color[1], instance.color[2], instance.color[3], instance.color[4],
+            cos_r * scale, sin_r * scale, 0,       -- InstanceMatrix1
+            -sin_r * scale, cos_r * scale, 0,       -- InstanceMatrix2
+            instance.x, instance.y, 1,               -- InstanceMatrix4
+            instance.on and 1 or 0}
+        else
+            -- Disabled padding entry (onoff=0 means shader skips it)
+            instanceData[i] = {defaultUV[1], defaultUV[2], defaultUV[3], defaultUV[4],
+            1, 1, 1, 0,
+            1, 0, 0,
+            0, 1, 0,
+            -10000, -10000, 1,
+            0}
+        end
     end
 
     instanceMesh:setVertices(instanceData)

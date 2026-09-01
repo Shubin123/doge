@@ -255,32 +255,12 @@ function collision.init()
         if blood and blood.onEnemyDamage then
             blood.onEnemyDamage(x, y, 1, { x = 1, y = 1 })
         end
-        sampleScreen.x = x + camera.pos.x
-        sampleScreen.y = y + camera.pos.x
-        local imageData = sampleScreen.canvas:newImageData()
-        
-        -- print(x+camera.pos.x, y+camera.pos.y)
-        local brightness = 0
-        -- local imageData = sampleScreen.canvas:newImageData()
-
-        if  var.screen_width > x+camera.pos.x and x+camera.pos.x > 0 and var.screen_height > y+camera.pos.y and y+camera.pos.y > 0 then
-        local r,g,b = imageData:getPixel(0,0)
-        brightness = 0.2126*r+0.7152*g+0.07722*b
-        end
-        -- print(sampleScreen.brightness)
-        -- local damage_amount = math.random(8, 15)
-        -- print(enemyIndex)
-        -- enemy.damageEnemy(enemyIndex, sampleScreen.brightness)
-        -- print(projectileFixture:getUserData())
-        -- if (projectileFixture:getUserData() ~= "fireball") then
-        --     for index, value in pairs(projectileFixture:getUserData()) do
-        --         print(index,value)
-        --     end
-        -- end
+        -- Use constant damage instead of expensive canvas sampling
+        local brightness = 128  -- mid-brightness as default; was sampling screen pixel every hit
         if (projectileFixture:getUserData()[1] ~= "fireball") then
-        enemy.damageEnemy(enemyIndex, brightness)
+            enemy.damageEnemy(enemyIndex, brightness)
         else
-        enemy.damageEnemy(enemyIndex, brightness*projectileFixture:getUserData()[2])
+            enemy.damageEnemy(enemyIndex, brightness * projectileFixture:getUserData()[2])
         end
         -- Knockback (optional)
         if bulletData.dir then
@@ -473,15 +453,12 @@ function collision.init()
     -- end)
 
     collision.registerResponse("map", "enemyProjectile", function(fixtureA, fixtureB, contact)
+    -- enemyProjectile hit map: destroy projectile
     local projectileBody = fixtureB:getBody()
     local projectileIndex = fixtureB:getUserData()
-    -- print(fixtureB.userData())
-    -- table.remove(enemy.projectiles, checkDestroy(enemy.projectiles,fixtureA))
-    -- print(checkDestroy(enemy.projectiles,fixtureB))
     projectileBody:destroy()
     table.remove(enemy.projectile_bodies, projectileIndex)
-    table.remove(enemy.projectiles,projectileIndex)
-    -- print(otherBody)
+    table.remove(enemy.projectiles, projectileIndex)
     end)
 
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)

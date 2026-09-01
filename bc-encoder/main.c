@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // DDS header structures
 #pragma pack(push, 1)
@@ -99,27 +102,35 @@ int compress_to_bc3(const char* input_path, const char* output_path) {
         return 1;
     }
     
+#ifdef _OPENMP
+    printf("Compressing blocks to BC3/DXT5 (parallel, %d threads)...\n", omp_get_max_threads());
+#else
     printf("Compressing blocks to BC3/DXT5...\n");
-    
-    // Compress each 4x4 block
+#endif
+
+    // Compress each 4x4 block. Every block only reads from image_data and
+    // writes its own 16-byte slice of compressed_data, so rows are fully
+    // independent and safe to parallelize (output is identical regardless
+    // of how many threads process it, just faster on large atlases).
+    #pragma omp parallel for schedule(dynamic) if(blocks_y > 4)
     for (int by = 0; by < blocks_y; by++) {
         for (int bx = 0; bx < blocks_x; bx++) {
             // BC3 expects RGBA data (4 bytes per pixel, 64 bytes per 4x4 block uncompressed)
             unsigned char block_rgba[BLOCK_DIM * BLOCK_DIM * 4];
-            
+
             // Extract 4x4 block
             for (int py = 0; py < BLOCK_DIM; py++) {
                 for (int px = 0; px < BLOCK_DIM; px++) {
                     int src_x = bx * BLOCK_DIM + px;
                     int src_y = by * BLOCK_DIM + py;
-                    
+
                     // Clamp to image bounds
                     if (src_x >= width) src_x = width - 1;
                     if (src_y >= height) src_y = height - 1;
-                    
+
                     int src_idx = (src_y * width + src_x) * 4; // RGBA
                     int dst_idx = (py * BLOCK_DIM + px) * 4;
-                    
+
                     // Copy RGBA channels
                     block_rgba[dst_idx + 0] = image_data[src_idx + 0]; // R
                     block_rgba[dst_idx + 1] = image_data[src_idx + 1]; // G
@@ -127,19 +138,21 @@ int compress_to_bc3(const char* input_path, const char* output_path) {
                     block_rgba[dst_idx + 3] = image_data[src_idx + 3]; // A
                 }
             }
-            
+
             // Compress this block to BC3/DXT5
             int block_idx = by * blocks_x + bx;
-            stb_compress_dxt_block(compressed_data + block_idx * BC3_BLOCK_SIZE, 
+            stb_compress_dxt_block(compressed_data + block_idx * BC3_BLOCK_SIZE,
                                    block_rgba, 1, STB_DXT_DITHER | STB_DXT_HIGHQUAL);
             // Note: STB uses mode=1 for DXT5/BC3 (RGBA with alpha)
         }
-        
+
+#ifndef _OPENMP
         if ((by + 1) % 10 == 0 || by == blocks_y - 1) {
             printf("  Processed %d/%d block rows\n", by + 1, blocks_y);
         }
+#endif
     }
-    
+
     printf("Writing DDS file: %s\n", output_path);
     
     // Write DDS file

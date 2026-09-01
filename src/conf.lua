@@ -17,7 +17,8 @@ var.num_coins = 1000
 var.coin_bods = {}
 -- Active AI enemies. Each is a dynamic physics body + behaviour tree updated
 -- every frame, so this is the single biggest CPU knob. 80 is a smooth default;
--- raise for bigger battles if your machine has headroom.
+-- raise for bigger battles if your machine has headroom (increase to 500/1000
+-- to stress-test with the profiler/benchmark framework -- see src/systems/profiler.lua).
 var.num_enemies = 80
 var.num_instances = var.num_enemies + 1
 
