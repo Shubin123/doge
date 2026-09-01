@@ -168,6 +168,31 @@ end
 4. **Profile regularly** - GPU profiling tools help identify bottlenecks
 5. **Consider LOD** - reduce effect quality at distance
 
+## Sprite Atlas Pipeline
+
+Character/object sprites (however they were gathered — a Unity grid
+export, Aseprite, a hand-drawn sheet) are packed into one texture atlas
+and BC3/DXT5-compressed for size before shipping. That used to be four
+manual steps (build the atlas from inside LÖVE, compile and run a
+separate C tool to BC3-encode it, run another LÖVE script by hand to
+zlib-compress the result, then hand-edit main.lua and a metadata table to
+match). It's now one command:
+
+```sh
+python3 tools/pack_atlas.py \
+  --config configs/production_atlas.json \
+  --gfx-root src \
+  --out-atlas src/gfx/atlas/atla.dds.zlib \
+  --out-metadata src/gfx/atlas/atlas_metadata.lua
+```
+
+Requires Python 3 + Pillow + numpy, and a C compiler (gcc) to build
+`bc-encoder/` the first time — the tool does that automatically. See
+`tools/README.md` for the config format and `tests/` for
+the pipeline's own test suite (bit-exact checks on the lossless stages,
+PSNR/visual-diff checks on the lossy BC3 stage, all run against real
+sprites from `src/gfx/`).
+
 ## Known Limitations
 
 - No localStorage/sessionStorage support in LÖVE2D artifacts

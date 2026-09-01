@@ -109,6 +109,17 @@ local function calculateFrameOffsetsFromMetadata(metadata)
 end
 
 -- Enhanced metadata creation that includes direction information
+--
+-- NOTE: for the shipping atlas, this is superseded by tools/pack_atlas.py
+-- (see the repo root README / tools/README.md) — a one-step CLI that does
+-- this same extraction+packing plus BC3 encoding and zlib compression in
+-- a single call, with a test suite and alpha-padding dilation the manual
+-- LÖVE+bc-encoder+compress.lua workflow never had. This function is kept
+-- as-is for quick in-editor one-off experiments (it's what the pipeline's
+-- Python atlas_lib.extract_frames_from_source/pack_atlas were ported from,
+-- and are tested for bit-for-bit fidelity against — see
+-- tests/test_stage1_extraction.py); it just isn't how the
+-- shipping gfx/atlas/atla.dds.zlib gets rebuilt any more.
 function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename,
     metadataFilename)
     local allSpriteData = {}

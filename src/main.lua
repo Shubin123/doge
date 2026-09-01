@@ -142,37 +142,22 @@ function love.load()
     -- end
     characterAnimator.load()
 
-
-    -- fighter = characterAnimator.init({"gfx/3d/fighter/walk copy.png"},128,128,nil)
-
-    -- gun_enemies = characterAnimator.init({"gfx/3d/animated2.png"},128,128)
-
-    -- gun_enemies = characterAnimator.init({"gfx/watchmanOfDoom/shoot_pistol.png","gfx/watchmanOfDoom/death.png","gfx/watchmanOfDoom/punch.png"},{1,1,1},256,256,nil)
-    -- characterAnimator.createAndSaveAtlas({"gfx/TileSet/tree1.png","gfx/TileSet/arch.png","gfx/TileSet/coin128.png","gfx/TileSet/house128.png"},{1,1,1,1},128,128,"atlas2.png","atlas_metadata2.lua")
-
-
-    -- local metadata = characterAnimator.createAndSaveAtlas(
-    --     { "gfx/3d/sdr2/gun.png", "gfx/3d/sdr2/lauchergun.png",
-    --         "gfx/3d/sdr2/portalGun.png", "gfx/3d/sdr2/car copy.png",
-    --         "gfx/3d/sdr2/bike copy.png", "gfx/3d/sdr2/apple_2.png",
-    --         "gfx/3d/sdr2/commodore64.png",            
-    --         "gfx/TileSet/tree1.png", "gfx/TileSet/arch.png",
-    --         "gfx/TileSet/coin128.png", "gfx/TileSet/house128.png",
-    --         "gfx/watchmanOfDoom_lowres/walk.png", "gfx/watchmanOfDoom_lowres/shoot_pistol.png",
-    --         "gfx/watchmanOfDoom_lowres/death.png", "gfx/watchmanOfDoom_lowres/punch.png",
-    --         "gfx/watchmanOfDoom_lowres/cast.png", "gfx/watchmanOfDoom_lowres/idle.png",
-    --         "gfx/watchmanOfDoom_lowres/jump.png",
-    --         "gfx/3d/princess/walk copy.png", "gfx/3d/princess/run copy.png", "gfx/3d/princess/shoot copy.png",
-    --         "gfx/3d/princess/jump copy.png", "gfx/3d/princess/roll3.png", "gfx/3d/animated2.png",
-    --         "gfx/3d/steve/walk lowres.png",
-    --         "gfx/3d/mech/mech_walklowlowres.png", "gfx/3d/mech/attack_lowres.png", "gfx/3d/mech/dying_lowres.png",
-    --         "gfx/3d/mech/shoot_lowres.png" },
-    --     { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 }, 128, 128,
-    --     "atlas3.png", "atlas_metadata3.lua")
-    -- local mt = characterAnimator.createAndSaveAtlas({"gfx/3d/steve/walk lowres.png"}, {8},128, 128, "steveTest.png", "steveTestMetadata.lua")
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/3d/steve/normals/steveTest.png", "gfx/3d/steve/normals/steveTestMetadata.lua")
+    -- The sprite atlas (gfx/atlas/atla.dds.zlib + atlas_metadata3.lua) is no
+    -- longer built by hand-editing this file, running the game once, then
+    -- separately compiling/running bc-encoder and misc/compress.lua.
+    -- It's now one command:
+    --
+    --   python3 tools/pack_atlas.py --config configs/production_atlas.json \
+    --       --gfx-root src --out-atlas src/gfx/atlas/atla.dds.zlib \
+    --       --out-metadata src/gfx/atlas/atlas_metadata.lua
+    --
+    -- See tools/README.md for the config format (sources + characterDefinitions,
+    -- both by path — no more hand-kept-in-sync sprite indices) and
+    -- tests/ for the pipeline's own test suite. The old
+    -- characterAnimator.createAndSaveAtlas(...) escape hatch below still
+    -- works for one-off in-editor experiments; it just isn't how the
+    -- shipping atlas gets built any more.
     gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
-    -- gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atlas.png", "gfx/atlas/atlas_metadata3.lua")
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 

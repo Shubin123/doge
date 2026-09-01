@@ -1,3 +1,7 @@
+-- DEPRECATED / superseded by tools/pack_atlas.py — this was a one-off,
+-- hardcoded-file-list zlib compressor for gfx/3d -> gfx/3dC that predates
+-- the atlas pipeline entirely and was never wired into anything that
+-- actually runs. Left here for reference only.
 -- Image Compressor for game assets
 local compress = {}
 

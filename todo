@@ -16,3 +16,6 @@ auto arrows, auto bullets, melee attack, melee grab, auto melee
 [done] rocket exhaust sim disabled (not drawn)
 [done] behaviour tree short-circuit when far from player
 [done] console commands: /profile, /benchmark, /spawn
+[done] atlas pipeline: one-step tools/pack_atlas.py replaces manual stitch+bc-encoder+compress.lua+hand-edit workflow; tested (tests/)
+re-source the 4 missing TileSet sprites (tree1.png, arch.png, coin128.png, house128.png) referenced by the old atlas config — see configs/production_atlas.json notes
+decide whether to swap in the rebuilt production atlas (configs/production_atlas.json output) or keep the currently shipping gfx/atlas/atla.dds.zlib
