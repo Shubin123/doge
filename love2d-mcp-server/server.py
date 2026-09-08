@@ -58,7 +58,8 @@ class Love2DDocServer:
             
             # Save to cache
             with open(API_CACHE_FILE, 'w') as f:
-                json.dump(self.api_data, f)        except Exception as e:
+                json.dump(self.api_data, f)
+        except Exception as e:
             print(f"Error downloading API: {e}", file=sys.stderr)
     
     def search_documentation(self, query: str) -> List[Dict[str, Any]]:
@@ -171,7 +172,8 @@ class Love2DDocServer:
                     "circle - Draw a circle",
                     "line - Draw lines between points",
                     "newImage - Load an image",
-                    "setColor - Set drawing color"                    "push/pop - Save and restore graphics state"
+                    "setColor - Set drawing color",
+                    "push/pop - Save and restore graphics state"
                 ]
             },
             "audio": {
@@ -411,7 +413,8 @@ def handle_tool_call(request_id: Any, params: Dict[str, Any], server: Love2DDocS
                     if 'example' in result:
                         response_text += f"**Example:**\n```lua\n{result['example']}\n```\n\n"
                     
-                    if result.get('type') == 'module' and 'functions' in result:                        response_text += f"**Common functions:** {', '.join(result['functions'][:5])}...\n\n"
+                    if result.get('type') == 'module' and 'functions' in result:
+                        response_text += f"**Common functions:** {', '.join(result['functions'][:5])}...\n\n"
                     
                     response_text += "---\n\n"
             else:
@@ -440,7 +443,8 @@ def handle_tool_call(request_id: Any, params: Dict[str, Any], server: Love2DDocS
             
             if example:
                 response_text = f"📝 **Example: {topic.replace('_', ' ').title()}**\n\n"
-                response_text += f"```lua\n{example}\n```"            else:
+                response_text += f"```lua\n{example}\n```"
+            else:
                 response_text = f"Example '{topic}' not found. Available examples:\n"
                 response_text += "• hello_world - Basic Love2D program\n"
                 response_text += "• basic_movement - Keyboard-controlled movement\n"
