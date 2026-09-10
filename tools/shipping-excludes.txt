@@ -1,0 +1,58 @@
+# Assets excluded from packaged builds (.love / .app / .exe / web).
+#
+# These files stay in the repo — most are the *source sheets* that
+# tools/pack_atlas.py slices to build gfx/atlas/atla.dds.zlib, so they are
+# needed to rebuild the atlas but never opened by the running game. The rest
+# are stale build artifacts of that same pipeline.
+#
+# The list was derived empirically, not guessed: the game was run with every
+# love.graphics.newImage / love.audio.newSource / love.filesystem.read call
+# traced, and this is every file over 1 MB that was never touched. Anything
+# under 1 MB is shipped regardless, so rarely-used lazy-loaded assets can't
+# silently go missing to save a trivial amount of space.
+#
+# Paths are relative to src/. Re-check with tools/trace_assets.sh after
+# adding art that loads on a code path the trace run didn't reach.
+
+# --- stale artifacts of the atlas pipeline -------------------------------
+gfx/atlas/atlas.png            # uncompressed atlas; runtime loads atla.dds.zlib
+gfx/atlas/out3.dds.zlib        # superseded atlas encode
+
+# --- atlas source sheets (inputs to tools/pack_atlas.py) -----------------
+gfx/3d/animated2.png
+gfx/3d/commodore64.png
+gfx/3d/gun.png
+gfx/3d/portalGun.png
+gfx/3d/robot.png
+gfx/3d/skybox.png
+gfx/3d/fighter/walk copy.png
+gfx/3d/fighter/walk.png
+gfx/3d/mech/attack.png
+gfx/3d/mech/attack_lowres.png
+gfx/3d/mech/dying.png
+gfx/3d/mech/dying_lowres.png
+gfx/3d/mech/mech_walklow.png
+gfx/3d/mech/mech_walklowlowres.png
+gfx/3d/mech/shoot.png
+gfx/3d/princess/roll.png
+gfx/3d/princess/shoot.png
+gfx/3d/princess/walk.png
+gfx/3d/steve/act.png
+gfx/3d/steve/fight.png
+gfx/3d/steve/walk lowres.png
+gfx/3d/steve/walk.png
+gfx/vehicles/bike.png
+gfx/watchmanOfDoom_lowres/animated.png
+gfx/watchmanOfDoom_lowres/death.png
+gfx/watchmanOfDoom/animated.png
+gfx/watchmanOfDoom/cast.png
+gfx/watchmanOfDoom/death.png
+gfx/watchmanOfDoom/idle.png
+gfx/watchmanOfDoom/jump.png
+gfx/watchmanOfDoom/punch.png
+gfx/watchmanOfDoom/shoot_pistol.png
+gfx/watchmanOfDoom/walk.png
+
+# --- oversized duplicates of art that ships in a smaller form ------------
+gfx/coin copy.png              # gfx/coin.png is what loads
+gfx/fireball.png               # gfx/firelowres.png is what loads

@@ -400,7 +400,10 @@ function enemy.update(dt)
                 enemy.addEnemy(spawn.x, spawn.y)
                 -- Assign character type to the gun_enemies instance
                 if gun_enemies[spawn.index + 2] then
-                    gun_enemies[spawn.index + 2]:setCharacterType(spawn.charType)
+                    -- dot-call, not a method: characterAnimator instances expose
+                    -- plain closures (`function instance.setCharacterType(t)`), so a
+                    -- colon call would pass the instance itself as the type.
+                    gun_enemies[spawn.index + 2].setCharacterType(spawn.charType)
                 end
             end
         end
@@ -685,37 +688,38 @@ function enemy.populate()
     local colorPhase = math.cos(fire.t * 2)
 
     -- Map living enemies to gun_enemies based on their stored index
+    -- NOTE: written with nested ifs rather than `goto continue_enemy`. goto and
+    -- ::labels:: are Lua 5.2+/LuaJIT syntax; the web build runs on plain Lua
+    -- 5.1 (love.js), where they are a hard parse error and take the whole game
+    -- down before the first frame. Same control flow: a skipped enemy still
+    -- falls through to its projectiles below, exactly as the label did.
     for _, e in ipairs(enemy.enemies) do
         if e.fixture and e.fixture:getUserData() then
             local enemy_index = e.fixture:getUserData()
-            if not enemy_index or enemy_index < 0 or enemy_index >= #gun_enemies then
-                goto continue_enemy
-            end
+            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+                local ex, ey = e.body:getPosition()
 
-            local ex, ey = e.body:getPosition()
-
-            -- Viewport culling: skip enemies outside camera view
-            if ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom then
-                goto continue_enemy
-            end
-
-            -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
-            local enemyInstance = gun_enemies[enemy_index + 2]
-            if enemyInstance then
-                enemyInstance.active = true
-                enemyInstance.x, enemyInstance.y = ex, ey
-                enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-                -- Pre-computed color: use enemy_index offset for per-enemy variation
-                local idx_offset = enemy_index * 0.3
-                enemyInstance.color = {
-                    math.cos(colorPhase + idx_offset) * channelPreserve[1],
-                    math.cos(colorPhase + idx_offset) * channelPreserve[2],
-                    math.cos(colorPhase + idx_offset) * channelPreserve[3],
-                    math.sin(colorPhase + idx_offset)
-                }
+                -- Viewport culling: skip enemies outside camera view
+                local offscreen = ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom
+                if not offscreen then
+                    -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                    local enemyInstance = gun_enemies[enemy_index + 2]
+                    if enemyInstance then
+                        enemyInstance.active = true
+                        enemyInstance.x, enemyInstance.y = ex, ey
+                        enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+                        -- Pre-computed color: use enemy_index offset for per-enemy variation
+                        local idx_offset = enemy_index * 0.3
+                        enemyInstance.color = {
+                            math.cos(colorPhase + idx_offset) * channelPreserve[1],
+                            math.cos(colorPhase + idx_offset) * channelPreserve[2],
+                            math.cos(colorPhase + idx_offset) * channelPreserve[3],
+                            math.sin(colorPhase + idx_offset)
+                        }
+                    end
+                end
             end
         end
-        ::continue_enemy::
 
         -- Projectiles: only populate if within viewport
         for _, proj in ipairs(e.projectiles) do

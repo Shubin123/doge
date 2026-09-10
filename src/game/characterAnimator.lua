@@ -398,6 +398,23 @@ local function createInstance()
         instance.currentAnimation = animationName
         instance.currentSpriteIndex = spriteIndex
         -- instance.currentFrame = 1
+        --
+        -- The frame index is deliberately NOT reset above, so a cycle carries
+        -- across an animation swap instead of popping back to frame 1. But the
+        -- animation being switched *to* may have fewer frames or fewer
+        -- directions than the one being switched from, and getUV() indexes the
+        -- atlas as offset + (frame-1)*directions + (direction-1). Left
+        -- unclamped that runs off the end of spriteLocationMap, which is where
+        -- the per-frame "No location found for global index N" spam came from.
+        local newState = spriteTypes[spriteIndex]
+        if newState then
+            if instance.currentFrame > newState.framesPerDirection then
+                instance.currentFrame = 1
+            end
+            if instance.currentDirection > newState.directions then
+                instance.currentDirection = newState.directions
+            end
+        end
         instance.timeAccumulator = 0
 
         return true

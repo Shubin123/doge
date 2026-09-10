@@ -22,4 +22,20 @@ bc-encoder/a.out
 src/gfx/TileSet/Sprite-0001.aseprite
 src/gfx/atlas/atlas2.png
 src/gfx/atlas/out3.dds.zlib
+# Stray PNGs anywhere (scratch renders, screenshots) stay out of the repo, but
+# the game's own art under src/gfx must be tracked -- a blanket *.png meant new
+# sprites were silently missing from a fresh clone, so CI built a different game
+# than the one on the dev machine. (It also forced `git add -f` for every new
+# sprite, which is why gfx/3d/princess/normals/walk2.png.wow carries that
+# suffix: renaming it was how it got past this rule.)
 *.png
+!src/gfx/**/*.png
+
+# ...except the atlas pipeline's own outputs, which are rebuilt by
+# tools/pack_atlas.py and should never be committed.
+src/gfx/atlas/atlas.png
+src/gfx/atlas/atlas2.png
+
+# web/wasm build tooling
+/node_modules
+/dist

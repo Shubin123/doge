@@ -168,10 +168,22 @@ function bullet.update(dt)
     for i = #bullet.instances, 1, -1 do
         local inst = bullet.instances[i]
 
-        -- record last position for drawing
         local x, y = inst.body:getPosition()
-        inst.prevPos = vec2.new(x, y)
-        
+
+        -- Record LAST frame's position for drawing. drawSingleTracer draws the
+        -- tracer core and its glow as a line from prevPos to the bullet's
+        -- current position, so prevPos has to lag one frame behind -- assigning
+        -- the current position here collapsed that line to zero length and made
+        -- the tracers invisible. trail[1] is still last frame's sample at this
+        -- point (this frame's is pushed just below), so take it from there, and
+        -- mutate in place rather than allocating a vec2 per bullet per frame.
+        local prev = inst.trail[1]
+        if prev then
+            inst.prevPos.x, inst.prevPos.y = prev.x, prev.y
+        else
+            inst.prevPos.x, inst.prevPos.y = x, y
+        end
+
         -- Add to trail for visual effect (limit trail length)
         table.insert(inst.trail, 1, {x = x, y = y, time = bullet.t})
         if #inst.trail > 8 then  -- keep last 8 positions
@@ -743,26 +755,28 @@ function bullet.drawSingleTracer(inst, x, y, distance)
     end
     
     -- Draw bright tracer core (with distance fade)
-    -- love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
-    -- love.graphics.setLineWidth(3)
-    -- love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-    
-    -- Draw glowing outer tracer (with distance fade)
-    -- love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
-    -- love.graphics.setLineWidth(6)
-    -- love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-    
+    love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+
+    -- Draw glowing outer tracer (with distance fade). The wide, dim pass under
+    -- the core is what the glow/bloom chain in light.lua picks up -- without it
+    -- bullets are a flat dot with nothing for the shaders to bloom.
+    love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
+    love.graphics.setLineWidth(6)
+    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+
     -- Draw fading trail (with distance fade)
-    -- if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
-    --     for i = 1, #inst.trail - 1 do
-    --         local p1 = inst.trail[i]
-    --         local p2 = inst.trail[i + 1]
-    --         local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
-    --         love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-    --         love.graphics.setLineWidth(2)
-    --         love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-    --     end
-    -- end
+    if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
+        for i = 1, #inst.trail - 1 do
+            local p1 = inst.trail[i]
+            local p2 = inst.trail[i + 1]
+            local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
+            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+        end
+    end
     
     -- Draw bullet impact point (with distance fade)
     love.graphics.setColor(1, 1, 1, fade_factor)
