@@ -126,6 +126,32 @@ async function main() {
     const title = await page.title();
     if (!/ents:\s*80\b/.test(title)) failures.push(`game did not reach the expected entity count (title: ${title})`);
 
+    // Browser controls must stay outside the game canvas and forward their
+    // state-changing input into LÖVE. Sound emits a Lua log, which verifies
+    // that this is more than a cosmetic HTML toggle.
+    const controlsPresent = await page.evaluate(() =>
+      ['fullscreenButton', 'soundButton', 'lightsButton', 'menuButton', 'cacheButton']
+        .every(id => document.getElementById(id))
+    );
+    if (!controlsPresent) {
+      failures.push('browser control panel is incomplete');
+    } else {
+      await page.click('#soundButton');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const muted = await page.$eval('#soundButton', button => ({label: button.textContent, pressed: button.getAttribute('aria-pressed')}));
+      if (muted.label !== 'Sound: Off' || muted.pressed !== 'false') failures.push('sound control did not enter its muted state');
+      if (!logs.some(log => log.includes('Audio muted'))) failures.push('sound control did not reach the LÖVE audio mixer');
+
+      await page.click('#soundButton');
+      const unmuted = await page.$eval('#soundButton', button => ({label: button.textContent, pressed: button.getAttribute('aria-pressed')}));
+      if (unmuted.label !== 'Sound: On' || unmuted.pressed !== 'true') failures.push('sound control did not restore its unmuted state');
+
+      await page.click('#lightsButton');
+      const lights = await page.$eval('#lightsButton', button => button.textContent);
+      if (lights !== 'Lights: Off') failures.push('lights control did not update its state');
+      await page.click('#lightsButton');
+    }
+
     if (failures.length) throw new Error(`Web smoke test failed:\n- ${failures.join('\n- ')}`);
     console.log(`Web smoke test passed: ${title}`);
   } finally {

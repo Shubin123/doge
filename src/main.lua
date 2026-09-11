@@ -504,6 +504,12 @@ function love.keypressed(key)
         player.lightsOn = not player.lightsOn
     end
 
+    -- Browser shell controls send this same key event, so the mute state is
+    -- owned by the game rather than by an unreliable Web Audio wrapper.
+    if key == "m" then
+        audio.setMuted(not audio.muted)
+        print("Audio " .. (audio.muted and "muted" or "unmuted"))
+    end
 
     editor.keypressed(key)
     command.keypressed(key)
