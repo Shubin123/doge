@@ -109,6 +109,17 @@ local function calculateFrameOffsetsFromMetadata(metadata)
 end
 
 -- Enhanced metadata creation that includes direction information
+--
+-- NOTE: for the shipping atlas, this is superseded by tools/pack_atlas.py
+-- (see the repo root README / tools/README.md) — a one-step CLI that does
+-- this same extraction+packing plus BC3 encoding and zlib compression in
+-- a single call, with a test suite and alpha-padding dilation the manual
+-- LÖVE+bc-encoder+compress.lua workflow never had. This function is kept
+-- as-is for quick in-editor one-off experiments (it's what the pipeline's
+-- Python atlas_lib.extract_frames_from_source/pack_atlas were ported from,
+-- and are tested for bit-for-bit fidelity against — see
+-- tests/test_stage1_extraction.py); it just isn't how the
+-- shipping gfx/atlas/atla.dds.zlib gets rebuilt any more.
 function characterAnimator.createAndSaveAtlas(imageFiles, config, frameWidth, frameHeight, atlasFilename,
     metadataFilename)
     local allSpriteData = {}
@@ -387,6 +398,23 @@ local function createInstance()
         instance.currentAnimation = animationName
         instance.currentSpriteIndex = spriteIndex
         -- instance.currentFrame = 1
+        --
+        -- The frame index is deliberately NOT reset above, so a cycle carries
+        -- across an animation swap instead of popping back to frame 1. But the
+        -- animation being switched *to* may have fewer frames or fewer
+        -- directions than the one being switched from, and getUV() indexes the
+        -- atlas as offset + (frame-1)*directions + (direction-1). Left
+        -- unclamped that runs off the end of spriteLocationMap, which is where
+        -- the per-frame "No location found for global index N" spam came from.
+        local newState = spriteTypes[spriteIndex]
+        if newState then
+            if instance.currentFrame > newState.framesPerDirection then
+                instance.currentFrame = 1
+            end
+            if instance.currentDirection > newState.directions then
+                instance.currentDirection = newState.directions
+            end
+        end
         instance.timeAccumulator = 0
 
         return true
@@ -407,7 +435,9 @@ end
 function characterAnimator.load()
     -- Universal shader that works on both desktop and web
    characterAnimator.shader = love.graphics.newShader([[
-        #define MAX_LIGHTS 500
+        // MAX_LIGHTS must match lighting.MAX_LIGHTS (shadow.lua); the Lighting
+        // subsystem uploads numLights + lights[] (world space) here each frame.
+        #define MAX_LIGHTS 64
 
         uniform int numLights;
         uniform vec4 lights[MAX_LIGHTS];
@@ -514,7 +544,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             float NdotL = max(dot(normal, toLight3D), 0.0);
             
             float attenuation = 1.0 / (0.001 + 0.02 * dist);
-            float ambient = 0.12;
+            float ambient = .5;
             
             return ambient + NdotL * attenuation * (1.0 - ambient);
         }
@@ -557,17 +587,19 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                 vec2 lightPos = vec2(lights[i][0], lights[i][1]);
                 float lightIntensity = lights[i][2];
                 float lightRadius = lights[i][3];
-                
+                if (lightRadius <= 0.0) continue; // skip empty / zero-range slots (no NaN)
+
                 float distance = length(lightPos - pos);
                 float attenuation = 1.0 - clamp(distance / lightRadius, 0.0, 1.0);
-                
+                attenuation *= attenuation; // smooth quadratic falloff
+
                 float normalFactor = calculateNormalLighting(normal, lightPos, pos);
                 totalLight += attenuation * lightIntensity * normalFactor;
             }
 
-            totalLight = clamp(totalLight, 0.0, 1.0);
-            vec3 litColor = mix(vec3(0.0), texColor.rgb, totalLight);
-            //vec3 litColor = mix(vec3(0.0), vec3(1.0), totalLight);
+            // Ambient floor so sprites stay dim (not pure black) when unlit/indoors.
+            float lit = min(1.0, 0.20 + totalLight);
+            vec3 litColor = texColor.rgb * lit;
             
             vec4 finalColor = vec4(litColor, texColor.a);
 

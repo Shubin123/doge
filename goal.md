@@ -10,6 +10,8 @@
 - [ ] indoor lighting (block everything outside)
 - [ ] auto arrows, auto bullets, melee attack, melee grab, auto melee
 - [x] change shockwave shader run after instance drawn
+- [x] atlas pipeline: one-step tools/pack_atlas.py (see README's "Sprite Atlas Pipeline" section)
+- [ ] re-source 4 missing TileSet sprites the old atlas config referenced (tree1.png, arch.png, coin128.png, house128.png)
 
 ---
 

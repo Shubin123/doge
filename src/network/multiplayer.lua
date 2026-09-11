@@ -1,5 +1,15 @@
 -- multiplayer.lua - Socket-based LAN Multiplayer Module using TCP
-local socket = require "socket"
+--
+-- luasocket is not present in every LÖVE distribution the game ships to --
+-- notably love.js (the web/wasm build), which has no TCP sockets at all.
+-- main.lua requires this module unconditionally, so a hard `require "socket"`
+-- would take the whole game down on those platforms before it drew a frame.
+-- Degrade instead: without sockets the module loads, single-player runs
+-- normally, and only the host/join entry points refuse.
+local ok, socket = pcall(require, "socket")
+if not ok then
+    socket = nil
+end
 
 local multiplayer = {}
 multiplayer.__index = multiplayer
@@ -29,6 +39,11 @@ end
 
 -- Start as host (server)
 function multiplayer:startHost(ip)
+    if not socket then
+        print("multiplayer: no luasocket on this platform (web/wasm has none) -- staying offline")
+        return false
+    end
+
     if self.server_socket or self.client_socket then
         self:stop()
     end
@@ -70,6 +85,11 @@ end
 
 -- Connect as client
 function multiplayer:connectToHost(host_address)
+    if not socket then
+        print("multiplayer: no luasocket on this platform (web/wasm has none) -- staying offline")
+        return false
+    end
+
     if self.server_socket or self.client_socket then
         self:stop()
     end

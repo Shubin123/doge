@@ -1,14 +1,28 @@
 shader = {}
 
--- shader.distance = 0.1
--- shader.sample = 40
 shader.radiance = 0
+
+-- Global-illumination quality presets. One knob controls all three costs:
+--   rays        : directions marched per pixel  (angular quality)
+--   steps       : ray-march iterations per ray  (light reach)
+--   pixelBudget : target GI-buffer area; lower -> GI runs at a smaller canvas
+-- "high" reproduces the original look; "medium"/"low" trade fidelity for FPS.
+shader.qualityPresets = {
+    high   = { rays = 30, steps = 8, pixelBudget = 500000 },
+    medium = { rays = 24, steps = 6, pixelBudget = 360000 },
+    low    = { rays = 16, steps = 5, pixelBudget = 240000 },
+}
+
+function shader.getQuality()
+    return shader.qualityPresets[var.gi_quality or "high"] or shader.qualityPresets.high
+end
 
 function shader.load()
     -- Calculate GI resolution based on performance target
     -- Scale down GI resolution for larger screens to maintain performance
+    local quality = shader.getQuality()
     local pixel_count = W * H
-    local gi_scale = math.min(1.0, math.sqrt(500000 / pixel_count)) -- Target ~1M pixels for GI *2mil to expensive 500k min otherwise too jittery
+    local gi_scale = math.min(1.0, math.sqrt(quality.pixelBudget / pixel_count)) -- GI runs at this fraction of screen res
     
     -- GI resolution (lower for performance)
     local gi_w = math.max(128, math.floor(W * gi_scale))
@@ -76,8 +90,10 @@ function shader.load()
         }
     ]])
 
-    -- Optimized GI shader - same as original but will run at lower resolution
-    gi_shader = love.graphics.newShader([[
+    -- Optimized GI shader - same as original but will run at lower resolution.
+    -- Ray/step counts are injected as compile-time constants (GLSL ES needs
+    -- constant loop bounds for web builds), driven by the quality preset.
+    local gi_src = [[
     //#pragma language glsl3
     
     #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)
@@ -97,12 +113,11 @@ function shader.load()
     }
     
     vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-        // Adaptive sampling based on distance from center
+        // Rays reach slightly further toward screen edges to mask the lower
+        // effective resolution there (see stepMultiplier below).
         MY_HIGHP_OR_MEDIUMP number distFromCenter = distance(tc, vec2(0.5));
-        MY_HIGHP_OR_MEDIUMP number sampleMultiplier = 1.0;
-        sampleMultiplier = max(0.01, sampleMultiplier);
-        
-        MY_HIGHP_OR_MEDIUMP number oneOverRays = 1.0 / 30.0;
+
+        MY_HIGHP_OR_MEDIUMP number oneOverRays = 1.0 / __RAYS__;
         MY_HIGHP_OR_MEDIUMP number tauOverRays = 2.0 * PI * oneOverRays;
         vec2 oneOverSize = vec2(1.0) / vec2(love_ScreenSize.x, love_ScreenSize.y);
         vec2 ratio = normalize(oneOverSize);
@@ -112,12 +127,12 @@ function shader.load()
         
         MY_HIGHP_OR_MEDIUMP number stepMultiplier = 1.0 + distFromCenter * 0.3;
         
-        for(MY_HIGHP_OR_MEDIUMP number i = 0.0; i < 30.0; i += 1.0) {
+        for(MY_HIGHP_OR_MEDIUMP number i = 0.0; i < __RAYS__; i += 1.0) {
             MY_HIGHP_OR_MEDIUMP number angle = (0.5 + i + noise) * tauOverRays;
             vec2 rayDirection = vec2(cos(angle), sin(angle));
             vec2 sampleTC = tc;
             
-            for (MY_HIGHP_OR_MEDIUMP number step = 0.0; step < 8.0; step += 1.0) {
+            for (MY_HIGHP_OR_MEDIUMP number step = 0.0; step < __STEPS__; step += 1.0) {
               MY_HIGHP_OR_MEDIUMP number df = Texel(tex, sampleTC).r;
               sampleTC += rayDirection * df * ratio * stepMultiplier;
               
@@ -129,7 +144,10 @@ function shader.load()
         }
         return vec4(pow(radiance * oneOverRays, vec3(1.0 / 2.2)), 1.0);
     }
-]])
+]]
+    gi_src = gi_src:gsub("__RAYS__", string.format("%d.0", quality.rays))
+    gi_src = gi_src:gsub("__STEPS__", string.format("%d.0", quality.steps))
+    gi_shader = love.graphics.newShader(gi_src)
 
     -- Upscale shader for final composite
     upscale_shader = love.graphics.newShader([[
@@ -137,11 +155,9 @@ function shader.load()
         uniform sampler2D giTexture;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            // Bilinear upscaling with slight blur for smoother result
-            vec2 texelSize = 1.0 / vec2(love_ScreenSize.x, love_ScreenSize.y);
-            vec4 gi = Texel(giTexture, tc);
-            
-            // Blend scene with GI
+            // Upscale the low-res GI buffer (hardware bilinear) and add it on top
+            // of the full-res scene as an additive indirect-light term.
+            vec4 gi    = Texel(giTexture, tc);
             vec4 scene = Texel(tex, tc);
             return scene + gi;
         }
@@ -169,11 +185,16 @@ function shader.pass()
     love.graphics.draw(scene_canvas, 0, 0, 0, shader.gi_scale, shader.gi_scale)
     
     gi_shader:send("surfaceTexture", scene_canvas)
-    -- gi_shader:send("sampleCount", shader.sample)
     gi_shader:send("baseRadiance", shader.radiance)
     
-    -- JFA passes at GI resolution
-    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))  + 20
+    -- JFA passes at GI resolution.
+    -- Jump Flood needs exactly ceil(log2(maxDim)) halving passes to fully
+    -- propagate. The old "+ 20" ran ~20 extra fullscreen passes whose stepSize
+    -- was bigger than the whole canvas, so every neighbour sample landed
+    -- off-canvas and overwrote the seeded UVs -- wasting GPU time *and*
+    -- corrupting the distance field. One extra "JFA+1" pass is kept for edge
+    -- accuracy at negligible cost.
+    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2)) + 1
     
     for i = 1, passes do
         jfa_shader:send("stepSize", math.pow(2, passes - i))

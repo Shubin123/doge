@@ -13,10 +13,18 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 100
+var.num_coins = 1000
 var.coin_bods = {}
-var.num_enemies = 100  -- increase to 500/1000 to stress-test
+-- Active AI enemies. Each is a dynamic physics body + behaviour tree updated
+-- every frame, so this is the single biggest CPU knob. 80 is a smooth default;
+-- raise for bigger battles if your machine has headroom (increase to 500/1000
+-- to stress-test with the profiler/benchmark framework -- see src/systems/profiler.lua).
+var.num_enemies = 80
 var.num_instances = var.num_enemies + 1
+
+-- Global illumination quality preset: "high" | "medium" | "low" (see shader.lua).
+-- "high" matches the original look; drop to "medium"/"low" on weaker GPUs.
+var.gi_quality = "high"
 
 var.enemies_bods = {}
 

@@ -141,23 +141,29 @@ function Enemy:fireAtPlayer()
 end
 
 function Enemy:updateProjectiles(dt)
+    -- Iterate backwards so table.remove() is safe. The projectiles and
+    -- projectile_bodies arrays are kept index-aligned (both pushed together in
+    -- fireAtPlayer, both removed together here).
     for i = #self.projectiles, 1, -1 do
         local proj = self.projectiles[i]
-        if not proj then goto continue end
-        if self.t > proj[5] then
-            local pb = self.projectile_bodies[i]
-            if pb and not pb:isDestroyed() then
-                -- body expired, just remove reference
+        local body = self.projectile_bodies[i]
+        local destroyed = body and body:isDestroyed()
+
+        if self.t > proj[5] or destroyed then
+            -- Expired, or its body was already destroyed by a wall hit. Free the
+            -- body and drop both entries so enemy projectile bodies stop leaking
+            -- into the physics world (the previous code left them alive forever).
+            if body and not destroyed then
+                body:destroy()
             end
             table.remove(self.projectiles, i)
+            table.remove(self.projectile_bodies, i)
         else
             proj[1] = proj[1] + proj[2] * dt
-            local pb = self.projectile_bodies[i]
-            if pb and not pb:isDestroyed() then
-                pb:setPosition(proj[1].x, proj[1].y)
+            if body then
+                body:setPosition(proj[1].x, proj[1].y)
             end
         end
-        ::continue::
     end
 end
 
@@ -394,7 +400,10 @@ function enemy.update(dt)
                 enemy.addEnemy(spawn.x, spawn.y)
                 -- Assign character type to the gun_enemies instance
                 if gun_enemies[spawn.index + 2] then
-                    gun_enemies[spawn.index + 2]:setCharacterType(spawn.charType)
+                    -- dot-call, not a method: characterAnimator instances expose
+                    -- plain closures (`function instance.setCharacterType(t)`), so a
+                    -- colon call would pass the instance itself as the type.
+                    gun_enemies[spawn.index + 2].setCharacterType(spawn.charType)
                 end
             end
         end
@@ -405,12 +414,28 @@ function enemy.update(dt)
 
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
-        e:update(dt)
-        if e.health <= 0 then
-            -- table.remove(enemy.enemies, i)
-            enemy.last_fire_times[i] = nil
-            enemy.health[i] = nil
-            enemy.enemy_damaged[i] = nil
+        if e.dead then
+            -- One-time teardown for a dead enemy. A dead enemy no longer runs
+            -- updateProjectiles, so release its behaviour tree and any in-flight
+            -- projectile bodies here or they leak in the physics world forever.
+            -- (Safe: enemy.update runs after world:update, not inside a contact
+            -- callback.) Note: enemy.enemies is NOT compacted, because the fixture
+            -- userData stores a fixed index into it that damage/gun_enemies rely on.
+            if not e.cleanedUp then
+                e.cleanedUp = true
+                for j = 1, #e.projectile_bodies do
+                    local b = e.projectile_bodies[j]
+                    if b and not b:isDestroyed() then b:destroy() end
+                end
+                e.projectiles = {}
+                e.projectile_bodies = {}
+                e.btree = nil
+                enemy.last_fire_times[i] = nil
+                enemy.health[i] = nil
+                enemy.enemy_damaged[i] = nil
+            end
+        else
+            e:update(dt)
         end
     end
 end
@@ -663,37 +688,38 @@ function enemy.populate()
     local colorPhase = math.cos(fire.t * 2)
 
     -- Map living enemies to gun_enemies based on their stored index
+    -- NOTE: written with nested ifs rather than `goto continue_enemy`. goto and
+    -- ::labels:: are Lua 5.2+/LuaJIT syntax; the web build runs on plain Lua
+    -- 5.1 (love.js), where they are a hard parse error and take the whole game
+    -- down before the first frame. Same control flow: a skipped enemy still
+    -- falls through to its projectiles below, exactly as the label did.
     for _, e in ipairs(enemy.enemies) do
         if e.fixture and e.fixture:getUserData() then
             local enemy_index = e.fixture:getUserData()
-            if not enemy_index or enemy_index < 0 or enemy_index >= #gun_enemies then
-                goto continue_enemy
-            end
+            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+                local ex, ey = e.body:getPosition()
 
-            local ex, ey = e.body:getPosition()
-
-            -- Viewport culling: skip enemies outside camera view
-            if ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom then
-                goto continue_enemy
-            end
-
-            -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
-            local enemyInstance = gun_enemies[enemy_index + 2]
-            if enemyInstance then
-                enemyInstance.active = true
-                enemyInstance.x, enemyInstance.y = ex, ey
-                enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-                -- Pre-computed color: use enemy_index offset for per-enemy variation
-                local idx_offset = enemy_index * 0.3
-                enemyInstance.color = {
-                    math.cos(colorPhase + idx_offset) * channelPreserve[1],
-                    math.cos(colorPhase + idx_offset) * channelPreserve[2],
-                    math.cos(colorPhase + idx_offset) * channelPreserve[3],
-                    math.sin(colorPhase + idx_offset)
-                }
+                -- Viewport culling: skip enemies outside camera view
+                local offscreen = ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom
+                if not offscreen then
+                    -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                    local enemyInstance = gun_enemies[enemy_index + 2]
+                    if enemyInstance then
+                        enemyInstance.active = true
+                        enemyInstance.x, enemyInstance.y = ex, ey
+                        enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
+                        -- Pre-computed color: use enemy_index offset for per-enemy variation
+                        local idx_offset = enemy_index * 0.3
+                        enemyInstance.color = {
+                            math.cos(colorPhase + idx_offset) * channelPreserve[1],
+                            math.cos(colorPhase + idx_offset) * channelPreserve[2],
+                            math.cos(colorPhase + idx_offset) * channelPreserve[3],
+                            math.sin(colorPhase + idx_offset)
+                        }
+                    end
+                end
             end
         end
-        ::continue_enemy::
 
         -- Projectiles: only populate if within viewport
         for _, proj in ipairs(e.projectiles) do

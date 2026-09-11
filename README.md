@@ -168,6 +168,86 @@ end
 4. **Profile regularly** - GPU profiling tools help identify bottlenecks
 5. **Consider LOD** - reduce effect quality at distance
 
+## Sprite Atlas Pipeline
+
+Character/object sprites (however they were gathered — a Unity grid
+export, Aseprite, a hand-drawn sheet) are packed into one texture atlas
+and BC3/DXT5-compressed for size before shipping. That used to be four
+manual steps (build the atlas from inside LÖVE, compile and run a
+separate C tool to BC3-encode it, run another LÖVE script by hand to
+zlib-compress the result, then hand-edit main.lua and a metadata table to
+match). It's now one command:
+
+```sh
+python3 tools/pack_atlas.py \
+  --config configs/production_atlas.json \
+  --gfx-root src \
+  --out-atlas src/gfx/atlas/atla.dds.zlib \
+  --out-metadata src/gfx/atlas/atlas_metadata.lua
+```
+
+Requires Python 3 + Pillow + numpy, and a C compiler (gcc) to build
+`bc-encoder/` the first time — the tool does that automatically. See
+`tools/README.md` for the config format and `tests/` for
+the pipeline's own test suite (bit-exact checks on the lossless stages,
+PSNR/visual-diff checks on the lossy BC3 stage, all run against real
+sprites from `src/gfx/`).
+
+## Building & Publishing
+
+### Desktop
+
+```sh
+./run.sh                 # run from source, hot-reloaded
+tools/make_love.sh       # -> dist/doge.love
+./build.sh               # -> dist/doge.love + .app (macOS) + .exe (Windows)
+```
+
+`tools/make_love.sh` packages `src/` minus `tools/shipping-excludes.txt`.
+That list is the atlas *source* sheets and stale pipeline artifacts — inputs
+to `tools/pack_atlas.py`, never opened by the running game. It takes the
+package from ~160 MB to ~33 MB. The list was derived by running the game with
+every image/audio/file load traced and dropping only files over 1 MB that were
+never touched; anything smaller ships regardless, so a rarely-hit lazy load
+can't silently lose its art.
+
+### Web (WebAssembly)
+
+```sh
+./buildjs.sh             # -> dist/web/
+python3 -m http.server -d dist/web 8080
+```
+
+`file://` will not work — wasm needs to be served over http.
+
+Two constraints are baked into `buildjs.sh` and worth knowing before changing it:
+
+- **The compat runtime (`-c`) is mandatory.** love.js's default "release"
+  runtime is threaded, which requires `SharedArrayBuffer`, which requires the
+  COOP/COEP response headers — and GitHub Pages cannot set headers. The compat
+  runtime is single-threaded and runs on any static host.
+- **The web runtime is plain Lua 5.1, not LuaJIT.** `goto`/`::labels::` and
+  other 5.2+ syntax compile fine on desktop and are a fatal parse error in the
+  browser, before the first frame. `tools/check_lua51.py` runs as the first
+  step of `buildjs.sh` to catch that class of bug; neither LuaJIT nor a modern
+  system `lua` will.
+
+The heap size (`-m`) is fixed at build time and is dominated by the atlas:
+8.8 MB on disk unpacks to a 16384×16384 DXT5 surface — 256 MB — that is briefly
+resident before it goes to the GPU. Override with `LOVEJS_MEMORY=... ./buildjs.sh`
+if you change the atlas.
+
+Because the atlas ships as BC3/DXT5, the browser must expose
+`WEBGL_compressed_texture_s3tc` and support 16384px textures. Desktop Chrome,
+Firefox and Edge do (including on Apple silicon, via ANGLE). The page checks
+both up front and explains the problem rather than dying inside a texture load.
+
+### GitHub Pages
+
+`.github/workflows/pages.yml` builds the web bundle and deploys it on every
+push to `master`. It needs Pages switched on once, in
+**Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Known Limitations
 
 - No localStorage/sessionStorage support in LÖVE2D artifacts

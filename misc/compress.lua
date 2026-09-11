@@ -1,3 +1,9 @@
+-- DEPRECATED: this was the manual "run inside LÖVE to zlib-compress a .dds
+-- by hand" step of the old atlas pipeline. It's now folded into
+-- tools/pack_atlas.py (see encode_lib.zlib_compress there), which runs it
+-- automatically as the last step of one CLI call instead of a separate
+-- thing you had to remember to do. Kept around for reference / in case you
+-- need to zlib-compress some other .dds by hand; not part of the build.
 function love.load()
     local filename = "out.dds"
 

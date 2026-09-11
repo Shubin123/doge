@@ -16,3 +16,16 @@ auto arrows, auto bullets, melee attack, melee grab, auto melee
 [done] rocket exhaust sim disabled (not drawn)
 [done] behaviour tree short-circuit when far from player
 [done] console commands: /profile, /benchmark, /spawn
+[done] atlas pipeline: one-step tools/pack_atlas.py replaces manual stitch+bc-encoder+compress.lua+hand-edit workflow; tested (tests/)
+re-source the 4 missing TileSet sprites (tree1.png, arch.png, coin128.png, house128.png) referenced by the old atlas config — see configs/production_atlas.json notes
+decide whether to swap in the rebuilt production atlas (configs/production_atlas.json output) or keep the currently shipping gfx/atlas/atla.dds.zlib
+[done] repair src/lib/graphics/shadow.lua -- the REDUXPLUS merge truncated it (108 lines gone, unterminated block comment); nothing on master parsed
+[done] enemy.lua: setCharacterType called with ':' on a dot-defined closure -- crashed the game a few seconds in
+[done] bullet tracers: core/glow/trail draws re-enabled, and prevPos now lags a frame so the tracer line has length
+[done] characterAnimator: clamp frame/direction on animation switch (stopped the per-frame "No location found for global index" spam)
+[done] web/wasm build: ./buildjs.sh -> dist/web, love.js compat runtime
+[done] Lua 5.1 lint (tools/check_lua51.py) -- goto/labels parse on LuaJIT but are fatal in the browser
+[done] shipping package trims atlas source sheets: 160MB -> 33MB (tools/shipping-excludes.txt)
+[done] GitHub Pages workflow (.github/workflows/pages.yml)
+gh pages needs enabling once: Settings -> Pages -> Source: GitHub Actions
+
