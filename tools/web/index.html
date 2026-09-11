@@ -1,209 +1,121 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>doge</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0; background: #0b0d10; color: #d7dce3;
-    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 100%; padding: 16px; gap: 14px;
-  }
-  #stage { position: relative; width: 100%; max-width: 1000px; }
-  canvas#canvas {
-    display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; max-width: 100%;
-    background: #000; border: 1px solid #232833; border-radius: 6px;
-    outline: none; image-rendering: pixelated; visibility: hidden;
-  }
-  #boot {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 14px; text-align: center;
-    border: 1px solid #232833; border-radius: 6px; background: #0e1116; padding: 24px;
-  }
-  #boot h1 { margin: 0; font-size: 20px; letter-spacing: .04em; font-weight: 600; }
-  #bar { width: min(320px, 80%); height: 6px; background: #1b2029; border-radius: 999px; overflow: hidden; }
-  #bar > div { height: 100%; width: 0%; background: #6ba7ff; transition: width .18s ease; }
-  #msg { font-size: 13px; color: #8b95a5; min-height: 1.4em; }
-  #err { color: #ff9b9b; max-width: 46ch; font-size: 13px; display: none; }
-  #err code { color: #ffd9d9; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  button {
-    font: inherit; color: #d7dce3; background: #171c24; border: 1px solid #2a313d;
-    padding: 6px 14px; border-radius: 5px; cursor: pointer;
-  }
-  button:hover { background: #1e242e; }
-  footer { color: #6b7484; font-size: 12px; text-align: center; }
-  footer a { color: #8fb6f0; }
-  kbd {
-    background: #171c24; border: 1px solid #2a313d; border-bottom-width: 2px;
-    border-radius: 4px; padding: 1px 5px; font-size: 11px; font-family: ui-monospace, monospace;
-  }
-</style>
-</head>
-<body>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1">
+    <title>doge</title>
 
-<div id="stage">
-  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
-  <div id="boot">
-    <h1>doge</h1>
-    <div id="bar"><div></div></div>
-    <div id="msg">Loading…</div>
-    <div id="err"></div>
-  </div>
-</div>
+    <!-- Load custom style sheet -->
+    <link rel="stylesheet" type="text/css" href="theme/love.css">
+  </head>
+  <body>
+    <center>
+      <div>
+        <h1>doge</h1>
+        <canvas id="loadingCanvas" oncontextmenu="event.preventDefault()" width="800" height="600"></canvas>
+        <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+      </div>
+    </center>
 
-<div class="controls">
-  <button onclick="goFullScreen()">Fullscreen</button>
-  <button onclick="location.reload()">Restart</button>
-  <button onclick="clearGameCache()">Clear Cache</button>
-</div>
-
-<footer>
-  <kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim/shoot · <kbd>Z</kbd> zoom · <kbd>Esc</kbd> menu · <kbd>F1</kbd> profiler<br>
-  LÖVE compiled to WebAssembly with <a href="https://github.com/Davidobot/love.js">love.js</a>.
-</footer>
-
-<script>
-(function () {
-  var boot = document.getElementById('boot');
-  var bar  = document.querySelector('#bar > div');
-  var msg  = document.getElementById('msg');
-  var err  = document.getElementById('err');
-  var canvas = document.getElementById('canvas');
-
-  function fail(html) {
-    bar.parentNode.style.display = 'none';
-    msg.textContent = '';
-    err.style.display = 'block';
-    err.innerHTML = html;
-  }
-
-  // --- capability check, before we pull down tens of MB -------------------
-  // The sprite atlas ships as BC3/DXT5, which WebGL only exposes through
-  // WEBGL_compressed_texture_s3tc. Desktop Chrome/Firefox/Edge have it; Apple
-  // GPUs (Apple-silicon Macs, iOS) do not, and there the atlas cannot upload.
-  // Say so plainly here rather than letting LÖVE die on a texture load.
-  var gl = null;
-  try {
-    var probe = document.createElement('canvas');
-    gl = probe.getContext('webgl') || probe.getContext('experimental-webgl');
-  } catch (e) { /* handled below */ }
-
-  if (!gl) {
-    fail('This browser has no working <b>WebGL</b> context, which the game needs. ' +
-         'Try a recent Chrome, Firefox or Edge, and check that hardware acceleration is enabled.');
-    return;
-  }
-  var hasS3TC = !!(gl.getExtension('WEBGL_compressed_texture_s3tc') ||
-                   gl.getExtension('MOZ_WEBGL_compressed_texture_s3tc') ||
-                   gl.getExtension('WEBKIT_WEBGL_compressed_texture_s3tc'));
-  var maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-  window.__doge_caps = { s3tc: hasS3TC, maxTexture: maxTex };
-
-  if (!hasS3TC) {
-    fail('Your GPU driver does not expose <code>WEBGL_compressed_texture_s3tc</code>, ' +
-         'which this build needs to upload its BC3/DXT5 sprite atlas. ' +
-         'This is normal on Apple-silicon Macs and iOS. ' +
-         'Desktop Chrome, Firefox or Edge on a PC will run it — or grab a native build from the repo.');
-    return;
-  }
-  if (maxTex < 16384) {
-    fail('Your GPU reports a maximum texture size of <code>' + maxTex + '</code>, ' +
-         'but the sprite atlas is 16384&times;16384. This build will not run here.');
-    return;
-  }
-
-  // --- progress ------------------------------------------------------------
-  function setProgress(fraction, text) {
-    if (fraction != null) bar.style.width = Math.max(0, Math.min(1, fraction)) * 100 + '%';
-    if (text != null) msg.textContent = text;
-  }
-
-  window.goFullScreen = function () {
-    var el = canvas;
-    (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || function(){}).call(el);
-  };
-
-  // Keep arrows/space from scrolling the page out from under the game.
-  window.addEventListener('keydown', function (e) {
-    if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1 && document.activeElement !== document.body) {
-      e.preventDefault();
-    }
-  }, false);
-  canvas.addEventListener('click', function () { canvas.focus(); });
-  canvas.addEventListener('webglcontextlost', function (e) {
-    e.preventDefault();
-    fail('The WebGL context was lost (the GPU dropped the page, usually from memory pressure). Reload to try again.');
-    boot.style.display = 'flex';
-    canvas.style.visibility = 'hidden';
-  }, false);
-
-  window.clearGameCache = function() {
-    try {
-      indexedDB.deleteDatabase('/doge/game.data');
-      indexedDB.deleteDatabase('game.data');
-      indexedDB.deleteDatabase('/game.data');
-    } catch(e) {}
-    localStorage.clear();
-    location.reload(true);
-  };
-
-  window.Module = {
-    arguments: ['./game.love'],
-    INITIAL_MEMORY: __LOVEJS_MEMORY__,
-    locateFile: function (path, prefix) {
-      return (prefix || '') + path + '?v=' + '__CACHE_BUST__';
-    },
-    printErr: console.error.bind(console),
-    canvas: canvas,
-    totalDependencies: 0,
-    remainingDependencies: 0,
-    setStatus: function (text) {
-      if (text) {
-        // Emscripten reports download progress as "... (12345/67890)".
-        var m = /\((\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\)/.exec(text);
-        if (m) {
-          var done = parseFloat(m[1]), total = parseFloat(m[2]);
-          setProgress(total ? done / total : null,
-                      'Downloading… ' + (done / 1048576).toFixed(1) + ' / ' + (total / 1048576).toFixed(1) + ' MB');
-        } else {
-          setProgress(null, text);
-        }
-      } else if (Module.remainingDependencies === 0) {
-        setProgress(1, 'Starting…');
-        // LÖVE needs a moment after the last dependency to open its window.
-        setTimeout(function () {
-          boot.style.display = 'none';
-          canvas.style.visibility = 'visible';
-          canvas.focus();
-        }, 120);
+    <script type='text/javascript'>
+      function goFullScreen(){
+            var canvas = document.getElementById("canvas");
+            if(canvas.requestFullScreen)
+                canvas.requestFullScreen();
+            else if(canvas.webkitRequestFullScreen)
+                canvas.webkitRequestFullScreen();
+            else if(canvas.mozRequestFullScreen)
+                canvas.mozRequestFullScreen();
       }
-    },
-    monitorRunDependencies: function (left) {
-      this.remainingDependencies = left;
-      this.totalDependencies = Math.max(this.totalDependencies, left);
-      Module.setStatus(left
-        ? 'Preparing… (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
-        : '');
-    }
-  };
+      function FullScreenHook(){
+        var canvas = document.getElementById("canvas");
+        canvas.width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+        canvas.height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+      }
+      var loadingContext = document.getElementById('loadingCanvas').getContext('2d');
+      function drawLoadingText(text) {
+        var canvas = loadingContext.canvas;
 
-  Module.setStatus('Downloading…');
-  window.onerror = function (e) {
-    fail('The game crashed while starting. Open the browser console for the stack trace.<br><code>' +
-         String((e && e.message) || e) + '</code><br><br>' +
-         '<button onclick="clearGameCache()" style="background:#2a313d;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">Clear Cache &amp; Hard Reload</button>');
-    boot.style.display = 'flex';
-  };
-  window.applicationLoad = function () { Love(Module); };
-})();
-</script>
-<script type="text/javascript" src="game.js?v=__CACHE_BUST__"></script>
-<script async type="text/javascript" src="love.js?v=__CACHE_BUST__" onload="applicationLoad(this)"></script>
-</body>
+        loadingContext.fillStyle = "rgb(142, 195, 227)";
+        loadingContext.fillRect(0, 0, canvas.scrollWidth, canvas.scrollHeight);
+
+        loadingContext.font = '2em arial';
+        loadingContext.textAlign = 'center'
+        loadingContext.fillStyle = "rgb( 11, 86, 117 )";
+        loadingContext.fillText(text, canvas.scrollWidth / 2, canvas.scrollHeight / 2);
+
+        loadingContext.fillText("Powered By Emscripten.", canvas.scrollWidth / 2, canvas.scrollHeight / 4);
+        loadingContext.fillText("Powered By LÖVE.", canvas.scrollWidth / 2, canvas.scrollHeight / 4 * 3);
+      }
+
+      window.onload = function () { window.focus(); };
+      window.onclick = function () { window.focus(); };
+
+      window.addEventListener("keydown", function(e) {
+        // space and arrow keys
+        if([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+          e.preventDefault();
+        }
+      }, false);
+
+      function clearGameCache() {
+        try {
+          indexedDB.deleteDatabase('/doge/game.data');
+          indexedDB.deleteDatabase('game.data');
+          indexedDB.deleteDatabase('/game.data');
+        } catch(e) {}
+        localStorage.clear();
+        location.reload(true);
+      }
+
+      var Module = {
+        arguments: ["./game.love"],
+        INITIAL_MEMORY: __LOVEJS_MEMORY__,
+        locateFile: function(path, prefix) {
+          return (prefix || '') + path + '?v=__CACHE_BUST__';
+        },
+        printErr: console.error.bind(console),
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+
+          // As a default initial behavior, pop up an alert when webgl context is lost.
+          canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (text) {
+            drawLoadingText(text);
+          } else if (Module.remainingDependencies === 0) {
+            document.getElementById('loadingCanvas').style.display = 'none';
+            document.getElementById('canvas').style.visibility = 'visible';
+          }
+        },
+        totalDependencies: 0,
+        remainingDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.remainingDependencies = left;
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.onerror = function(event) {
+        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus = function(text) {
+          if (text) Module.printErr('[post-exception status] ' + text);
+        };
+      };
+
+      var applicationLoad = function(e) {
+        Love(Module);
+      };
+    </script>
+    <script type="text/javascript" src="game.js?v=__CACHE_BUST__"></script>
+    <script async type="text/javascript" src="love.js?v=__CACHE_BUST__" onload="applicationLoad(this)"></script>
+    <footer>
+      <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a> <button onclick="goFullScreen();">Go Fullscreen</button> <button onclick="clearGameCache();">Clear Cache</button><br>Hint: Reload the page if screen is blank</p>
+    </footer>
+  </body>
 </html>
