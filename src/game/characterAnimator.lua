@@ -435,31 +435,9 @@ end
 function characterAnimator.load()
     -- Universal shader that works on both desktop and web
    characterAnimator.shader = love.graphics.newShader([[
-        // MAX_LIGHTS must match lighting.MAX_LIGHTS (shadow.lua); the Lighting
-        // subsystem uploads numLights + lights[] (world space) here each frame.
-        #define MAX_LIGHTS 64
-
-        uniform int numLights;
-        uniform vec4 lights[MAX_LIGHTS];
-
-        // Outline uniforms
-        uniform float outlineWidth;
-        uniform vec3 outlineColor;
-        
-        // Normal map uniforms
-        uniform Image NormalTex;
-        uniform bool useNormalMap;
-        
-        // Steve's atlas bounds and frame info
-        uniform vec4 steveAtlasUVBounds;  // minU, minV, maxU, maxV in main atlas
-        uniform int steveFrameOffset;      // Starting frame index in atlas
-        uniform int steveTotalFrames;      // Total number of frames (200 for Steve)
-        uniform int steveColumns;          // Columns in normal map (16)
-        uniform vec2 normalMapSpriteSize;  // Size of one sprite in normal map UV space
-        
-        varying vec4 VColor;
-        varying vec2 VaryingUV;
-        varying vec2 pos;
+        varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
 
         #ifdef VERTEX
 attribute vec4 InstanceUVData; 
@@ -489,10 +467,33 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
 
         return transform_projection * vec4(worldPos.xy, 0, 1.0);
     }
+    return vec4(0.0);
 }
         #endif
 
         #ifdef PIXEL
+        // MAX_LIGHTS must match lighting.MAX_LIGHTS (shadow.lua); the Lighting
+        // subsystem uploads numLights + lights[] (world space) here each frame.
+        #define MAX_LIGHTS 64
+
+        uniform int numLights;
+        uniform vec4 lights[MAX_LIGHTS];
+
+        // Outline uniforms
+        uniform float outlineWidth;
+        uniform vec3 outlineColor;
+        
+        // Normal map uniforms
+        uniform Image NormalTex;
+        uniform bool useNormalMap;
+        
+        // Steve's atlas bounds and frame info
+        uniform vec4 steveAtlasUVBounds;  // minU, minV, maxU, maxV in main atlas
+        uniform int steveFrameOffset;      // Starting frame index in atlas
+        uniform int steveTotalFrames;      // Total number of frames (200 for Steve)
+        uniform int steveColumns;          // Columns in normal map (16)
+        uniform vec2 normalMapSpriteSize;  // Size of one sprite in normal map UV space
+
         uniform Image MainTex;
 
         vec3 decodeNormal(vec3 encodedNormal) {
@@ -660,19 +661,12 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     -- below shader is for fully lit sprites so no need for shadow/light info
     characterAnimator.shaderWithTransforms = love.graphics.newShader([[
-        uniform vec3 cameraPosition; // z component is zoom
-        //uniform int numLights;
-        //uniform vec4 lights[MAX_LIGHTS];
-
-        // Outline uniforms
-        uniform float outlineWidth;
-        uniform vec3 outlineColor;
-        
-        varying vec4 VColor;
-        varying vec2 VaryingUV;
-        varying vec2 pos;
+        varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
 
         #ifdef VERTEX
+        uniform vec3 cameraPosition; // z component is zoom
 attribute vec4 InstanceUVData; 
 attribute vec4 color;
 attribute vec3 InstanceMatrix1; 
@@ -702,6 +696,7 @@ if (int(onoff) == 0) {
 
     return transform_projection * vec4(worldPos.xy, 0, 1.0);
 }
+return vec4(0.0);
 }
 #endif
 

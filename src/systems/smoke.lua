@@ -76,10 +76,10 @@ function smoke.load()
         //#pragma language glsl3
         
         uniform Image noiseTexture;
-        uniform vec2 noiseScale = vec2(2.5, 2.5);
+        uniform vec2 noiseScale;
         uniform vec2 noiseOffset;
-        uniform float distortionStrength = 0.015;
-        uniform float reflectionStrength = 0.1;
+        uniform float distortionStrength;
+        uniform float reflectionStrength;
         uniform vec4 smokeBounds; // x, y, width, height
         uniform highp float time;
         uniform Image reflectionTexture;

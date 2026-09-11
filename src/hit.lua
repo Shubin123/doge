@@ -5,6 +5,7 @@ local hit = {}
 
 -- Shader code
 local shaderCode = [[
+#ifdef VERTEX
 extern float distortion_strength;
 extern float distortion_seed;
 extern vec2 distortion_center;
@@ -24,7 +25,6 @@ vec2 random2(vec2 st, float seed) {
     ) * 2.0 - 1.0;
 }
 
-#ifdef VERTEX
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
     if (distortion_strength <= 0.0) {
         return transform_projection * vertex_position;

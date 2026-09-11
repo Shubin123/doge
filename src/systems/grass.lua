@@ -34,9 +34,9 @@ function GrassRenderer:initShaders()
         attribute float WindIntensity;
         attribute vec2 BladeCenter;
         
-        varying vec2 vTexCoord;
-        varying vec4 vColor;
-        varying float vPlayerInfluence;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 vTexCoord;
+        varying LOVE_HIGHP_OR_MEDIUMP vec4 vColor;
+        varying LOVE_HIGHP_OR_MEDIUMP float vPlayerInfluence;
         
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
             vec2 worldPos = vertex_position.xy;
@@ -93,7 +93,7 @@ function GrassRenderer:initShaders()
         uniform vec3 ambientColor;
         uniform vec2 screenSize;
         
-        varying float vPlayerInfluence;
+        varying LOVE_HIGHP_OR_MEDIUMP float vPlayerInfluence;
         
         vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
             // Sample grass texture
