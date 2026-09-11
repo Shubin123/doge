@@ -1,0 +1,13 @@
+{
+  "name": "doge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build tooling for the web/wasm (love.js) build of doge.",
+  "scripts": {
+    "build:love": "tools/make_love.sh",
+    "build:web": "./buildjs.sh"
+  },
+  "devDependencies": {
+    "love.js": "11.4.1"
+  }
+}
