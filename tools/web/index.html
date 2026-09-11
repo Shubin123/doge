@@ -60,6 +60,7 @@
 <div class="controls">
   <button onclick="goFullScreen()">Fullscreen</button>
   <button onclick="location.reload()">Restart</button>
+  <button onclick="clearGameCache()">Clear Cache</button>
 </div>
 
 <footer>
@@ -142,9 +143,22 @@
     canvas.style.visibility = 'hidden';
   }, false);
 
+  window.clearGameCache = function() {
+    try {
+      indexedDB.deleteDatabase('/doge/game.data');
+      indexedDB.deleteDatabase('game.data');
+      indexedDB.deleteDatabase('/game.data');
+    } catch(e) {}
+    localStorage.clear();
+    location.reload(true);
+  };
+
   window.Module = {
     arguments: ['./game.love'],
     INITIAL_MEMORY: __LOVEJS_MEMORY__,
+    locateFile: function (path, prefix) {
+      return (prefix || '') + path + '?v=' + '__CACHE_BUST__';
+    },
     printErr: console.error.bind(console),
     canvas: canvas,
     totalDependencies: 0,
@@ -182,13 +196,14 @@
   Module.setStatus('Downloading…');
   window.onerror = function (e) {
     fail('The game crashed while starting. Open the browser console for the stack trace.<br><code>' +
-         String((e && e.message) || e) + '</code>');
+         String((e && e.message) || e) + '</code><br><br>' +
+         '<button onclick="clearGameCache()" style="background:#2a313d;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">Clear Cache &amp; Hard Reload</button>');
     boot.style.display = 'flex';
   };
   window.applicationLoad = function () { Love(Module); };
 })();
 </script>
-<script type="text/javascript" src="game.js"></script>
-<script async type="text/javascript" src="love.js" onload="applicationLoad(this)"></script>
+<script type="text/javascript" src="game.js?v=__CACHE_BUST__"></script>
+<script async type="text/javascript" src="love.js?v=__CACHE_BUST__" onload="applicationLoad(this)"></script>
 </body>
 </html>

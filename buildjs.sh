@@ -71,8 +71,11 @@ fi
 # love.js writes its own stock index.html; ours replaces it (canvas sizing,
 # real progress bar, and an up-front WebGL/S3TC capability check).
 if [ -f "$ROOT/tools/web/index.html" ]; then
-    echo "==> installing custom shell page"
-    sed "s/__LOVEJS_MEMORY__/$MEMORY/" "$ROOT/tools/web/index.html" > "$OUT/index.html"
+    echo "==> installing custom shell page with cache-busting"
+    BUILD_HASH="$(git rev-parse --short HEAD 2>/dev/null || date +%s)-$(date +%s)"
+    sed -e "s/__LOVEJS_MEMORY__/$MEMORY/g" \
+        -e "s/__CACHE_BUST__/$BUILD_HASH/g" \
+        "$ROOT/tools/web/index.html" > "$OUT/index.html"
 fi
 
 # Dummy favicon.ico so browsers don't report 404
