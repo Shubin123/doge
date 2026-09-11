@@ -115,3 +115,19 @@ Lua 5.4 interpreter running transliterations of the original algorithm,
 and PSNR/visual-diff checks on the lossy BC3 stage — all run against real
 sprites already in `src/gfx/`, not synthetic fixtures. See
 `../tests/README.md`.
+
+## Web smoke test
+
+The browser smoke test builds `dist/web`, serves that exact output with a
+local HTTP server, and drives Chrome through the full loading path. It fails
+on missing output files, JavaScript errors, DXT5/S3TC regressions, shader link
+errors, and failure to reach the initial 80-enemy gameplay state:
+
+```sh
+npm ci
+npm run test:web
+```
+
+It requires Chrome or Chromium on `PATH`. Set `CHROME_PATH=/path/to/chrome`
+when it is installed elsewhere. Run this before pushing a web change; the
+Pages workflow packages the same `buildjs.sh` output.

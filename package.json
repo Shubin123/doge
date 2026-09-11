@@ -5,9 +5,12 @@
   "description": "Build tooling for the web/wasm (love.js) build of doge.",
   "scripts": {
     "build:love": "tools/make_love.sh",
-    "build:web": "./buildjs.sh"
+    "build:web": "./buildjs.sh",
+    "test:web:smoke": "node tools/test_web_smoke.js",
+    "test:web": "npm run build:web && npm run test:web:smoke"
   },
   "devDependencies": {
-    "love.js": "11.4.1"
+    "love.js": "11.4.1",
+    "puppeteer-core": "22.15.0"
   }
 }
