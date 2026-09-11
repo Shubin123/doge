@@ -126,6 +126,12 @@ async function main() {
     const title = await page.title();
     if (!/ents:\s*80\b/.test(title)) failures.push(`game did not reach the expected entity count (title: ${title})`);
 
+    // Compiling a shader is not enough: tracer and muzzle shaders are bound
+    // only while firing. Shoot once so this test catches runtime shader errors
+    // in the exact rendering path players use.
+    await page.click('#canvas', {offset: {x: 600, y: 300}});
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Browser controls must stay outside the game canvas and forward their
     // state-changing input into LÖVE. Sound emits a Lua log, which verifies
     // that this is more than a cosmetic HTML toggle.

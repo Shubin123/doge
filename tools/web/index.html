@@ -54,17 +54,59 @@
       var loadingContext = document.getElementById('loadingCanvas').getContext('2d');
       function drawLoadingText(text) {
         var canvas = loadingContext.canvas;
+        var width = canvas.width;
+        var height = canvas.height;
+        var centerX = width / 2;
+        var centerY = height / 2;
 
-        loadingContext.fillStyle = "rgb(142, 195, 227)";
-        loadingContext.fillRect(0, 0, canvas.scrollWidth, canvas.scrollHeight);
+        var background = loadingContext.createLinearGradient(0, 0, width, height);
+        background.addColorStop(0, '#06101e');
+        background.addColorStop(0.55, '#0b2440');
+        background.addColorStop(1, '#170e2d');
+        loadingContext.fillStyle = background;
+        loadingContext.fillRect(0, 0, width, height);
 
-        loadingContext.font = '2em arial';
-        loadingContext.textAlign = 'center'
-        loadingContext.fillStyle = "rgb( 11, 86, 117 )";
-        loadingContext.fillText(text, canvas.scrollWidth / 2, canvas.scrollHeight / 2);
+        loadingContext.save();
+        loadingContext.strokeStyle = 'rgba(79, 186, 255, 0.13)';
+        loadingContext.lineWidth = 1;
+        for (var x = -height; x < width + height; x += 38) {
+          loadingContext.beginPath();
+          loadingContext.moveTo(x, 0);
+          loadingContext.lineTo(x + height, height);
+          loadingContext.stroke();
+        }
+        loadingContext.restore();
 
-        loadingContext.fillText("Powered By Emscripten.", canvas.scrollWidth / 2, canvas.scrollHeight / 4);
-        loadingContext.fillText("Powered By LÖVE.", canvas.scrollWidth / 2, canvas.scrollHeight / 4 * 3);
+        var glow = loadingContext.createRadialGradient(centerX, centerY - 20, 4, centerX, centerY - 20, 230);
+        glow.addColorStop(0, 'rgba(38, 215, 255, 0.34)');
+        glow.addColorStop(0.42, 'rgba(118, 67, 255, 0.13)');
+        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        loadingContext.fillStyle = glow;
+        loadingContext.fillRect(0, 0, width, height);
+
+        loadingContext.textAlign = 'center';
+        loadingContext.textBaseline = 'middle';
+        loadingContext.shadowColor = '#36d6ff';
+        loadingContext.shadowBlur = 22;
+        loadingContext.fillStyle = '#eaf8ff';
+        loadingContext.font = '800 68px system-ui, sans-serif';
+        loadingContext.fillText('DOGE', centerX, centerY - 56);
+        loadingContext.shadowBlur = 0;
+        loadingContext.fillStyle = '#ffb34f';
+        loadingContext.font = '700 15px system-ui, sans-serif';
+        loadingContext.fillText('NEON COMBAT RUNTIME', centerX, centerY - 8);
+
+        loadingContext.fillStyle = 'rgba(255,255,255,0.12)';
+        loadingContext.fillRect(centerX - 150, centerY + 46, 300, 4);
+        loadingContext.fillStyle = '#43d7ff';
+        loadingContext.fillRect(centerX - 150, centerY + 46, 184, 4);
+        loadingContext.fillStyle = '#c9deef';
+        loadingContext.font = '600 15px system-ui, sans-serif';
+        loadingContext.fillText(text || 'Preparing mission…', centerX, centerY + 82);
+
+        loadingContext.strokeStyle = 'rgba(255, 179, 79, 0.8)';
+        loadingContext.lineWidth = 2;
+        loadingContext.strokeRect(22, 22, width - 44, height - 44);
       }
 
       window.onload = function () { window.focus(); };

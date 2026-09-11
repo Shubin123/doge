@@ -14,7 +14,6 @@ bullet.muzzleFlashShader = nil
 bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
 bullet.particles = {}  -- gunpowder confetti particles
-bullet.muzzleFlashCanvas = nil  -- canvas for rendering muzzle flashes
 bullet.online_bullets = {}  -- online bullet bodies for multiplayer
 
 -- Initialize the bullet module with the physics world
@@ -41,9 +40,6 @@ function bullet.load(world)
         bullet.muzzleFlashShader = love.graphics.newShader(muzzle_shader_code)
     end
     
-    -- Create canvas for muzzle flash rendering
-    local width, height = love.graphics.getDimensions()
-    bullet.muzzleFlashCanvas = love.graphics.newCanvas(width, height)
 end
 
 -- Factory: create a new bullet (with pooling)
@@ -462,104 +458,10 @@ end
 
 -- Draw muzzle flash effects
 function bullet.drawMuzzleFlashes()
-    if #bullet.muzzleFlashes == 0 then return end
-    
-    -- Set additive blend mode for brighter effect
-    love.graphics.setBlendMode("add")
-    
     for _, flash in ipairs(bullet.muzzleFlashes) do
-        local alpha = flash.life / flash.maxLife
-        local size = flash.size * alpha
-        
-        -- Draw cone-shaped flash using triangular geometry
-        local coneLength = flash.coneLength * alpha
-        local coneAngle = flash.coneAngle
-        
-        -- Calculate cone vertices
-        local perpDir = vec2.new(-flash.dir.y, flash.dir.x)  -- perpendicular to direction
-        local coneEnd = flash.pos + flash.dir * coneLength
-        local leftVertex = coneEnd + perpDir * math.tan(coneAngle) * coneLength
-        local rightVertex = coneEnd - perpDir * math.tan(coneAngle) * coneLength
-        
-        -- Draw cone with gradient effect (multiple passes for smooth gradient)
-        for i = 1, 5 do
-            local gradientFactor = i / 5
-            local currentAlpha = alpha * (1 - gradientFactor * 0.7) * flash.intensity * 1.5  -- Increased intensity
-            local currentSize = coneLength * (1 - gradientFactor * 0.3)
-            
-            love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], currentAlpha)
-            
-            -- Calculate vertices for this gradient layer
-            local layerEnd = flash.pos + flash.dir * currentSize
-            local layerLeft = layerEnd + perpDir * math.tan(coneAngle) * currentSize * gradientFactor
-            local layerRight = layerEnd - perpDir * math.tan(coneAngle) * currentSize * gradientFactor
-            
-            -- Draw triangle
-            love.graphics.polygon("fill", 
-                flash.pos.x, flash.pos.y,
-                layerLeft.x, layerLeft.y,
-                layerRight.x, layerRight.y
-            )
-        end
-        
-        -- Draw bright core at muzzle
-        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * flash.intensity)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.8)
-        
-        -- Draw outer glow
-        love.graphics.setColor(flash.color[1] * 0.6, flash.color[2] * 0.4, flash.color[3] * 0.2, alpha * 0.5)
-        love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.5)
+        bullet.drawSingleMuzzleFlash(flash)
     end
-    
-    -- Reset blend mode
-    love.graphics.setBlendMode("alpha")
     love.graphics.setColor(1, 1, 1, 1)
-end
-
--- Apply muzzle flash shader as a post-processing effect
-function bullet.applyMuzzleFlashShader(canvas)
-    if #bullet.muzzleFlashes == 0 or not bullet.muzzleFlashShader then
-        return canvas
-    end
-    
-    -- Create a temporary canvas for the effect
-    love.graphics.push()
-    love.graphics.origin()
-    
-    local width, height = canvas:getDimensions()
-    love.graphics.setCanvas(bullet.muzzleFlashCanvas)
-    love.graphics.clear()
-    
-    -- Apply shader for each flash
-    for _, flash in ipairs(bullet.muzzleFlashes) do
-        if flash.useShader then
-            local alpha = flash.life / flash.maxLife
-            
-            love.graphics.setShader(bullet.muzzleFlashShader)
-            
-            -- Send uniforms to shader
-            bullet.muzzleFlashShader:send("flash_pos", {flash.pos.x, flash.pos.y})
-            bullet.muzzleFlashShader:send("flash_dir", {flash.dir.x, flash.dir.y})
-            bullet.muzzleFlashShader:send("flash_intensity", flash.intensity * alpha)
-            bullet.muzzleFlashShader:send("cone_angle", flash.coneAngle)
-            bullet.muzzleFlashShader:send("cone_length", flash.coneLength)
-            bullet.muzzleFlashShader:send("flash_color", flash.color)
-            bullet.muzzleFlashShader:send("time", bullet.t)
-            
-            -- Draw the canvas with shader applied
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.draw(canvas, 0, 0)
-            
-            -- Update canvas for next flash
-            canvas = bullet.muzzleFlashCanvas
-        end
-    end
-    
-    love.graphics.setShader()
-    love.graphics.setCanvas()
-    love.graphics.pop()
-    
-    return canvas
 end
 
 -- Create shell ejection effect
@@ -639,8 +541,11 @@ end
 
 -- Individual drawing functions for Y-sorted rendering
 function bullet.drawSingleMuzzleFlash(flash)
-    -- Set additive blending only for this effect
+    -- The historical vfx branch established the additive muzzle/tracer look.
+    -- Render that look through the current sorted renderer and WebGL-safe
+    -- shader path rather than its obsolete flat-layout code.
     love.graphics.setBlendMode("add")
+    local previous_shader = love.graphics.getShader()
     
     local alpha = flash.life / flash.maxLife
     local size = flash.size * alpha
@@ -653,13 +558,20 @@ function bullet.drawSingleMuzzleFlash(flash)
     local perpDir = vec2.new(-flash.dir.y, flash.dir.x)
     local coneEnd = flash.pos + flash.dir * coneLength
     
-    -- Draw cone with gradient effect (reduced intensity to prevent map interference)
-    for i = 1, 5 do
-        local gradientFactor = i / 5
-        local currentAlpha = alpha * (1 - gradientFactor * 0.7) * flash.intensity * 0.8 -- Reduced from 1.5 to 0.8
+    -- Wide saturated halo plus a hot white core. Alpha blending made these
+    -- flashes nearly invisible against the game’s dark world pass.
+    for i = 1, 6 do
+        local gradientFactor = i / 6
+        local currentAlpha = alpha * (1 - gradientFactor * 0.55) * flash.intensity
         local currentSize = coneLength * (1 - gradientFactor * 0.3)
-        
-        love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], currentAlpha)
+
+        if bullet.muzzleFlashShader then
+            bullet.muzzleFlashShader:send("flash_color", flash.color)
+            bullet.muzzleFlashShader:send("intensity", 0.72 + gradientFactor * 0.46)
+            bullet.muzzleFlashShader:send("pulse", bullet.t * 38.0 + i)
+            love.graphics.setShader(bullet.muzzleFlashShader)
+        end
+        love.graphics.setColor(1, 0.82 + gradientFactor * 0.18, 0.42 + gradientFactor * 0.40, currentAlpha)
         
         local layerEnd = flash.pos + flash.dir * currentSize
         local layerLeft = layerEnd + perpDir * math.tan(coneAngle) * currentSize * gradientFactor
@@ -670,17 +582,21 @@ function bullet.drawSingleMuzzleFlash(flash)
             layerLeft.x, layerLeft.y,
             layerRight.x, layerRight.y
         )
+        love.graphics.setShader(previous_shader)
     end
-    
-    -- Draw bright core at muzzle (reduced intensity)
-    love.graphics.setColor(flash.color[1], flash.color[2], flash.color[3], alpha * flash.intensity * 0.6)
-    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 0.8)
-    
-    -- Draw outer glow (reduced intensity)
-    love.graphics.setColor(flash.color[1] * 0.6, flash.color[2] * 0.4, flash.color[3] * 0.2, alpha * 0.3)
-    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.5)
-    
-    -- Reset blend mode
+
+    if bullet.muzzleFlashShader then
+        bullet.muzzleFlashShader:send("flash_color", {1.0, 0.55, 0.12})
+        bullet.muzzleFlashShader:send("intensity", 1.0)
+        bullet.muzzleFlashShader:send("pulse", bullet.t * 44.0)
+        love.graphics.setShader(bullet.muzzleFlashShader)
+    end
+    love.graphics.setColor(1, 0.96, 0.74, alpha * flash.intensity)
+    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.05)
+    love.graphics.setShader(previous_shader)
+    love.graphics.setColor(0.12, 0.72, 1.0, alpha * flash.intensity * 0.62)
+    love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 2.45)
+
     love.graphics.setBlendMode("alpha")
 end
 
@@ -729,12 +645,9 @@ function bullet.drawSingleShell(shell)
 end
 
 function bullet.drawSingleTracer(inst, x, y, distance)
+    local previous_shader = love.graphics.getShader()
+    love.graphics.setBlendMode("add")
 
-
-    -- Use alpha blending to prevent map interference
-    love.graphics.setBlendMode("alpha")
-    
-    local age = bullet.t - inst.birthTime
     distance = distance or 0
     
     -- Calculate distance-based fade factor
@@ -744,27 +657,34 @@ function bullet.drawSingleTracer(inst, x, y, distance)
         fade_factor = math.max(0.1, 1.0 - ((distance - 150) / 200)) -- Fade over 200 pixels
     end
     
-    -- Apply distance fade to all alpha values
-    local core_alpha = 0.6 * fade_factor
-    local glow_alpha = 0.3 * fade_factor
-    local trail_alpha_base = 0.2 * fade_factor
+    local core_alpha = 1.0 * fade_factor
+    local glow_alpha = 0.86 * fade_factor
+    local trail_alpha_base = 0.62 * fade_factor
     
     -- Skip drawing if too faded
     if fade_factor < 0.15 then
         return
     end
     
-    -- Draw bright tracer core (with distance fade)
-    love.graphics.setColor(0.9, 0.9, 0.7, core_alpha)
-    love.graphics.setLineWidth(3)
-    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    local function neon_line(color, width, alpha, intensity, pulse_offset)
+        if bullet.tracerShader then
+            bullet.tracerShader:send("tracer_color", color)
+            bullet.tracerShader:send("intensity", intensity)
+            bullet.tracerShader:send("pulse", bullet.t * 46.0 + pulse_offset)
+            love.graphics.setShader(bullet.tracerShader)
+        end
+        love.graphics.setColor(1, 1, 1, alpha)
+        love.graphics.setLineWidth(width)
+        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+        love.graphics.setShader(previous_shader)
+    end
 
-    -- Draw glowing outer tracer (with distance fade). The wide, dim pass under
-    -- the core is what the glow/bloom chain in light.lua picks up -- without it
-    -- bullets are a flat dot with nothing for the shaders to bloom.
-    love.graphics.setColor(0.8, 0.6, 0.3, glow_alpha)
-    love.graphics.setLineWidth(6)
-    love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
+    -- Layered wide-to-thin passes produce a readable cyan/magenta neon trail
+    -- even on browsers where post-process bloom is deliberately reduced.
+    neon_line({0.03, 0.34, 1.0}, 16, glow_alpha * 0.44, 0.62, 0.0)
+    neon_line({0.10, 0.92, 1.0}, 9, glow_alpha * 0.76, 0.84, 1.7)
+    neon_line({1.0, 0.16, 0.78}, 4.5, core_alpha, 1.0, 3.4)
+    neon_line({1.0, 0.98, 0.84}, 1.75, core_alpha, 1.0, 5.1)
 
     -- Draw fading trail (with distance fade)
     if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
@@ -772,18 +692,21 @@ function bullet.drawSingleTracer(inst, x, y, distance)
             local p1 = inst.trail[i]
             local p2 = inst.trail[i + 1]
             local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
-            love.graphics.setColor(1, 0.8, 0.4, trailAlpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.line(p1.x, p1.y, p2.x, p2.y)
+            neon_line({0.18, 0.82, 1.0}, 4, trailAlpha, 0.75, i * 0.8)
         end
     end
-    
-    -- Draw bullet impact point (with distance fade)
+
+    if bullet.tracerShader then
+        bullet.tracerShader:send("tracer_color", {1.0, 0.34, 0.90})
+        bullet.tracerShader:send("intensity", 1.0)
+        bullet.tracerShader:send("pulse", bullet.t * 50.0)
+        love.graphics.setShader(bullet.tracerShader)
+    end
     love.graphics.setColor(1, 1, 1, fade_factor)
-    love.graphics.circle("fill", x, y, 2)
+    love.graphics.circle("fill", x, y, 4)
+    love.graphics.setShader(previous_shader)
     love.graphics.setLineWidth(1)
-    
-    
+    love.graphics.setBlendMode("alpha")
 end
 
 
