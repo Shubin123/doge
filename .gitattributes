@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Explicitly binary assets to prevent line-ending corruption
+*.wasm binary
+*.data binary
+*.love binary
+*.zlib binary
+*.dds binary
+*.png binary
+*.ico binary
+*.ttf binary
