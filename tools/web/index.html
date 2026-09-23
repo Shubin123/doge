@@ -159,13 +159,32 @@
         });
       }
 
+      // LÖVE reports a boot failure (a Lua error before the window exists)
+      // only as a bare alert() while the real error goes to the console.
+      // Keep the recent engine errors and show them on the page instead.
+      var recentErrors = [];
+      function rememberError(text) {
+        recentErrors.push(String(text));
+        if (recentErrors.length > 12) recentErrors.shift();
+      }
+      window.alert = function(message) {
+        var detail = recentErrors.filter(function(line) { return line.trim(); }).slice(-6).join('\n');
+        console.error('[engine alert] ' + message + (detail ? '\n' + detail : ''));
+        setBrowserStatus('Engine failed to start', false);
+        browserMessage.style.whiteSpace = 'pre-wrap';
+        browserMessage.style.color = '#ffb4c2';
+        browserMessage.textContent = message + (detail ? '\n\n' + detail : '') +
+          '\n\nTry "Clear cached build" and reload. If it persists, report this text with your browser/version.';
+      };
+
       var Module = {
         arguments: ["./game.love"],
         INITIAL_MEMORY: __LOVEJS_MEMORY__,
         locateFile: function(path, prefix) {
           return (prefix || '') + path + '?v=__CACHE_BUST__';
         },
-        printErr: console.error.bind(console),
+        print: function(text) { console.log(text); if (/error|traceback|\.lua:\d+/i.test(text)) rememberError(text); },
+        printErr: function(text) { rememberError(text); console.error(text); },
         canvas: (function() {
           var canvas = gameCanvas;
 
