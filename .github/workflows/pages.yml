@@ -60,7 +60,16 @@ jobs:
       - name: E2E smoke test (local bundle)
         env:
           SMOKE_TIMEOUT_MS: '180000'
+          SMOKE_MIN_FPS: '0.2'   # runners have no GPU: SwiftShader runs ~0.4 fps
         run: npm run test:web:smoke
+
+      - name: Upload e2e frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-frames-local
+          path: dist/e2e
+          if-no-files-found: ignore
 
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
@@ -104,6 +113,7 @@ jobs:
         env:
           WEB_URL: ${{ env.PAGES_URL }}
           SMOKE_TIMEOUT_MS: '240000'
+          SMOKE_MIN_FPS: '0.2'
         run: npm run test:web:smoke
 
   # Scheduled uptime check: live site must serve main's HEAD and reach
@@ -129,6 +139,7 @@ jobs:
         env:
           WEB_URL: ${{ env.PAGES_URL }}
           SMOKE_TIMEOUT_MS: '240000'
+          SMOKE_MIN_FPS: '0.2'
         run: npm run test:web:smoke
       - name: Self-heal by redeploying main
         if: failure()
