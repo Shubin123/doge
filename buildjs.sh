@@ -78,6 +78,9 @@ if [ -f "$ROOT/tools/web/index.html" ]; then
         "$ROOT/tools/web/index.html" > "$OUT/index.html"
 fi
 
+# Stamp the commit so a post-deploy check can confirm which build is live.
+git rev-parse HEAD > "$OUT/version.txt" 2>/dev/null || date +%s > "$OUT/version.txt"
+
 # Dummy favicon.ico so browsers don't report 404
 touch "$OUT/favicon.ico"
 
