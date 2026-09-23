@@ -262,7 +262,8 @@ async function main() {
       failures.push('browser control panel is incomplete');
     } else {
       await page.click('#soundButton');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for the Lua side to log it: on software GL a frame can take seconds.
+      for (const until = Date.now() + 20_000; Date.now() < until && !logs.some(log => log.includes('Audio muted')); await sleep(250)) {}
       const muted = await page.$eval('#soundButton', button => ({label: button.textContent, pressed: button.getAttribute('aria-pressed')}));
       if (muted.label !== 'Sound: Off' || muted.pressed !== 'false') failures.push('sound control did not enter its muted state');
       if (!logs.some(log => log.includes('Audio muted'))) failures.push('sound control did not reach the LÖVE audio mixer');
