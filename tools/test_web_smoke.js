@@ -43,6 +43,10 @@ const gates = {
 };
 const requiredLogs = [
   'S3TC support: enabled',
+  // Printed from the real texture after upload (16384 full atlas, or 8192
+  // half-res on GPUs capped at 8192, e.g. SwiftShader on CI). Before this,
+  // an over-limit atlas failed silently and sprites drew as solid quads.
+  'Atlas texture uploaded:',
   'Loaded atlas texture: 16384x16384',
   'Loaded 6759 sprites from atlas',
   'All 80 enemies spawned (staggered)',
@@ -137,23 +141,26 @@ async function canvasPoint(page, fx, fy) {
 async function unsupportedGpuChecks(browser, url, failures) {
   const cases = [
     {name: 'no S3TC (e.g. mobile ETC2/ASTC-only GPU)', stub: 'noS3tc', expect: /S3TC/},
-    {name: 'max texture 8192 (older iGPU)', stub: 'smallTex', expect: /Max texture size is 8192/},
+    {name: 'max texture 4096 (low-end GPU)', stub: 'smallTex', expect: /Max texture size is 4096/},
   ];
   for (const c of cases) {
     const page = await browser.newPage();
     let dataRequested = false;
     page.on('request', request => { if (/game\.data|love\.wasm/.test(request.url())) dataRequested = true; });
     await page.evaluateOnNewDocument(stub => {
-      const proto = WebGLRenderingContext.prototype;
-      const getExtension = proto.getExtension, getParameter = proto.getParameter;
-      proto.getExtension = function(name) {
-        if (stub === 'noS3tc' && /compressed_texture_s3tc/i.test(name)) return null;
-        return getExtension.call(this, name);
-      };
-      proto.getParameter = function(p) {
-        if (stub === 'smallTex' && p === this.MAX_TEXTURE_SIZE) return 8192;
-        return getParameter.call(this, p);
-      };
+      for (const Ctx of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+        if (!Ctx) continue;
+        const proto = Ctx.prototype;
+        const getExtension = proto.getExtension, getParameter = proto.getParameter;
+        proto.getExtension = function(name) {
+          if (stub === 'noS3tc' && /compressed_texture_s3tc/i.test(name)) return null;
+          return getExtension.call(this, name);
+        };
+        proto.getParameter = function(p) {
+          if (stub === 'smallTex' && p === this.MAX_TEXTURE_SIZE) return 4096;
+          return getParameter.call(this, p);
+        };
+      }
     }, c.stub);
     await page.goto(url, {waitUntil: 'load', timeout: 60_000});
     await sleep(1000);

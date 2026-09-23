@@ -13,7 +13,7 @@ players. Deeper references: `tools/README.md` (atlas config and flags),
         │  configs/production_atlas.json   (add the sheet + an animation name)
         │  tools/pack_atlas.py             (slice → pack → BC3/DXT5 → zlib)
         ▼
- src/gfx/atlas/atla.dds.zlib  +  src/gfx/atlas/atlas_metadata3.lua
+ src/gfx/atlas/atla.dds.zlib  +  atla_8k.dds.zlib (half-res fallback)  +  atlas_metadata3.lua
         │  characterAnimator.loadFromAtlas()   (src/main.lua)
         ▼
  game:  instance.setCharacterType("name") / instance.setAnimation("walk")
@@ -149,7 +149,11 @@ means binding its sheet there too; the colour sheet works without it.
 4. zlib the `.dds` → `atla.dds.zlib` (~9 MB). The game inflates it with
    `love.data.decompress`, then calls `love.image.newCompressedData` and
    `newImage`.
-5. Write the metadata Lua (image list, frame counts, characterDefinitions).
+5. Write `atla_8k.dds.zlib`, an 8192² copy with the same 128-cell grid.
+   GPUs capped at 8192 load this one automatically. Because the UVs are
+   normalized, it needs no separate metadata. To regenerate it from an
+   existing atlas alone: `python3 tools/make_half_atlas.py`.
+6. Write the metadata Lua (image list, frame counts, characterDefinitions).
 
 Tests: `pytest tests/` checks each stage. Details in `tests/README.md`.
 
@@ -160,11 +164,17 @@ Tests: `pytest tests/` checks each stage. Details in `tests/README.md`.
   Going beyond 16384² would break the texture-size limit below.
 - **GPU format:** BC3/DXT5 (S3TC). Desktop GPUs expose it on Windows, macOS
   and Linux (in browsers too, via ANGLE). Mobile GPUs mostly expose only
-  ETC2/ASTC, and some older iGPUs cap textures at 8192. The web page checks
-  both before downloading anything and names the missing capability and the
-  GPU. The Lua loader raises the same reasons on desktop builds. Supporting
-  those devices would take a second atlas encode (e.g. ETC2/ASTC in KTX) and
-  a runtime choice between the two; that doesn't exist yet.
+  ETC2/ASTC.
+- **Texture size:** with a 16384 limit the game loads the full atlas
+  (128 px sprites). With an 8192 limit (some iGPUs, and SwiftShader on CI)
+  it loads `atla_8k.dds.zlib` (64 px sprites, same layout). Below 8192, or
+  without S3TC, it can't run. The web page checks both before downloading
+  anything and names the missing capability and the GPU; `?skipcaps=1`
+  bypasses the check. The Lua loader raises the same reasons, and logs
+  `Atlas texture uploaded: WxH`, which the e2e requires. Before this, an
+  atlas over the limit failed silently and sprites drew as solid quads.
+  ETC2/ASTC devices would need another atlas encode (KTX) and a runtime
+  choice between formats; that doesn't exist yet.
 - **Web memory:** the love.js heap is fixed at 1.5 GiB (`LOVEJS_MEMORY`).
   The atlas is 256 MB while it decodes. Raise the heap if the atlas grows.
 - **Web Lua is 5.1:** no `goto`, labels or other 5.2+ syntax.
@@ -183,16 +193,24 @@ Tests: `pytest tests/` checks each stage. Details in `tests/README.md`.
 The e2e smoke test (`tools/test_web_smoke.js`) serves `dist/web` (or
 `WEB_URL=...`) in Chrome. It fails on any of these:
 
-- a fake GPU without S3TC, or with 8192 max textures, doesn't get a clear
+- a fake GPU without S3TC, or with 4096 max textures, doesn't get a clear
   "Unsupported GPU" message, or still downloads the engine
 - missing files, JS errors, DXT5 or shader-link errors, or an engine alert
-- the game doesn't reach 80 enemies
+- the atlas texture doesn't actually upload, or the game doesn't reach 80 enemies
 - after 15 s of play (firing throughout), the canvas pixels are black, flat,
   frozen over 1 s, or don't change when walking with WASD
 - fps falls below `SMOKE_MIN_FPS` (0.2 on GPU-less CI runners, 1 locally)
 - the HTML sound/lights controls don't reach LÖVE
 
-Frames are saved to `dist/e2e/` and uploaded as a CI artifact.
+Frames are saved to `dist/e2e/` and uploaded as a CI artifact. CI runs on
+SwiftShader (8192 limit), so it exercises the half-res atlas, while a local
+run on a real GPU exercises the full one. To reproduce CI locally, point
+`CHROME_PATH` at a wrapper that runs Chrome with
+`--use-angle=swiftshader --use-gl=angle`.
+
+Known issue: under SwiftShader only, a pink translucent square draws at the
+player's position. On real GPUs, including with the 8k atlas forced, it
+doesn't appear. The cause hasn't been found yet.
 
 **CI/CD** (`.github/workflows/pages.yml`): only `main` deploys. PRs run
 build + e2e without deploying. After a deploy, CI waits until
