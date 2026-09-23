@@ -794,6 +794,26 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     -- Load atlas texture
     local atlasImageData
     if compressed then
+        -- Compressed-format support is vendor/driver specific (S3TC on most
+        -- desktop GPUs, ETC2/ASTC on mobile). Fail with the actual reason.
+        local formats = love.graphics.getImageFormats()
+        local maxSize = love.graphics.getSystemLimits().texturesize
+        if not formats.DXT5 then
+            error("GPU does not support DXT5 (S3TC) compressed textures, required by " .. atlasFilename)
+        end
+        local need = math.max(metadata.textureWidth or 0, metadata.textureHeight or 0)
+        if maxSize < need then
+            -- Same grid at half resolution (tools/make_half_atlas.py): the
+            -- metadata's normalized UVs still line up, sprites are just 64px.
+            local half = atlasFilename:gsub("%.dds%.zlib$", "_8k.dds.zlib")
+            if maxSize >= need / 2 and half ~= atlasFilename and love.filesystem.getInfo(half) then
+                print(("GPU max texture size %d < %d: using half-resolution atlas %s"):format(maxSize, need, half))
+                atlasFilename = half
+            else
+                error(("GPU max texture size %d is below the %dx%d atlas"):format(
+                    maxSize, metadata.textureWidth, metadata.textureHeight))
+            end
+        end
         atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib",
             love.filesystem.read(atlasFilename)))
     else
@@ -801,6 +821,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     end
 
     texture = love.graphics.newImage(atlasImageData)
+    print(("Atlas texture uploaded: %dx%d"):format(texture:getWidth(), texture:getHeight()))
     atlasImageData = nil
     collectgarbage()
 

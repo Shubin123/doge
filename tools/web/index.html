@@ -234,7 +234,71 @@
         document.getElementById('fullscreenButton').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
       });
     </script>
-    <script type="text/javascript" src="game.js?v=__CACHE_BUST__"></script>
-    <script async type="text/javascript" src="love.js?v=__CACHE_BUST__" onload="applicationLoad(this)"></script>
+    <script type="text/javascript">
+      // Capability gate. The sprite atlas ships as one 16384x16384 BC3/DXT5
+      // (S3TC) texture. GPU vendors expose different compressed formats:
+      // desktop Windows/macOS/Linux drivers normally offer S3TC, mobile GPUs
+      // mostly offer only ETC2/ASTC, and some GPUs cap texture size (8192 gets
+      // the half-resolution atlas; below that cannot run).
+      // Check before downloading ~50 MB and say exactly what is missing,
+      // rather than failing inside the engine with a black screen.
+      (function() {
+        var caps = {webgl: false, s3tc: false, maxTexture: 0, renderer: 'unknown', vendor: 'unknown'};
+        try {
+          // Probe WebGL2 first: the engine can use it, and some drivers
+          // (e.g. SwiftShader) report a smaller MAX_TEXTURE_SIZE on WebGL1.
+          var gl = document.createElement('canvas').getContext('webgl2') ||
+                   document.createElement('canvas').getContext('webgl');
+          if (gl) {
+            caps.webgl = true;
+            caps.s3tc = !!(gl.getExtension('WEBGL_compressed_texture_s3tc') ||
+                           gl.getExtension('MOZ_WEBGL_compressed_texture_s3tc') ||
+                           gl.getExtension('WEBKIT_WEBGL_compressed_texture_s3tc'));
+            caps.maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 0;
+            var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+            caps.renderer = String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+            caps.vendor = String(dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR));
+            var lose = gl.getExtension('WEBGL_lose_context');
+            if (lose) lose.loseContext();
+          }
+        } catch (e) {}
+        window.__doge_caps = caps;
+        console.log('GPU caps: ' + JSON.stringify(caps));
+
+        var problems = [];
+        if (!caps.webgl) problems.push('WebGL is unavailable (disabled, blocklisted driver, or hardware acceleration off).');
+        else {
+          if (!caps.s3tc) problems.push('This GPU/browser does not expose S3TC (DXT5) texture compression, which the sprite atlas uses. Mobile GPUs usually only offer ETC2/ASTC.');
+          // 16384 runs the full atlas; 8192 runs the half-resolution one.
+          if (caps.maxTexture < 8192) problems.push('Max texture size is ' + caps.maxTexture + ', but the sprite atlas needs at least 8192x8192.');
+        }
+        // ?skipcaps=1 loads anyway (drivers can under-report; lets people try).
+        if (problems.length && /[?&]skipcaps=1\b/.test(location.search)) {
+          console.warn('[unsupported, loading anyway] ' + problems.join(' '));
+          problems = [];
+        }
+        if (problems.length) {
+          console.error('[unsupported] ' + problems.join(' '));
+          setBrowserStatus('Unsupported GPU', false);
+          browserMessage.style.whiteSpace = 'pre-wrap';
+          browserMessage.style.color = '#ffb4c2';
+          browserMessage.textContent = 'This device cannot run the web build:\n- ' + problems.join('\n- ') +
+            '\n\nGPU: ' + caps.vendor + ' / ' + caps.renderer +
+            '\nTry desktop Chrome, Edge or Firefox with hardware acceleration on, or a native build.' +
+            '\nTo try anyway, add ?skipcaps=1 to the address.';
+          drawLoadingText('Unsupported GPU');
+          return;
+        }
+
+        function load(src, onload) {
+          var tag = document.createElement('script');
+          tag.src = src; tag.async = false;
+          if (onload) tag.onload = onload;
+          document.body.appendChild(tag);
+        }
+        load('game.js?v=__CACHE_BUST__');
+        load('love.js?v=__CACHE_BUST__', applicationLoad);
+      })();
+    </script>
   </body>
 </html>

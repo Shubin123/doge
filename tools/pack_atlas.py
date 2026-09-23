@@ -106,6 +106,18 @@ def main(argv=None) -> int:
     out_atlas_path.parent.mkdir(parents=True, exist_ok=True)
     out_atlas_path.write_bytes(final_bytes)
 
+    # Half-resolution fallback for GPUs capped at 8192 (see make_half_atlas.py).
+    # Built from the lossless RGBA atlas, not the BC3 output, to avoid
+    # compounding compression error.
+    if not args.no_compress and str(out_atlas_path).endswith(".dds.zlib") and packed.texture_width > 8192:
+        from make_half_atlas import downsample2x
+        import numpy as np
+        img = packed.image
+        half = np.concatenate([downsample2x(img[y:y + 512]) for y in range(0, img.shape[0], 512)])
+        half_path = Path(str(out_atlas_path)[:-len(".dds.zlib")] + "_8k.dds.zlib")
+        half_path.write_bytes(encode_lib.zlib_compress(encode_lib.encode_rgba_to_dds_bytes(half)))
+        print(f"      half-res fallback: {half_path} ({human_bytes(half_path.stat().st_size)})")
+
     relative_image_files = [entry["path"] for entry in __import__("json").loads(Path(args.config).read_text())["sources"]]
     metadata_lua = build_metadata_lua(packed, char_defs, relative_image_files)
     out_meta_path = Path(args.out_metadata)

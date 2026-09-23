@@ -39,3 +39,4 @@ src/gfx/atlas/atlas2.png
 # web/wasm build tooling
 /node_modules
 /dist
+bc-encoder/bc3enc

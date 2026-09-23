@@ -149,8 +149,9 @@ function love.load()
     --
     --   python3 tools/pack_atlas.py --config configs/production_atlas.json \
     --       --gfx-root src --out-atlas src/gfx/atlas/atla.dds.zlib \
-    --       --out-metadata src/gfx/atlas/atlas_metadata.lua
+    --       --out-metadata src/gfx/atlas/atlas_metadata3.lua
     --
+    -- New 3D animations: docs/PIPELINE.md (Blender, tools/render_sprites.py).
     -- See tools/README.md for the config format (sources + characterDefinitions,
     -- both by path — no more hand-kept-in-sync sprite indices) and
     -- tests/ for the pipeline's own test suite. The old

@@ -170,8 +170,11 @@ end
 
 ## Sprite Atlas Pipeline
 
-Character/object sprites (however they were gathered — a Unity grid
-export, Aseprite, a hand-drawn sheet) are packed into one texture atlas
+**Full walkthrough, including rendering new 3D animations with Blender
+(`tools/render_sprites.py`, no Unity): `docs/PIPELINE.md`.**
+
+Character/object sprites (rendered with `tools/render_sprites.py`, Aseprite,
+a hand-drawn sheet) are packed into one texture atlas
 and BC3/DXT5-compressed for size before shipping. That used to be four
 manual steps (build the atlas from inside LÖVE, compile and run a
 separate C tool to BC3-encode it, run another LÖVE script by hand to
@@ -183,7 +186,7 @@ python3 tools/pack_atlas.py \
   --config configs/production_atlas.json \
   --gfx-root src \
   --out-atlas src/gfx/atlas/atla.dds.zlib \
-  --out-metadata src/gfx/atlas/atlas_metadata.lua
+  --out-metadata src/gfx/atlas/atlas_metadata3.lua   # the file main.lua loads
 ```
 
 Requires Python 3 + Pillow + numpy, and a C compiler (gcc) to build
@@ -244,8 +247,9 @@ both up front and explains the problem rather than dying inside a texture load.
 
 ### GitHub Pages
 
-`.github/workflows/pages.yml` builds the web bundle and deploys it on every
-push to `master`. It needs Pages switched on once, in
+`.github/workflows/pages.yml` builds the web bundle, runs the e2e framebuffer
+smoke test, and deploys it on every push to `main` (then re-verifies the live
+site; see `docs/PIPELINE.md`). It needs Pages switched on once, in
 **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 ## Known Limitations
