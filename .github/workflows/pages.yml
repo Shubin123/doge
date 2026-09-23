@@ -1,24 +1,37 @@
 name: Deploy web build to GitHub Pages
 
+# Only `main` deploys. Two branches deploying to one Pages site race each
+# other, and whichever finishes last wins -- that is how a stale `master`
+# build (no S3TC engine, no shader fixes, renders nothing) ended up live.
 on:
   push:
-    branches: [main, master]
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 */6 * * *'   # live uptime check; self-heals by redeploying main
   workflow_dispatch:
 
-# GITHUB_TOKEN needs these to publish a Pages artifact.
+# GITHUB_TOKEN needs these to publish a Pages artifact (and, for the
+# scheduled check, to re-dispatch this workflow).
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 # Let a running deploy finish rather than cancelling it midway, but only keep
-# one queued behind it.
+# one queued behind it. PRs get their own group so they never block a deploy.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PAGES_URL: https://shubin123.github.io/doge/
 
 jobs:
   build:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,14 +54,25 @@ jobs:
           du -h dist/web/* | sort -h >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      # E2E gate: drive the exact bundle we are about to ship through Chrome
+      # (software WebGL) until gameplay is reached. A build that shows no
+      # frames never gets deployed.
+      - name: E2E smoke test (local bundle)
+        env:
+          SMOKE_TIMEOUT_MS: '180000'
+        run: npm run test:web:smoke
+
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: dist/web
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -56,3 +80,58 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Confirm the CDN is actually serving this commit, then play it.
+  verify-live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Wait for this commit to be live
+        run: |
+          for i in $(seq 1 30); do
+            live="$(curl -fsS "${PAGES_URL}version.txt?t=$(date +%s)" || true)"
+            [ "$live" = "$GITHUB_SHA" ] && { echo "live: $live"; exit 0; }
+            echo "live=${live:-<none>} want=$GITHUB_SHA; retrying"; sleep 10
+          done
+          echo "::error::Pages is not serving $GITHUB_SHA"; exit 1
+      - name: E2E smoke test (live site)
+        env:
+          WEB_URL: ${{ env.PAGES_URL }}
+          SMOKE_TIMEOUT_MS: '240000'
+        run: npm run test:web:smoke
+
+  # Scheduled uptime check: live site must serve main's HEAD and reach
+  # gameplay. If not, redeploy main.
+  live-check:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Live site serves main HEAD
+        run: |
+          live="$(curl -fsS "${PAGES_URL}version.txt?t=$(date +%s)" || true)"
+          want="$(git rev-parse HEAD)"
+          [ "$live" = "$want" ] || { echo "::error::live=${live:-<none>} main=$want"; exit 1; }
+      - name: E2E smoke test (live site)
+        env:
+          WEB_URL: ${{ env.PAGES_URL }}
+          SMOKE_TIMEOUT_MS: '240000'
+        run: npm run test:web:smoke
+      - name: Self-heal by redeploying main
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"

@@ -10,6 +10,8 @@
  *   npm run test:web
  *
  * CHROME_PATH=/path/to/chrome npm run test:web:smoke
+ * WEB_URL=https://shubin123.github.io/doge/ npm run test:web:smoke   # test a deployed site
+ * SMOKE_TIMEOUT_MS=120000 npm run test:web:smoke                     # slow (CI/software GL) hosts
  */
 'use strict';
 
@@ -21,6 +23,8 @@ const puppeteer = require('puppeteer-core');
 
 const root = path.resolve(__dirname, '..');
 const webDir = path.resolve(process.env.WEB_DIR || path.join(root, 'dist', 'web'));
+const remoteUrl = process.env.WEB_URL;
+const loadTimeoutMs = Number(process.env.SMOKE_TIMEOUT_MS) || 45_000;
 const requiredLogs = [
   'S3TC support: enabled',
   'Loaded atlas texture: 16384x16384',
@@ -74,7 +78,7 @@ function makeServer() {
 }
 
 async function main() {
-  if (!fs.existsSync(path.join(webDir, 'index.html'))) {
+  if (!remoteUrl && !fs.existsSync(path.join(webDir, 'index.html'))) {
     throw new Error(`No web bundle at ${webDir}. Run npm run build:web first.`);
   }
 
@@ -83,14 +87,15 @@ async function main() {
   const logs = [];
   let browser;
 
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
+  if (!remoteUrl) {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+  }
 
   try {
-    const address = server.address();
-    const url = `http://127.0.0.1:${address.port}/`;
+    const url = remoteUrl || `http://127.0.0.1:${server.address().port}/`;
     browser = await puppeteer.launch({
       executablePath: chromePath(),
       headless: 'new',
@@ -109,10 +114,10 @@ async function main() {
     });
     page.on('requestfailed', request => failures.push(`request failed: ${request.url()} (${request.failure()?.errorText || 'unknown error'})`));
 
-    await page.goto(url, {waitUntil: 'domcontentloaded', timeout: 30_000});
+    await page.goto(url, {waitUntil: 'domcontentloaded', timeout: 60_000});
     await page.click('#canvas').catch(() => {}); // Mirrors the first real user gesture for audio startup.
 
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + loadTimeoutMs;
     while (Date.now() < deadline && !requiredLogs.every(expected => logs.some(log => log.includes(expected)))) {
       await new Promise(resolve => setTimeout(resolve, 250));
     }
@@ -162,7 +167,7 @@ async function main() {
     console.log(`Web smoke test passed: ${title}`);
   } finally {
     await browser?.close();
-    await new Promise(resolve => server.close(resolve));
+    if (server.listening) await new Promise(resolve => server.close(resolve));
   }
 }
 

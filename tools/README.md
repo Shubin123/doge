@@ -131,3 +131,10 @@ npm run test:web
 It requires Chrome or Chromium on `PATH`. Set `CHROME_PATH=/path/to/chrome`
 when it is installed elsewhere. Run this before pushing a web change; the
 Pages workflow packages the same `buildjs.sh` output.
+
+CI runs the same smoke test as a gate in `.github/workflows/pages.yml`: a
+build that fails it is never deployed. After each deploy the workflow waits
+for `version.txt` on the live site to match the commit, then re-runs the test
+against `https://shubin123.github.io/doge/` (`WEB_URL=...`). A scheduled job
+repeats that live check every 6 hours and redeploys `main` if it fails. Only
+`main` deploys to Pages.
