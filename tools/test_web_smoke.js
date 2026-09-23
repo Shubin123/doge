@@ -131,6 +131,41 @@ async function canvasPoint(page, fx, fy) {
   return [box.x + box.width * fx, box.y + box.height * fy];
 }
 
+// Different GPU vendors expose different compressed-texture formats. Fake
+// a GPU without S3TC, and one with a small texture limit, and require the
+// shell to explain why it cannot run, without downloading the game data.
+async function unsupportedGpuChecks(browser, url, failures) {
+  const cases = [
+    {name: 'no S3TC (e.g. mobile ETC2/ASTC-only GPU)', stub: 'noS3tc', expect: /S3TC/},
+    {name: 'max texture 8192 (older iGPU)', stub: 'smallTex', expect: /Max texture size is 8192/},
+  ];
+  for (const c of cases) {
+    const page = await browser.newPage();
+    let dataRequested = false;
+    page.on('request', request => { if (/game\.data|love\.wasm/.test(request.url())) dataRequested = true; });
+    await page.evaluateOnNewDocument(stub => {
+      const proto = WebGLRenderingContext.prototype;
+      const getExtension = proto.getExtension, getParameter = proto.getParameter;
+      proto.getExtension = function(name) {
+        if (stub === 'noS3tc' && /compressed_texture_s3tc/i.test(name)) return null;
+        return getExtension.call(this, name);
+      };
+      proto.getParameter = function(p) {
+        if (stub === 'smallTex' && p === this.MAX_TEXTURE_SIZE) return 8192;
+        return getParameter.call(this, p);
+      };
+    }, c.stub);
+    await page.goto(url, {waitUntil: 'load', timeout: 60_000});
+    await sleep(1000);
+    const text = await page.$eval('#browserMessage', el => el.textContent);
+    const status = await page.$eval('#engineStatus', el => el.textContent);
+    console.log(`[caps] ${c.name}: ${status}`);
+    if (status !== 'Unsupported GPU' || !c.expect.test(text)) failures.push(`unsupported GPU (${c.name}) not reported clearly: ${status} / ${text.slice(0, 120)}`);
+    if (dataRequested) failures.push(`unsupported GPU (${c.name}) still downloaded the engine/game data`);
+    await page.close();
+  }
+}
+
 function frameDiff(a, b) {
   if (!a || !b || a.luma.length !== b.luma.length) return 0;
   let d = 0;
@@ -174,6 +209,8 @@ async function main() {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
     });
+    await unsupportedGpuChecks(browser, url, failures);
+
     const page = await browser.newPage();
     page.on('console', message => {
       const text = message.text();

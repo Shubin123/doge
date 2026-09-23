@@ -794,6 +794,17 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
     -- Load atlas texture
     local atlasImageData
     if compressed then
+        -- Compressed-format support is vendor/driver specific (S3TC on most
+        -- desktop GPUs, ETC2/ASTC on mobile). Fail with the actual reason.
+        local formats = love.graphics.getImageFormats()
+        local maxSize = love.graphics.getSystemLimits().texturesize
+        if not formats.DXT5 then
+            error("GPU does not support DXT5 (S3TC) compressed textures, required by " .. atlasFilename)
+        end
+        if maxSize < (metadata.textureWidth or 0) or maxSize < (metadata.textureHeight or 0) then
+            error(("GPU max texture size %d is below the %dx%d atlas"):format(
+                maxSize, metadata.textureWidth, metadata.textureHeight))
+        end
         atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib",
             love.filesystem.read(atlasFilename)))
     else
