@@ -81,8 +81,8 @@ fi
 # Stamp the commit so a post-deploy check can confirm which build is live.
 git rev-parse HEAD > "$OUT/version.txt" 2>/dev/null || date +%s > "$OUT/version.txt"
 
-# Dummy favicon.ico so browsers don't report 404
-touch "$OUT/favicon.ico"
+# Copy the project mark used by the portfolio and browser tab.
+cp "$ROOT/tools/web/app-icon.svg" "$OUT/app-icon.svg"
 
 # .nojekyll stops GitHub Pages' Jekyll pass from dropping files it considers
 # special; harmless everywhere else.
