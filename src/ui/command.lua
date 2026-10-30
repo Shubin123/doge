@@ -22,7 +22,6 @@ local errorColor = { 1, 0.3, 0.3, 1 }
 local outputColor = { 0.8, 0.8, 0.8, 1 }
 local command_blocks = {}
 local next_block_id = 1
-local command_block_img = love.graphics.newImage('gfx/3d/apple_2.png')
 local command_block_font = nil
 local command_block_instance = nil
 local command_block_instance2 = nil
@@ -51,7 +50,7 @@ function command.load()
 
     -- Setup command block animation using superclass
     -- command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
-    command_block_instance = block.new("gfx/3d/apple_2.png", 128, 128, 100, 400, 1)
+    command_block_instance = block.new("gfx/3d/apple_2.dds", 128, 128, 100, 400, 1)
 
 
     -- Add initial help message
@@ -278,8 +277,8 @@ function createBlock(cmd)
         cmd = cmd,
         x = px,
         y = py,
-        w = command_block_img:getWidth(),
-        h = command_block_img:getHeight(),
+        w = command_block_instance.width,
+        h = command_block_instance.height,
         active = true,
         creator = var.multiplayer or 0 -- who created this block
     }

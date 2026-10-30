@@ -802,12 +802,18 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
             error("GPU does not support DXT5 (S3TC) compressed textures, required by " .. atlasFilename)
         end
         local need = math.max(metadata.textureWidth or 0, metadata.textureHeight or 0)
+        -- The web build always uses the half-resolution atlas (and does not
+        -- ship the full one): 64 MB instead of 256 MB of heap and VRAM, and a
+        -- much shorter first-frame stall while it unpacks.
+        local web = love.system.getOS() == "Web" or not love.filesystem.getInfo(atlasFilename)
+        if web then maxSize = math.min(maxSize, need / 2) end
         if maxSize < need then
             -- Same grid at half resolution (tools/make_half_atlas.py): the
             -- metadata's normalized UVs still line up, sprites are just 64px.
             local half = atlasFilename:gsub("%.dds%.zlib$", "_8k.dds.zlib")
             if maxSize >= need / 2 and half ~= atlasFilename and love.filesystem.getInfo(half) then
-                print(("GPU max texture size %d < %d: using half-resolution atlas %s"):format(maxSize, need, half))
+                print(("Using half-resolution atlas %s (%s)"):format(half,
+                    web and "web build" or ("GPU max texture size " .. maxSize)))
                 atlasFilename = half
             else
                 error(("GPU max texture size %d is below the %dx%d atlas"):format(

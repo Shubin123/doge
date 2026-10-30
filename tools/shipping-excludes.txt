@@ -56,3 +56,8 @@ gfx/watchmanOfDoom/walk.png
 # --- oversized duplicates of art that ships in a smaller form ------------
 gfx/coin copy.png              # gfx/coin.png is what loads
 gfx/fireball.png               # gfx/firelowres.png is what loads
+
+# --- block sprite sheets: the game loads the DXT5 .dds next to each ------
+gfx/3d/apple_2.png
+gfx/3d/lauchergun.png
+gfx/vehicles/car.png

@@ -13,6 +13,14 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 OUT="${1:-$ROOT/dist/doge.love}"
 EXCLUDES="$ROOT/tools/shipping-excludes.txt"
+# EXTRA_EXCLUDES=<file> adds a second list (buildjs.sh drops desktop-only
+# assets from the web package this way).
+if [ -n "${EXTRA_EXCLUDES:-}" ]; then
+    combined="$(mktemp)"
+    trap 'rm -f "$combined"' EXIT
+    cat "$EXCLUDES" "$EXTRA_EXCLUDES" > "$combined"
+    EXCLUDES="$combined"
+fi
 
 [ -f "$ROOT/src/main.lua" ] || { echo "error: src/main.lua not found." >&2; exit 1; }
 

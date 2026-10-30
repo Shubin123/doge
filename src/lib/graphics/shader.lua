@@ -14,7 +14,10 @@ shader.qualityPresets = {
 }
 
 function shader.getQuality()
-    return shader.qualityPresets[var.gi_quality or "high"] or shader.qualityPresets.high
+    local name = var.gi_quality or "high"
+    -- Browsers share the GPU with the page compositor; cap GI at medium there.
+    if name == "high" and love.system.getOS() == "Web" then name = "medium" end
+    return shader.qualityPresets[name] or shader.qualityPresets.high
 end
 
 function shader.load()

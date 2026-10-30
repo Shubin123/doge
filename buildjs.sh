@@ -11,11 +11,12 @@
 #     the COOP/COEP response headers -- and GitHub Pages cannot set headers.
 #     The compat runtime is single-threaded and works on any static host.
 #
-#   * MEMORY (-m) is a FIXED emscripten heap, and love.js refuses a value
-#     smaller than the packaged assets. The atlas dominates it: 8.8 MB on disk
-#     unpacks to a 16384x16384 DXT5 surface (256 MB) that is briefly resident
-#     before it is uploaded to the GPU. Override with LOVEJS_MEMORY if you
-#     change the atlas.
+#   * MEMORY (-m) is a FIXED emscripten heap, reserved in one piece at page
+#     load, and love.js refuses a value smaller than the packaged assets. The
+#     web build ships only the 8192 half-res atlas (64 MB unpacked), so the
+#     game boots in 512 MB; 768 MB leaves headroom. A smaller reservation is
+#     also less likely to fail in a long-running, memory-fragmented browser.
+#     Override with LOVEJS_MEMORY if you change the atlas.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -24,7 +25,7 @@ ROOT="$PWD"
 OUT="${OUT:-$ROOT/dist/web}"
 LOVEFILE="$ROOT/dist/doge.love"
 TITLE="${TITLE:-doge}"
-MEMORY="${LOVEJS_MEMORY:-2060045843}"   # ~1.92 GiB heap (required for 16k atlas upload)
+MEMORY="${LOVEJS_MEMORY:-805306368}"   # 768 MiB heap
 
 LOVEJS="$ROOT/node_modules/.bin/love.js"
 if [ ! -x "$LOVEJS" ]; then
@@ -39,7 +40,7 @@ echo "==> checking Lua 5.1 compatibility"
 python3 "$ROOT/tools/check_lua51.py" "$ROOT/src"
 
 echo "==> packaging $LOVEFILE"
-"$ROOT/tools/make_love.sh" "$LOVEFILE"
+EXTRA_EXCLUDES="$ROOT/tools/web/excludes.txt" "$ROOT/tools/make_love.sh" "$LOVEFILE"
 
 # Patch node_modules/love.js with the custom S3TC/DXT5 C++ love engine build
 CUSTOM_DIR="$ROOT/tools/web/custom-love"

@@ -18,7 +18,7 @@ function Gun.new(params)
 
     -- Initialize block instance for gun sprite
     local block = require("game.block")
-    gun.blockInstance = block.new("gfx/3d/lauchergun.png", 128, 128, 2, 450, 1)
+    gun.blockInstance = block.new("gfx/3d/lauchergun.dds", 128, 128, 2, 450, 1)
 
     -- Rocket-specific parameters
     gun.topSpeed = params.topSpeed or 300
