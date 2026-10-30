@@ -32,6 +32,9 @@ const playSeconds = Number(process.env.SMOKE_PLAY_SECONDS) || 15;
 const minFps = Number(process.env.SMOKE_MIN_FPS) || 1;
 // Total page loads to check (the first is the full play-through).
 const reloadRuns = Number(process.env.SMOKE_RUNS) || 3;
+// Fractional device pixel ratios (browser zoom, scaled displays) once made the
+// canvas collapse to 1x1 while the game kept running, so test one by default.
+const deviceScaleFactor = Number(process.env.SMOKE_DPR) || 1.8;
 const shotDir = path.resolve(process.env.SMOKE_SHOT_DIR || path.join(root, 'dist', 'e2e'));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -176,6 +179,18 @@ async function unsupportedGpuChecks(browser, url, failures) {
   }
 }
 
+// The canvas must be laid out at the game's size, not collapsed.
+async function checkCanvasSize(page, label, failures) {
+  const size = await page.evaluate(() => {
+    const c = document.getElementById('canvas'), r = c.getBoundingClientRect();
+    return {w: c.width, h: c.height, cssW: Math.round(r.width), cssH: Math.round(r.height), dpr: devicePixelRatio};
+  });
+  console.log(`[canvas] ${label}: ${size.w}x${size.h} (css ${size.cssW}x${size.cssH}, dpr ${size.dpr})`);
+  if (size.w < 320 || size.h < 240 || size.cssW < 320 || size.cssH < 240) {
+    failures.push(`${label}: canvas collapsed to ${size.w}x${size.h} (css ${size.cssW}x${size.cssH}) at dpr ${size.dpr}`);
+  }
+}
+
 function frameDiff(a, b) {
   if (!a || !b || a.luma.length !== b.luma.length) return 0;
   let d = 0;
@@ -217,7 +232,11 @@ async function main() {
     browser = await puppeteer.launch({
       executablePath: chromePath(),
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'],
+      // A real device scale factor: CDP viewport emulation does not reproduce
+      // the collapse, the browser-level flag does.
+      defaultViewport: null,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader',
+             `--force-device-scale-factor=${deviceScaleFactor}`, '--window-size=1280,900'],
     });
     await unsupportedGpuChecks(browser, url, failures);
 
@@ -260,6 +279,12 @@ async function main() {
     }
     if (!titleRe.test(title)) failures.push(`game did not reach the expected entity count (title: ${title})`);
 
+    // A collapsed canvas cannot be played (or clicked); stop with the cause.
+    await checkCanvasSize(page, 'after boot', failures);
+    if (failures.some(f => f.includes('canvas collapsed'))) {
+      throw new Error(`Web smoke test failed:\n- ${failures.join('\n- ')}`);
+    }
+
     // Compiling a shader is not enough: tracer and muzzle shaders are bound
     // only while firing. Keep firing while we play so this catches runtime
     // shader errors in the exact rendering path players use.
@@ -271,6 +296,7 @@ async function main() {
 
     const played = await captureFrame(page, '1-played');
     checkFrame(played, `after ${playSeconds}s of play`, failures);
+    await checkCanvasSize(page, 'after play', failures);
 
     await sleep(1000);
     const idle = await captureFrame(page, '2-idle');
@@ -345,6 +371,7 @@ async function main() {
       const shown = await page.evaluate(() => getComputedStyle(document.getElementById('canvas')).visibility === 'visible' &&
         getComputedStyle(document.getElementById('loadingCanvas')).display === 'none');
       if (!shown) failures.push(`${label}: game canvas is not shown`);
+      await checkCanvasSize(page, label, failures);
       const a = await captureFrame(page, `reload-${run}-a`);
       checkFrame(a, label, failures);
       await sleep(1000);
