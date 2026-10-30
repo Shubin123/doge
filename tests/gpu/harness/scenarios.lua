@@ -1,0 +1,50 @@
+-- The scripted play-through every run renders, baseline and candidate alike.
+-- Each capture() is one frame that run.py diffs pixel-for-pixel, so together
+-- they should reach every render path: flashlight on/off, indoors (the warm
+-- neon light), an explosion shockwave, zoom, a GI quality change that reloads
+-- shaders and canvases, tesla bolts and arrows.
+--
+-- Only call game APIs that exist in the baseline revision as well: this file
+-- is run against both trees.
+return function(h)
+    h.advance(90) -- every enemy spawned, physics settled
+    h.capture("default")
+
+    player.lightsOn = false
+    h.capture("flashlight_off")
+    player.lightsOn = true
+
+    var.indoors = true
+    h.capture("indoors")
+    var.indoors = false
+    h.advance(1)
+
+    local px, py = player.body:getPosition()
+    explosion.create(px + 80, py + 20, explosion.TYPES.ROCKET)
+    h.advance(6)
+    h.capture("shockwave")
+    h.advance(30)
+    h.capture("shockwave_late")
+
+    camera.setZoom(2)
+    h.advance(45)
+    h.capture("zoom2")
+    camera.setZoom(1)
+    h.advance(45)
+
+    var.gi_quality = "low"
+    shader.load()
+    h.capture("gi_low")
+    var.gi_quality = "high"
+    shader.load()
+    h.capture("gi_reloaded")
+
+    -- Tesla bolts and arrows: their glow chains only run while they exist.
+    local px, py = player.body:getPosition()
+    teslaCoil.fireAt(px + 200, py - 80, world)
+    arrows.fireAt(px + 220, py + 40, world)
+    h.capture("tesla_arrows")
+    teslaCoil:update(teslaCoil.cooldown) -- cooldown expiry clears both again
+    arrows:update(arrows.cooldown)
+    h.advance(1)
+end

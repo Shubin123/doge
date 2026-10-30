@@ -79,7 +79,11 @@ function draw.mydraw()
         water.pass()
         crtShader.endCapture()
     end
-    sampleScreen.pass()
+    -- sampleScreen.pass() samples gi_canvas into a 1x1 canvas that nothing
+    -- reads back yet (see sampleScreen.lua). Run per frame it only cost a
+    -- render-target switch mid-frame, which on tile-based GPUs (Apple silicon,
+    -- mobile) forces the whole screen to be stored and reloaded for the UI.
+    -- Call it again once its result is actually used.
 
     profiler.drawOverlay()
 

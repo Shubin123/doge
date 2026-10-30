@@ -23,6 +23,13 @@ This is a 2D action game built with LÖVE2D featuring real-time global illuminat
 
 ### Testing
 ```bash
+# GPU regression suite: pixel-exact frames, render-pass counts and frame time
+# vs. a baseline revision (exit 0 pass / 1 regression / 2 could not run).
+# See tests/gpu/README.md.
+python3 tests/gpu/run.py                  # vs. tests/gpu/BASELINE
+python3 tests/gpu/run.py --baseline HEAD  # vs. the last commit
+python3 tests/gpu/run.py --json           # machine-readable report
+
 # Test new game systems integration
 '/Applications/love.app/Contents/MacOS/love' ./src/test_improvements.lua
 

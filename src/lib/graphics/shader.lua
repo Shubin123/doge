@@ -35,18 +35,23 @@ function shader.load()
     scene_canvas = love.graphics.newCanvas(W, H, {format  = "rgba4"}) -- rgba8
 
     -- JFA needs two canvases for ping-pong, RG for UV (at GI resolution).
+    -- Only .xy is ever read back, so rg16f holds exactly what rgba16f did at
+    -- half the bandwidth across every JFA pass.
     -- Firefox's WebGL2 renders to 16f via EXT_color_buffer_float but lacks
     -- EXT_color_buffer_half_float, which is all LÖVE checks for rgba16f.
     local formats = love.graphics.getCanvasFormats()
-    local jfa_format = formats.rgba16f and "rgba16f" or formats.rgba32f and "rgba32f" or "rgba8"
-    if jfa_format ~= "rgba16f" then
-        print("rgba16f canvases unsupported; JFA falls back to " .. jfa_format)
+    local jfa_format = formats.rg16f and "rg16f" or formats.rgba16f and "rgba16f"
+        or formats.rgba32f and "rgba32f" or "rgba8"
+    if jfa_format ~= "rg16f" and jfa_format ~= "rgba16f" then
+        print("16-bit float canvases unsupported; JFA falls back to " .. jfa_format)
     end
-    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = jfa_format}) --rg16f
+    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = jfa_format})
     jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = jfa_format})
 
-    -- Distance field canvas, R for distance (at GI resolution)
-    df_canvas = love.graphics.newCanvas(gi_w, gi_h) -- r16f
+    -- Distance field canvas, R for distance (at GI resolution). It has always
+    -- been stored at 8 bits; r8 is that same channel without the three unused
+    -- ones, which matters because the GI pass samples it rays*steps times per pixel.
+    df_canvas = love.graphics.newCanvas(gi_w, gi_h, formats.r8 and {format = "r8"} or nil)
     
     -- GI result canvas (at GI resolution)
     gi_canvas = love.graphics.newCanvas(gi_w, gi_h)
@@ -64,8 +69,11 @@ function shader.load()
         }
     ]])
 
-    -- Run jump flood, which sets each pixel to be the UV which is the UV of the nearest surface
-    jfa_shader = love.graphics.newShader([[
+    -- Run jump flood, which sets each pixel to be the UV which is the UV of the nearest surface.
+    -- The last pass is compiled with JFA_DISTANCE and writes the distance field
+    -- directly: the distance to the UV it just chose, which is exactly what a
+    -- separate pass reading that UV back would compute.
+    local jfa_src = [[
         //#pragma language glsl3
         uniform float stepSize;
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
@@ -87,18 +95,15 @@ function shader.load()
                     }
                 }
             }
+        #ifdef JFA_DISTANCE
+            return vec4(length(tc - bestPoint), 0.0, 0.0, 1.0);
+        #else
             return vec4(bestPoint, 0.0, 1.0);
+        #endif
         }
-    ]])
-
-    -- Calculate the distance from every coordinate to every minimum distance jump
-    df_shader = love.graphics.newShader([[
-       //#pragma language glsl3
-        vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-            float dist = length(tc - Texel(tex, tc).xy);
-            return vec4(dist, 0.0, 0.0, 1.0);
-        }
-    ]])
+    ]]
+    jfa_shader = love.graphics.newShader(jfa_src)
+    jfa_df_shader = love.graphics.newShader("#define JFA_DISTANCE\n" .. jfa_src)
 
     -- Optimized GI shader - same as original but will run at lower resolution.
     -- Ray/step counts are injected as compile-time constants (GLSL ES needs
@@ -188,6 +193,12 @@ function shader.prepass()
 end
 
 function shader.pass()
+    -- Every pass up to the composite overwrites its whole target with opaque
+    -- output (or with zero, onto a cleared seed buffer), so blending changes
+    -- nothing there; "replace" lets the GPU skip reading the destination.
+    local blend_mode, alpha_mode = love.graphics.getBlendMode()
+    love.graphics.setBlendMode("replace", "premultiplied")
+
     -- Downscale scene for GI processing
     love.graphics.setCanvas(jfa_canvas1)
     love.graphics.clear(0, 0, 0, 0)
@@ -197,30 +208,33 @@ function shader.pass()
     gi_shader:send("surfaceTexture", scene_canvas)
     gi_shader:send("baseRadiance", shader.radiance)
     
-    -- JFA passes at GI resolution.
-    -- Jump Flood needs exactly ceil(log2(maxDim)) halving passes to fully
-    -- propagate. The old "+ 20" ran ~20 extra fullscreen passes whose stepSize
-    -- was bigger than the whole canvas, so every neighbour sample landed
-    -- off-canvas and overwrote the seeded UVs -- wasting GPU time *and*
-    -- corrupting the distance field. One extra "JFA+1" pass is kept for edge
-    -- accuracy at negligible cost.
-    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2)) + 1
+    -- JFA passes at GI resolution: steps maxDim/2 rounded up to a power of
+    -- two, halving down to 1, i.e. ceil(log2(maxDim)) passes. A step of a
+    -- whole canvas width or more (the old "+ 1" pass, and before that "+ 20")
+    -- puts every neighbour sample off-canvas, so such a pass only copies.
+    local passes = math.ceil(math.log(math.max(shader.gi_w, shader.gi_h), 2))
     
     for i = 1, passes do
-        jfa_shader:send("stepSize", math.pow(2, passes - i))
+        local last = i == passes
+        local pass_shader = last and jfa_df_shader or jfa_shader
+        pass_shader:send("stepSize", math.pow(2, passes - i))
         
-        love.graphics.setCanvas(jfa_canvas2)
-        love.graphics.setShader(jfa_shader)
+        -- The last pass writes the distance field instead of another UV buffer.
+        -- The clear is redundant with the full overwrite, but lets tile-based
+        -- GPUs start the pass without loading the target's old contents.
+        love.graphics.setCanvas(last and df_canvas or jfa_canvas2)
+        love.graphics.clear(0, 0, 0, 0)
+        love.graphics.setShader(pass_shader)
         love.graphics.draw(jfa_canvas1)
         
-        jfa_canvas1, jfa_canvas2 = jfa_canvas2, jfa_canvas1
+        if not last then
+            jfa_canvas1, jfa_canvas2 = jfa_canvas2, jfa_canvas1
+        end
     end
-    
-    -- Distance field pass at GI resolution
-    render(jfa_canvas1, df_shader, df_canvas)
     
     -- Global illumination pass at GI resolution
     render(df_canvas, gi_shader, gi_canvas)
+    love.graphics.setBlendMode(blend_mode, alpha_mode)
     
     -- Final composite: upscale GI and blend with scene
     love.graphics.setCanvas()

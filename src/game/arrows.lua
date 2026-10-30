@@ -227,12 +227,16 @@ function bezierArrow.renderArrows()
     love.graphics.push()
 
     love.graphics.reset()
+    if #state.arrows == 0 then
+        light.skipChain() -- nothing to glow (see light.skipChain)
+    else
     whiteNeon(function()
     
     for _, arrow in ipairs(state.arrows) do
         drawArrow(arrow)
     end
     end)
+    end
       love.graphics.pop()
   love.graphics.setShader(currentShader)
 else

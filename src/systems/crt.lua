@@ -209,8 +209,8 @@ function crt:new(params)
         end
     end
     
-    -- Create canvas for full-screen post-processing
-    shader:updateCanvas()
+    -- No canvas of its own: endCapture() draws scene_canvas straight to the
+    -- screen. (crt:updateCanvas() still creates one if a caller needs it.)
     
     -- Set initial shader parameters
     shader:updateParams()

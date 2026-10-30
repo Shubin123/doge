@@ -1,5 +1,8 @@
 # Atlas pipeline tests
 
+(The GPU regression suite for the renderer lives in `gpu/`; see
+`gpu/README.md`. `test_gpu_regression.py` runs it under pytest.)
+
 Tests the sprite atlas pipeline (`../tools/`) stage by stage, running
 against real sprites in `../src/gfx/` (not a separate copy of fixtures —
 this way the tests always reflect the actual current assets).

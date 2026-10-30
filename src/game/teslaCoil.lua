@@ -159,6 +159,9 @@ function teslaCoil.renderPixelLine(drawable)
     love.graphics.push()
 
     love.graphics.reset()
+    if #state.bolts == 0 then
+        light.skipChain() -- nothing to glow (see light.skipChain)
+    else
     whiteNeon(function()
     for _, bolt in ipairs(state.bolts) do
         for i = 1, #bolt - 1 do
@@ -166,6 +169,7 @@ function teslaCoil.renderPixelLine(drawable)
         end
     end
   end)
+    end
   love.graphics.pop()
   love.graphics.setShader(currentShader)
 

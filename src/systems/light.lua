@@ -39,26 +39,37 @@ function light.load()
   whiteNeon.glow.strength = 1
   whiteNeon.fastgaussianblur.taps = 9
 
-  pixelNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects
-  .godsray).chain(moonshine.effects.pixelate)
-  pixelNeon.godsray.exposure = 10  --number between 0 and 1
-  pixelNeon.godsray.decay = 0.8   -- number between 0 and 1
-  pixelNeon.godsray.density = 0.5   -- number between 0 and 1
-  pixelNeon.godsray.weight = 0.1  -- number between 0 and 1
-  pixelNeon.godsray.light_x = 0.1 -- number
-  pixelNeon.godsray.light_y = 0.1 -- number
-  pixelNeon.godsray.samples = 1  -- this does nothing now since hardbaked since opengl es3 with js build
-  pixelNeon.glow.min_luma = 10
-  pixelNeon.glow.strength = 10
-  pixelNeon.fastgaussianblur.taps = 9
+  -- (pixelNeon and pixelate chains removed: never drawn, but each held two or
+  -- three screen-sized canvases of VRAM.)
 
+  light.passBreak = love.graphics.newCanvas(1, 1) -- see light.skipChain
+end
 
-  pixelate = moonshine(moonshine.effects.pixelate)
+-- A glow chain given nothing visible to draw adds exactly nothing to
+-- scene_canvas (measured: no pixel changes), yet costs eight full-screen
+-- passes, so callers skip it with light.skipChain(), which keeps the chain's
+-- other effects:
+--   * scene_canvas is left bound, and the blend mode's alpha mode is back at
+--     its default (moonshine's chain.draw restores only the mode name);
+--   * scene_canvas's render pass is ended. The chain renders to its own
+--     canvases, which ends the pass, and that is not neutral: blending into
+--     the rgba4 scene_canvas rounds differently across a pass boundary on some
+--     GPUs (Apple's tile memory), so draws after it land 1/15 apart. Ending the
+--     pass with a 1x1 clear instead keeps every later pixel bit-identical.
+function light.skipChain()
+  love.graphics.setCanvas(light.passBreak)
+  love.graphics.clear()
+  love.graphics.setCanvas(scene_canvas)
+  love.graphics.setBlendMode((love.graphics.getBlendMode()))
 end
 
 -- Indoor key light: a soft warm glow rendered through the godray/glow chain.
--- Only visible while indoors (alpha gates on var.indoors).
+-- Only visible while indoors (outdoors it is drawn with alpha 0).
 function light.draw()
+  if not var.indoors then
+    light.skipChain()
+    return
+  end
   yellowNeon(function()
     love.graphics.setColor(1, 0.46, 0.3, var.indoors and 1 or 0)
     -- local mx = player.body:getX() + 20*math.sin(fire.t)
