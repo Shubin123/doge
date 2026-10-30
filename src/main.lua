@@ -90,6 +90,14 @@ function love.load()
     -- love.mouse.setVisible(false)
 
     -- Window setup
+    -- In the browser a resizable SDL window resizes itself to the canvas's CSS
+    -- size, which the page derives from the canvas size. At a fractional
+    -- devicePixelRatio (e.g. 1.8 from zoom/display scaling) each round trip
+    -- rounds down, and the canvas collapses to 1x1: the game runs but shows
+    -- nothing.
+    if love.system.getOS() == "Web" then
+        var.screen_flags.resizable = false
+    end
     success = love.window.setMode(var.screen_width, var.screen_height, var.screen_flags)
     -- Dynamically set game area to match screen size initially
     var.game_width = var.screen_width
