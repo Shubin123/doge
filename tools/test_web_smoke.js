@@ -12,6 +12,7 @@
  * CHROME_PATH=/path/to/chrome npm run test:web:smoke
  * WEB_URL=https://shubin123.github.io/doge/ npm run test:web:smoke   # test a deployed site
  * SMOKE_TIMEOUT_MS=120000 npm run test:web:smoke                     # slow (CI/software GL) hosts
+ * SMOKE_RUNS=10 npm run test:web:smoke                              # reload N times, checking frames each run
  */
 'use strict';
 
@@ -29,6 +30,8 @@ const loadTimeoutMs = Number(process.env.SMOKE_TIMEOUT_MS) || 45_000;
 // game", not the first frame after the loading screen.
 const playSeconds = Number(process.env.SMOKE_PLAY_SECONDS) || 15;
 const minFps = Number(process.env.SMOKE_MIN_FPS) || 1;
+// Total page loads to check (the first is the full play-through).
+const reloadRuns = Number(process.env.SMOKE_RUNS) || 3;
 const shotDir = path.resolve(process.env.SMOKE_SHOT_DIR || path.join(root, 'dist', 'e2e'));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -320,6 +323,35 @@ async function main() {
       const lights = await page.$eval('#lightsButton', button => button.textContent);
       if (lights !== 'Lights: Off') failures.push('lights control did not update its state');
       await page.click('#lightsButton');
+    }
+
+    // A blank game area can be intermittent, so one good boot proves little.
+    // Reload and re-check the framebuffer on every run.
+    for (let run = 2; run <= reloadRuns; run++) {
+      const from = logs.length;
+      const booted = () => logs.slice(from).some(log => /All 80 enemies spawned|\[engine alert\]/.test(log));
+      await page.goto(url, {waitUntil: 'domcontentloaded', timeout: 60_000});
+      for (const until = Date.now() + loadTimeoutMs; Date.now() < until && !booted(); await sleep(250)) {}
+      const label = `reload ${run}/${reloadRuns}`;
+      if (logs.slice(from).some(log => log.includes('[engine alert]'))) {
+        failures.push(`${label}: engine failed to start`);
+        continue;
+      }
+      if (!booted()) {
+        failures.push(`${label}: game did not finish booting`);
+        continue;
+      }
+      await sleep(3000);
+      const shown = await page.evaluate(() => getComputedStyle(document.getElementById('canvas')).visibility === 'visible' &&
+        getComputedStyle(document.getElementById('loadingCanvas')).display === 'none');
+      if (!shown) failures.push(`${label}: game canvas is not shown`);
+      const a = await captureFrame(page, `reload-${run}-a`);
+      checkFrame(a, label, failures);
+      await sleep(1000);
+      const b = await captureFrame(page, `reload-${run}-b`);
+      const diff = frameDiff(a, b);
+      console.log(`[frame] ${label} change over 1s: ${diff.toFixed(2)}`);
+      if (diff < gates.minIdleDiff) failures.push(`${label}: frames are frozen (diff=${diff.toFixed(2)})`);
     }
 
     if (failures.length) throw new Error(`Web smoke test failed:\n- ${failures.join('\n- ')}`);
