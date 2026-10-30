@@ -1,0 +1,5 @@
+# Extra assets left out of the web package only (see tools/make_love.sh).
+# Paths are relative to src/.
+
+# The web build always uses the half-resolution atlas (atla_8k.dds.zlib).
+gfx/atlas/atla.dds.zlib
