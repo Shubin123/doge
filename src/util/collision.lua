@@ -11,6 +11,7 @@ collision.groups = {
     map = 4,
     rocket = -3,
     -- houseTrigger = -4, -- cant check leaving the collider =(
+    tesla = -5, -- tesla coil bolt endpoints (sensors); negative: they never touch each other
 }
 
 -- Table to store collision response functions
@@ -43,6 +44,8 @@ function collision.getType(fixture)
         return "rocket"
     elseif groupIndex == collision.groups.enemyProjectile then
         return "enemyProjectile"
+    elseif groupIndex == collision.groups.tesla then
+        return "tesla"
         -- elseif groupIndex == collision.groups.houseTrigger then
         --     return "houseTrigger"
     end

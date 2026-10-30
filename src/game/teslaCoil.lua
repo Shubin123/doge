@@ -11,8 +11,11 @@ local config = {
     endpoint_deviation = 30, -- Additional random deviation at endpoints
     animation_speed = 1,
     collision_radius = 15, -- Radius for endpoint collision detection
+    lock_range = 400, -- Bolts attach to enemies up to this far from the coil...
+    lock_angle = 60, -- ...and up to this many degrees either side of the aim
     colors = {
-        spark = { 1, 1, 1 }
+        spark = { 1, 1, 1 },
+        glow = { 0.35, 0.6, 1.0 } -- electric blue around the white core
     }
 }
 
@@ -68,26 +71,33 @@ local function createEndpointCollider(world, x, y, hit_object)
     local shape = love.physics.newCircleShape(config.collision_radius)
     local fixture = love.physics.newFixture(body, shape)
     
-    -- Set negative collision group so tesla coil parts don't collide with each other
-    fixture:setGroupIndex(-1)
+    -- Its own negative group, so endpoints never touch each other and contacts
+    -- route as "tesla". (They used -1, the player's group: every endpoint that
+    -- landed on an enemy hurt the player, and on a coin, collected it.)
+    fixture:setGroupIndex(collision.groups.tesla)
     fixture:setSensor(true) -- Make it a sensor so it doesn't physically collide
     
     -- Store reference to hit object
     body:setUserData({
         type = "tesla_endpoint",
-        collision_group = -1,
+        collision_group = collision.groups.tesla,
         hit_object = hit_object
     })
     
     return body
 end
 
--- Create jagged bolt segments with collision detection
-local function generateBolt(world, x1, y1, x2, y2, collatz_val)
+-- Create jagged bolt segments with collision detection. With `target_body`
+-- the bolt is attached to it: no raycast (nothing in between stops it short)
+-- and its last point lands exactly on (x2, y2).
+local function generateBolt(world, x1, y1, x2, y2, collatz_val, target_body)
     local segments = {}
     
     -- First, check for collision along the path
-    local final_x, final_y, hit_object = raycastToCollision(world, x1, y1, x2, y2)
+    local final_x, final_y, hit_object = x2, y2, target_body
+    if not target_body then
+        final_x, final_y, hit_object = raycastToCollision(world, x1, y1, x2, y2)
+    end
     
     -- If we hit something, record it
     if hit_object then
@@ -116,6 +126,10 @@ local function generateBolt(world, x1, y1, x2, y2, collatz_val)
 
         table.insert(segments, { x = base_x + offset_x, y = base_y + offset_y })
     end
+    if target_body then
+        -- The endpoint jitter above would leave the arc hanging off the enemy.
+        segments[#segments] = { x = final_x, y = final_y }
+    end
     
     -- Create collider at the endpoint
     if world then
@@ -126,7 +140,7 @@ local function generateBolt(world, x1, y1, x2, y2, collatz_val)
     return segments
 end
 
-local function drawPixelLine(x0, y0, x1, y1)
+local function drawPixelLine(x0, y0, x1, y1, pixel_size)
     x0 = math.floor(x0 + 0.5)
     y0 = math.floor(y0 + 0.5)
     x1 = math.floor(x1 + 0.5)
@@ -137,7 +151,7 @@ local function drawPixelLine(x0, y0, x1, y1)
     local sx = x0 < x1 and 1 or -1
     local sy = y0 < y1 and 1 or -1
     local err = dx + dy
-    local pixel_size = 2
+    pixel_size = pixel_size or 2
     while true do
         love.graphics.rectangle("fill", x0 - pixel_size / 2, y0 - pixel_size / 2, pixel_size, pixel_size)
 
@@ -152,32 +166,80 @@ local function drawPixelLine(x0, y0, x1, y1)
     end
 end
 
--- Bresenham line plot
+-- Draw every bolt as an electric arc, additively: a wide blue haze, a
+-- blue-white body, then the white pixel core (the only part whiteNeon's glow
+-- threshold blooms). `toX/toY` map a bolt point to the space being drawn in;
+-- `scale` is that space's pixels per world unit. Brightness follows
+-- var.tracer_brightness, like the bullet tracers.
+local arcPoints = {}
+local function drawArcs(toX, toY, scale)
+    local brightness = math.min(1, var.tracer_brightness or 1)
+    local glow, spark = config.colors.glow, config.colors.spark
+    love.graphics.setBlendMode("add")
+    local layers = {
+        { 12, glow[1], glow[2], glow[3], 0.4 },
+        { 4, (glow[1] + 1) / 2, (glow[2] + 1) / 2, (glow[3] + 1) / 2, 0.75 },
+    }
+    for _, layer in ipairs(layers) do
+        love.graphics.setLineWidth(layer[1] * scale)
+        love.graphics.setColor(layer[2], layer[3], layer[4], layer[5] * brightness)
+        for _, bolt in ipairs(state.bolts) do
+            if #bolt > 1 then
+                for i = 1, #bolt do
+                    arcPoints[2 * i - 1], arcPoints[2 * i] = toX(bolt[i].x), toY(bolt[i].y)
+                end
+                for i = 2 * #bolt + 1, #arcPoints do arcPoints[i] = nil end
+                love.graphics.line(arcPoints)
+            end
+        end
+    end
+    love.graphics.setColor(spark[1], spark[2], spark[3], brightness)
+    for _, bolt in ipairs(state.bolts) do
+        for i = 1, #bolt - 1 do
+            drawPixelLine(toX(bolt[i].x), toY(bolt[i].y), toX(bolt[i + 1].x), toY(bolt[i + 1].y), 2 * scale)
+        end
+    end
+end
+
+local function worldX(x) return x end
+local function screenX(x) return camera.pos.x + x * camera.zoom end
+local function screenY(y) return camera.pos.y + y * camera.zoom end
+
 function teslaCoil.renderPixelLine(drawable)
+    local visible = #state.bolts > 0 and (var.tracer_brightness or 1) > 0
     if var.graphics_high then
         local currentShader =  love.graphics.getShader()
     love.graphics.push()
 
     love.graphics.reset()
-    if #state.bolts == 0 then
+    if not visible then
         light.skipChain() -- nothing to glow (see light.skipChain)
     else
+    -- Into the glow chain for the bloom (screen space: the chain's passes
+    -- need an untransformed reset() state)...
     whiteNeon(function()
-    for _, bolt in ipairs(state.bolts) do
-        for i = 1, #bolt - 1 do
-            drawPixelLine(camera.pos.x + bolt[i].x* camera.zoom,camera.pos.y + bolt[i].y * camera.zoom,camera.pos.x + bolt[i + 1].x * camera.zoom,camera.pos.y + bolt[i + 1].y * camera.zoom)
-        end
-    end
-  end)
+        drawArcs(screenX, screenY, camera.zoom)
+        love.graphics.setBlendMode("alpha")
+        love.graphics.setColor(1, 1, 1, 1)
+    end)
     end
   love.graphics.pop()
+    -- ...and again on top of it, under the camera transform, so the arc stays
+    -- crisp instead of only showing through the blur.
+    if visible then
+        drawArcs(worldX, worldX, 1)
+        love.graphics.setBlendMode("alpha")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setLineWidth(1)
+    end
   love.graphics.setShader(currentShader)
 
 else
-     for _, bolt in ipairs(state.bolts) do
-        for i = 1, #bolt - 1 do
-            drawPixelLine(bolt[i].x, bolt[i].y, bolt[i + 1].x, bolt[i + 1].y)
-        end
+    if visible then
+        drawArcs(worldX, worldX, 1)
+        love.graphics.setBlendMode("alpha")
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setLineWidth(1)
     end
     end
 end
@@ -207,13 +269,40 @@ local function cleanupColliders()
     state.encapsulated_objects = {}
 end
 
--- Create new bolts with collision detection
+-- Enemies the bolts can attach to: alive, within lock_range of the coil and
+-- within lock_angle of the aim (any direction while there is no aim yet),
+-- nearest first.
+local function findTargets(sx, sy, aim_x, aim_y)
+    local targets = {}
+    if not (enemy and enemy.enemies) then return targets end
+    local aim_len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
+    local min_cos = math.cos(math.rad(config.lock_angle))
+    for _, e in ipairs(enemy.enemies) do
+        if not e.dead and e.body and not e.body:isDestroyed() then
+            local ex, ey = e.body:getPosition()
+            local dx, dy = ex - sx, ey - sy
+            local d = math.sqrt(dx * dx + dy * dy)
+            if d <= config.lock_range and (aim_len < 1e-6 or d < 1e-6
+                    or (dx * aim_x + dy * aim_y) / (d * aim_len) >= min_cos) then
+                targets[#targets + 1] = { body = e.body, x = ex, y = ey, d = d }
+            end
+        end
+    end
+    table.sort(targets, function(a, b) return a.d < b.d end)
+    return targets
+end
+
+-- Create new bolts. Each one attaches to an enemy in range (spread over the
+-- nearest; with fewer enemies than bolts, several converge on one), and
+-- since this runs every frame while firing, the arcs follow them. With no
+-- enemy in range the bolts spray around (x, y) as before.
 function teslaCoil.fireAt(x, y, world)
     cleanupColliders() -- Clean up previous colliders
     state.bolts = {}
     
     local sx, sy = player.body:getX() + gun.lastAimDirection.x * 50, player.body:getY() + gun.lastAimDirection.y * 50
     state.pos = y
+    local targets = findTargets(sx, sy, gun.lastAimDirection.x, gun.lastAimDirection.y)
     
     for i = 1, config.spark_count do
         local start_num = 3 + i * 2
@@ -232,7 +321,13 @@ function teslaCoil.fireAt(x, y, world)
         local tx = x + math.cos(angle) * dist
         local ty = y + math.sin(angle) * dist
 
-        local bolt = generateBolt(world, sx, sy, tx, ty, val)
+        local target = targets[(i - 1) % math.max(1, #targets) + 1]
+        local bolt
+        if target then
+            bolt = generateBolt(world, sx, sy, target.x, target.y, val, target.body)
+        else
+            bolt = generateBolt(world, sx, sy, tx, ty, val)
+        end
         table.insert(state.bolts, bolt)
     end
 end

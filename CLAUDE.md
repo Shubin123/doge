@@ -43,7 +43,7 @@ python3 tests/gpu/run.py --json           # machine-readable report
 - `F3` - Spawn random enemy
 - `F4` - Spawn powerup
 - `z` - Toggle 2x zoom
-- `b` - Step bullet tracer brightness down (`var.tracer_brightness`; wraps to full)
+- `b` - Step bullet tracer / tesla bolt brightness down (`var.tracer_brightness`; wraps to full)
 - `escape` - Toggle menu
 - `space` - Start game (when integration system is active)
 
