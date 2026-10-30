@@ -8,6 +8,13 @@ function block.new(spriteSheetPath, frameWidth, frameHeight, duration, numFrames
     self.spriteSheet = love.graphics.newImage(spriteSheetPath)
     self.scale = scale or 1
     self.width, self.height = self.spriteSheet:getDimensions()
+    -- Over the GPU limit, LÖVE silently swaps in a white texture (solid quads
+    -- on 8192-capped GPUs like Firefox/macOS). Keep sheets wide, not tall.
+    local maxSize = love.graphics.getSystemLimits().texturesize
+    if math.max(self.width, self.height) > maxSize then
+        error(("%s is %dx%d, over the GPU texture limit of %d"):format(
+            spriteSheetPath, self.width, self.height, maxSize))
+    end
     self.animation = self:newAnimation(frameWidth, frameHeight, duration or 1, numFrames)
     self.inUse = false
     -- Physics setup
