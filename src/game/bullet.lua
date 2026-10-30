@@ -9,12 +9,56 @@ bullet.t = 0
 -- bullet.pool = {}  -- object pool for reuse
 bullet.groupIndex = -2  -- collision group for bullets
 bullet.toReturn = {}  -- deferred list for returning to pool
-bullet.tracerShader = nil
+bullet.neonShader = nil  -- instanced tracer shader (shaders/bullet_neon.glsl)
 bullet.muzzleFlashShader = nil
 bullet.muzzleFlashes = {}  -- muzzle flash effects
 bullet.shells = {}  -- ejected shell casings
 bullet.particles = {}  -- gunpowder confetti particles
 bullet.online_bullets = {}  -- online bullet bodies for multiplayer
+
+-- Neon look of a tracer: `core` is the hot centre line, `halo` the wide glow
+-- around it, `radius` the glow's reach in world pixels. Guns pass their own
+-- core/halo through bullet.new's params.neon.
+bullet.NEON = { core = {1.0, 0.16, 0.74}, halo = {0.1, 0.78, 1.0}, radius = 12 }
+
+local TRACER_FORMAT = {
+    {"InstSeg", "float", 4},   -- tail.xy, head.xy
+    {"InstCore", "float", 4},  -- core rgb, intensity
+    {"InstHalo", "float", 4},  -- halo rgb, radius
+    {"InstPhase", "float", 1},
+}
+
+local function growTracerInstances(count)
+    bullet.tracerCapacity = math.max(count, bullet.tracerCapacity * 2)
+    bullet.tracerInstances = love.graphics.newMesh(TRACER_FORMAT, bullet.tracerCapacity, nil, "stream")
+    for _, attribute in ipairs(TRACER_FORMAT) do
+        bullet.tracerMesh:attachAttribute(attribute[1], bullet.tracerInstances, "perinstance")
+    end
+end
+
+-- Bloom for the tracers: the same moonshine glow -> blur -> godray stack as the
+-- neons in light.lua, tuned so the coloured core blooms rather than only pure
+-- white. Built on the first shot (and rebuilt if the window size changes), so
+-- its canvases and its eight full-screen passes cost nothing until bullets fly.
+-- (Sharing scratch canvases between chains would save that VRAM, but measured
+-- ~1.3 ms/frame slower on Apple silicon: each chain then waits on the last.)
+local function ensureNeonChain()
+    local w, h = love.graphics.getDimensions()
+    if bullet.neonChain and bullet.neonChainW == w and bullet.neonChainH == h then
+        return
+    end
+    local chain = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur)
+        .chain(moonshine.effects.godsray)
+    chain.glow.min_luma = 0.45
+    chain.glow.strength = 2
+    chain.fastgaussianblur.taps = 9
+    chain.godsray.exposure = 0.25
+    chain.godsray.decay = 0.9
+    chain.godsray.density = 0.25
+    chain.godsray.weight = 0.4
+    chain.godsray.samples = 30
+    bullet.neonChain, bullet.neonChainW, bullet.neonChainH = chain, w, h
+end
 
 -- Initialize the bullet module with the physics world
 function bullet.load(world)
@@ -28,11 +72,12 @@ function bullet.load(world)
     bullet.particles = {}
     bullet.online_bullets = {}
     
-    -- Load tracer shader
-    local shader_code = love.filesystem.read("shaders/bullet_tracer.frag")
-    if shader_code then
-        bullet.tracerShader = love.graphics.newShader(shader_code)
-    end
+    -- Instanced neon tracers: one shared quad, one instance per live bullet.
+    bullet.neonShader = love.graphics.newShader(love.filesystem.read("shaders/bullet_neon.glsl"))
+    bullet.tracerMesh = love.graphics.newMesh({{"VertexPosition", "float", 2}},
+        {{0, -1}, {1, -1}, {1, 1}, {0, 1}}, "fan", "static")
+    bullet.tracerCapacity = 0
+    growTracerInstances(128)
     
     -- Load muzzle flash shader
     local muzzle_shader_code = love.filesystem.read("shaders/muzzle_flash.frag")
@@ -53,6 +98,7 @@ function bullet.new(params)
     local damage = params.damage or 1
     local radius = params.radius or 5
     local lifetime = params.lifetime or 5
+    local neon = params.neon or bullet.NEON
 
     local instance
     
@@ -70,6 +116,7 @@ function bullet.new(params)
         instance.prevPos = vec2.new(pos.x, pos.y)
         instance.startPos = vec2.new(pos.x, pos.y)
         instance.trail = {}
+        instance.neon = neon
     else
         -- Create new instance
         local body = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
@@ -88,11 +135,16 @@ function bullet.new(params)
             prevPos   = vec2.new(pos.x, pos.y),
             startPos  = vec2.new(pos.x, pos.y),  -- for tracer rendering
             trail     = {},  -- trail positions for visual effect
+            neon      = neon,
         }
         
         -- allow collision callback to recover instance
         fixture:setUserData(instance)
     end
+
+    -- Desynchronises each tracer's flicker from its neighbours'.
+    instance.phase = (bullet.t * 61.7 + #bullet.instances * 2.39) % (2 * math.pi)
+    if var.graphics_high then ensureNeonChain() end
 
     table.insert(bullet.instances, instance)
     return instance
@@ -166,13 +218,12 @@ function bullet.update(dt)
 
         local x, y = inst.body:getPosition()
 
-        -- Record LAST frame's position for drawing. drawSingleTracer draws the
-        -- tracer core and its glow as a line from prevPos to the bullet's
-        -- current position, so prevPos has to lag one frame behind -- assigning
-        -- the current position here collapsed that line to zero length and made
-        -- the tracers invisible. trail[1] is still last frame's sample at this
-        -- point (this frame's is pushed just below), so take it from there, and
-        -- mutate in place rather than allocating a vec2 per bullet per frame.
+        -- Record LAST frame's position. It has to lag one frame behind (the
+        -- current position would make a zero-length streak); bullet.draw uses
+        -- it as the tracer's tail until the trail has samples. trail[1] is
+        -- still last frame's sample at this point (this frame's is pushed just
+        -- below), so take it from there, and mutate in place rather than
+        -- allocating a vec2 per bullet per frame.
         local prev = inst.trail[1]
         if prev then
             inst.prevPos.x, inst.prevPos.y = prev.x, prev.y
@@ -239,35 +290,8 @@ function bullet.populate()
         })
     end
     
-    -- Add bullet tracers to draw list with proper depth handling
-    for _, inst in ipairs(bullet.instances) do
-        local x, y = inst.body:getPosition()
-        
-        -- Calculate distance from player for fading effect
-        -- local playerX, playerY = player.getPosition()
-        -- local distance = math.sqrt((x - playerX)^2 + (y - playerY)^2)
-        
-        -- -- Use much larger Y offset for distant bullets so they render behind objects
-        -- local sort_offset = 1
-        -- if distance > 200 then
-        --     -- Distant bullets should render behind most objects
-        --     sort_offset = 80 -- This puts them behind walls/trees that typically have +45-75 offsets
-        -- elseif distance > 100 then
-        --     -- Medium distance bullets get moderate depth
-        --     sort_offset = 40
-        -- end
-        
-        table.insert(dynamic_draw_list, {
-            sort_y = y + 150,
-            source_object_type = "bullet_tracer",
-            bullet_data = inst,
-            x = x,
-            y = y,
-            -- distance = distance, -- Pass distance for fading calculations
-            color = {1, 1, 1, 1},
-            blend_mode = {"alpha"}
-        })
-    end
+    -- Bullet tracers are not sorted: bullet.draw() renders them all in one
+    -- instanced call after the sorted list, glowing over everything.
 end
 
 -- Handle collisions: bullet vs enemy or obstacles
@@ -644,72 +668,83 @@ function bullet.drawSingleShell(shell)
     love.graphics.pop()
 end
 
-function bullet.drawSingleTracer(inst, x, y, distance)
-    local previous_shader = love.graphics.getShader()
-    love.graphics.setBlendMode("add")
+-- Per-instance rows for the tracer mesh, reused frame to frame.
+local tracerRows, tracerRowPool = {}, {}
 
-    distance = distance or 0
-    
-    -- Calculate distance-based fade factor
-    local fade_factor = 1.0
-    if distance > 150 then
-        -- Start fading after 150 pixels
-        fade_factor = math.max(0.1, 1.0 - ((distance - 150) / 200)) -- Fade over 200 pixels
-    end
-    
-    local core_alpha = 1.0 * fade_factor
-    local glow_alpha = 0.86 * fade_factor
-    local trail_alpha_base = 0.62 * fade_factor
-    
-    -- Skip drawing if too faded
-    if fade_factor < 0.15 then
-        return
-    end
-    
-    local function neon_line(color, width, alpha, intensity, pulse_offset)
-        if bullet.tracerShader then
-            bullet.tracerShader:send("tracer_color", color)
-            bullet.tracerShader:send("intensity", intensity)
-            bullet.tracerShader:send("pulse", bullet.t * 46.0 + pulse_offset)
-            love.graphics.setShader(bullet.tracerShader)
+local function fillTracerInstances()
+    local list = bullet.instances
+    local n = #list
+    if n == 0 then return 0 end
+    if n > bullet.tracerCapacity then growTracerInstances(n) end
+    for i = 1, n do
+        local inst = list[i]
+        local x, y = inst.body:getPosition()
+        local tail = inst.trail[#inst.trail] or inst.prevPos -- oldest sample: the streak's end
+        local age = bullet.t - inst.birthTime
+        -- Burn extra bright for the first frames, fade out over the last 0.3 s.
+        local intensity = math.max(0, math.min(1, (inst.lifetime - age) / 0.3))
+            * (1 + 0.6 * math.max(0, 1 - age / 0.08))
+        local core, halo = inst.neon.core, inst.neon.halo
+        local row = tracerRowPool[i]
+        if not row then
+            row = {}
+            tracerRowPool[i] = row
         end
-        love.graphics.setColor(1, 1, 1, alpha)
-        love.graphics.setLineWidth(width)
-        love.graphics.line(inst.prevPos.x, inst.prevPos.y, x, y)
-        love.graphics.setShader(previous_shader)
+        row[1], row[2], row[3], row[4] = tail.x, tail.y, x, y
+        row[5], row[6], row[7], row[8] = core[1], core[2], core[3], intensity
+        row[9], row[10], row[11], row[12] = halo[1], halo[2], halo[3], inst.neon.radius or bullet.NEON.radius
+        row[13] = inst.phase
+        tracerRows[i] = row
     end
-
-    -- Layered wide-to-thin passes produce a readable cyan/magenta neon trail
-    -- even on browsers where post-process bloom is deliberately reduced.
-    neon_line({0.03, 0.34, 1.0}, 16, glow_alpha * 0.44, 0.62, 0.0)
-    neon_line({0.10, 0.92, 1.0}, 9, glow_alpha * 0.76, 0.84, 1.7)
-    neon_line({1.0, 0.16, 0.78}, 4.5, core_alpha, 1.0, 3.4)
-    neon_line({1.0, 0.98, 0.84}, 1.75, core_alpha, 1.0, 5.1)
-
-    -- Draw fading trail (with distance fade)
-    if #inst.trail > 1 and fade_factor > 0.3 then -- Only draw trail if not too distant
-        for i = 1, #inst.trail - 1 do
-            local p1 = inst.trail[i]
-            local p2 = inst.trail[i + 1]
-            local trailAlpha = (1 - (i / #inst.trail)) * trail_alpha_base
-            neon_line({0.18, 0.82, 1.0}, 4, trailAlpha, 0.75, i * 0.8)
-        end
-    end
-
-    if bullet.tracerShader then
-        bullet.tracerShader:send("tracer_color", {1.0, 0.34, 0.90})
-        bullet.tracerShader:send("intensity", 1.0)
-        bullet.tracerShader:send("pulse", bullet.t * 50.0)
-        love.graphics.setShader(bullet.tracerShader)
-    end
-    love.graphics.setColor(1, 1, 1, fade_factor)
-    love.graphics.circle("fill", x, y, 4)
-    love.graphics.setShader(previous_shader)
-    love.graphics.setLineWidth(1)
-    love.graphics.setBlendMode("alpha")
+    for i = n + 1, #tracerRows do tracerRows[i] = nil end
+    bullet.tracerInstances:setVertices(tracerRows)
+    return n
 end
 
+local function drawTracers(n)
+    love.graphics.setBlendMode("add", "premultiplied")
+    love.graphics.setShader(bullet.neonShader)
+    love.graphics.drawInstanced(bullet.tracerMesh, n)
+end
 
+--- Draw every live bullet as a neon tracer: one instanced draw into the
+--- bulletNeon glow chain for the bloom, and one on top of it for the crisp
+--- core. Call in world space (under camera.apply), after the sorted sprites.
+function bullet.draw()
+    local brightness = var.tracer_brightness or 1
+    if brightness <= 0 then return end
+    local n = fillTracerInstances()
+    if n == 0 then return end
+
+    local r, g, b, a = love.graphics.getColor()
+    local blend, alphamode = love.graphics.getBlendMode()
+    local shader = love.graphics.getShader()
+    bullet.neonShader:send("time", bullet.t)
+    bullet.neonShader:send("brightness", math.min(1, brightness))
+
+    local chain = bullet.neonChain
+    if var.graphics_high and chain and bullet.neonChainW == love.graphics.getWidth()
+        and bullet.neonChainH == love.graphics.getHeight() then
+        love.graphics.push()
+        love.graphics.reset() -- the chain's full-screen passes must not inherit the camera
+        chain(function()
+            love.graphics.push()
+            camera.apply()
+            drawTracers(n)
+            love.graphics.pop()
+            -- Leave the state the chain's own passes expect, as the other neons do.
+            love.graphics.setBlendMode("alpha")
+            love.graphics.setShader()
+        end)
+        love.graphics.pop()
+    end
+
+    drawTracers(n)
+
+    love.graphics.setColor(r, g, b, a)
+    love.graphics.setBlendMode(blend, alphamode)
+    love.graphics.setShader(shader)
+end
 
 function bullet.getNetworkData()
     local network_data = {}

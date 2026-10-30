@@ -12,6 +12,7 @@
     DOGE_GPU_SEED         RNG seed (default 1337)
     DOGE_GPU_PERF_FRAMES  timed frames at the end; 0 skips timing (default 120)
     DOGE_GPU_LABEL        free-form label copied into results.json
+    DOGE_GPU_SCENARIO     absolute path of a script to run instead of scenarios.lua
 
   Writes, into DOGE_GPU_OUT:
     <capture>.rgba   raw RGBA8 framebuffer (what run.py diffs)
@@ -331,7 +332,10 @@ local function main()
     results.renderer = { name = name, version = version, vendor = vendor, device = device }
     results.window = { love.graphics.getPixelDimensions() }
 
-    local scenarios = require("__gpu_harness.scenarios")
+    -- DOGE_GPU_SCENARIO=/abs/path.lua swaps in another script (same shape as
+    -- scenarios.lua), e.g. to render a one-off scene while working on a look.
+    local custom = os.getenv("DOGE_GPU_SCENARIO")
+    local scenarios = custom and assert(loadfile(custom))() or require("__gpu_harness.scenarios")
     scenarios(H)
 
     H.perf(cfg.perfFrames)

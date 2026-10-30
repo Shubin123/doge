@@ -64,6 +64,8 @@ function draw.mydraw()
     love.graphics.setShader(shadow.getShader(true))
     renderer.renderSortedDrawList()
 
+    bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
+
 
     
 

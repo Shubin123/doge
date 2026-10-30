@@ -28,6 +28,7 @@ function Gun.new(params)
     gun.bulletsPerShot = params.bulletsPerShot or 1 -- for shotguns
     gun.shellType = params.shellType or nil         -- "pistol", "shotgun", "rifle", "smg", or nil for no shells
     gun.isFullAuto = params.isFullAuto or false     -- full auto firing mode
+    gun.tracer = params.tracer                      -- neon tracer colours (bullet.NEON layout); nil = default
 
     -- Muzzle flash parameters
     gun.muzzleFlash = {
@@ -155,7 +156,8 @@ function Gun:shoot(mouseX, mouseY)
                 speed = speedVariation,
                 damage = self.damage,
                 radius = self.projectileRadius,
-                lifetime = self.projectileLifetime
+                lifetime = self.projectileLifetime,
+                neon = self.tracer
             })
         end
     elseif self.projectileType == "rocket" then
@@ -295,6 +297,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[2] = Gun.new({ -- SMG (2)
+        tracer = { core = { 0.6, 1.0, 0.15 }, halo = { 0.0, 0.95, 0.55 }, radius = 10 }, -- acid green
         fireRate = 8,
         projectileType = "bullet",
         speed = 500,
@@ -330,6 +333,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[3] = Gun.new({ -- Shotgun (3)
+        tracer = { core = { 1.0, 0.5, 0.08 }, halo = { 1.0, 0.08, 0.35 }, radius = 9 }, -- molten orange
         fireRate = 1.2,
         projectileType = "bullet",
         speed = 650,           -- Increased from 400 to 650 for faster, more realistic shotgun pellets
@@ -365,6 +369,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[4] = Gun.new({ -- Assault Rifle (4) - FULL AUTO
+        tracer = { core = { 0.4, 0.8, 1.0 }, halo = { 0.55, 0.15, 1.0 }, radius = 13 }, -- ice blue / violet
         fireRate = 12,          -- Higher fire rate for full auto
         projectileType = "bullet",
         speed = 800,

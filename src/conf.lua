@@ -26,6 +26,10 @@ var.num_instances = var.num_enemies + 1
 -- "high" matches the original look; drop to "medium"/"low" on weaker GPUs.
 var.gi_quality = "high"
 
+-- Brightness of the neon bullet tracers and their glow, 0..1 (0 hides them).
+-- Cycled with "b" for testing; meant to follow the player's light level.
+var.tracer_brightness = 1.0
+
 var.enemies_bods = {}
 
 var.max_grass = 20000 -- max grass blades per quadrant

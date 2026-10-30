@@ -513,6 +513,19 @@ function love.keypressed(key)
         player.lightsOn = not player.lightsOn
     end
 
+    -- Testing hook: step the bullet tracer brightness down, wrapping back to
+    -- full. Later this follows the player's light level instead.
+    if key == "b" then
+        local levels = { 1.0, 0.7, 0.45, 0.25, 0.1 }
+        local next_level = levels[1]
+        for i, level in ipairs(levels) do
+            if var.tracer_brightness > level + 1e-6 then break end
+            next_level = levels[i + 1] or levels[1]
+        end
+        var.tracer_brightness = next_level
+        print(string.format("Tracer brightness %.2f", var.tracer_brightness))
+    end
+
     -- Browser shell controls send this same key event, so the mute state is
     -- owned by the game rather than by an unreliable Web Audio wrapper.
     if key == "m" then

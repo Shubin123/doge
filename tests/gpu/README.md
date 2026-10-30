@@ -65,7 +65,12 @@ everything that would make two runs differ:
 `harness/scenarios.lua` is the play-through itself. Each `h.capture(name)`
 saves one frame and its pass trace. Add a capture whenever you add a render
 path. Use only game APIs that the baseline revision also has, because the
-same script runs against both trees.
+same script runs against both trees. Extra fields passed to an older API are
+ignored, which is how the bullet captures pass each gun's tracer colours.
+
+To render a one-off scene while working on a look, put a script of the same
+shape somewhere and set `DOGE_GPU_SCENARIO=/abs/path/to/it.lua`. The harness
+runs it instead of `scenarios.lua`.
 
 The pass trace wraps `love.graphics.setCanvas` for the captured frame. Each
 render target change is recorded with the draw calls that landed on it and
@@ -89,3 +94,8 @@ that made the change.
   this reason.
 - **Randomness at require time.** Seeding in `love.load` was too late; the
   grass differed between identical runs.
+- **Fewer canvases, slower frames.** Letting all moonshine glow chains share
+  one set of scratch canvases kept every frame bit-identical and saved 11.5 MB
+  of VRAM. It also made the median frame about 1.3 ms slower, because each
+  chain then has to wait for the previous one to finish with the shared
+  canvases. The timing check caught it, and the change was dropped.
