@@ -31,9 +31,16 @@ function shader.load()
     -- Create canvases with specific formats
     scene_canvas = love.graphics.newCanvas(W, H, {format  = "rgba4"}) -- rgba8
 
-    -- JFA needs two canvases for ping-pong, RG for UV (at GI resolution)
-    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = "rgba16f"}) --rg16f 
-    jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = "rgba16f"})
+    -- JFA needs two canvases for ping-pong, RG for UV (at GI resolution).
+    -- Firefox's WebGL2 renders to 16f via EXT_color_buffer_float but lacks
+    -- EXT_color_buffer_half_float, which is all LÖVE checks for rgba16f.
+    local formats = love.graphics.getCanvasFormats()
+    local jfa_format = formats.rgba16f and "rgba16f" or formats.rgba32f and "rgba32f" or "rgba8"
+    if jfa_format ~= "rgba16f" then
+        print("rgba16f canvases unsupported; JFA falls back to " .. jfa_format)
+    end
+    jfa_canvas1 = love.graphics.newCanvas(gi_w, gi_h, {format  = jfa_format}) --rg16f
+    jfa_canvas2 = love.graphics.newCanvas(gi_w, gi_h,  {format  = jfa_format})
 
     -- Distance field canvas, R for distance (at GI resolution)
     df_canvas = love.graphics.newCanvas(gi_w, gi_h) -- r16f

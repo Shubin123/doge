@@ -30,6 +30,44 @@
     </main>
 
     <script type='text/javascript'>
+      // LÖVE allocates font glyph textures with texStorage2D(LUMINANCE8_ALPHA8),
+      // a legacy sized format that WebGL2 does not define. Chrome's ANGLE
+      // accepts it; Firefox raises INVALID_ENUM and the engine aborts with
+      // "Cannot create image". Allocate those via texImage2D with the matching
+      // unsized format instead, which WebGL2 does support.
+      (function () {
+        var GL2 = window.WebGL2RenderingContext;
+        if (!GL2) return;
+        var legacy = {0x803C: 0x1906 /* ALPHA8 -> ALPHA */, 0x8040: 0x1909 /* LUMINANCE8 -> LUMINANCE */,
+                      0x8045: 0x190A /* LUMINANCE8_ALPHA8 -> LUMINANCE_ALPHA */};
+        var texStorage2D = GL2.prototype.texStorage2D;
+        GL2.prototype.texStorage2D = function (target, levels, internalformat, width, height) {
+          var format = legacy[internalformat];
+          if (!format) return texStorage2D.apply(this, arguments);
+          for (var i = 0; i < levels; i++) {
+            this.texImage2D(target, i, format, Math.max(1, width >> i), Math.max(1, height >> i), 0,
+                            format, this.UNSIGNED_BYTE, null);
+          }
+        };
+
+        // In WebGL2, EXT_color_buffer_float already makes RGBA16F renderable,
+        // but LÖVE only accepts rgba16f canvases when EXT_color_buffer_half_float
+        // is listed, and Firefox does not list it. Advertise it in that case.
+        var HALF = 'EXT_color_buffer_half_float', FULL = 'EXT_color_buffer_float';
+        var getSupportedExtensions = GL2.prototype.getSupportedExtensions;
+        var getExtension = GL2.prototype.getExtension;
+        GL2.prototype.getSupportedExtensions = function () {
+          var list = getSupportedExtensions.call(this);
+          if (list && list.indexOf(HALF) < 0 && list.indexOf(FULL) >= 0) list.push(HALF);
+          return list;
+        };
+        GL2.prototype.getExtension = function (name) {
+          var ext = getExtension.call(this, name);
+          if (!ext && name === HALF) ext = getExtension.call(this, FULL);
+          return ext;
+        };
+      })();
+
       var gameCanvas = document.getElementById('canvas');
       var engineStatus = document.getElementById('engineStatus');
       var statusDot = document.getElementById('statusDot');
