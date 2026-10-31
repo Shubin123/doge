@@ -15,6 +15,8 @@ local LIGHT_BAR_W = 70       -- units; with the flashlight icon it spans the hea
 local LIGHT_LOW = 0.2        -- below this fraction the bar turns orange and pulses
 local DENIED_FLASH = 0.45    -- seconds the bar flashes red after a shot it couldn't pay
 local HURT_FLASH = 0.35      -- seconds the screen's edges glow red after an enemy shot hits
+local HEART_TICK = 0.6       -- seconds the hearts tick after any hit: they hop, the lost ones blink white
+local HEARTS_LOW = 4         -- at or under this many halves the hearts jitter, as in Minecraft
 local POINTS_PER_LEVEL = 100 -- the XP bar fills once per this many points
 local NAME_SHOW_TIME = 2.0   -- seconds the weapon name stays up after a switch
 local NAME_FADE_TIME = 0.5
@@ -222,7 +224,8 @@ local FLASHLIGHT = {
 }
 
 local icons = {}
-local heart, heartEmpty, heartHalf, flashlight
+local heart, heartEmpty, heartHalf, heartLost, heartLostHalf, flashlight
+local shownHealth, tickAt, lostFrom = nil, -math.huge, 0
 local font
 local shownAmmo, refillGlowUntil = nil, -math.huge
 local lastWeapon
@@ -257,9 +260,15 @@ function hud.load()
         icons[i] = makeImage(rows)
     end
     heart, heartEmpty = makeImage(HEART), makeEmpty(HEART)
+    -- What a hit just took, blinking white before it empties
+    local lost = {}
+    for i, row in ipairs(HEART) do lost[i] = row:gsub("[^k%.]", "W") end
+    heartLost = makeImage(lost)
     flashlight = makeImage(FLASHLIGHT)
     -- Hearts empty from the right, as in Minecraft.
     heartHalf = love.graphics.newQuad(0, 0, 5, #HEART, heart:getDimensions())
+    -- The right half, for a lost half that sits after a full one's left half
+    heartLostHalf = love.graphics.newQuad(4, 0, 5, #HEART, heart:getDimensions())
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
 end
@@ -335,17 +344,54 @@ local function drawHotbar(x, y, slots, ts)
     border(sx + 3, sy + 3, 18, 18, 1)
 end
 
-local function drawHearts(x, y)
+local function halvesOf(health)
     local maxHealth = player.maxHealth or player.health
-    local halves = math.ceil(math.max(0, math.min(1, player.health / maxHealth)) * HEARTS * 2)
+    return math.ceil(math.max(0, math.min(1, health / maxHealth)) * HEARTS * 2)
+end
+
+-- Hearts tick whenever health drops, whatever hit you: they hop in a ripple
+-- along the row, and the halves the hit took blink white before they empty.
+local function drawHearts(x, y)
+    local now = love.timer.getTime()
+    local halves = halvesOf(player.health)
+    if shownHealth and player.health < shownHealth then
+        -- A hit while still ticking keeps what the earlier one took blinking
+        local before = halvesOf(shownHealth)
+        lostFrom = now - tickAt < HEART_TICK and math.max(lostFrom, before) or before
+        tickAt = now
+    end
+    shownHealth = player.health
+
+    local age = now - tickAt
+    local ticking = age < HEART_TICK
+    local blink = ticking and math.floor(age * 12) % 2 == 0
+    local fade = ticking and 1 - age / HEART_TICK or 0
     love.graphics.setColor(1, 1, 1, 1)
     for i = 0, HEARTS - 1 do
-        local hx = x + i * 8
-        love.graphics.draw(heartEmpty, hx, y)
+        local hx, hy = x + i * 8, y
+        if ticking then
+            hy = hy - math.floor(2 * fade * math.max(0, math.sin(age * 30 - i * 0.9)) + 0.5)
+        elseif halves <= HEARTS_LOW and halves > 0 then
+            hy = hy + (love.math.noise(i * 3.1, now * 9) > 0.62 and -1 or 0)
+        end
+        love.graphics.draw(heartEmpty, hx, hy)
         if halves >= i * 2 + 2 then
-            love.graphics.draw(heart, hx, y)
+            love.graphics.draw(heart, hx, hy)
         elseif halves == i * 2 + 1 then
-            love.graphics.draw(heart, heartHalf, hx, y)
+            love.graphics.draw(heart, heartHalf, hx, hy)
+        end
+        if blink then
+            -- the halves between what's left and what was there before the hit
+            local first, last = math.max(halves + 1, i * 2 + 1), math.min(lostFrom, i * 2 + 2)
+            if first <= last then
+                if first == i * 2 + 1 and last == i * 2 + 2 then
+                    love.graphics.draw(heartLost, hx, hy)
+                elseif first == i * 2 + 1 then
+                    love.graphics.draw(heartLost, heartHalf, hx, hy)
+                else
+                    love.graphics.draw(heartLost, heartLostHalf, hx + 4, hy)
+                end
+            end
         end
     end
 end
