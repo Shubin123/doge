@@ -132,6 +132,13 @@ function player.update(dt)
         if player.currentAnimation ~= "roll" then
         princess.setAnimation("roll")
         end
+        -- Time the roll by the dodge itself so it always plays from its first
+        -- frame through to its last as the dodge ends. The final dodge frame
+        -- begins up to one dt before dodgeDuration, hence the (duration - dt) span.
+        if princess.getCurrentAnimation() == "roll" then
+            local elapsed = player.dodgeDuration - player.dodgeTimer
+            princess.setProgress(elapsed / math.max(player.dodgeDuration - dt, dt))
+        end
 
         return -- Skip normal movement during dodge
     else

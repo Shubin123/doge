@@ -314,6 +314,7 @@ local function createInstance()
     instance.currentFrame = 1
     instance.timeAccumulator = 0
     instance.priority = 0
+    instance.progressPinned = false -- set by setProgress, cleared by setAnimation
     instance.x = 0
     instance.y = 0
     instance.scale = 1
@@ -321,7 +322,7 @@ local function createInstance()
     instance.on = true
 
     function instance.update(dt)
-        if not instance.currentSpriteIndex then
+        if not instance.currentSpriteIndex or instance.progressPinned then
             return
         end
 
@@ -397,6 +398,7 @@ local function createInstance()
 
         instance.currentAnimation = animationName
         instance.currentSpriteIndex = spriteIndex
+        instance.progressPinned = false
         -- instance.currentFrame = 1
         --
         -- The frame index is deliberately NOT reset above, so a cycle carries
@@ -418,6 +420,22 @@ local function createInstance()
         instance.timeAccumulator = 0
 
         return true
+    end
+
+    -- Pin the current animation to a point through its frames, progress 0
+    -- (first frame) to 1 (last), instead of letting update() cycle it. For
+    -- animations timed by gameplay rather than the animator's throttled clock,
+    -- e.g. the player's roll, which must land on its last frame as the dodge
+    -- ends. Holds until the next setAnimation.
+    function instance.setProgress(progress)
+        local stateData = instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex]
+        if not stateData then
+            return
+        end
+        local n = stateData.framesPerDirection
+        progress = math.max(0, math.min(progress, 1))
+        instance.currentFrame = math.floor(progress * (n - 1) + 0.5) + 1
+        instance.progressPinned = true
     end
 
     function instance.getCharacterType()
