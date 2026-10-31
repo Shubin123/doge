@@ -10,6 +10,14 @@ oldhand = love.graphics.newImage("gfx/menu/old_hand.png")
 --      JFA global illumination (shader.pass), water, CRT capture
 --   -> UI / console on top
 function draw.mydraw()
+    -- love.window.setMode (fullscreen and resolution changes) doesn't always
+    -- deliver love.resize, which would leave the screen-sized canvases at the
+    -- old size and the picture covering only part of the window.
+    local sw, sh = love.graphics.getDimensions()
+    if scene_canvas and (scene_canvas:getWidth() ~= sw or scene_canvas:getHeight() ~= sh) then
+        love.resize(sw, sh)
+    end
+
     if var.graphics_high then
         shader.prepass()
     end
@@ -75,12 +83,13 @@ function draw.mydraw()
     love.graphics.pop() -- back to screen space
 
     -- Screen-space passes. Order matters: lights -> shockwave -> GI -> water -> CRT.
+    -- GI composites into the CRT's capture canvas; water and the HUD draw on
+    -- top of it there, and the CRT pass then puts all of it on screen.
     if var.graphics_high then
         light.draw()
         explosion.applyShockwave() -- distort scene_canvas before GI processes it
-        shader.pass()
+        shader.pass(crtShader:target())
         water.pass()
-        crtShader.endCapture()
     end
     -- sampleScreen.pass() samples gi_canvas into a 1x1 canvas that nothing
     -- reads back yet (see sampleScreen.lua). Run per frame it only cost a
@@ -88,9 +97,14 @@ function draw.mydraw()
     -- mobile) forces the whole screen to be stored and reloaded for the UI.
     -- Call it again once its result is actually used.
 
-    profiler.drawOverlay()
+    menu.drawUI() -- ui last, under the CRT like the rest of the picture
 
-    menu.drawUI() -- ui last
+    if var.graphics_high then
+        crtShader:present()
+    end
+
+    -- Dev overlays stay crisp, on top of the CRT
+    profiler.drawOverlay()
     command.draw()  -- Draw console on top
     cmdn.draw()     -- Draw improved console on top
     -- editor.debugDraw()

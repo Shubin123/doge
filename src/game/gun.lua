@@ -244,8 +244,8 @@ function fireballItem:getCount()
 end
 
 function GunTool:updateAiming()
-    -- Get current mouse position
-    local mouseX, mouseY = love.mouse.getPosition()
+    -- Get current mouse position (on the picture under the CRT bulge)
+    local mouseX, mouseY = crt.mouse()
 
     -- Convert screen coordinates to world coordinates
     local zoom = camera.getZoom()
@@ -542,7 +542,7 @@ function GunTool.update(dt)
 
         -- Handle full auto firing
         if GunTool.mousePressed and GunTool.currentGun.isFullAuto then
-            local mouseX, mouseY = love.mouse.getPosition()
+            local mouseX, mouseY = crt.mouse()
             GunTool.currentGun:shoot(mouseX, mouseY)
         end
         -- GunTool.currentGun

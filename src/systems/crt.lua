@@ -14,14 +14,13 @@ shaderCode = [[
 extern MY_HIGHP_OR_MEDIUMP number time;
 extern MY_HIGHP_OR_MEDIUMP vec2 distortion_fac;
 extern MY_HIGHP_OR_MEDIUMP vec2 scale_fac;
-extern MY_HIGHP_OR_MEDIUMP number feather_fac;
 extern MY_HIGHP_OR_MEDIUMP number noise_fac;
 extern MY_HIGHP_OR_MEDIUMP number bloom_fac;
 extern MY_HIGHP_OR_MEDIUMP number crt_intensity;
 extern MY_HIGHP_OR_MEDIUMP number glitch_intensity;
 extern MY_HIGHP_OR_MEDIUMP number scanlines;
+extern MY_HIGHP_OR_MEDIUMP number contrast_pivot;
 
-#define BUFF 0.01
 #define BLOOM_AMT 1
 
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
@@ -36,18 +35,11 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
     //bulge from middle
     tc += (tc.yx*tc.yx) * tc * (distortion_fac - 1.0);
 
-    //smoothly transition the edge to black
-    //buffer for the outer edge, this gets wonky if there is no buffer
-    MY_HIGHP_OR_MEDIUMP number mask = (1.0 - smoothstep(1.0-feather_fac,1.0,abs(tc.x) - BUFF))
-                * (1.0 - smoothstep(1.0-feather_fac,1.0,abs(tc.y) - BUFF));
-
-    //undo the recenter
+    //undo the recenter. The bulge pushes the corners a little past the
+    //picture's edge; mirror back in there so the whole screen stays covered
+    //(no black or see-through border, and nothing cropped at the edges)
     tc = (tc + vec2(1.0))/2.0;
-
-    // Check if we're outside the valid texture coordinates
-    if (tc.x < 0.0 || tc.x > 1.0 || tc.y < 0.0 || tc.y > 1.0) {
-        return vec4(0.0, 0.0, 0.0, 0.0); // Return transparent black
-    }
+    tc = vec2(1.0) - abs(vec2(1.0) - abs(tc));
 
     //Create the horizontal glitch offset effects
     MY_HIGHP_OR_MEDIUMP number offset_l = 0.;
@@ -76,13 +68,8 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
         tc.x = tc.x + 0.001*glitch_intensity*clamp(offset_l, clamp(offset_r, -1.0, 0.0), 1.0);
     }
 
-    // Sample the main texture - preserving alpha
+    // Sample the finished frame (opaque: scene, GI, water and HUD)
 	MY_HIGHP_OR_MEDIUMP vec4 crt_tex = Texel(tex, tc);
-    
-    // If the original pixel is transparent, return transparent
-    if (crt_tex.a < 0.001) {
-        return vec4(0.0, 0.0, 0.0, 0.0);
-    }
 
     //intensity multiplier for any visual artifacts
     MY_HIGHP_OR_MEDIUMP float artifact_amplifier = (abs(clamp(offset_l, clamp(offset_r, -1.0, 0.0), 1.0))*glitch_intensity > 0.9 ? 3. : 1.);
@@ -90,16 +77,12 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
     //Horizontal Chromatic Aberration
 	MY_HIGHP_OR_MEDIUMP float crt_amout_adjusted = (max(0., (crt_intensity)/(0.16*0.3)))*artifact_amplifier;
     if(crt_amout_adjusted > 0.0000001) {
-        // Sample with chromatic aberration, but check bounds first
+        // Sample with chromatic aberration (off-screen samples clamp to the edge)
         MY_HIGHP_OR_MEDIUMP vec2 r_coord = tc + vec2(0.0005*(1. +10.*(artifact_amplifier - 1.))*1600./love_ScreenSize.x, 0.);
         MY_HIGHP_OR_MEDIUMP vec2 g_coord = tc + vec2(-0.0005*(1. +10.*(artifact_amplifier - 1.))*1600./love_ScreenSize.x, 0.);
         
-        MY_HIGHP_OR_MEDIUMP vec4 r_sample = (r_coord.x >= 0.0 && r_coord.x <= 1.0 && r_coord.y >= 0.0 && r_coord.y <= 1.0) ? Texel(tex, r_coord) : vec4(0.0);
-        MY_HIGHP_OR_MEDIUMP vec4 g_sample = (g_coord.x >= 0.0 && g_coord.x <= 1.0 && g_coord.y >= 0.0 && g_coord.y <= 1.0) ? Texel(tex, g_coord) : vec4(0.0);
-        
-        crt_tex.r = crt_tex.r*(1.-crt_amout_adjusted) + crt_amout_adjusted*r_sample.r;
-        crt_tex.g = crt_tex.g*(1.-crt_amout_adjusted) + crt_amout_adjusted*g_sample.g;
-        // Keep original alpha
+        crt_tex.r = crt_tex.r*(1.-crt_amout_adjusted) + crt_amout_adjusted*Texel(tex, r_coord).r;
+        crt_tex.g = crt_tex.g*(1.-crt_amout_adjusted) + crt_amout_adjusted*Texel(tex, g_coord).g;
     }
     
 	MY_HIGHP_OR_MEDIUMP vec3 rgb_result = crt_tex.rgb*(1.0 - (1.0*crt_intensity*artifact_amplifier));
@@ -124,13 +107,15 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
 	MY_HIGHP_OR_MEDIUMP number dx = mod( x, 0.11 )/0.11;
 	rgb_result = (1.0-clamp( noise_fac*artifact_amplifier, 0.0,1.0 ))*rgb_result + dx * clamp( noise_fac*artifact_amplifier, 0.0,1.0 ) * vec3(1.0,1.0,1.0);
 
-    //contrast and brightness correction for the CRT effect
-    rgb_result -= vec3(0.55 - 0.02*(artifact_amplifier - 1. - crt_amout_adjusted*bloom_fac*0.7));
+    //contrast and brightness correction for the CRT effect. It pivots near
+    //black (contrast_pivot): this pass covers the whole frame, which is
+    //mostly dark, and a mid-grey pivot crushed it to black
+    rgb_result -= vec3(contrast_pivot + 0.02 - 0.02*(artifact_amplifier - 1. - crt_amout_adjusted*bloom_fac*0.7));
     rgb_result = rgb_result*(1.0 + 0.14 + crt_amout_adjusted*(0.012 - bloom_fac*0.12));
-    rgb_result += vec3(0.5);
+    rgb_result += vec3(contrast_pivot);
 
-    //Prepare the final colour to return - preserve original alpha
-    MY_HIGHP_OR_MEDIUMP vec4 final_col = vec4(rgb_result, crt_tex.a);
+    //Prepare the final colour to return
+    MY_HIGHP_OR_MEDIUMP vec4 final_col = vec4(rgb_result, 1.0);
 
     //Apply bloom if enabled
     MY_HIGHP_OR_MEDIUMP vec4 col = vec4(0.0);
@@ -144,23 +129,19 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
 
         for (int i = -BLOOM_AMT; i <= BLOOM_AMT; ++i)
             for (int j = -BLOOM_AMT; j <= BLOOM_AMT; ++j){
-                MY_HIGHP_OR_MEDIUMP vec2 bloom_coord = tc + (bloom_dist/float(BLOOM_AMT))*vec2(float(i), float(j));
-                if (bloom_coord.x >= 0.0 && bloom_coord.x <= 1.0 && bloom_coord.y >= 0.0 && bloom_coord.y <= 1.0) {
-                    samp = Texel(tex, bloom_coord);
-                    samp.r = max(1./(1.-cutoff)*samp.r - 1./(1.-cutoff) + 1., 0.);
-                    samp.g = max(1./(1.-cutoff)*samp.g - 1./(1.-cutoff) + 1., 0.);
-                    samp.b = max(1./(1.-cutoff)*samp.b - 1./(1.-cutoff) + 1., 0.);
-                    col += min(min(samp.r,samp.g),samp.b) * (2. - float(abs(float(i+j)))/float(BLOOM_AMT+BLOOM_AMT));
-                }
+                samp = Texel(tex, tc + (bloom_dist/float(BLOOM_AMT))*vec2(float(i), float(j)));
+                samp.r = max(1./(1.-cutoff)*samp.r - 1./(1.-cutoff) + 1., 0.);
+                samp.g = max(1./(1.-cutoff)*samp.g - 1./(1.-cutoff) + 1., 0.);
+                samp.b = max(1./(1.-cutoff)*samp.b - 1./(1.-cutoff) + 1., 0.);
+                col += min(min(samp.r,samp.g),samp.b) * (2. - float(abs(float(i+j)))/float(BLOOM_AMT+BLOOM_AMT));
         }   
 
         col /= float(BLOOM_AMT*BLOOM_AMT);
-        col.a = crt_tex.a; // Preserve alpha
     }
 
-    // Apply mask and return final result with proper alpha
-    MY_HIGHP_OR_MEDIUMP vec4 result = (final_col*(1. -1.*bloom) + bloom*col)*mask;
-    result.a = crt_tex.a; // Ensure alpha is preserved
+    // Opaque: this pass is the whole screen
+    MY_HIGHP_OR_MEDIUMP vec4 result = final_col*(1. -1.*bloom) + bloom*col;
+    result.a = 1.0;
     
     return result;
 }
@@ -181,12 +162,12 @@ local defaultParams = {
     time = 0,
     distortion_fac = {1.02, 1.065},
     scale_fac = {1, 1},
-    feather_fac = 0.02,
     noise_fac = 0.03,
     bloom_fac = 0.3,
     crt_intensity = 0.48,
     glitch_intensity = 0.1,
-    scanlines = 800
+    scanlines = 800,
+    contrast_pivot = 0.05
 }
 
 function crt:new(params)
@@ -208,9 +189,6 @@ function crt:new(params)
             shader.params[k] = v
         end
     end
-    
-    -- No canvas of its own: endCapture() draws scene_canvas straight to the
-    -- screen. (crt:updateCanvas() still creates one if a caller needs it.)
     
     -- Set initial shader parameters
     shader:updateParams()
@@ -243,62 +221,47 @@ function crt:updateParams(newParams)
     end
 end
 
--- function crt:setTime(time)
---     self.params.time = time
---     if self.shader:hasUniform("time") then
---         self.shader:send("time", time)
---     end
--- end
-
--- function crt:setGlitchIntensity(intensity)
---     self.params.glitch_intensity = intensity
---     if self.shader:hasUniform("glitch_intensity") then
---         self.shader:send("glitch_intensity", intensity)
---     end
--- end
-
--- function crt:setCRTIntensity(intensity)
---     self.params.crt_intensity = intensity
---     if self.shader:hasUniform("crt_intensity") then
---         self.shader:send("crt_intensity", intensity)
---     end
--- end
-
--- -- Begin capturing the screen for post-processing
--- function crt:beginCapture()
---     -- self:updateCanvas() -- Ensure canvas matches current screen size
---     -- love.graphics.setCanvas(self.canvas)
---     -- love.graphics.clear(0, 0, 0, 0) -- Clear with transparent black
-
---     -- handled by main prepass
-
--- end
-
--- End capture and apply the CRT effect to the entire screen
-function crt.endCapture()
-    -- love.graphics.setCanvas()
-    
-    -- Store current graphics state
-    -- local currentShader = love.graphics.getShader()
-    -- local currentBlendMode = love.graphics.getBlendMode()
-    
-    -- Get screen dimensions to ensure full coverage
-    -- local screenWidth, screenHeight = love.graphics.getDimensions()
-    
-    -- Apply the CRT shader to the entire screen
-    love.graphics.setShader(crtShader.shader)
-    -- love.graphics.setBlendMode("add", "premultiplied")
-    love.graphics.draw(scene_canvas, 0, 0, 0, 1, 1)
-    -- love.graphics.draw(gi_canvas, 0, 0, 0, 1, 1)
-    
-    -- Restore previous graphics state
-    
-    love.graphics.setShader()
-    
-    
-    -- love.graphics.setBlendMode(currentBlendMode)
+-- The canvas the finished frame is drawn into -- scene composite, water and
+-- HUD -- so the CRT pass can then cover the whole screen with it. It follows
+-- the window's size.
+function crt:target()
+    self:updateCanvas()
+    return self.canvas
 end
 
+-- Put the captured frame on screen through the CRT shader, every pixel. The
+-- shader's output is opaque, so "replace" changes nothing but lets the GPU
+-- skip reading the screen back.
+function crt:present()
+    local blend_mode, alpha_mode = love.graphics.getBlendMode()
+    love.graphics.setCanvas()
+    love.graphics.setBlendMode("replace", "premultiplied")
+    love.graphics.setShader(self.shader)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(self.canvas)
+    love.graphics.setShader()
+    love.graphics.setBlendMode(blend_mode, alpha_mode)
+end
 
+-- Screen point -> the point of the captured frame shown there (the shader's
+-- own mapping). The bulge moves the picture away from the OS cursor, most
+-- near the edges; aim and clicks go through this so they hit what is drawn
+-- under the cursor.
+function crt.toImage(x, y)
+    if not (var.graphics_high and crtShader) then return x, y end
+    local w, h = love.graphics.getDimensions()
+    local p = crtShader.params
+    local u = (x / w * 2 - 1) * p.scale_fac[1]
+    local v = (y / h * 2 - 1) * p.scale_fac[2]
+    u, v = u + v * v * u * (p.distortion_fac[1] - 1), v + u * u * v * (p.distortion_fac[2] - 1)
+    u, v = (u + 1) / 2, (v + 1) / 2
+    u, v = 1 - math.abs(1 - math.abs(u)), 1 - math.abs(1 - math.abs(v)) -- the shader's mirror
+    return u * w, v * h
+end
+
+-- love.mouse.getPosition() through crt.toImage.
+function crt.mouse()
+    return crt.toImage(love.mouse.getPosition())
+end
 
 return crt

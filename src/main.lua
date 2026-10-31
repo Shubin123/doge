@@ -392,6 +392,8 @@ function love.mousepressed(x, y, button, istouch, presses)
     -- Handle console mouse events first
     -- teslaCoil.start()
     cmdn.mousepressed(x, y, button)
+    -- Everything else is drawn under the CRT bulge: click what's shown there
+    x, y = crt.toImage(x, y)
 
     if var.State == "menu" then
         local nextStateAction = menu.mousepressed(x, y, button, var.ScreenInfo)

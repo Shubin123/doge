@@ -284,7 +284,8 @@ local function drawTitle(uw, uh, u, ts)
     skin.print(splash, -font:getWidth(splash) * pulse / 2, -font:getHeight() * pulse / 2, pulse, skin.YELLOW)
     love.graphics.pop()
 
-    skin.print(VERSION, 2, uh - 10, ts, skin.WHITE)
+    -- Clear of the corner, which the CRT's bulge mirrors back in
+    skin.print(VERSION, 4, uh - 20, ts, skin.WHITE)
 end
 
 function menu.draw()
@@ -292,7 +293,7 @@ function menu.draw()
     local u = skin.guiScale(MIN_HEIGHT)
     local ts = skin.textScale(u)
     local uw, uh = sw / u, sh / u
-    local mx, my = love.mouse.getPosition()
+    local mx, my = crt.mouse()
     mx, my = mx / u, my / u
 
     love.graphics.push()
@@ -322,7 +323,8 @@ end
 function menu.drawUI()
     if var.State == "menu" then
         menu.draw()
-        love.graphics.draw(oldhand, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
+        local mx, my = crt.mouse()
+        love.graphics.draw(oldhand, mx, my, 0, 0.05, 0.05)
         return
     end
 

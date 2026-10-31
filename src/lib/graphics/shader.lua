@@ -192,7 +192,9 @@ function shader.prepass()
     love.graphics.clear(0, 0, 0, 0)
 end
 
-function shader.pass()
+-- Composites onto `target` (a screen-sized canvas, cleared first), or onto
+-- the screen when it is nil.
+function shader.pass(target)
     -- Every pass up to the composite overwrites its whole target with opaque
     -- output (or with zero, onto a cleared seed buffer), so blending changes
     -- nothing there; "replace" lets the GPU skip reading the destination.
@@ -237,7 +239,8 @@ function shader.pass()
     love.graphics.setBlendMode(blend_mode, alpha_mode)
     
     -- Final composite: upscale GI and blend with scene
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(target)
+    if target then love.graphics.clear(0, 0, 0, 1) end
     love.graphics.setShader(upscale_shader)
     upscale_shader:send("giTexture", gi_canvas)
     love.graphics.draw(scene_canvas)
