@@ -14,6 +14,7 @@ local HEARTS = 10            -- each heart is two halves of player.maxHealth / 2
 local LIGHT_BAR_W = 70       -- units; with the flashlight icon it spans the hearts' 80
 local LIGHT_LOW = 0.2        -- below this fraction the bar turns orange and pulses
 local DENIED_FLASH = 0.45    -- seconds the bar flashes red after a shot it couldn't pay
+local HURT_FLASH = 0.35      -- seconds the screen's edges glow red after an enemy shot hits
 local POINTS_PER_LEVEL = 100 -- the XP bar fills once per this many points
 local NAME_SHOW_TIME = 2.0   -- seconds the weapon name stays up after a switch
 local NAME_FADE_TIME = 0.5
@@ -467,6 +468,22 @@ local function drawWeaponName(cx, y, ts)
     love.graphics.print(text, tx, y, 0, ts, ts)
 end
 
+-- Red light creeping in from the screen's edges, fading after a hit.
+local function drawHurtFlash(screenW, screenH)
+    local age = love.timer.getTime() - (player.hurtAt or -math.huge)
+    if age >= HURT_FLASH then return end
+    local a = 0.35 * (1 - age / HURT_FLASH)
+    local band = math.floor(math.min(screenW, screenH) * 0.12)
+    for i = 0, 7 do
+        local inset = band * i / 8
+        love.graphics.setColor(0.8, 0.0, 0.0, a * (1 - i / 8) * 0.35)
+        love.graphics.setLineWidth(band / 8)
+        love.graphics.rectangle("line", inset + band / 16, inset + band / 16,
+            screenW - 2 * inset - band / 8, screenH - 2 * inset - band / 8)
+    end
+    love.graphics.setLineWidth(1)
+end
+
 function hud.draw()
     local u = skin.guiScale()
     local screenW, screenH = love.graphics.getDimensions()
@@ -482,6 +499,7 @@ function hud.draw()
     love.graphics.setFont(font)
     love.graphics.push()
     love.graphics.origin()
+    drawHurtFlash(screenW, screenH)
     love.graphics.scale(u)
 
     drawHotbar(x, y, slots, ts)

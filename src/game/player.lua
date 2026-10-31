@@ -337,6 +337,25 @@ function player.collision(fixture_a,fixture_b,contact)
 
 end
 
+-- An enemy shot hit: take `amount` HP (player.maxHealth is ten hearts of 100)
+-- and get knocked along the shot's `dir`. Nothing in god mode. Safe inside a
+-- physics callback: it only sets the velocity, never creates or destroys.
+function player.hurt(amount, dir)
+    if player.god or not player.body then return end
+    player.health = math.max(0, player.health - amount)
+    player.hurtAt = love.timer.getTime()
+    local px, py = player.body:getPosition()
+    if blood and blood.onEnemyDamage then
+        blood.onEnemyDamage(px, py, math.max(1, amount / 10), dir)
+    end
+    if dir then
+        player.applyKnockback(dir, amount * 1.5)
+    end
+    if camera and camera.shake then
+        camera.shake(math.min(6, 1 + amount / 10), 0.12)
+    end
+end
+
 function player.getPosition()
     return player.body:getX(), player.body:getY()
 end

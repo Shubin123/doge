@@ -1,6 +1,39 @@
 Enemy = {}
 Enemy.__index = Enemy
 
+-- What enemies shoot: each picks one when it spawns (by weight). Every round
+-- is a hostile bullet (bullet.new { hostile = true }), a neon tracer in the
+-- weapon's colours that hurts the player (collision.lua) and stops at walls.
+-- Damage is in player HP: player.maxHealth is 1000, ten hearts of 100.
+--   shots, interval: rounds per trigger pull and the seconds between them
+--   pellets, spread: bullets per round and the cone (radians) they scatter in
+--   cooldown:        seconds between trigger pulls (plus up to 1 s of jitter)
+local WEAPONS = {
+    { name = "tracer", weight = 4, shots = 1, pellets = 1, spread = math.rad(4),
+      speed = 560, damage = 20, radius = 3, lifetime = 1.4, cooldown = 2.2,
+      neon = { core = { 1.0, 0.2, 0.12 }, halo = { 1.0, 0.0, 0.08 }, radius = 10 } },
+    { name = "burst", weight = 3, shots = 3, interval = 0.1, pellets = 1, spread = math.rad(7),
+      speed = 500, damage = 12, radius = 3, lifetime = 1.4, cooldown = 2.8,
+      neon = { core = { 1.0, 0.85, 0.25 }, halo = { 1.0, 0.2, 0.0 }, radius = 9 } },
+    { name = "spread", weight = 2, shots = 1, pellets = 5, spread = math.rad(30),
+      speed = 430, damage = 8, radius = 2, lifetime = 0.8, cooldown = 3.0,
+      neon = { core = { 1.0, 0.4, 0.6 }, halo = { 0.9, 0.0, 0.35 }, radius = 8 } },
+    { name = "orb", weight = 1, shots = 1, pellets = 1, spread = 0,
+      speed = 220, damage = 45, radius = 7, lifetime = 2.6, cooldown = 3.6,
+      neon = { core = { 1.0, 0.65, 1.0 }, halo = { 0.6, 0.0, 1.0 }, radius = 22 } },
+}
+local WEAPON_WEIGHT = 0
+for _, w in ipairs(WEAPONS) do WEAPON_WEIGHT = WEAPON_WEIGHT + w.weight end
+
+local function pickWeapon()
+    local r = math.random() * WEAPON_WEIGHT
+    for _, w in ipairs(WEAPONS) do
+        r = r - w.weight
+        if r <= 0 then return w end
+    end
+    return WEAPONS[1]
+end
+
 function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed, index)
     local self = setmetatable({}, Enemy)
     self.body = love.physics.newBody(world, x, y, "dynamic")
@@ -16,17 +49,15 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.health = 1
     self.max_health = self.health
     self.scale = scale or 0.6
-    self.fire_cooldown = fire_cooldown or
-        2.0 --ideally get the number of frames for shooting animation dynamically to determine this
+    self.weapon = pickWeapon()
+    self.fire_cooldown = self.weapon.cooldown
+    self.burstLeft = 0   -- rounds of the current trigger pull still to fire
+    self.burstTimer = 0
     self.detection_range = detection_range or 300
-    self.projectile_speed = projectile_speed or 400
     self.last_fire_time = 0
     self.t = 0
-    self.projectiles = {}
-    self.projectile_bodies = {}
     self.damage_indicators = {}
     self.damaged = false
-    self.max_projectiles = 30
     -- self.visibilityRange = 100
 
     self:initBehaviourTree()
@@ -112,59 +143,45 @@ function Enemy:initBehaviourTree()
     self.btree:setObject(self)
 end
 
+-- Pull the trigger: the first round now, a burst weapon's others follow
+-- from Enemy:update.
 function Enemy:fireAtPlayer()
-    local ex, ey = self.body:getPosition()
-    if not self.target then return end
-    local dx = self.target.dx
-    local dy = self.target.dy
-    local distance = self.target.distance
-    if distance == 0 then return end
-
-    local dir_x = dx / distance
-    local dir_y = dy / distance
-
-    local projectile = {
-        vec2.new(ex, ey),
-        vec2.new(dir_x * self.projectile_speed, dir_y * self.projectile_speed),
-        true,
-        self,
-        self.t + 5.0
-    }
-
-    local proj_body = love.physics.newBody(world, ex, ey, "dynamic")
-    local proj_fixture = love.physics.newFixture(proj_body, love.physics.newCircleShape(15))
-    proj_fixture:setGroupIndex(778)
-    proj_fixture:setUserData(#self.projectiles)
-
-    table.insert(self.projectiles, projectile)
-    table.insert(self.projectile_bodies, proj_body)
+    if not self.target or self.target.distance == 0 then return end
+    self:shoot()
+    self.burstLeft = self.weapon.shots - 1
+    self.burstTimer = self.weapon.interval or 0
 end
 
-function Enemy:updateProjectiles(dt)
-    -- Iterate backwards so table.remove() is safe. The projectiles and
-    -- projectile_bodies arrays are kept index-aligned (both pushed together in
-    -- fireAtPlayer, both removed together here).
-    for i = #self.projectiles, 1, -1 do
-        local proj = self.projectiles[i]
-        local body = self.projectile_bodies[i]
-        local destroyed = body and body:isDestroyed()
+-- One round of this enemy's weapon at where the player is now.
+function Enemy:shoot()
+    if not (player and player.body) then return end
+    local w = self.weapon
+    local ex, ey = self.body:getPosition()
+    local px, py = player.body:getPosition()
+    local dx, dy = px - ex, py - ey
+    local d = math.sqrt(dx * dx + dy * dy)
+    if d == 0 then return end
+    dx, dy = dx / d, dy / d
 
-        if self.t > proj[5] or destroyed then
-            -- Expired, or its body was already destroyed by a wall hit. Free the
-            -- body and drop both entries so enemy projectile bodies stop leaking
-            -- into the physics world (the previous code left them alive forever).
-            if body and not destroyed then
-                body:destroy()
-            end
-            table.remove(self.projectiles, i)
-            table.remove(self.projectile_bodies, i)
-        else
-            proj[1] = proj[1] + proj[2] * dt
-            if body then
-                body:setPosition(proj[1].x, proj[1].y)
-            end
-        end
+    local muzzle = vec2.new(ex + dx * 24, ey + dy * 24) -- clear of its own body
+    local aim = math.atan2(dy, dx)
+    for _ = 1, w.pellets do
+        local a = aim + (math.random() - 0.5) * w.spread
+        bullet.new({
+            pos = muzzle,
+            dir = vec2.new(math.cos(a), math.sin(a)),
+            speed = w.speed * (0.95 + math.random() * 0.1),
+            damage = w.damage,
+            radius = w.radius,
+            lifetime = w.lifetime,
+            neon = w.neon,
+            hostile = true,
+        })
     end
+    bullet.createMuzzleFlash(muzzle, vec2.new(dx, dy), {
+        duration = 0.06, coneAngle = math.rad(25), coneLength = 70, intensity = 0.5, color = w.neon.core
+    })
+    audio.playSoundAt("enemyGun", ex, ey, 0.08)
 end
 
 function Enemy:getDirectionToPlayer(n)
@@ -291,7 +308,14 @@ function Enemy:update(dt)
             self.body:applyForce(dx * 0.5, dy * 0.5)
         end
     end
-    self:updateProjectiles(dt)
+    if self.burstLeft > 0 then
+        self.burstTimer = self.burstTimer - dt
+        if self.burstTimer <= 0 then
+            self:shoot()
+            self.burstLeft = self.burstLeft - 1
+            self.burstTimer = self.weapon.interval or 0
+        end
+    end
     if self.target then
         local x, y = self.body:getPosition()
         self.body:setPosition(x + (self.target.dx) * dt * 0.3, y + (self.target.dy) * dt * 0.3)
@@ -341,10 +365,8 @@ end
 -- Global enemy manager
 local enemy = {
     enemies = {},
-    particleSystem = nil,
     scale = 0.6,
     t = 0,
-    max_projectiles_per_enemy = 30,
     fire_cooldown = 1,
     detection_range = 300,
     projectile_speed = 400,
@@ -353,8 +375,6 @@ local enemy = {
     damage_indicators = {},
     enemy_damaged = {},
     last_fire_times = {},
-    projectiles = {},
-    projectile_bodies = {},
     -- Staggered loading state
     spawnQueue = {},       -- remaining enemies to spawn
     spawnBatchSize = 20,   -- spawn N enemies per frame during load (tunable)
@@ -363,24 +383,6 @@ local enemy = {
 }
 
 function enemy.load()
-    local fire_image = love.graphics.newImage("gfx/firelowres.png")
-    local Quads = sprite:constructsprite(fire_image, 8, 8)
-    enemy.particleSystem = love.graphics.newParticleSystem(fire_image, 200)
-    enemy.particleSystem:setParticleLifetime(0.8, 1.5)
-    enemy.particleSystem:setEmissionRate(12)
-    enemy.particleSystem:setSizeVariation(0.8)
-    enemy.particleSystem:setDirection(1.5 * 3.14)
-    enemy.particleSystem:setSpeed(10, 30)
-    enemy.particleSystem:setLinearDamping(0.2)
-    enemy.particleSystem:setSpin(-0.5, 0.5)
-    enemy.particleSystem:setColors(255, 100, 50, 255, 255, 50, 0, 0.1)
-    if Quads then
-        enemy.particleSystem:setQuads(Quads)
-    end
-    enemy.particleSystem:setRotation(0, 2 * 3.14)
-    enemy.particleSystem:setOffset(sprite:getTileSize())
-    enemy.particleSystem:setInsertMode('bottom')
-
     -- Staggered spawn: queue all enemies, spawn a few per frame
     enemy.spawnQueue = {}
     enemy.totalToSpawn = var.num_enemies
@@ -400,10 +402,10 @@ enemy.DEATH_FADE_TIME = 0.7
 
 -- What a dead enemy's slot in enemy.enemies holds once it has faded out: one
 -- shared, inert stand-in, so nothing of the enemy itself (behaviour tree,
--- physics, projectiles, sprite) stays referenced. The list is never compacted:
+-- physics, sprite) stays referenced. The list is never compacted:
 -- fixture userData and gun_enemies use fixed indices into it.
 local RELEASED = setmetatable({ dead = true, cleanedUp = true, released = true,
-    projectiles = {}, projectile_bodies = {}, damage_indicators = {} }, Enemy)
+    damage_indicators = {} }, Enemy)
 
 local function releaseEnemy(i)
     -- (An enemy removed rather than killed never recorded its sprite; slot i
@@ -419,7 +421,6 @@ end
 
 function enemy.update(dt)
     enemy.t = enemy.t + dt
-    enemy.particleSystem:update(dt)
 
     -- Staggered enemy spawning: create a batch per frame to avoid load-time freeze
     if not enemy.spawningComplete and #enemy.spawnQueue > 0 then
@@ -445,20 +446,12 @@ function enemy.update(dt)
     for i = #enemy.enemies, 1, -1 do
         local e = enemy.enemies[i]
         if e.dead then
-            -- One-time teardown for a dead enemy. A dead enemy no longer runs
-            -- updateProjectiles, so release its behaviour tree and any in-flight
-            -- projectile bodies here or they leak in the physics world forever.
-            -- (Safe: enemy.update runs after world:update, not inside a contact
-            -- callback.) Note: enemy.enemies is NOT compacted, because the fixture
-            -- userData stores a fixed index into it that damage/gun_enemies rely on.
+            -- One-time teardown for a dead enemy: release its behaviour tree.
+            -- (Its shots are pooled bullets that fly on without it.) Note:
+            -- enemy.enemies is NOT compacted, because the fixture userData
+            -- stores a fixed index into it that damage/gun_enemies rely on.
             if not e.cleanedUp then
                 e.cleanedUp = true
-                for j = 1, #e.projectile_bodies do
-                    local b = e.projectile_bodies[j]
-                    if b and not b:isDestroyed() then b:destroy() end
-                end
-                e.projectiles = {}
-                e.projectile_bodies = {}
                 e.btree = nil
                 -- These tables are keyed by the 0-based index (enemy.addEnemy).
                 enemy.last_fire_times[i - 1] = nil
@@ -553,9 +546,6 @@ function enemy.restore(data)
             if not e.dead then
                 e:killEnemy()
             end
-            for _, b in ipairs(e.projectile_bodies) do
-                if not b:isDestroyed() then b:destroy() end
-            end
             releaseEnemy(i)
         end
     end
@@ -597,12 +587,6 @@ function enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)
             dy = player_y - enemy_y
         }
         e:fireAtPlayer()
-    end
-end
-
-function enemy.updateProjectiles(dt)
-    for _, e in ipairs(enemy.enemies) do
-        e:updateProjectiles(dt)
     end
 end
 
@@ -800,8 +784,8 @@ function enemy.populate()
     -- NOTE: written with nested ifs rather than `goto continue_enemy`. goto and
     -- ::labels:: are Lua 5.2+/LuaJIT syntax; the web build runs on plain Lua
     -- 5.1 (love.js), where they are a hard parse error and take the whole game
-    -- down before the first frame. Same control flow: a skipped enemy still
-    -- falls through to its projectiles below, exactly as the label did.
+    -- down before the first frame. (Enemies' shots are bullets, drawn by
+    -- bullet.draw with the player's.)
     for _, e in ipairs(enemy.enemies) do
         if e.fixture and e.fixture:getUserData() then
             local enemy_index = e.fixture:getUserData()
@@ -832,28 +816,6 @@ function enemy.populate()
                         }
                     end
                 end
-            end
-        end
-
-        -- Projectiles: only populate if within viewport
-        for _, proj in ipairs(e.projectiles) do
-            local py = proj[1].y
-            if py >= viewTop - 100 and py <= viewBottom + 100 then
-                table.insert(dynamic_draw_list, {
-                    sort_y = py + 140,
-                    image_or_particles = enemy.particleSystem,
-                    quad = nil,
-                    x = proj[1].x,
-                    y = py,
-                    rotation = 0,
-                    scale_x = 1,
-                    scale_y = 1,
-                    offset_x = 0,
-                    offset_y = 0,
-                    color = { 1, 0.4, 0.2, 1 },
-                    blend_mode = { "lighten", "premultiplied" },
-                    source_object_type = "fire_effect"
-                })
             end
         end
     end

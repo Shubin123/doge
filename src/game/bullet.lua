@@ -8,6 +8,7 @@ bullet.t = 0
 -- bullet.instances = {}
 -- bullet.pool = {}  -- object pool for reuse
 bullet.groupIndex = -2  -- collision group for bullets
+bullet.hostileGroupIndex = -6  -- enemies' bullets (collision.groups.enemyBullet)
 bullet.toReturn = {}  -- deferred list for returning to pool
 bullet.neonShader = nil  -- instanced tracer shader (shaders/bullet_neon.glsl)
 bullet.muzzleFlashShader = nil
@@ -20,6 +21,9 @@ bullet.online_bullets = {}  -- online bullet bodies for multiplayer
 -- around it, `radius` the glow's reach in world pixels. Guns pass their own
 -- core/halo through bullet.new's params.neon.
 bullet.NEON = { core = {1.0, 0.16, 0.74}, halo = {0.1, 0.78, 1.0}, radius = 12 }
+
+-- Enemies' shots when their weapon doesn't name its own colours: hostile red.
+bullet.HOSTILE_NEON = { core = {1.0, 0.2, 0.12}, halo = {1.0, 0.0, 0.08}, radius = 10 }
 
 -- Muzzle flashes: the drawn cone is kept faint (its layers stack additively)
 -- and, with high graphics, is softened by the flashlight's glow chain
@@ -73,6 +77,7 @@ function bullet.load(world)
     bullet.t = 0
     bullet.instances = {}
     bullet.pool = {}
+    bullet.hostilePool = {}
     bullet.toReturn = {}
     bullet.muzzleFlashes = {}
     bullet.shells = {}
@@ -95,7 +100,12 @@ function bullet.load(world)
 end
 
 -- Factory: create a new bullet (with pooling)
--- params = { pos = vec2, dir = vec2, speed = number, damage = number, radius = number, lifetime = number }
+-- params = { pos = vec2, dir = vec2, speed = number, damage = number, radius = number, lifetime = number,
+--            neon = {core, halo, radius}, hostile = bool }
+-- A hostile bullet is an enemy's: a sensor in its own collision group, so it
+-- passes through enemies, coins and other bullets without pushing them, and
+-- only the player (who it hurts) and the map (which stops it) react to it.
+-- Hostile and friendly bullets keep separate pools.
 function bullet.new(params)
     assert(bullet.world, "bullet.load(world) must be called before creating bullets")
     local pos = params.pos or vec2.new(0, 0)
@@ -105,13 +115,19 @@ function bullet.new(params)
     local damage = params.damage or 1
     local radius = params.radius or 5
     local lifetime = params.lifetime or 5
-    local neon = params.neon or bullet.NEON
+    local hostile = params.hostile or false
+    local neon = params.neon or (hostile and bullet.HOSTILE_NEON or bullet.NEON)
+    local pool = hostile and bullet.hostilePool or bullet.pool
 
     local instance
     
     -- Try to reuse from pool
-    if #bullet.pool > 0 then
-        instance = table.remove(bullet.pool)
+    if #pool > 0 then
+        instance = table.remove(pool)
+        if hostile then
+            -- Enemy weapons differ in calibre; friendly bullets keep their first size
+            instance.fixture:getShape():setRadius(radius)
+        end
         -- Reset position and properties
         instance.body:setPosition(pos.x, pos.y)
         instance.body:setLinearVelocity(0, 0)
@@ -124,12 +140,14 @@ function bullet.new(params)
         instance.startPos = vec2.new(pos.x, pos.y)
         instance.trail = {}
         instance.neon = neon
+        instance.spent = false
     else
         -- Create new instance
         local body = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
         local shape = love.physics.newCircleShape(radius)
         local fixture = love.physics.newFixture(body, shape)
-        fixture:setGroupIndex(bullet.groupIndex)
+        fixture:setGroupIndex(hostile and bullet.hostileGroupIndex or bullet.groupIndex)
+        fixture:setSensor(hostile)
 
         instance = {
             body      = body,
@@ -143,6 +161,8 @@ function bullet.new(params)
             startPos  = vec2.new(pos.x, pos.y),  -- for tracer rendering
             trail     = {},  -- trail positions for visual effect
             neon      = neon,
+            hostile   = hostile,
+            spent     = false, -- a hostile bullet that has already hit
         }
         
         -- allow collision callback to recover instance
@@ -151,7 +171,7 @@ function bullet.new(params)
 
     -- Desynchronises each tracer's flicker from its neighbours'.
     instance.phase = (bullet.t * 61.7 + #bullet.instances * 2.39) % (2 * math.pi)
-    if var.graphics_high then ensureNeonChain() end
+    if var.graphics_high and not hostile then ensureNeonChain() end
 
     table.insert(bullet.instances, instance)
     return instance
@@ -415,8 +435,9 @@ function bullet.returnToPool(inst, index)
     inst.body:setPosition(-1000, -1000)  -- move offscreen
     
     -- Add to pool if not too many (limit pool size)
-    if #bullet.pool < 50 then
-        table.insert(bullet.pool, inst)
+    local pool = inst.hostile and bullet.hostilePool or bullet.pool
+    if #pool < 50 then
+        table.insert(pool, inst)
     else
         -- Destroy if pool is full
         inst.body:destroy()
@@ -691,14 +712,32 @@ end
 
 -- Per-instance rows for the tracer mesh, reused frame to frame.
 local tracerRows, tracerRowPool = {}, {}
+local tracerOrder = {}
 
+-- Fills the instance mesh: the player's bullets first, then enemies'.
+-- Returns how many in all and how many of them are the player's.
 local function fillTracerInstances()
     local list = bullet.instances
     local n = #list
-    if n == 0 then return 0 end
+    if n == 0 then return 0, 0 end
     if n > bullet.tracerCapacity then growTracerInstances(n) end
+    local friendly = 0
     for i = 1, n do
-        local inst = list[i]
+        if not list[i].hostile then
+            friendly = friendly + 1
+            tracerOrder[friendly] = list[i]
+        end
+    end
+    local k = friendly
+    for i = 1, n do
+        if list[i].hostile then
+            k = k + 1
+            tracerOrder[k] = list[i]
+        end
+    end
+    for i = n + 1, #tracerOrder do tracerOrder[i] = nil end
+    for i = 1, n do
+        local inst = tracerOrder[i]
         local x, y = inst.body:getPosition()
         local tail = inst.trail[#inst.trail] or inst.prevPos -- oldest sample: the streak's end
         local age = bullet.t - inst.birthTime
@@ -719,7 +758,7 @@ local function fillTracerInstances()
     end
     for i = n + 1, #tracerRows do tracerRows[i] = nil end
     bullet.tracerInstances:setVertices(tracerRows)
-    return n
+    return n, friendly
 end
 
 local function drawTracers(n)
@@ -731,10 +770,13 @@ end
 --- Draw every live bullet as a neon tracer: one instanced draw into the
 --- bulletNeon glow chain for the bloom, and one on top of it for the crisp
 --- core. Call in world space (under camera.apply), after the sorted sprites.
+--- Only the player's bullets bloom: enemies fire nearly all the time, and
+--- the chain's eight full-screen passes would then run every frame (their
+--- tracers still carry the shader's own neon halo).
 function bullet.draw()
     local brightness = var.tracer_brightness or 1
     if brightness <= 0 then return end
-    local n = fillTracerInstances()
+    local n, friendly = fillTracerInstances()
     if n == 0 then return end
 
     local r, g, b, a = love.graphics.getColor()
@@ -744,14 +786,14 @@ function bullet.draw()
     bullet.neonShader:send("brightness", math.min(1, brightness))
 
     local chain = bullet.neonChain
-    if var.graphics_high and chain and bullet.neonChainW == love.graphics.getWidth()
+    if friendly > 0 and var.graphics_high and chain and bullet.neonChainW == love.graphics.getWidth()
         and bullet.neonChainH == love.graphics.getHeight() then
         love.graphics.push()
         love.graphics.reset() -- the chain's full-screen passes must not inherit the camera
         chain(function()
             love.graphics.push()
             camera.apply()
-            drawTracers(n)
+            drawTracers(friendly)
             love.graphics.pop()
             -- Leave the state the chain's own passes expect, as the other neons do.
             love.graphics.setBlendMode("alpha")

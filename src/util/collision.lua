@@ -6,7 +6,7 @@ collision.groups = {
     player = -1,
     projectile = -2,
     enemy = -777, -- negative: enemies don't collide with each other
-    enemyProjectile = 778,
+    enemyBullet = -6, -- enemies' bullets (bullet.hostileGroupIndex); sensors that never touch each other
     coin = 69,
     map = 4,
     rocket = -3,
@@ -42,8 +42,8 @@ function collision.getType(fixture)
         return "map"
     elseif groupIndex == collision.groups.rocket then
         return "rocket"
-    elseif groupIndex == collision.groups.enemyProjectile then
-        return "enemyProjectile"
+    elseif groupIndex == collision.groups.enemyBullet then
+        return "enemyBullet"
     elseif groupIndex == collision.groups.tesla then
         return "tesla"
         -- elseif groupIndex == collision.groups.houseTrigger then
@@ -440,13 +440,24 @@ function collision.init()
     --     -- end
     -- end)
 
-    collision.registerResponse("map", "enemyProjectile", function(fixtureA, fixtureB, contact)
-    -- enemyProjectile hit map: destroy projectile
-    local projectileBody = fixtureB:getBody()
-    local projectileIndex = fixtureB:getUserData()
-    projectileBody:destroy()
-    table.remove(enemy.projectile_bodies, projectileIndex)
-    table.remove(enemy.projectiles, projectileIndex)
+    -- Enemy bullet vs Player: hurt the player once, then the bullet is spent
+    -- (back to the pool after the physics step)
+    collision.registerResponse("enemyBullet", "player", function(fixtureA, fixtureB, contact)
+        local inst = fixtureA:getUserData()
+        if not inst or inst.spent then return end
+        inst.spent = true
+        table.insert(bullet.toReturn, inst)
+        if fixtureB:getBody() == player.body then
+            player.hurt(inst.damage, inst.dir)
+        end
+    end)
+
+    -- Enemy bullet vs Map: walls and houses stop it
+    collision.registerResponse("enemyBullet", "map", function(fixtureA, fixtureB, contact)
+        local inst = fixtureA:getUserData()
+        if not inst or inst.spent then return end
+        inst.spent = true
+        table.insert(bullet.toReturn, inst)
     end)
 
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)

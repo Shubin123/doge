@@ -7,6 +7,10 @@
 -- Only call game APIs that exist in the baseline revision as well: this file
 -- is run against both trees.
 return function(h)
+    -- Enemies shoot to hurt now; the player standing still among them would
+    -- die and drop to the menu partway through. (player.god predates that,
+    -- so the baseline accepts it too.)
+    player.god = true
     h.advance(90) -- every enemy spawned, physics settled
     h.capture("default")
 

@@ -33,6 +33,8 @@ local soundConfig = {
     explosion = { file = "explosion_trimmed.mp3", category = "explosion", volume = 1.00 },
     fire      = { file = "fire.mp3",              category = "weapon",    volume = 0.70 },
     coin      = { file = "coin.mp3",              category = "pickup",    volume = 0.55 },
+    -- Enemies' shots: its own type, so their rate limit never mutes the player's gun
+    enemyGun  = { file = "gun3_trimmed.mp3",      category = "weapon",    volume = 0.45 },
 }
 
 -- Attenuation profiles per category. Distances are in physics/world units

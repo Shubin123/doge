@@ -12,6 +12,8 @@
   4. in a full frame, the death light shows up where the enemy died.
 ]]
 return function(h)
+    -- Enemies shoot to hurt; keep the player alive through the whole run
+    player.god = true
     local W, H = love.graphics.getPixelDimensions()
     local canvas = love.graphics.newCanvas(W, H)
     local frameCopy = love.graphics.newCanvas(W, H)
