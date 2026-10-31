@@ -438,6 +438,7 @@ function characterAnimator.load()
         varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
+        varying LOVE_HIGHP_OR_MEDIUMP float VFade; // onoff: 0 hidden, (0,1] opacity
 
         #ifdef VERTEX
 attribute vec4 InstanceUVData; 
@@ -448,9 +449,10 @@ attribute vec3 InstanceMatrix4;
 attribute float onoff;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-    if (int(onoff) == 1) {
+    if (onoff > 0.0) {
         vec2 localUV = VaryingTexCoord.xy;
         VColor = vec4(color);
+        VFade = onoff;
         VaryingUV = vec2(
             InstanceUVData.x + localUV.x * InstanceUVData.z,
             InstanceUVData.y + localUV.y * InstanceUVData.w
@@ -631,6 +633,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                 }
             }
 
+            finalColor.a *= VFade;
             love_Canvases[0] = finalColor;
         }
         #endif
@@ -664,6 +667,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
+        varying LOVE_HIGHP_OR_MEDIUMP float VFade;
 
         #ifdef VERTEX
         uniform vec3 cameraPosition; // z component is zoom
@@ -674,10 +678,13 @@ attribute vec3 InstanceMatrix2;
 attribute vec3 InstanceMatrix4; 
 attribute float onoff;
 
+// The death light: only dying enemies (fading, onoff below 1) glow here,
+// fading with them. Padding entries (onoff 0) sit far off-screen.
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-if (int(onoff) == 0) {
+if (onoff < 1.0) {
     vec2 localUV = VaryingTexCoord.xy;
     VColor = vec4(color);
+    VFade = onoff;
     VaryingUV = vec2(
         InstanceUVData.x + localUV.x * InstanceUVData.z,
         InstanceUVData.y + localUV.y * InstanceUVData.w
@@ -689,7 +696,12 @@ if (int(onoff) == 0) {
         InstanceMatrix4
     );
 
-    vec3 worldPos = instance_matrix * vec3(vertex_position.xy*cameraPosition.z + cameraPosition.xy, cameraPosition.z);
+    // World position as in the main pass, then to the screen (this pass runs
+    // after love.graphics.reset()). The camera used to be applied inside the
+    // instance matrix, which scaled it by the sprite's scale and put the glow
+    // off the body by a fraction of the camera offset.
+    vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
+    worldPos.xy = worldPos.xy * cameraPosition.z + cameraPosition.xy;
     
 
     pos = worldPos.xy;
@@ -738,6 +750,7 @@ return vec4(0.0);
                 }
             }
 
+            finalColor *= VFade;
             love_Canvases[0] = finalColor;
         }
         #endif
@@ -1022,7 +1035,7 @@ function characterAnimator.populate()
             cos_r * scale, sin_r * scale, 0,       -- InstanceMatrix1
             -sin_r * scale, cos_r * scale, 0,       -- InstanceMatrix2
             instance.x, instance.y, 1,               -- InstanceMatrix4
-            instance.on and 1 or 0}
+            instance.on and (instance.opacity or 1) or 0} -- onoff: visibility and opacity
         else
             -- Disabled padding entry (onoff=0 means shader skips it)
             instanceData[i] = {defaultUV[1], defaultUV[2], defaultUV[3], defaultUV[4],

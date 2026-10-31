@@ -250,10 +250,12 @@ function Enemy:damageEnemy(damage)
 
     if self.health <= 0 then
         if self.fixture then
-            -- Its light leaves the body and is drawn into the player.
+            -- Its light leaves the body and is drawn into the player, while the
+            -- sprite fades out (enemy.update) and the enemy is then released.
             suckLight.spawn(self.body:getPosition())
             -- print(self.fixture:getUserData())
-            gun_enemies[self.fixture:getUserData() + 2].on = false
+            self.sprite = gun_enemies[self.fixture:getUserData() + 2]
+            self.fadeT = 0
             -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
             self:killEnemy()
         end
@@ -392,6 +394,29 @@ function enemy.load()
     enemy.spawningComplete = false
 end
 
+-- Seconds a dead enemy takes to fade out: about as long as its light takes
+-- to stream into the player.
+enemy.DEATH_FADE_TIME = 0.7
+
+-- What a dead enemy's slot in enemy.enemies holds once it has faded out: one
+-- shared, inert stand-in, so nothing of the enemy itself (behaviour tree,
+-- physics, projectiles, sprite) stays referenced. The list is never compacted:
+-- fixture userData and gun_enemies use fixed indices into it.
+local RELEASED = setmetatable({ dead = true, cleanedUp = true, released = true,
+    projectiles = {}, projectile_bodies = {}, damage_indicators = {} }, Enemy)
+
+local function releaseEnemy(i)
+    -- (An enemy removed rather than killed never recorded its sprite; slot i
+    -- was index i - 1, whose sprite is gun_enemies[(i - 1) + 2].)
+    local sprite = enemy.enemies[i].sprite or gun_enemies[i + 1]
+    if sprite then
+        sprite.on = false
+        sprite.opacity = nil
+        sprite.currentSpriteIndex = nil -- out of the instanced draw entirely
+    end
+    enemy.enemies[i] = RELEASED
+end
+
 function enemy.update(dt)
     enemy.t = enemy.t + dt
     enemy.particleSystem:update(dt)
@@ -435,9 +460,19 @@ function enemy.update(dt)
                 e.projectiles = {}
                 e.projectile_bodies = {}
                 e.btree = nil
-                enemy.last_fire_times[i] = nil
-                enemy.health[i] = nil
-                enemy.enemy_damaged[i] = nil
+                -- These tables are keyed by the 0-based index (enemy.addEnemy).
+                enemy.last_fire_times[i - 1] = nil
+                enemy.health[i - 1] = nil
+                enemy.enemy_damaged[i - 1] = nil
+            end
+            if not e.released then
+                e.fadeT = (e.fadeT or 0) + dt
+                local k = e.fadeT / enemy.DEATH_FADE_TIME
+                if k < 1 and e.sprite then
+                    e.sprite.opacity = 1 - k
+                else
+                    releaseEnemy(i)
+                end
             end
         else
             e:update(dt)
