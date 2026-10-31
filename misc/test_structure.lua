@@ -42,7 +42,6 @@ local modules_to_test = {
     "ui.menu",
     "ui.editor",
     "ui.command",
-    "ui.cmndX",
     
     -- Network
     "network.multiplayer",

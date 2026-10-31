@@ -82,12 +82,12 @@ end
 - Host transfer on disconnect (highest permission player becomes new host)
 - Message types: `"permission_change"`, `"host_transfer"`
 
-## Console Integration (cmndX.lua)
+## Console Integration (ui/command.lua)
 
 ### Security Activation:
 ```lua
 -- Security initializes when console first opens
-function cmdn.toggle()
+function command.toggle()
     if isActive then
         ensureSandboxInitialized()  -- Full security active
         -- ...

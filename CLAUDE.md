@@ -48,7 +48,7 @@ python3 tests/gpu/run.py --checks         # functional checks (enemy sprites, de
 - `escape` - Toggle menu
 - `space` - Start game (when integration system is active)
 
-### Console Commands (accessible via cmndX)
+### Console Commands (`/` or `,` opens the console, `ui/command.lua`; Esc closes it)
 - `editor.enable` / `editor.disable` - Toggle map editor
 - `save` / `load` - Save/load game state
 - `reload` - Reload game modules

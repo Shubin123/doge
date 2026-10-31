@@ -47,8 +47,7 @@ teslaCoil = require("game.teslaCoil") -- gun submodule (load and update within g
 arrows = require("game.arrows") -- gun submodule (load and update within gun.lua)
 BehaviourTree = require("lib.behaviourTrees")
 sampleScreen = require("lib.graphics.sampleScreen")
-command = require("ui.command") -- no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
-cmdn = require("ui.cmndX")      -- improved console - always active
+command = require("ui.command") -- the console; no admin seperatation for multiplayer yet! (kinda bad ngl vm escape -> rce -> ooops)
 -- hotreloader / helpers
 local lurker = require("util.lurker")
 -- profiler = require("systems.profiler")
@@ -190,7 +189,6 @@ function love.load()
     imageData = nil
     
     command.load()
-    cmdn.load()
     
     -- Coins and enemies
 
@@ -326,7 +324,6 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     blood.update(dt)
     explosion.update(dt)
     command.update(dt)
-    cmdn.update(dt)
     map.updateHouses(dt)
 
 
@@ -391,9 +388,11 @@ function love.resize(w, h)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
-    -- Handle console mouse events first
+    -- The console draws on top of the CRT, so it takes screen coordinates
     -- teslaCoil.start()
-    cmdn.mousepressed(x, y, button)
+    if command.mousepressed(x, y, button) then
+        return
+    end
     -- Everything else is drawn under the CRT bulge: click what's shown there
     x, y = crt.toImage(x, y)
 
@@ -411,7 +410,7 @@ function love.mousepressed(x, y, button, istouch, presses)
         return -- Don't process game input when in menu
     end
 
-    if command.mousepressed(x, y, button) then
+    if command.clickBlock(x, y, button) then
         return -- command block was clicked
     end
     if portal.mousepressed(x, y, button) then
@@ -438,7 +437,6 @@ end
 
 function love.textinput(text)
     command.textinput(text)
-    cmdn.textinput(text)
 end
 
 lurker.preswap = function(file)
@@ -450,6 +448,9 @@ end
 local zoomToggle = false;
 local zcycle = 0
 function love.keypressed(key)
+    if command.keypressed(key) then
+        return -- the console is open (or "/" or "," just opened it)
+    end
     if portal.keypressed(key) then
         return -- the travel selector took it (Esc closes it, not the menu)
     end
@@ -535,14 +536,11 @@ function love.keypressed(key)
     end
 
     editor.keypressed(key)
-    command.keypressed(key)
-    cmdn.keypressed(key)
     gun.keypressed(key)
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
-    -- Handle console mouse events first
-    cmdn.mousereleased(x, y, button)
+    command.mousereleased(x, y, button)
 
     if var.State ~= "menu" then
         gun.mousereleased(x, y, button)
@@ -550,19 +548,18 @@ function love.mousereleased(x, y, button, istouch, presses)
 end
 
 function love.mousemoved(x, y, dx, dy, istouch)
-    -- Handle console dragging
-    cmdn.mousemoved(x, y, dx, dy)
+    command.mousemoved(x, y, dx, dy) -- dragging the console window
 end
 
 function love.keyreleased(key)
     command.keyreleased(key)
-    cmdn.keyreleased(key)
 end
 
 function love.wheelmoved(x, y)
-    command.wheelmoved(x, y)
-    cmdn.wheelmoved(x, y)
-    if var.State ~= "menu" and not command.isOpen() and not cmdn.isOpen() then
+    if command.wheelmoved(x, y) then
+        return -- scrolled the console
+    end
+    if var.State ~= "menu" then
         if not portal.wheelmoved(x, y) then
             gun.wheelmoved(x, y)
         end

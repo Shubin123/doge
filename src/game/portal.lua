@@ -233,7 +233,7 @@ end
 --- straight there, Esc to close it until the player steps out and back in.
 --- Returns true when it used the key.
 function portal.keypressed(key)
-    if not portal.selecting or var.State == "menu" or command.isOpen() or cmdn.isOpen() then
+    if not portal.selecting or var.State == "menu" or command.isOpen() then
         return false
     end
     if key == "escape" then

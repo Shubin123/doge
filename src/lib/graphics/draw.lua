@@ -110,7 +110,6 @@ function draw.mydraw()
     -- Dev overlays stay crisp, on top of the CRT
     profiler.drawOverlay()
     command.draw()  -- Draw console on top
-    cmdn.draw()     -- Draw improved console on top
     -- editor.debugDraw()
     
 end

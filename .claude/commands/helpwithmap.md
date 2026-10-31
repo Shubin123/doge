@@ -27,8 +27,8 @@
 
   The game has a built-in level editor accessible via
   console:
-  - Enable: Type editor.enable in cmndX console
-  - Disable: Type editor.disable in cmndX console
+  - Enable: Type editor.enable in the console (`/` or `,`)
+  - Disable: Type editor.disable in the console (`/` or `,`)
   - Editor modes:
     - 1: Select/move/delete objects (right-click to delete)
     - 2: Create arches

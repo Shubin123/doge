@@ -907,49 +907,4 @@ function boss.collision(fixture_a, fixture_b, contact)
     end
 end
 
--- Console commands
-function boss.registerCommands()
-    if command and command.register then
-        command.register("boss", function(args)
-            if args[2] == "spawn" then
-                local x = tonumber(args[3]) or (player and player.body and player.body:getX() or 0)
-                local y = tonumber(args[4]) or (player and player.body and player.body:getY() or 0)
-                local id = boss.spawn(x, y)
-                -- return "Boss spawned with ID: " .. id
-
-            
-            elseif args[2] == "despawn" then
-                if args[3] == "all" then
-                    boss.despawnAll()
-                    return "All bosses despawned"
-                else
-                    local id = tonumber(args[3])
-                    if id and boss.despawn(id) then
-                        return "Boss " .. id .. " despawned"
-                    else
-                        return "Invalid boss ID"
-                    end
-                end
-            elseif args[2] == "list" then
-                local count = 0
-                for id, _ in pairs(boss.bosses) do
-                    count = count + 1
-                end
-                return "Active bosses: " .. count
-            elseif args[2] == "damage" then
-                local id = tonumber(args[3])
-                local damage = tonumber(args[4]) or 100
-                if id and boss.bosses[id] then
-                    boss.damage(id, damage)
-                    return "Dealt " .. damage .. " damage to boss " .. id
-                else
-                    return "Invalid boss ID"
-                end
-            else
-                return "Usage: boss spawn [x] [y] | boss despawn <id|all> | boss list | boss damage <id> [amount]"
-            end
-        end)
-    end
-end
-
 return boss

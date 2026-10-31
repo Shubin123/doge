@@ -1,10 +1,10 @@
 -- commandHints.lua - What each console command takes and does, matched
--- against what's typed so far. Both consoles (command.lua on "/", cmndX on
--- ",") list their commands here and draw the matches above their input line.
+-- against what's typed so far. The console (ui/command.lua) lists these and
+-- draws the matches above its input line.
 local hints = {}
 
 -- { name, args, description, sub = { subcommands, same shape } }
-hints.slash = {
+hints.commands = {
     { "help", nil, "List commands and shortcuts" },
     { "clear", nil, "Clear the output" },
     { "cont", nil, "Close the console (also: continue)" },
@@ -13,18 +13,7 @@ hints.slash = {
     { "tp", "[x] [y]", "Teleport the player (default 0 0)" },
     { "save", nil, "Quick save" },
     { "load", nil, "Quick load" },
-    { "boss", nil, "Spawn a boss at 0 0" },
-}
-
-hints.debug = {
-    { "help", nil, "List commands and shortcuts" },
-    { "clear", nil, "Clear the output" },
-    { "exit", nil, "Quit the game" },
-    { "reload", nil, "Restart the game" },
-    { "tp", "[x] [y]", "Teleport the player (default 0 0)" },
-    { "save", nil, "Quick save" },
-    { "load", nil, "Quick load" },
-    { "boss", nil, "Boss tools", sub = {
+    { "boss", nil, "Boss tools (bare: spawn at you)", sub = {
         { "spawn", "[x] [y]", "Spawn a boss (default: at you)" },
         { "despawn", "<id|all>", "Remove a boss, or all of them" },
         { "list", nil, "Count the active bosses" },
