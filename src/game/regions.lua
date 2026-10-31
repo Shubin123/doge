@@ -5,11 +5,21 @@
   with every sprite's rect and category in gfx/regions/<id>.lua (and its ground
   textures in <id>_floor.png). At load each region is laid out procedurally from
   its seed, far east of the home map so nothing overlaps:
-    - seamless ground: its floor textures fading into each other over a noise
-      field, so there's no tile grid to see,
+    - a street plan: rows of buildings each with a pavement and a road in
+      front, and across the road another pavement and a wall, so every road
+      runs between buildings and a wall; avenues crossing them in line
+      (through gaps flanked by posts, and lined with posts between the
+      streets), the main one running from the portal's square to a
+      landmark; gateways in the walls into the yards behind; a square across
+      from the pool,
+    - ground that follows it: every 64 px cell is open ground, pavement,
+      road or square, each with its own floor, blending over ragged edges
+      (or, for tiled floors, changing at the cell's edge),
     - walls along the edge (a physics chain keeps everyone inside),
-    - streets of facades with props and lamps in front, a landmark or two,
-    - a pool, puddles and grass wherever a noise field puts them.
+    - blocks of buildings shoulder to shoulder with alleys between, and the
+      rest where it would be: lamps along the kerbs, things against walls
+      and gates, cars parked by the kerb, road works, manholes, puddles in
+      the roads, clutter and grass on open ground.
   Everything is lit by its height (see SPRITE_SHADER): tall things block light
   and are lit up their faces, things underfoot are part of the ground. Things
   that give off light (lamps, flames, neon, glowing glass) shine whatever the
@@ -26,6 +36,7 @@ local MARGIN = 512      -- ground past the walls, so the edge of the world never
 local CELL = 16         -- occupancy grid cell, for keeping things apart
 local TOP = 170         -- the top wall's base, below the region's top edge
 local ROWS = { 0.25, 0.46, 0.67 } -- facade street baselines, as fractions of H
+local ZONE = 64         -- world px per ground cell (the street plan's grid)
 -- The draw list sorts characters by body y + characterAnimator.sortYOffset (130),
 -- and their feet are ~25 px below the body: a sprite whose base is at world y
 -- sorts with a character standing on that line.
@@ -42,6 +53,30 @@ local GROUND_ALPHA = 0.4  -- the map's ground alpha (draw.lua): never blocks lig
 local TALL = { facade = true, wall = true, tower = true, landmark = true, light = true }
 local OCCLUDE_HEIGHT = 96 -- world px
 
+-- Each region's sprites, by what they're for in its streets (see generate):
+--   edge, posts ........ the perimeter wall, and posts in it and down its sides
+--   layout.facades ..... buildings that make up a street's blocks; corners
+--                        end a block; separators stand between buildings now
+--                        and then (towers, arches, fire escapes)
+--   layout.landmarks ... at the end of the main avenue and the top street
+--                        ("row"), or parked in a road ("road")
+--   layout.gates ....... facades with a way in, flanked by `flank` pairs
+--   layout.lights ...... along the kerbs, every lightSpacing px
+--   layout.kerb ........ small things on the pavement between the lights
+--   layout.wall ........ against a building's front (bins, banners, lecterns)
+--   layout.parked ...... in a road's near lane
+--   layout.roadworks ... a run of barriers in a road's far lane
+--   layout.alleyFences . across an alley's mouth
+--   layout.wallGates ... across some gateways in the walls along the roads
+--   layout.square ...... a square's corner pieces (ring), its centrepiece
+--                        (feature) and what lies in its middle (centre)
+--   layout.roadFlat .... down a road's middle; kerbFlat along its kerb
+--   layout.lot ......... loose on open ground; lotFlat lying on it
+--   layout.companions .. what lies beside a thing (cans by bins)
+--   layout.ground ...... which floor layer each kind of ground uses: lot,
+--                        walk (pavements), road, plaza; roadAlt/lotAlt mix
+--                        in where a noise field is high; hard floors change
+--                        at the cell edge, the rest blend over ragged edges
 regions.list = {
     {
         id = "home",
@@ -56,19 +91,44 @@ regions.list = {
         edge = { "jersey_a", "jersey_b", "slab_a", "slab_b", "slab_c", "slab_e", "fence_sheet",
             "fence_gate", "fence_iron_a", "fence_iron_b", "fence_rusty", "slab_graffiti_b", "slab_graffiti_e" },
         posts = { "pillar_block", "fire_escape" },
-        facades = { "shop_a", "shop_b", "ruin_a", "brick_block", "corner_a", "corner_b", "corner_escape",
-            "corner_c", "corner_d", "corner_e", "pillar_block", "scaffold_a", "scaffold_b", "fire_escape",
-            "slab_graffiti_a", "slab_graffiti_c", "slab_graffiti_d", "slab_d" },
-        landmarks = { "bus" },
-        props = { "car_a", "car_b", "car_c", "bins", "hydrant_a", "hydrant_b", "jersey_fallen",
-            "fence_broken", "fence_brick" },
-        decor = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "can_a", "can_b", "can_c",
-            "can_d", "brick", "chainlink_a", "chainlink_b" },
         -- lying on the ground: walked over, drawn into the ground, never block light
         flat = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "can_a", "can_b", "can_c",
             "can_d", "brick", "chainlink_a", "chainlink_b" },
-        lights = {},
         portalLights = {},
+        layout = {
+            facades = { "shop_a", "shop_b", "ruin_a", "brick_block" },
+            corners = { "corner_a", "corner_b", "corner_c", "corner_d", "corner_e", "corner_escape" },
+            separators = { "fire_escape", "pillar_block", "scaffold_a", "scaffold_b" },
+            separatorChance = 0.18,
+            -- a block that's lost a building: a graffitied wall where it stood
+            infill = { "slab_graffiti_a", "slab_graffiti_c", "slab_graffiti_d", "slab_d" },
+            wallGates = { "fence_gate" },
+            landmarks = { "bus" },
+            landmarkIn = "road",
+            lights = {},
+            kerb = { "hydrant_a", "hydrant_b" },
+            kerbChance = 0.3,
+            wall = { "bins" },
+            wallChance = 0.22,
+            parked = { "car_a", "car_b", "car_c" },
+            parkedChance = 0.35,
+            roadworks = { "jersey_a", "jersey_b", "jersey_fallen" },
+            alleyFences = { "fence_broken", "fence_rusty", "fence_iron_a", "fence_iron_b", "fence_gate",
+                "fence_sheet", "fence_brick" },
+            roadFlat = { "rubble_e", "brick" },
+            lot = { "jersey_fallen", "fence_broken", "bins" },
+            lotFlat = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "brick", "can_d" },
+            companions = {
+                bins = { "can_a", "can_b", "can_c", "can_d" },
+                fence_broken = { "chainlink_a", "chainlink_b" },
+                fence_rusty = { "chainlink_b" },
+                ruin_a = { "rubble_c", "brick", "rubble_d" },
+                scaffold_a = { "brick", "rubble_e" },
+                scaffold_b = { "brick", "rubble_a" },
+                bus = { "rubble_b" },
+            },
+            ground = { lot = 1, lotAlt = 0, walk = 0, road = 2, plaza = 0, rough = 0.9 },
+        },
         grass = { patches = 14, tint = { 2.1, 0.62, 0.7 } }, -- dry, straw coloured
         puddles = 16,
     },
@@ -79,17 +139,37 @@ regions.list = {
         scale = 1,
         edge = { "wall_plain", "wall_crenel", "wall_crenel", "wall_crenel_narrow" },
         posts = { "round_tower", "round_tower_b", "banner_pillar" },
-        facades = { "corner_brick", "blue_window", "blue_corner", "corner_hall", "corner_window_a",
-            "corner_window_b", "corner_window_c", "corner_hall_windows", "gate_wall", "gothic_wall",
-            "cell_wall", "great_gate", "dungeon_wall_a", "dungeon_wall_b", "ruin_wall", "ruin_windows",
-            "tower_stair", "round_tower", "arch", "portcullis_arch" },
-        landmarks = { "gatehouse", "stained_glass", "long_wall" },
-        props = { "chest", "banner_blue", "banner_red", "column_a", "column_b", "column_c", "column_d",
-            "column_e", "portcullis", "ice_barrier", "spiral_stair" },
-        decor = { "coins", "rune_carpet" },
         flat = { "coins", "rune_carpet" },
-        lights = { "brazier_a", "brazier_b", "brazier_c", "candelabra" },
         portalLights = { "brazier_b", "brazier_b" },
+        layout = {
+            facades = { "blue_window", "cell_wall", "gothic_wall", "gate_wall", "great_gate", "dungeon_wall_a",
+                "dungeon_wall_b", "ruin_windows", "ruin_wall" },
+            corners = { "corner_brick", "blue_corner", "corner_hall", "corner_hall_windows", "corner_window_a",
+                "corner_window_b", "corner_window_c" },
+            separators = { "round_tower", "round_tower_b", "tower_stair", "arch", "portcullis_arch" },
+            separatorChance = 0.3,
+            landmarks = { "gatehouse", "stained_glass", "long_wall" },
+            landmarkIn = "row",
+            gates = { "great_gate", "gate_wall", "portcullis_arch", "gatehouse", "arch" },
+            wallGates = { "portcullis" },
+            flank = { "brazier_b" },
+            lights = { "brazier_a", "brazier_c", "candelabra" },
+            lightSpacing = 340,
+            kerb = {},
+            wall = { "banner_blue", "banner_red", "banner_blue", "banner_red", "chest" },
+            wallChance = 0.4,
+            alleyFences = { "portcullis", "ice_barrier" },
+            square = { ring = { "column_a", "column_b", "column_c", "column_d", "column_e" },
+                feature = { "spiral_stair" } },
+            lot = { "column_a", "column_d", "chest" },
+            lotFlat = {},
+            companions = {
+                chest = { "coins" },
+                great_gate = { "rune_carpet" },
+                gatehouse = { "rune_carpet" },
+            },
+            ground = { lot = 0, walk = 0, road = 1, plaza = 2, rough = 0.6 },
+        },
         grass = { patches = 22, tint = { 0.85, 1.0, 0.85 } },
         puddles = 8,
     },
@@ -101,18 +181,36 @@ regions.list = {
         edge = { "wall_cyan", "wall_pink_pipe", "wall_pipes", "wall_blue_neon", "wall_pink_neon",
             "wall_green_neon", "wall_vent", "wall_panel" },
         posts = { "lamp_a", "lamp_b", "terminal_b" },
-        facades = { "tower_ramen", "tower_tech", "block_cyber", "block_glass", "spire", "tower_tech",
-            "block_cyber", "block_glass" },
-        landmarks = { "holo_big", "laser_fence" },
-        props = { "trash_a", "trash_b", "terminal_a", "terminal_b", "terminal_c", "panel_box", "plant_a",
-            "plant_b", "plant_c", "vent_box", "holo_cyan", "holo_purple", "holo_laser", "shutter",
-            "holo_frame", "grate_fence", "net_fence", "jersey_striped", "blocks", "barrier_a", "barrier_b",
-            "barrier_c", "barrier_hazard" },
-        decor = { "sign_arrows", "sign_updown", "sign_triangle", "sign_bowl", "sign_ramen", "sign_cyber",
-            "sign_kanji", "neon_bar_a", "neon_bar_b", "grate_a", "grate_b", "manhole", "rail", "laser_small" },
         flat = { "grate_a", "grate_b", "manhole", "rail" },
-        lights = { "lamp_a", "lamp_b" },
         portalLights = { "lamp_a", "lamp_b" },
+        layout = {
+            facades = { "tower_ramen", "tower_tech", "block_cyber", "block_glass" },
+            corners = {},
+            separators = { "spire" },
+            separatorChance = 0.12,
+            wallGates = { "shutter" },
+            landmarks = { "holo_big" },
+            landmarkIn = "row",
+            lights = { "lamp_a", "lamp_b" },
+            lightSpacing = 260,
+            kerb = { "plant_a", "plant_b", "plant_c", "terminal_a", "terminal_b", "trash_a", "trash_b",
+                "sign_arrows", "sign_updown", "sign_triangle", "sign_bowl", "sign_ramen", "sign_cyber", "sign_kanji" },
+            kerbChance = 0.75,
+            wall = { "vent_box", "panel_box", "terminal_c", "trash_a", "trash_b" },
+            wallChance = 0.45,
+            roadworks = { "barrier_a", "barrier_b", "barrier_c", "barrier_hazard", "blocks", "jersey_striped" },
+            alleyFences = { "grate_fence", "laser_fence", "net_fence", "shutter" },
+            square = { ring = { "holo_cyan", "holo_purple", "holo_frame" }, feature = { "holo_laser" },
+                edge = { "neon_bar_a", "neon_bar_b", "neon_bar_c", "neon_bar_d" } },
+            roadFlat = { "manhole", "grate_a", "grate_b" },
+            kerbFlat = { "rail" },
+            lot = { "vent_box", "panel_box", "terminal_c" },
+            lotFlat = { "grate_a", "grate_b" },
+            companions = { laser_fence = { "laser_small" }, terminal_c = { "trash_a" } },
+            -- asphalt (clean, grimy) for the roads; the dark tiles' plates for
+            -- pavements and open ground, their grates and plates for squares
+            ground = { lot = 2, walk = 2, road = 0, roadAlt = 1, plaza = 3, hard = true },
+        },
         grass = { patches = 6, tint = { 0.45, 0.85, 1.25 } }, -- a few verges, neon-lit
         puddles = 22,
     },
@@ -123,18 +221,42 @@ regions.list = {
         scale = 1,
         edge = { "glass_wall", "glass_panel", "door_wall_a", "door_wall_b", "door_wall_c", "curtain_wall" },
         posts = { "crystal_pillar_a", "crystal_pillar_b", "crystal_pillar_c", "crystal_pillar_d" },
-        facades = { "cathedral_a", "cathedral_b", "cathedral_c", "dome_a", "dome_b", "dome_c", "dome_d",
-            "chapel", "altar_a", "altar_b", "altar_c", "shrine_b", "curtain_arch_a", "curtain_arch_b",
-            "curtain_arch_c", "rune_glass_c", "rune_glass_d", "rune_glass_e" },
-        landmarks = { "cathedral_d", "pavilion" },
-        props = { "angel", "angel_b", "stool_a", "stool_b", "table", "flowers_a", "flowers_b", "plant_a",
-            "plant_b", "lectern", "bench", "rune_glass_a", "rune_glass_b", "spire_a", "spire_b" },
-        decor = { "orb_a", "orb_b", "orb_c", "lotus_a", "lotus_b", "scroll_a", "scroll_b", "book",
-            "sun_emblem" },
         flat = { "scroll_a", "scroll_b", "book", "sun_emblem" },
-        lights = { "lantern_a", "lantern_b", "fountain", "urn", "shrine_a", "shrine_c" },
         portalLights = { "lantern_b", "lantern_b" },
-        cellular = true, -- its marble swaps whole tiles, at the grout
+        layout = {
+            facades = { "cathedral_a", "cathedral_b", "cathedral_c", "dome_a", "dome_b", "dome_c", "dome_d",
+                "chapel" },
+            corners = {},
+            separators = { "curtain_arch_a", "curtain_arch_b", "curtain_arch_c", "rune_glass_c", "rune_glass_d",
+                "rune_glass_e", "altar_a", "altar_b", "altar_c" },
+            separatorChance = 0.3,
+            landmarks = { "cathedral_d", "pavilion" },
+            landmarkIn = "row",
+            gates = { "cathedral_a", "cathedral_b", "cathedral_c", "chapel", "cathedral_d" },
+            wallGates = { "door_wall_a", "door_wall_b", "door_wall_c" },
+            flank = { "angel", "angel_b" },
+            lights = { "lantern_a", "lantern_b" },
+            lightSpacing = 240,
+            kerb = { "flowers_a", "flowers_b", "plant_a", "plant_b", "bench" },
+            kerbChance = 0.6,
+            wall = { "lectern", "table", "stool_a", "stool_b", "shrine_b" },
+            wallChance = 0.3,
+            alleyFences = { "curtain_wall", "glass_panel" },
+            square = { ring = { "spire_a", "spire_b", "rune_glass_a", "rune_glass_b" },
+                feature = { "fountain", "shrine_a", "shrine_c", "urn" }, centre = { "sun_emblem" } },
+            lot = { "flowers_a", "flowers_b", "plant_a", "urn", "bench" },
+            lotFlat = {},
+            companions = {
+                lectern = { "book", "scroll_a" },
+                table = { "scroll_b", "book" },
+                fountain = { "lotus_a", "lotus_b", "orb_a", "orb_b" },
+                shrine_a = { "orb_a", "orb_c" },
+                shrine_c = { "orb_b", "lotus_a" },
+                urn = { "orb_c" },
+            },
+            -- golden streets, crystal pavements and squares, marble between
+            ground = { lot = 0, walk = 1, road = 2, plaza = 1, hard = true },
+        },
         grass = { patches = 14, tint = { 1.0, 1.05, 0.75 } },
         puddles = 10,
     },
@@ -193,15 +315,28 @@ end
 -- Art
 --------------------------------------------------------------------------------
 
--- Dark asphalt plates for the neon city, whose sheet has no floor: clean
--- plates and grimy ones, both tiling seamlessly (their seams fall every 64 px,
--- the grime is noise wrapped round a torus).
+-- Neon City's floors, its sheet having none. Its roads are dark asphalt
+-- plates, clean and grimy, tiling seamlessly (seams every 64 px, the grime
+-- noise wrapped round a torus). Its pavements and squares are
+-- TileSet/grounds.png's dark sci-fi tiles at 32 px, each piece of several
+-- tiles put together as drawn (2|3 a plate two wide, 5 over 9 one two tall,
+-- 4 a single plate, 13 a vent, and the mesh grate's nine pieces 6 7 8 /
+-- 10 11 12 / 15 16 17), and every piece kept inside a 64 px cell so a
+-- floor changing at a cell's edge never cuts one.
+local NEON_TILES = {
+    -- pavement: a 4x4 of tiles per 128 px, a cell (2x2) at a time
+    { { 2, 3, 5, 5 }, { 2, 3, 9, 9 }, { 4, 13, 2, 3 }, { 4, 4, 4, 4 } },
+    -- squares: framed mesh grates and plates in a checker
+    { { 6, 8, 2, 3 }, { 15, 17, 2, 3 }, { 5, 5, 6, 8 }, { 9, 9, 15, 17 } },
+}
+
 local function neonFloor()
-    local size, layers = 128, 2
+    local size = 128
+    local layers = 2 + #NEON_TILES
     local data = love.image.newImageData(size * layers, size)
     local rng = love.math.newRandomGenerator(77)
     local tau = 2 * math.pi
-    for v = 0, layers - 1 do
+    for v = 0, 1 do
         for y = 0, size - 1 do
             for x = 0, size - 1 do
                 local g = 0.2 + rng:random() * 0.04
@@ -223,14 +358,32 @@ local function neonFloor()
             end
         end
     end
+    local tiles = love.image.newImageData("gfx/TileSet/grounds.png")
+    for i, layout in ipairs(NEON_TILES) do
+        local lx = (1 + i) * size
+        for ty, row in ipairs(layout) do
+            for tx, id in ipairs(row) do
+                local sx = (id - 1) * 16
+                for y = 0, 31 do
+                    for x = 0, 31 do
+                        local r, g, b = tiles:getPixel(sx + math.floor(x / 2), math.floor(y / 2))
+                        data:setPixel(lx + (tx - 1) * 32 + x, (ty - 1) * 32 + y, r, g, b, 1)
+                    end
+                end
+            end
+        end
+    end
     return love.graphics.newImage(data), layers
 end
 
 -- The ground: one quad per region, textured in TILEs from the region's corner.
 -- Each floor texture (side by side in the region's floor image, each tiling
 -- seamlessly) repeats across it; the first covers everything and the others
--- fade in over it wherever a soft noise field is high, so no tile edge ever
--- shows. A tiled floor (cellular) swaps whole textures instead, at its grout.
+-- go over it where the street plan says (r.zones: a texel per ZONE cell, the
+-- weight of layers 1-3 in r, g, b, and in a its shade: roads a little darker
+-- and pavements lighter, so a street reads whatever its floors look like). Most floors blend over ragged edges
+-- (the weights filtered between cells and pushed about by noise); a tiled
+-- one (hard) changes at the cell's edge, which falls on its grout.
 -- Lit like the map, by the same lights (shadow.lua).
 local GROUND_SHADER = [[
     #define MAX_LIGHTS 64
@@ -239,8 +392,12 @@ local GROUND_SHADER = [[
     uniform float u_ambient;
 
     uniform float layers;   // floor textures in the image
-    uniform float cellular; // 1: whole textures swap; 0: they blend
+    uniform float hard;     // 1: floors change at a cell's edge; 0: they blend
+    uniform float rough;    // how ragged blended edges are
     uniform vec2  seed;
+    uniform Image zones;    // the street plan: a texel per cell
+    uniform vec2  zoneSize; // cells
+    uniform float zoneScale; // cells per uv unit (TILE / ZONE)
 
     float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -260,17 +417,23 @@ local GROUND_SHADER = [[
 
     vec4 effect(vec4 color, Image floors, vec2 uv, vec2 screen_coords) {
         vec3 c = layer(floors, 0.0, uv);
-        vec2 at = mix(uv, floor(uv) + 0.5, cellular);
+        vec4 z = Texel(zones, uv * zoneScale / zoneSize);
         for (int k = 1; k < 4; k++) {
             float fk = float(k);
             if (fk >= layers) break;
-            // two octaves, so the patches have ragged edges
-            float n = vnoise(at * 0.3 + seed + fk * 17.31) * 0.7
-                    + vnoise(at * 1.1 + seed - fk * 5.7) * 0.3;
-            float w = mix(smoothstep(0.56, 0.66, n), step(0.6, n), cellular);
+            float target = z.r;
+            if (k == 2) target = z.g;
+            if (k == 3) target = z.b;
+            // two octaves, so blended edges are ragged
+            float n = vnoise(uv * 1.3 + seed + fk * 17.31) * 0.65
+                    + vnoise(uv * 3.7 + seed - fk * 5.7) * 0.35;
+            float w = hard > 0.5 ? step(0.5, target)
+                                 : smoothstep(0.42, 0.58, target + (n - 0.5) * rough);
             c = mix(c, layer(floors, fk, uv), w);
         }
-        // broad light and dark drifts, so the repeat doesn't read
+        // the kind of ground's shade, then broad light and dark drifts, so
+        // the repeat doesn't read
+        c *= z.a * 1.5;
         c *= 0.88 + 0.24 * vnoise(uv * 0.13 + seed.yx);
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
@@ -395,10 +558,22 @@ local function loadArt(r)
         }
     end
     -- A typo in a pool would otherwise only show up as a hole in the layout
-    for _, pool in ipairs({ "edge", "posts", "facades", "landmarks", "props", "decor", "lights", "portalLights", "flat" }) do
-        for _, name in ipairs(r[pool]) do
-            assert(r.sprites[name], ("region %s: no sprite %q (%s)"):format(r.id, name, pool))
+    local function check(list, where)
+        for key, v in pairs(list) do
+            if type(v) == "string" then
+                assert(r.sprites[v], ("region %s: no sprite %q (%s)"):format(r.id, v, where))
+            elseif type(v) == "table" then
+                check(v, where .. "." .. tostring(key))
+            end
         end
+    end
+    check({ edge = r.edge, posts = r.posts, portalLights = r.portalLights, flat = r.flat }, "")
+    local L = r.layout
+    for key, v in pairs(L) do
+        if type(v) == "table" and key ~= "ground" then check(v, key) end
+    end
+    for name in pairs(L.companions or {}) do
+        assert(r.sprites[name], ("region %s: companions for no sprite %q"):format(r.id, name))
     end
     r.flatSet = {}
     for _, name in ipairs(r.flat) do r.flatSet[name] = true end
@@ -499,30 +674,194 @@ local function place(r, name, x, base, check)
     return w, item
 end
 
+-- Ground kinds, one per ZONE x ZONE cell: which floor each cell gets
+-- (layout.ground) and what may stand on it
+local LOT, WALK, ROAD, PLAZA = 1, 2, 3, 4
+-- and how light or dark each is (layout.ground.shade overrides)
+local SHADE = { [LOT] = 1.0, [WALK] = 1.07, [ROAD] = 0.8, [PLAZA] = 1.05 }
+
 local function generate(r, index)
     local rng = love.math.newRandomGenerator(r.seed)
     local function rand(a, b) return a + rng:random() * (b - a) end
     local function pick(list) return list[rng:random(#list)] end
     local function width(name) return r.sprites[name].w * r.scale end
+    local function height(name) return r.sprites[name].h * r.scale end
+    local L = r.layout
 
     r.ox, r.oy = SPACING * (index - 1), 0
     local ox, oy = r.ox, r.oy
+    local x0, y0 = ox - MARGIN, oy - MARGIN
     r.grid = newGrid(r)
     r.items, r.solids, r.emitters = {}, {}, {}
-    r.flatBatch = love.graphics.newSpriteBatch(r.image, 128, "static")
-
+    r.flatBatch = love.graphics.newSpriteBatch(r.image, 256, "static")
     r.ground = groundMesh(r)
 
-    -- The portal stands at the bottom middle in a clear plaza, lights either side
+    ----------------------------------------------------------------------------
+    -- The plan: streets, avenues, squares, and the ground under them
+    ----------------------------------------------------------------------------
+
+    local zcols, zrows = (W + 2 * MARGIN) / ZONE, (H + 2 * MARGIN) / ZONE
+    local zone = {}
+    for i = 0, zcols * zrows - 1 do zone[i] = LOT end
+    local function setZone(kind, x, y, w, h)
+        local c0 = math.max(0, math.floor((x - x0) / ZONE))
+        local r0 = math.max(0, math.floor((y - y0) / ZONE))
+        local c1 = math.min(zcols - 1, math.ceil((x + w - x0) / ZONE) - 1)
+        local r1 = math.min(zrows - 1, math.ceil((y + h - y0) / ZONE) - 1)
+        for row = r0, r1 do
+            for col = c0, c1 do zone[row * zcols + col] = kind end
+        end
+    end
+    local function zoneAt(x, y)
+        return zone[math.floor((y - y0) / ZONE) * zcols + math.floor((x - x0) / ZONE)] or LOT
+    end
+    local function snapX(x) return x0 + math.floor((x - x0) / ZONE + 0.5) * ZONE end
+
+    -- Streets: a row of buildings stands on each, a pavement (one cell) and a
+    -- road (two) in front of it, all on the zone grid
+    local streets = {}
+    for i, f in ipairs(ROWS) do
+        local cell = math.floor((oy + H * f - 24 - y0) / ZONE + 0.5)
+        local walkTop = y0 + cell * ZONE
+        -- across the road: a pavement, and the wall on its far edge
+        streets[i] = { base = walkTop + 24, walkTop = walkTop, kerb = walkTop + ZONE,
+            roadBottom = walkTop + 3 * ZONE, wall = walkTop + 4 * ZONE - 6, gaps = {} }
+    end
+
+    -- The portal stands at the bottom middle in a clear square
     r.portal = { x = math.floor(ox + W / 2 - 17), y = oy + H - 330 }
     r.spawn = { x = r.portal.x + 17, y = r.portal.y + 100 }
+    local plaza = { x = r.portal.x - 230, y = r.portal.y - 140, w = 495, h = 330 }
+
+    -- Avenues: two cross every street, lined up; the main one runs from the
+    -- portal's square up to the middle street, where a landmark ends it
+    local avenues = {
+        { x = snapX(ox + W * rand(0.2, 0.27)), top = oy + TOP, bottom = oy + H * 0.84 },
+        { x = snapX(ox + W * rand(0.73, 0.8)), top = oy + TOP, bottom = oy + H * 0.84 },
+        { x = snapX(ox + W / 2) - ZONE, top = streets[2].roadBottom, bottom = plaza.y + 60, main = true },
+    }
+    for _, a in ipairs(avenues) do
+        a.w = 2 * ZONE
+        for _, s in ipairs(streets) do
+            if a.top < s.base and a.bottom > s.base then
+                s.gaps[#s.gaps + 1] = { a.x - 36, a.x + a.w + 36 }
+            end
+        end
+    end
+
+    -- Landmarks: at the end of the main avenue, then the top street's middle
+    -- (or parked in a road, for a bus)
+    local landmarks = {}
+    for i = 1, #L.landmarks do landmarks[i] = L.landmarks[i] end
+    for i = #landmarks, 2, -1 do
+        local j = rng:random(i)
+        landmarks[i], landmarks[j] = landmarks[j], landmarks[i]
+    end
+    local slots = {}
+    if L.landmarkIn == "row" then
+        for i, streetIndex in ipairs({ 2, 1 }) do
+            local name = landmarks[i]
+            if name then
+                local s = streets[streetIndex]
+                local w = width(name)
+                local x = ox + W / 2 - w / 2
+                s.gaps[#s.gaps + 1] = { x - 50, x + w + 50 }
+                slots[#slots + 1] = { name = name, x = x, w = w, street = s }
+            end
+        end
+    end
+
+    -- The ground: lots everywhere, then pavements, roads and squares
+    for _, s in ipairs(streets) do
+        setZone(WALK, ox, s.walkTop, W, ZONE)
+        setZone(WALK, ox, s.roadBottom, W, ZONE) -- the far pavement, under the wall
+    end
+    for _, a in ipairs(avenues) do
+        setZone(WALK, a.x - ZONE, a.top, ZONE, a.bottom - a.top)
+        setZone(WALK, a.x + a.w, a.top, ZONE, a.bottom - a.top)
+    end
+    for _, s in ipairs(streets) do
+        setZone(ROAD, ox, s.kerb, W, 2 * ZONE)
+    end
+    for _, a in ipairs(avenues) do
+        setZone(ROAD, a.x, a.top, a.w, a.bottom - a.top)
+    end
+    setZone(PLAZA, plaza.x, plaza.y, plaza.w, plaza.h)
+    for _, slot in ipairs(slots) do
+        setZone(PLAZA, slot.x - 50, slot.street.walkTop, slot.w + 100, ZONE) -- its forecourt
+    end
+    -- the pool on one side of the portal's square, a square on the other
+    local poolSide = rng:random() < 0.5 and 0.22 or 0.78
+    local square
+    if L.square then
+        local cx = snapX(ox + W * (1 - poolSide))
+        -- below the bottom street's wall
+        local top = y0 + math.ceil((streets[3].wall + 40 - y0) / ZONE) * ZONE
+        square = { x = cx - 3 * ZONE, y = top, w = 6 * ZONE, h = 4 * ZONE }
+        setZone(PLAZA, square.x, square.y, square.w, square.h)
+    end
+
+    -- Which floor each cell gets: one texel per cell, the weight of floor
+    -- layers 1-3 in r, g, b (layer 0 lies under everything)
+    local g = L.ground
+    local zdata = love.image.newImageData(zcols, zrows)
+    for row = 0, zrows - 1 do
+        for col = 0, zcols - 1 do
+            local kind = zone[row * zcols + col]
+            local k
+            if kind == ROAD then
+                k = g.road
+                if g.roadAlt and love.math.noise(col * 0.31 + r.seed * 0.01, row * 0.31) > 0.62 then k = g.roadAlt end
+            elseif kind == WALK then
+                k = g.walk
+            elseif kind == PLAZA then
+                k = g.plaza
+            else
+                k = g.lot
+                if g.lotAlt and love.math.noise(col * 0.14 + r.seed * 0.013, row * 0.14 + 3.1) > 0.58 then
+                    k = g.lotAlt
+                end
+            end
+            k = math.min(k, r.floorLayers - 1)
+            local shade = g.shade and g.shade[kind] or SHADE[kind]
+            zdata:setPixel(col, row, k == 1 and 1 or 0, k == 2 and 1 or 0, k == 3 and 1 or 0, shade / 1.5)
+        end
+    end
+    r.zones = love.graphics.newImage(zdata)
+    r.zones:setFilter(g.hard and "nearest" or "linear", g.hard and "nearest" or "linear")
+    r.zoneSize = { zcols, zrows }
+    r.hardGround = g.hard and 1 or 0
+    r.rough = g.rough or 0.8
+
+    ----------------------------------------------------------------------------
+    -- Placing things
+    ----------------------------------------------------------------------------
+
+    local function tryPlace(name, x, base) return place(r, name, x, base, true) end
+    local function inAvenue(x0_, x1_, pad)
+        for _, a in ipairs(avenues) do
+            if x1_ > a.x - pad and x0_ < a.x + a.w + pad then return a end
+        end
+    end
+    -- What lies beside a thing: one or two of its companions, in front of it
+    local function companions(name, x, w, base)
+        local list = L.companions and L.companions[name]
+        if not list then return end
+        for _ = 1, rng:random(1, 2) do
+            local c = pick(list)
+            local cw = width(c)
+            tryPlace(c, rand(x - cw * 0.6, x + w - cw * 0.4), base + rand(8, 30))
+        end
+    end
+
+    -- The portal's lights, either side of it
     if #r.portalLights == 2 then
         local base = r.portal.y + 58
         place(r, r.portalLights[1], r.portal.x - 50 - width(r.portalLights[1]), base)
         place(r, r.portalLights[2], r.portal.x + 85, base)
     end
-    local plaza = { x = r.portal.x - 230, y = r.portal.y - 140, w = 495, h = 330 }
     mark(r.grid, plaza.x, plaza.y, plaza.w, plaza.h)
+    if square then mark(r.grid, square.x, square.y, square.w, square.h) end
 
     -- Walls: a run along the top and bottom, posts down either side
     local function wallRun(base)
@@ -550,67 +889,346 @@ local function generate(r, index)
     mark(r.grid, ox - MARGIN, oy - MARGIN, W + 2 * MARGIN, MARGIN + TOP + 20)
     mark(r.grid, ox - MARGIN, oy + H - 10, W + 2 * MARGIN, MARGIN + 10)
 
-    -- A landmark in a gap in the middle street, maybe another in the top one
-    local reserved = {}
-    local landmarks = {}
-    for i = 1, #r.landmarks do landmarks[i] = r.landmarks[i] end
-    for i = #landmarks, 2, -1 do
-        local j = rng:random(i)
-        landmarks[i], landmarks[j] = landmarks[j], landmarks[i]
-    end
-    for i, rowIndex in ipairs({ 2, 1 }) do
-        local name = landmarks[i]
-        if name then
-            local w = width(name)
-            local x = ox + W * rand(0.35, 0.65) - w / 2
-            reserved[rowIndex] = { x - 60, x + w + 60 }
-            place(r, name, x, oy + H * ROWS[rowIndex] + 30)
-        end
+    -- Every building and landmark that went up: { name, x, w, base }
+    local fronts = {}
+    for _, slot in ipairs(slots) do
+        place(r, slot.name, slot.x, slot.street.base + 6)
+        fronts[#fronts + 1] = { name = slot.name, x = slot.x, w = slot.w, base = slot.street.base + 6, landmark = true }
     end
 
-    -- Facade streets, lamps along the pavement, props in front of the doors
-    for rowIndex, f in ipairs(ROWS) do
-        local base = oy + H * f
-        local x = ox + rand(40, 120)
-        local gap = reserved[rowIndex]
-        while x < ox + W - 80 do
-            local name = pick(r.facades)
-            local w = width(name)
-            if gap and x + w > gap[1] and x < gap[2] then
-                x = gap[2]
-            elseif x + w > ox + W - 40 then
-                break
-            else
-                place(r, name, x, base + rand(-6, 6))
-                if rng:random() < 0.55 then
-                    local prop = pick(r.props)
-                    local px = x + rand(0, math.max(0, w - width(prop)))
-                    place(r, prop, px, base + rand(45, 120), true)
+    -- Blocks of buildings shoulder to shoulder along each street: a corner at
+    -- each end (where the region has them), towers or arches between now and
+    -- then, an alley between blocks. A stretch too short for a building gets
+    -- a wall where one fell down.
+    local minFacade = math.huge
+    for _, n in ipairs(L.facades) do minFacade = math.min(minFacade, width(n)) end
+    local function pickFit(list, room, avoid)
+        local options = {}
+        for _, n in ipairs(list) do
+            if width(n) <= room and n ~= avoid then options[#options + 1] = n end
+        end
+        if #options == 0 and avoid then return pickFit(list, room) end
+        return #options > 0 and pick(options) or nil
+    end
+    local alleys = {}
+    for _, s in ipairs(streets) do
+        table.sort(s.gaps, function(a, b) return a[1] < b[1] end)
+        local stretches, from = {}, ox + 30
+        for _, gap in ipairs(s.gaps) do
+            if gap[1] > from then stretches[#stretches + 1] = { from, gap[1] } end
+            from = math.max(from, gap[2])
+        end
+        if ox + W - 30 > from then stretches[#stretches + 1] = { from, ox + W - 30 } end
+
+        for _, st in ipairs(stretches) do
+            local x, stop = st[1], st[2]
+            while stop - x >= minFacade do
+                -- one block
+                local size, built, prev = rng:random(3, 6), 0, nil
+                while stop - x >= minFacade do
+                    local room = stop - x
+                    local last = built + 1 >= size or room - minFacade < minFacade
+                    local name
+                    if (built == 0 or last) and #L.corners > 0 then
+                        name = pickFit(L.corners, room, prev and prev[1])
+                    elseif built > 0 and not last and L.separators and #L.separators > 0
+                        and not (prev and prev.separator) and rng:random() < (L.separatorChance or 0) then
+                        name = pickFit(L.separators, room)
+                        if name then name = { name, separator = true } end
+                    end
+                    if not name then name = pickFit(L.facades, room, prev and prev[1]) end
+                    if not name then break end
+                    local entry = type(name) == "table" and name or { name }
+                    local w = width(entry[1])
+                    place(r, entry[1], x, s.base + (entry.separator and 4 or 0))
+                    if not entry.separator then
+                        fronts[#fronts + 1] = { name = entry[1], x = x, w = w, base = s.base }
+                    end
+                    x = x + w - 3 * r.scale
+                    built, prev = built + 1, entry
+                    if last then break end
                 end
-                -- alleys now and then, otherwise the fronts nearly touch
-                x = x + w + (rng:random() < 0.22 and rand(110, 200) or rand(0, 22))
+                -- an alley, if another block fits after it
+                if stop - x >= minFacade * 3 + 60 then
+                    local aw = rand(60, 96)
+                    alleys[#alleys + 1] = { x0 = x, x1 = x + aw, street = s }
+                    x = x + aw
+                else
+                    break
+                end
             end
-        end
-        if #r.lights > 0 then
-            local lx = ox + rand(60, 200)
-            while lx < ox + W - 60 do
-                place(r, pick(r.lights), lx, base + rand(62, 78), true)
-                lx = lx + rand(240, 360)
+            -- the stretch's end: a fallen building's wall, where there's one
+            if L.infill and stop - x > 40 then
+                local name = pickFit(L.infill, stop - x)
+                if name then place(r, name, x + (stop - x - width(name)) / 2, s.base) end
             end
         end
     end
 
-    -- Water: a pool in the open ground beside the plaza, puddles anywhere free
-    local side = rng:random() < 0.5 and 0.22 or 0.78
-    local px, py = ox + W * side, oy + H * 0.86
+    -- Gates flanked by a pair; against other fronts, a thing or two (bins,
+    -- banners, a lectern) with what lies beside it
+    local gates = {}
+    for _, n in ipairs(L.gates or {}) do gates[n] = true end
+    for _, f in ipairs(fronts) do
+        if gates[f.name] and L.flank then
+            local pair = pick(L.flank)
+            local pw = width(pair)
+            local cx = f.x + f.w / 2
+            tryPlace(pair, cx - f.w * 0.34 - pw / 2, f.base + 18)
+            tryPlace(pair, cx + f.w * 0.34 - pw / 2, f.base + 18)
+            local carpet = L.companions and L.companions[f.name]
+            if carpet then
+                local c = pick(carpet)
+                tryPlace(c, cx - width(c) / 2, f.base + height(c) + 6)
+            end
+        elseif not f.landmark then
+            companions(f.name, f.x, f.w, f.base)
+            if L.wall and #L.wall > 0 and rng:random() < (L.wallChance or 0) then
+                local name = pick(L.wall)
+                local w = width(name)
+                local x = rand(f.x + 6, f.x + math.max(6, f.w - w - 6))
+                local base = f.base + rand(10, 18)
+                if tryPlace(name, x, base) then companions(name, x, w, base) end
+            end
+        end
+    end
+
+    -- Each road's far side: a wall along the back of its pavement, so the road
+    -- runs between buildings and wall. It breaks where an avenue crosses (a
+    -- post either side) and every few lengths for a gateway into the yard
+    -- behind, sometimes with a gate across it.
+    -- where a wall at y must open: an avenue crossing, or the portal's square
+    local openings = {}
+    for _, a in ipairs(avenues) do openings[#openings + 1] = { x = a.x, w = a.w, top = a.top, bottom = a.bottom } end
+    openings[#openings + 1] = { x = plaza.x + 30, w = plaza.w - 60, top = plaza.y, bottom = plaza.y + plaza.h }
+    local function avenueAt(x0_, x1_, y, pad)
+        for _, a in ipairs(openings) do
+            if y > a.top and y < a.bottom and x1_ > a.x - pad and x0_ < a.x + a.w + pad then return a end
+        end
+    end
+    local function post(x, base, side)
+        if #r.posts == 0 then return end
+        local name = pick(r.posts)
+        place(r, name, side < 0 and x - width(name) or x, base + 4)
+    end
+    for _, s in ipairs(streets) do
+        local x, run, nextGate = ox - 20, 0, rng:random(4, 7)
+        while x < ox + W + 20 do
+            local name = pick(r.edge)
+            local w = width(name)
+            local a = avenueAt(x, x + w, s.wall, 30)
+            if a then
+                post(a.x - 30, s.wall, -1)
+                post(a.x + a.w + 30, s.wall, 1)
+                x, run = a.x + a.w + 30 + (#r.posts > 0 and width(r.posts[1]) or 0), 0
+            elseif run >= nextGate and x < ox + W - 200 then
+                local gw = rand(84, 112)
+                if L.wallGates and rng:random() < 0.3 then
+                    local gate = pickFit(L.wallGates, gw + 24)
+                    if gate then place(r, gate, x + (gw - width(gate)) / 2, s.wall) end
+                end
+                x, run, nextGate = x + gw, 0, rng:random(4, 7)
+            else
+                place(r, name, x, s.wall)
+                x, run = x + w - 3 * r.scale, run + 1
+            end
+        end
+    end
+    -- The avenues lined with posts between the streets, like a colonnade
+    local function crossesStreet(y)
+        for _, s in ipairs(streets) do
+            if y > s.walkTop - 40 and y < s.wall + 30 then return true end
+        end
+        return y > plaza.y - 20 or (square and y > square.y - 20 and y < square.y + square.h + 20)
+    end
+    if #r.posts > 0 then
+        for _, a in ipairs(avenues) do
+            local y = a.top + 60
+            while y < a.bottom - 10 do
+                if not crossesStreet(y) then
+                    local name = pick(r.posts)
+                    local w = width(name)
+                    tryPlace(name, a.x - ZONE / 2 - w / 2, y)
+                    tryPlace(name, a.x + a.w + ZONE / 2 - w / 2, y)
+                end
+                y = y + 130
+            end
+        end
+    end
+
+    -- Alleys: some fenced off across their mouth
+    for _, a in ipairs(alleys) do
+        if L.alleyFences and rng:random() < 0.55 then
+            local name = pickFit(L.alleyFences, a.x1 - a.x0 + 30)
+            if name then
+                local w = width(name)
+                place(r, name, (a.x0 + a.x1) / 2 - w / 2, a.street.base + 2)
+                companions(name, (a.x0 + a.x1) / 2 - w / 2, w, a.street.base + 2)
+            end
+        end
+    end
+
+    -- Along each street's kerb: lights at a steady spacing (not in the
+    -- avenues' roads), small things between them, rails at the road's edge
+    for _, s in ipairs(streets) do
+        local spacing = L.lightSpacing or 300
+        local x = ox + rand(50, 90)
+        while x < ox + W - 60 do
+            if not inAvenue(x, x + 40, 24) then
+                if #L.lights > 0 then
+                    local name = pick(L.lights)
+                    tryPlace(name, x, s.kerb - 2)
+                end
+                -- between this light and the next
+                local mx = x + spacing / 2 + rand(-30, 30)
+                if L.kerb and #L.kerb > 0 and rng:random() < (L.kerbChance or 0)
+                    and not inAvenue(mx, mx + 60, 24) then
+                    local name = pick(L.kerb)
+                    tryPlace(name, mx, s.kerb - 4)
+                end
+                if L.kerbFlat and rng:random() < 0.35 then
+                    local name = pick(L.kerbFlat)
+                    if not inAvenue(mx, mx + width(name), 16) then tryPlace(name, mx, s.kerb + 20) end
+                end
+            end
+            x = x + spacing + rand(-20, 20)
+        end
+    end
+    -- and down both sides of each avenue, between the streets
+    local function onStreet(y)
+        for _, s in ipairs(streets) do
+            if y > s.kerb - 12 and y < s.roadBottom + 12 then return true end
+        end
+    end
+    for _, a in ipairs(avenues) do
+        if #L.lights > 0 then
+            local y, left = a.top + 90, true
+            while y < a.bottom - 20 do
+                local name = pick(L.lights)
+                local x = left and a.x - width(name) - 6 or a.x + a.w + 6
+                if not onStreet(y) then tryPlace(name, x, y) end
+                left = not left
+                y = y + (L.lightSpacing or 300) * 0.6
+            end
+        end
+    end
+
+    -- Roads: cars parked in the near lane, road works in the far lane of
+    -- one or two, manholes and the like down the middle
+    for _, s in ipairs(streets) do
+        if L.parked and #L.parked > 0 then
+            local x = ox + rand(40, 120)
+            while x < ox + W - 160 do
+                local name = pick(L.parked)
+                local w = width(name)
+                local a = inAvenue(x, x + w, 20)
+                if a then
+                    x = a.x + a.w + 24
+                elseif rng:random() < (L.parkedChance or 0) then
+                    if tryPlace(name, x, s.kerb + 58) then x = x + w + rand(16, 50) else x = x + 60 end
+                else
+                    x = x + rand(110, 220)
+                end
+            end
+        end
+        if L.roadFlat and #L.roadFlat > 0 then
+            local x = ox + rand(80, 200)
+            while x < ox + W - 80 do
+                local name = pick(L.roadFlat)
+                if not inAvenue(x, x + width(name), 10) and rng:random() < 0.7 then
+                    tryPlace(name, x, s.kerb + ZONE + height(name) / 2)
+                end
+                x = x + rand(260, 420)
+            end
+        end
+    end
+    if L.roadworks and #L.roadworks > 0 then
+        for _ = 1, rng:random(1, 2) do
+            local s = pick(streets)
+            local x = rand(ox + 120, ox + W - 600)
+            if not inAvenue(x, x + 480, 30) then
+                for _ = 1, rng:random(2, 4) do
+                    local name = pick(L.roadworks)
+                    local w = place(r, name, x, s.roadBottom - 8, true)
+                    x = x + (w or width(name)) + rand(-6, 8)
+                end
+            end
+        end
+    end
+    if L.landmarkIn == "road" then
+        -- a landmark that's a vehicle: left in a road, half across a lane
+        for i, name in ipairs(landmarks) do
+            local s = streets[(i % #streets) + 1]
+            for _ = 1, 10 do
+                local x = rand(ox + 200, ox + W - 200 - width(name))
+                if not inAvenue(x, x + width(name), 30) and tryPlace(name, x, s.kerb + rand(80, 110)) then
+                    companions(name, x, width(name), s.kerb + 100)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Squares: the portal's has a piece at each corner; the other has a
+    -- centrepiece with what goes round it, corner pieces and edges
+    local sq = L.square
+    if sq and sq.ring then
+        local name = pick(sq.ring)
+        local w = width(name)
+        place(r, name, plaza.x + 20, plaza.y + 70)
+        place(r, name, plaza.x + plaza.w - 20 - w, plaza.y + 70)
+        place(r, name, plaza.x + 20, plaza.y + plaza.h - 10)
+        place(r, name, plaza.x + plaza.w - 20 - w, plaza.y + plaza.h - 10)
+        for _, slot in ipairs(slots) do -- either side of a landmark's forecourt
+            place(r, name, slot.x - 50, slot.street.kerb - 4)
+            place(r, name, slot.x + slot.w + 50 - w, slot.street.kerb - 4)
+        end
+    end
+    if square then
+        local cx, cy = square.x + square.w / 2, square.y + square.h / 2
+        if sq.feature then
+            local name = pick(sq.feature)
+            local w, h = width(name), height(name)
+            place(r, name, cx - w / 2, cy + h * 0.25)
+            companions(name, cx - w / 2, w, cy + h * 0.25)
+            if sq.centre then
+                local c = pick(sq.centre)
+                place(r, c, cx - width(c) / 2, cy + h * 0.25 + height(c) + 10)
+            end
+        end
+        if sq.ring then
+            local name = pick(sq.ring)
+            local w = width(name)
+            place(r, name, square.x + 14, square.y + 60)
+            place(r, name, square.x + square.w - 14 - w, square.y + 60)
+            place(r, name, square.x + 14, square.y + square.h - 6)
+            place(r, name, square.x + square.w - 14 - w, square.y + square.h - 6)
+        end
+        if sq.edge then
+            local name = pick(sq.edge)
+            place(r, name, cx - width(name) - 10, square.y + square.h - 4)
+            place(r, name, cx + 10, square.y + square.h - 4)
+        end
+    end
+
+    -- Water: the pool by the portal's square, puddles where water lies (on
+    -- roads mostly, some on open ground)
+    local px, py = ox + W * poolSide, oy + H * 0.86
     local prx, pry = rand(170, 230), rand(70, 90)
     puddle.add(px, py, prx, pry)
     mark(r.grid, px - prx, py - pry, prx * 2, pry * 2)
-    for _ = 1, r.puddles do
-        for _ = 1, 12 do
+    for i = 1, r.puddles do
+        for _ = 1, 16 do
             local rx, ry = rand(26, 70), rand(12, 28)
-            local x, y = rand(ox + 80, ox + W - 80), rand(oy + TOP + 60, oy + H - 60)
-            if isFree(r.grid, x - rx, y - ry, rx * 2, ry * 2) then
+            local x, y
+            if i % 5 < 3 then
+                local s = pick(streets)
+                x, y = rand(ox + 80, ox + W - 80), rand(s.kerb + ry + 6, s.roadBottom - ry - 6)
+            else
+                x, y = rand(ox + 80, ox + W - 80), rand(oy + TOP + 60, oy + H - 60)
+            end
+            local kind = zoneAt(x, y)
+            if (kind == ROAD or kind == LOT) and isFree(r.grid, x - rx, y - ry, rx * 2, ry * 2) then
                 puddle.add(x, y, rx, ry)
                 mark(r.grid, x - rx, y - ry, rx * 2, ry * 2)
                 break
@@ -618,18 +1236,16 @@ local function generate(r, index)
         end
     end
 
-    -- Scattered props, then things underfoot that don't block
-    for _ = 1, 30 do
-        local name = pick(r.props)
-        place(r, name, rand(ox + 60, ox + W - 160), rand(oy + TOP + 80, oy + H - 40), true)
-    end
-    if #r.decor > 0 then
-        for _ = 1, math.min(70, #r.decor * 6) do
-            local name = pick(r.decor)
-            local w = width(name)
-            local x, y = rand(ox + 40, ox + W - 40 - w), rand(oy + TOP + 60, oy + H - 20)
-            if isFree(r.grid, x, y - 12, w, 12) then
-                place(r, name, x, y)
+    -- Open ground: things left lying about in clumps, not evenly
+    local clumpX, clumpY = r.seed * 0.17, r.seed * 0.29
+    for _ = 1, 140 do
+        local x, y = rand(ox + 60, ox + W - 140), rand(oy + TOP + 80, oy + H - 40)
+        if zoneAt(x, y) == LOT and love.math.noise(x * 0.004 + clumpX, y * 0.004 + clumpY) > 0.55 then
+            if L.lot and #L.lot > 0 and rng:random() < 0.3 then
+                local name = pick(L.lot)
+                if tryPlace(name, x, y) then companions(name, x, width(name), y) end
+            elseif L.lotFlat and #L.lotFlat > 0 then
+                tryPlace(pick(L.lotFlat), x, y)
             end
         end
     end
@@ -638,16 +1254,19 @@ local function generate(r, index)
     -- ones on screen are drawn
     local nx, ny = r.seed * 0.37, r.seed * 0.11
     for _ = 1, r.grass.patches do
-        local cx, cy = rand(ox + 80, ox + W - 80), rand(oy + TOP + 80, oy + H - 60)
-        if freeAt(r.grid, cx, cy) then
-            local hw, hh = rand(110, 230), rand(70, 140)
-            local field = grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2, math.floor(hw * hh * 4 / 18),
-                function(x, y)
-                    local d = ((x - cx) / hw) ^ 2 + ((y - cy) / hh) ^ 2
-                    return d < 1 and freeAt(r.grid, x, y)
-                        and love.math.noise(x * 0.02 + nx, y * 0.02 + ny) > 0.3 + 0.55 * d
-                end, r.grass.tint)
-            field.occludes = false -- ankle high: light passes over it
+        for _ = 1, 8 do
+            local cx, cy = rand(ox + 80, ox + W - 80), rand(oy + TOP + 80, oy + H - 60)
+            if zoneAt(cx, cy) == LOT and freeAt(r.grid, cx, cy) then
+                local hw, hh = rand(110, 230), rand(70, 140)
+                local field = grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2, math.floor(hw * hh * 4 / 18),
+                    function(x, y)
+                        local d = ((x - cx) / hw) ^ 2 + ((y - cy) / hh) ^ 2
+                        return d < 1 and zoneAt(x, y) == LOT and freeAt(r.grid, x, y)
+                            and love.math.noise(x * 0.02 + nx, y * 0.02 + ny) > 0.3 + 0.55 * d
+                    end, r.grass.tint)
+                field.occludes = false -- ankle high: light passes over it
+                break
+            end
         end
     end
 
@@ -802,8 +1421,12 @@ function regions.drawGround()
                 shadow.sendLights(groundShader)
             end
             groundShader:send("layers", r.floorLayers)
-            groundShader:send("cellular", r.cellular and 1 or 0)
+            groundShader:send("hard", r.hardGround)
+            groundShader:send("rough", r.rough)
             groundShader:send("seed", { r.seed % 97, r.seed % 89 })
+            groundShader:send("zones", r.zones)
+            groundShader:send("zoneSize", r.zoneSize)
+            groundShader:send("zoneScale", TILE / ZONE)
             love.graphics.draw(r.ground)
 
             -- grates, carpets, rubble: part of the ground, cut out over it
