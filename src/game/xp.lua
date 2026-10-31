@@ -179,7 +179,8 @@ function xp.drawGlow()
             local data = body:getFixtures()[1]:getUserData()
             local radius = (data and data.size or 0.5) * 36
             local r, g, b = look((x * 0.37 + y * 0.11) % 6.283)
-            haloBatch:setColor(r * 0.35, g * 0.35, b * 0.35, 1)
+            local k = 0.35 * daynight.glow()
+            haloBatch:setColor(r * k, g * k, b * k, 1)
             haloBatch:add(x - radius, y - radius, 0, radius * 2 / 32, radius * 2 / 32)
             if haloBatch:getCount() >= haloBatch:getBufferSize() then break end
         end

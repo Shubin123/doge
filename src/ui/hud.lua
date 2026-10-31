@@ -529,9 +529,9 @@ local function skyColor()
     return r + (1.00 - r) * k * 0.8, g + (0.55 - g) * k * 0.8, b + (0.30 - b) * k * 0.8
 end
 
--- An analog clock in the top right corner: a dial the colour of the sky with
--- the sun or moon riding round it (the sun's at the top at noon, the moon at
--- midnight), hour and minute hands, and the time written underneath.
+-- An analog clock in the top right corner: a dial the colour of the sky,
+-- hour and minute hands, a sun or a moon in it for day or night, and the
+-- time written underneath.
 local function drawClock(cx, cy, ts)
     local hour = daynight.hour
     local R = 11
@@ -543,17 +543,23 @@ local function drawClock(cx, cy, ts)
     love.graphics.setColor(skyColor())
     love.graphics.circle("fill", cx, cy, R - 0.5)
 
-    -- The sun by day, the moon by night: a 24-hour trip round the dial
-    local a = (hour / 24) * 2 * math.pi + math.pi / 2
-    local sx, sy = cx + math.cos(a) * (R - 4.5), cy + math.sin(a) * (R - 4.5)
-    if daynight.daylight() > 0.5 then
+    -- The sun by day, the moon by night, sitting still in the dial's lower half
+    -- (the hands tell the time; this says which twelve hours it is)
+    local sx, sy = cx, cy + R * 0.48
+    if daynight.daylight() >= 0.5 then
         love.graphics.setColor(1.00, 0.86, 0.30, 1)
-        love.graphics.circle("fill", sx, sy, 2.2)
+        love.graphics.setLineWidth(0.8)
+        for i = 0, 7 do
+            local t = i / 8 * 2 * math.pi
+            love.graphics.line(sx + math.cos(t) * 2.6, sy + math.sin(t) * 2.6,
+                sx + math.cos(t) * 3.6, sy + math.sin(t) * 3.6)
+        end
+        love.graphics.circle("fill", sx, sy, 1.9)
     else
         love.graphics.setColor(0.90, 0.92, 1.00, 1)
-        love.graphics.circle("fill", sx, sy, 2)
+        love.graphics.circle("fill", sx, sy, 2.4)
         love.graphics.setColor(skyColor())
-        love.graphics.circle("fill", sx + 0.9, sy - 0.6, 1.6) -- a crescent
+        love.graphics.circle("fill", sx + 1.1, sy - 0.7, 2.0) -- a crescent
     end
 
     -- Twelve ticks, the quarters longer

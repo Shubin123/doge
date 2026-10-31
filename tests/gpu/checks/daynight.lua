@@ -25,7 +25,7 @@ return function(h)
         string.format("daylight %.2f, ambient %.2f", daynight.daylight(), shadow.ambient))
     daynight.setHour(12)
     h.advance(1)
-    h.check("noon is full day", daynight.daylight() == 1 and math.abs(shadow.ambient - 1) < 1e-6,
+    h.check("noon is full day", daynight.daylight() == 1 and math.abs(shadow.ambient - daynight.DAY_AMBIENT) < 1e-6,
         string.format("daylight %.2f, ambient %.2f", daynight.daylight(), shadow.ambient))
     local dusk = daynight.daylight(19)
     h.check("dusk is in between", dusk > 0 and dusk < 1, string.format("daylight at 19:00 %.2f", dusk))
@@ -47,7 +47,7 @@ return function(h)
         return sum / n
     end
     local night, noon = brightness(0), brightness(12)
-    h.check("a noon frame is brighter than a midnight one", noon > night * 1.5,
+    h.check("a noon frame is brighter than a midnight one", noon > night * 1.2,
         string.format("mean brightness %.3f at midnight, %.3f at noon", night, noon))
 
     h.check("the shop keeps day hours",

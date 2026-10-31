@@ -5,17 +5,22 @@
 
   Night is the game's old look: the lit shaders' ambient floor at 0.2, so
   only lights (the player's, the flashlight, lamps, glows) show anything.
-  Day raises that floor to full (lighting.ambient, which every lit shader
-  reads) and switches the final composite (shader.pass) from scene + GI to
-  the scene's own colours under a sky tint, warm and orange at dawn and
-  dusk. daynight.daylight() goes 0 (night) to 1 (day): up from 05:00 to
-  07:00, down from 18:00 to 20:00.
+  Day raises that floor to DAY_AMBIENT (lighting.ambient, which every lit
+  shader reads) and switches the final composite (shader.pass) from scene +
+  GI to the scene's own colours under a sky tint, warm and orange at dawn
+  and dusk. Not to full: white walls and marble glared, and the lights
+  (lamps, the flashlight) still need some dark to show in.
+  daynight.daylight() goes 0 (night) to 1 (day): up from 05:00 to 07:00,
+  down from 18:00 to 20:00.
 
   The shop (game/shop.lua) trades from 07:00 to 19:00: daynight.isOpen().
 ]]
 local daynight = {}
 
 daynight.hour = 8
+
+daynight.NIGHT_AMBIENT = 0.20 -- the old look
+daynight.DAY_AMBIENT = 0.55
 
 local DAWN, DAY, DUSK, NIGHT = 5, 7, 18, 20 -- daylight rises DAWN..DAY, sets DUSK..NIGHT
 local OPEN, CLOSE = 7, 19                     -- shop hours
@@ -77,7 +82,16 @@ end
 
 --- Set the lighting for this hour. Before the lighting upload.
 function daynight.apply()
-    shadow.ambient = 0.20 + 0.80 * daynight.daylight()
+    shadow.ambient = daynight.NIGHT_AMBIENT
+        + (daynight.DAY_AMBIENT - daynight.NIGHT_AMBIENT) * daynight.daylight()
+end
+
+--- How strong additive glows (light pools, halos, the flashlight's beam)
+--- are now: full at night, a quarter by day. By day the composite divides
+--- the ground's 0.4 alpha back out, which would make them 2.5x as bright
+--- just when they should fade into the daylight.
+function daynight.glow()
+    return 1 - 0.75 * daynight.daylight()
 end
 
 function daynight.setHour(hour)

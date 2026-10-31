@@ -142,7 +142,8 @@ function light.drawBeam()
   local mode, alphaMode = love.graphics.getBlendMode()
   love.graphics.setShader()
   love.graphics.setBlendMode("add", "premultiplied")
-  love.graphics.setColor(BEAM_COLOR[1], BEAM_COLOR[2], BEAM_COLOR[3], 1)
+  local k = daynight.glow() -- a flashlight hardly shows in daylight
+  love.graphics.setColor(BEAM_COLOR[1] * k, BEAM_COLOR[2] * k, BEAM_COLOR[3] * k, 1)
   love.graphics.draw(light.beamImage, px, py, aim(), BEAM_LENGTH / w, BEAM_WIDTH / h, 0, h / 2)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.setBlendMode(mode, alphaMode)
@@ -180,7 +181,7 @@ function light.renderLights(drawable)
     
     blueNeon(function()
       if player.lightsOn then
-      love.graphics.setColor(0.17, 0.46, 1, 0.5)
+      love.graphics.setColor(0.17, 0.46, 1, 0.5 * daynight.glow())
 
       -- Aim the flashlight cone along the gun's current velocity/heading.
       local playerX, playerY = player.body:getPosition()

@@ -181,7 +181,7 @@ function shader.load()
             // By day: the scene's own colours (the ground is drawn at alpha
             // 0.4 so GI won't take it for a wall, which darkens it; undo that)
             // under the sky, with a little of the GI's bounce on top
-            vec3 day = scene.rgb / max(scene.a, 0.05) * skyTint + gi.rgb * 0.35;
+            vec3 day = scene.rgb / max(scene.a, 0.05) * skyTint * 0.9 + gi.rgb * 0.12;
             return vec4(mix(night.rgb, day, daylight), night.a);
         }
     ]])

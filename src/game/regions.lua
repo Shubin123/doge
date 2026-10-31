@@ -756,7 +756,7 @@ local function drawEmitters(r, fn)
     love.graphics.setBlendMode("add", "premultiplied")
     for _, e in ipairs(r.emitters) do
         if e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
-            fn(e, e.intensity * (e.now or 1))
+            fn(e, e.intensity * (e.now or 1) * daynight.glow())
         end
     end
     love.graphics.pop()
