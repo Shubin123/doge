@@ -322,7 +322,12 @@ function GunTool.load(world)
     bullet.load(world)
     rocket.load(world)
 
-    -- Held models, loaded once and shared between the weapons that use them
+    -- Held models, one per weapon. pistol/smg/shotgun/bow are rendered by
+    -- tools/weapon_models (aimed exactly; default angleOffset).
+    local pistolModel = loadModel("gfx/3d/pistol.dds")
+    local smgModel = loadModel("gfx/3d/smg.dds")
+    local shotgunModel = loadModel("gfx/3d/shotgun.dds")
+    local bowModel = loadModel("gfx/3d/bow.dds")
     local rifleModel = loadModel("gfx/3d/gun.dds")
     local launcherModel = loadModel("gfx/3d/lauchergun.dds")
     -- The portal gun was modelled facing backwards: turn it half a turn.
@@ -331,7 +336,7 @@ function GunTool.load(world)
 
     -- Create 5 weapon presets for number keys 1-5
     GunTool.guns[1] = Gun.new({ -- Pistol (1)
-        model = rifleModel,
+        model = pistolModel,
         fireRate = 4,
         projectileType = "bullet",
         speed = 700,
@@ -367,7 +372,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[2] = Gun.new({ -- SMG (2)
-        model = rifleModel,
+        model = smgModel,
         tracer = { core = { 0.6, 1.0, 0.15 }, halo = { 0.0, 0.95, 0.55 }, radius = 10 }, -- acid green
         fireRate = 8,
         projectileType = "bullet",
@@ -404,7 +409,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[3] = Gun.new({ -- Shotgun (3)
-        model = rifleModel,
+        model = shotgunModel,
         tracer = { core = { 1.0, 0.5, 0.08 }, halo = { 1.0, 0.08, 0.35 }, radius = 9 }, -- molten orange
         fireRate = 1.2,
         projectileType = "bullet",
@@ -519,6 +524,7 @@ function GunTool.load(world)
     GunTool.guns[6] = teslaCoil
     teslaCoil.blockInstance = portalModel
     GunTool.guns[7] = arrows
+    arrows.blockInstance = bowModel
     GunTool.guns[8] = fireballItem
     -- teslaCoil.updateAiming = GunTool.guns[5]:updateAiming()
 

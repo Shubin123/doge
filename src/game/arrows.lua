@@ -328,7 +328,8 @@ function bezierArrow:update(dt)
 end
 
 function bezierArrow:drawBarrel()
-    -- Inherited function - implement if needed
+    -- Inherited function: hold the bow model (set in gun.lua)
+    gun.drawHeldModel(bezierArrow)
 end
 
 function bezierArrow:shoot()

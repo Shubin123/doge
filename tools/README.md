@@ -138,3 +138,24 @@ for `version.txt` on the live site to match the commit, then re-runs the test
 against `https://shubin123.github.io/doge/` (`WEB_URL=...`). A scheduled job
 repeats that live check every 6 hours and redeploys `main` if it fails. Only
 `main` deploys to Pages.
+
+# Weapon models
+
+The held weapon sprites (`src/gfx/3d/pistol.dds`, `smg.dds`, `shotgun.dds`,
+`bow.dds`) are rendered from low-poly models defined in code, no Blender
+needed:
+
+```sh
+tools/weapon_models/build.sh            # every model
+tools/weapon_models/build.sh pistol bow # just these
+```
+
+`tools/weapon_models/main.lua` builds each model from boxes and cylinders,
+renders it in LÖVE on a turntable (depth-tested, 8x MSAA, fixed key light,
+camera 55° above the ground) into the same 128px, 16-wide, 2048x3712 sheet
+`game/block.lua` uses for `lauchergun.dds`, and `build.sh` DXT5-encodes it
+with `bc-encoder`. Frame k points the model exactly where
+`block:getSpriteForHeading` sends an aim that selects frame k, so these
+sheets need no per-model `angleOffset`. To add a weapon: add a
+`MODELS.<name>` function, run `build.sh <name>`, and load
+`gfx/3d/<name>.dds` with `loadModel` in `gun.lua`.
