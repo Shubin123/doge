@@ -191,11 +191,13 @@ GunTool.lastAimDirection.x, GunTool.lastAimDirection.y = 0, 0
 GunTool.currentVel.x, GunTool.currentVel.y = 0, 0
 GunTool.totalGuns = 0
 GunTool.maxAmmo = 100
-GunTool.ammo = GunTool.maxAmmo -- universal ammo shared by every weapon
+GunTool.ammo = GunTool.maxAmmo -- universal ammo shared by every weapon: the player's light (the HUD's light bar)
+GunTool.ammoDeniedAt = -math.huge -- when a weapon last wanted more light than there was (the HUD flashes the bar)
 
 -- Spend universal ammo; false (and nothing spent) when there isn't enough.
 function GunTool.useAmmo(cost)
     if GunTool.ammo < cost then
+        GunTool.ammoDeniedAt = love.timer.getTime()
         return false
     end
     GunTool.ammo = GunTool.ammo - cost
@@ -206,6 +208,7 @@ end
 -- too. False once there's nothing left.
 function GunTool.drainAmmo(amount)
     if GunTool.ammo <= 0 then
+        GunTool.ammoDeniedAt = love.timer.getTime()
         return false
     end
     GunTool.ammo = math.max(0, GunTool.ammo - amount)
@@ -219,15 +222,25 @@ end
 
 -- Whether a hotbar entry can be used right now.
 function GunTool.canFire(weapon)
-    if weapon.getCount then
-        return weapon:getCount() > 0
+    if weapon.getCount and weapon:getCount() <= 0 then
+        return false
     end
     return GunTool.ammo > 0 and GunTool.ammo >= (weapon.ammoCost or 0)
 end
 
 -- Fireballs as a hotbar item. The stack is fire.lua's ring of orbiting
--- fireballs, so throwing one costs no universal ammo.
-local fireballItem = {}
+-- fireballs (it regrows over time); each throw also costs light, like
+-- every other weapon.
+local fireballItem = { ammoCost = 6 }
+
+-- Throw a fireball from the ring along `dir` (unit vec2), paying its light.
+-- Used by the hotbar slot and the right-click quick throw.
+function GunTool.throwFireball(dir)
+    if fire.getAvailableCount() == 0 or not GunTool.useAmmo(fireballItem.ammoCost) then
+        return false
+    end
+    return fire.throw(dir)
+end
 
 function fireballItem:update(dt)
 end
@@ -236,7 +249,7 @@ function fireballItem:drawBarrel()
 end
 
 function fireballItem:shoot()
-    fire.throw(GunTool.lastAimDirection)
+    GunTool.throwFireball(GunTool.lastAimDirection)
 end
 
 function fireballItem:getCount()

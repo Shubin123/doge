@@ -426,7 +426,7 @@ function love.mousepressed(x, y, button, istouch, presses)
 
     -- Right click quick-throws a fireball without selecting its hotbar slot
     if button == 2 then
-        fire.throw(normalized_direction)
+        gun.throwFireball(normalized_direction)
     end
 
     editor.mousepressed(x, y, button)

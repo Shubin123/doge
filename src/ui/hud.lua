@@ -1,7 +1,7 @@
 -- hud.lua
 -- Minecraft-style HUD: a hotbar of weapons and items along the bottom of the
--- screen with pixel-art icons, hearts for health, flashlights for the universal
--- ammo (light-based, where Minecraft has hunger), and points on an XP bar.
+-- screen with pixel-art icons, hearts for health, a light bar for the universal
+-- ammo every weapon spends (where Minecraft has hunger), and points on an XP bar.
 -- Everything is laid out in GUI units (one icon pixel) and scaled up by a whole
 -- number so the pixel art stays crisp.
 
@@ -11,7 +11,9 @@ local hud = {}
 
 local SLOTS = 9              -- hotbar slots; weapons fill from the left
 local HEARTS = 10            -- each heart is two halves of player.maxHealth / 20
-local FLASHLIGHTS = 10       -- likewise for gun.maxAmmo
+local LIGHT_BAR_W = 70       -- units; with the flashlight icon it spans the hearts' 80
+local LIGHT_LOW = 0.2        -- below this fraction the bar turns orange and pulses
+local DENIED_FLASH = 0.45    -- seconds the bar flashes red after a shot it couldn't pay
 local POINTS_PER_LEVEL = 100 -- the XP bar fills once per this many points
 local NAME_SHOW_TIME = 2.0   -- seconds the weapon name stays up after a switch
 local NAME_FADE_TIME = 0.5
@@ -219,8 +221,9 @@ local FLASHLIGHT = {
 }
 
 local icons = {}
-local heart, heartEmpty, heartHalf, flashlight, flashlightEmpty, flashlightHalf
+local heart, heartEmpty, heartHalf, flashlight
 local font
+local shownAmmo, refillGlowUntil = nil, -math.huge
 local lastWeapon
 local nameShownAt = -math.huge
 
@@ -253,10 +256,9 @@ function hud.load()
         icons[i] = makeImage(rows)
     end
     heart, heartEmpty = makeImage(HEART), makeEmpty(HEART)
-    flashlight, flashlightEmpty = makeImage(FLASHLIGHT), makeEmpty(FLASHLIGHT)
-    -- Hearts empty from the right and flashlights from the left, as in Minecraft.
+    flashlight = makeImage(FLASHLIGHT)
+    -- Hearts empty from the right, as in Minecraft.
     heartHalf = love.graphics.newQuad(0, 0, 5, #HEART, heart:getDimensions())
-    flashlightHalf = love.graphics.newQuad(4, 0, 5, #FLASHLIGHT, flashlight:getDimensions())
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
 end
@@ -347,18 +349,71 @@ local function drawHearts(x, y)
     end
 end
 
--- Universal ammo, filling from the right like Minecraft's hunger bar.
-local function drawAmmo(right, y)
-    local halves = math.ceil(math.max(0, math.min(1, gun.ammo / gun.maxAmmo)) * FLASHLIGHTS * 2)
-    love.graphics.setColor(1, 1, 1, 1)
-    for i = 0, FLASHLIGHTS - 1 do
-        local fx = right - 9 - i * 8
-        love.graphics.draw(flashlightEmpty, fx, y)
-        if halves >= i * 2 + 2 then
-            love.graphics.draw(flashlight, fx, y)
-        elseif halves == i * 2 + 1 then
-            love.graphics.draw(flashlight, flashlightHalf, fx + 4, y)
-        end
+-- Light the selected weapon spends per shot (per second for the tesla coil).
+local function shotCost(weapon)
+    return weapon.ammoCost or weapon.ammoPerSecond or 0
+end
+
+-- The light bar: every weapon's ammo. Anchored right and draining from the
+-- left, mirroring the hearts; the flashlight icon labels it. The share the
+-- selected weapon's next shot would spend pulses, the bar glows as light is
+-- absorbed, and flashes red when a shot wanted more than was left.
+local function drawLightBar(right, y)
+    local now = love.timer.getTime()
+    local frac = math.max(0, math.min(1, gun.ammo / gun.maxAmmo))
+    if shownAmmo and gun.ammo > shownAmmo + 1e-6 then
+        refillGlowUntil = now + 0.25
+    end
+    shownAmmo = gun.ammo
+
+    local x = right - LIGHT_BAR_W
+    love.graphics.setColor(1, 1, 1, frac > 0 and 1 or 0.45)
+    love.graphics.draw(flashlight, x - 10, y)
+
+    -- Frame and socket
+    local denied = now - gun.ammoDeniedAt < DENIED_FLASH and math.floor(now * 12) % 2 == 0
+    love.graphics.setColor(denied and { 0.86, 0.14, 0.10 } or { 0.08, 0.08, 0.10 })
+    border(x, y, LIGHT_BAR_W, 9, 1)
+    love.graphics.setColor(0.20, 0.20, 0.22, 0.9)
+    box(x + 1, y + 1, LIGHT_BAR_W - 2, 7)
+
+    local inner = LIGHT_BAR_W - 2
+    local w = math.floor(inner * frac + 0.5)
+    if w <= 0 then return end
+    local fx = x + 1 + inner - w
+
+    -- Fill: warm light, orange and pulsing when nearly out
+    local low = frac < LIGHT_LOW
+    local pulse = low and (0.75 + 0.25 * math.sin(now * 8)) or 1
+    if low then
+        love.graphics.setColor(1.00 * pulse, 0.55 * pulse, 0.12 * pulse)
+    else
+        love.graphics.setColor(1.00, 0.84, 0.30)
+    end
+    box(fx, y + 1, w, 7)
+    love.graphics.setColor(1.00, 0.97, 0.75, low and pulse or 1) -- top highlight
+    box(fx, y + 1, w, 1)
+    love.graphics.setColor(0.70, 0.45, 0.10)                     -- bottom shade
+    box(fx, y + 7, w, 1)
+
+    -- A glint drifting along the light
+    local glint = math.floor(now * 24) % (w + 12) - 6
+    if glint > -3 and glint < w then
+        local gx = math.max(0, glint)
+        love.graphics.setColor(1, 1, 1, 0.35)
+        box(fx + gx, y + 2, math.min(3, w - gx), 5)
+    end
+
+    -- The next shot's share (drains from the left end), pulsing
+    local cost = math.floor(inner * math.min(1, shotCost(gun.currentGun or {}) / gun.maxAmmo) + 0.5)
+    if cost > 0 and gun.ammo >= shotCost(gun.currentGun or {}) then
+        love.graphics.setColor(1, 1, 1, 0.18 + 0.12 * math.sin(now * 6))
+        box(fx, y + 1, math.min(cost, w), 7)
+    end
+
+    if now < refillGlowUntil then
+        love.graphics.setColor(1, 1, 1, 0.45 * (refillGlowUntil - now) / 0.25)
+        box(fx, y + 1, w, 7)
     end
 end
 
@@ -432,7 +487,7 @@ function hud.draw()
     drawHotbar(x, y, slots, ts)
     drawXP(x, y - 7, width, ts)
     drawHearts(x, y - 17)
-    drawAmmo(x + width, y - 17)
+    drawLightBar(x + width, y - 17)
     drawWeaponName(x + width / 2, y - 17 - 4 - font:getHeight() * ts, ts)
 
     love.graphics.pop()
