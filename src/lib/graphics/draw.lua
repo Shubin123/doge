@@ -65,6 +65,7 @@ function draw.mydraw()
     renderer.renderSortedDrawList()
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
+    suckLight.draw() -- dead enemies' light streaming into the player
 
 
     

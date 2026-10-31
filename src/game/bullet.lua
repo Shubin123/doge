@@ -21,6 +21,13 @@ bullet.online_bullets = {}  -- online bullet bodies for multiplayer
 -- core/halo through bullet.new's params.neon.
 bullet.NEON = { core = {1.0, 0.16, 0.74}, halo = {0.1, 0.78, 1.0}, radius = 12 }
 
+-- Muzzle flashes: the drawn cone is kept faint (its layers stack additively)
+-- and, with high graphics, is softened by the flashlight's glow chain
+-- (light.renderLights); the brightness comes from the light it casts instead,
+-- a point light of MUZZLE_LIGHT intensity (the player's key light is 1.0).
+bullet.MUZZLE_OPACITY = 0.035
+bullet.MUZZLE_LIGHT = 1.2
+
 local TRACER_FORMAT = {
     {"InstSeg", "float", 4},   -- tail.xy, head.xy
     {"InstCore", "float", 4},  -- core rgb, intensity
@@ -165,6 +172,18 @@ function bullet.update(dt)
             table.remove(bullet.muzzleFlashes, i)
         end
     end
+
+    -- Each live flash lights its surroundings through the lighting shader
+    -- (shadow.lua), from a little ahead of the barrel so the light falls the
+    -- way the gun fired. Must run before shadow.updateBothShaders this frame.
+    local brightness = math.min(1, var.tracer_brightness or 1)
+    for _, flash in ipairs(bullet.muzzleFlashes) do
+        local reach = flash.coneLength
+        shadow.addTransientLight(flash.pos.x + flash.dir.x * reach * 0.3,
+            flash.pos.y + flash.dir.y * reach * 0.3,
+            bullet.MUZZLE_LIGHT * flash.intensity * (flash.life / flash.maxLife) * brightness,
+            reach * 2)
+    end
     
     -- Update shell casings
     for i = #bullet.shells, 1, -1 do
@@ -257,8 +276,9 @@ function bullet.populate()
         return -- Safety check
     end
     
-    -- Add muzzle flashes to draw list with proper offset to avoid interfering with map elements
-    for _, flash in ipairs(bullet.muzzleFlashes) do
+    -- Add muzzle flashes to draw list with proper offset to avoid interfering with map elements.
+    -- With high graphics they are drawn as light instead (light.renderLights).
+    for _, flash in ipairs(var.graphics_high and {} or bullet.muzzleFlashes) do
         table.insert(dynamic_draw_list, {
             sort_y = flash.pos.y + 10, -- Small offset to ensure proper layering
             source_object_type = "muzzle_flash",
@@ -573,6 +593,7 @@ function bullet.drawSingleMuzzleFlash(flash)
     
     local alpha = flash.life / flash.maxLife
     local size = flash.size * alpha
+    local opacity = bullet.MUZZLE_OPACITY * math.min(1, var.tracer_brightness or 1)
     
     -- Draw cone-shaped flash using triangular geometry
     local coneLength = flash.coneLength * alpha
@@ -586,7 +607,7 @@ function bullet.drawSingleMuzzleFlash(flash)
     -- flashes nearly invisible against the game’s dark world pass.
     for i = 1, 6 do
         local gradientFactor = i / 6
-        local currentAlpha = alpha * (1 - gradientFactor * 0.55) * flash.intensity
+        local currentAlpha = alpha * (1 - gradientFactor * 0.55) * flash.intensity * opacity
         local currentSize = coneLength * (1 - gradientFactor * 0.3)
 
         if bullet.muzzleFlashShader then
@@ -615,10 +636,10 @@ function bullet.drawSingleMuzzleFlash(flash)
         bullet.muzzleFlashShader:send("pulse", bullet.t * 44.0)
         love.graphics.setShader(bullet.muzzleFlashShader)
     end
-    love.graphics.setColor(1, 0.96, 0.74, alpha * flash.intensity)
+    love.graphics.setColor(1, 0.96, 0.74, alpha * flash.intensity * opacity)
     love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 1.05)
     love.graphics.setShader(previous_shader)
-    love.graphics.setColor(0.12, 0.72, 1.0, alpha * flash.intensity * 0.62)
+    love.graphics.setColor(0.12, 0.72, 1.0, alpha * flash.intensity * 0.62 * opacity)
     love.graphics.circle("fill", flash.pos.x, flash.pos.y, size * 2.45)
 
     love.graphics.setBlendMode("alpha")

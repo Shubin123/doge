@@ -250,6 +250,8 @@ function Enemy:damageEnemy(damage)
 
     if self.health <= 0 then
         if self.fixture then
+            -- Its light leaves the body and is drawn into the player.
+            suckLight.spawn(self.body:getPosition())
             -- print(self.fixture:getUserData())
             gun_enemies[self.fixture:getUserData() + 2].on = false
             -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
@@ -259,8 +261,11 @@ function Enemy:damageEnemy(damage)
 end
 
 function Enemy:killEnemy()
-    self.body:destroy()
+    -- Fixture first: destroying a body destroys its fixtures, so the other order
+    -- crashes ("Attempt to use destroyed fixture") whenever a kill happens
+    -- outside a physics callback, where LOVE doesn't defer the destroys.
     self.fixture:destroy()
+    self.body:destroy()
     self.fixture = nil
     self.dead = true
 end

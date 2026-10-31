@@ -95,13 +95,17 @@ function light.populate()
   })
 end
 
+-- The flashlight cone, and any muzzle flashes, drawn through the blueNeon
+-- glow so they read as soft light rather than flat shapes.
 function light.renderLights(drawable)
-  if drawable.draw_type == "light" and player.lightsOn then
+  local flashes = bullet and #bullet.muzzleFlashes > 0
+  if drawable.draw_type == "light" and (player.lightsOn or flashes) then
     love.graphics.push()
 
     love.graphics.reset()
     
     blueNeon(function()
+      if player.lightsOn then
       love.graphics.setColor(0.17, 0.46, 1, 0.5)
 
       -- Aim the flashlight cone along the gun's current velocity/heading.
@@ -159,6 +163,15 @@ function light.renderLights(drawable)
         tipCorner2X, tipCorner2Y)           -- tip corner 2
 
       love.graphics.setColor(1, 1, 1, 1)
+      end
+
+      if flashes then
+        love.graphics.push()
+        camera.apply()
+        bullet.drawMuzzleFlashes()
+        love.graphics.pop()
+        love.graphics.setShader()
+      end
     end)
 
     love.graphics.pop()

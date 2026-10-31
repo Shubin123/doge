@@ -97,6 +97,17 @@ function lighting.count()
     return #lights
 end
 
+-- One-frame lights (muzzle flashes and the like): submitted every frame they
+-- should shine, before lighting.update, which uploads them after the pool's
+-- lights (into whatever slots are left) and then forgets them.
+local transientLights = {}
+
+function lighting.addTransientLight(x, y, intensity, range)
+    if range and range > 0 then
+        transientLights[#transientLights + 1] = { x = x, y = y, intensity = intensity or 1.0, range = range }
+    end
+end
+
 --==========================================================================--
 -- Shaders
 --==========================================================================--
@@ -187,21 +198,26 @@ function lighting.update(dt)
     end
 
     local n = 0
-    for i = 1, #lights do
-        local l = lights[i]
-        if l.range > 0 and not (
-                l.x + l.range < viewX - halfW or
-                l.x - l.range > viewX + halfW or
-                l.y + l.range < viewY - halfH or
-                l.y - l.range > viewY + halfH) then
-            n = n + 1
-            -- World space for the instanced character shader.
-            worldLights[n]  = { l.x, l.y, l.intensity, l.range }
-            -- Screen space for ordinary draws: position AND range scaled by zoom
-            -- so on-screen falloff matches the world falloff at any zoom.
-            screenLights[n] = { l.x * zoom + camX, l.y * zoom + camY, l.intensity, l.range * zoom }
+    local function cull(list)
+        for i = 1, #list do
+            local l = list[i]
+            if n < lighting.MAX_LIGHTS and l.range > 0 and not (
+                    l.x + l.range < viewX - halfW or
+                    l.x - l.range > viewX + halfW or
+                    l.y + l.range < viewY - halfH or
+                    l.y - l.range > viewY + halfH) then
+                n = n + 1
+                -- World space for the instanced character shader.
+                worldLights[n]  = { l.x, l.y, l.intensity, l.range }
+                -- Screen space for ordinary draws: position AND range scaled by zoom
+                -- so on-screen falloff matches the world falloff at any zoom.
+                screenLights[n] = { l.x * zoom + camX, l.y * zoom + camY, l.intensity, l.range * zoom }
+            end
         end
     end
+    cull(lights)
+    cull(transientLights)
+    for i = #transientLights, 1, -1 do transientLights[i] = nil end
     -- Drop stale trailing entries from previous, busier frames.
     for i = #screenLights, n + 1, -1 do
         screenLights[i] = nil

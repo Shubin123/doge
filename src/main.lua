@@ -37,6 +37,7 @@ car = require("game.car")
 collision = require("util.collision")
 tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
+suckLight = require("systems.suckLight")
 characterAnimator = require("game.characterAnimator")
 override = require("util.override")
 shadow = require("lib.graphics.shadow")
@@ -232,6 +233,7 @@ function love.load()
     light.load()
     blood.load()
     explosion.load()
+    suckLight.load()
     car.load(world)
     collision.init()
     audio.loadSounds()
@@ -330,6 +332,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     gun.update(dt)
+    suckLight.update(dt) -- before the lighting upload: its motes add lights
     shadow.updateBothShaders(dt)
     -- bullet.update(dt)
     -- rocket.update(dt)
