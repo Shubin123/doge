@@ -39,6 +39,7 @@ function draw.mydraw()
     -- Populate and sort dynamic draw list if neccessary
     
     grass.public.draw()
+    light.drawBeam() -- the flashlight lighting the floor in front of you
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
 

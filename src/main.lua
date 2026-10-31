@@ -334,6 +334,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     gun.update(dt)
     suckLight.update(dt) -- before the lighting upload: its motes add lights
+    light.update(dt) -- before the lighting upload: the flashlight's beam
     shadow.updateBothShaders(dt)
     -- bullet.update(dt)
     -- rocket.update(dt)

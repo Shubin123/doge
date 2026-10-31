@@ -43,6 +43,7 @@ function light.load()
   -- three screen-sized canvases of VRAM.)
 
   light.passBreak = love.graphics.newCanvas(1, 1) -- see light.skipChain
+  light.beamImage = light.newBeamImage()
 end
 
 -- A glow chain given nothing visible to draw adds exactly nothing to
@@ -86,6 +87,79 @@ function light.draw()
   end)
 end
 
+-- The flashlight's heading: the gun's current velocity, else to the right.
+local function aim()
+  local velX, velY = gun.currentVel.x, gun.currentVel.y
+  if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
+    return math.atan2(velY, velX)
+  end
+  return 0
+end
+
+-- The beam on the ground: lights strung out ahead of the player, each further
+-- one wider and dimmer, so the floor (and puddles, grass, anyone standing in
+-- it) is lit in a widening pool through the same shaders as every other light.
+-- { distance ahead, range, intensity }
+local BEAM = {
+  { 60, 60, 0.9 },
+  { 130, 85, 0.75 },
+  { 205, 110, 0.6 },
+  { 285, 135, 0.45 },
+}
+
+-- The beam's pool of light on the floor: points along +x from its middle
+-- left edge, brightest a little way out and fading to its far end and its
+-- sides. Its strength is in rgb and alpha 0, so drawn with ("add",
+-- "premultiplied") it brightens the ground and leaves the scene's alpha (what
+-- the GI pass reads as walls) alone.
+local BEAM_LENGTH = 320 -- px
+local BEAM_WIDTH = 260  -- px across at the far end
+local BEAM_COLOR = { 0.55, 0.68, 0.85 }
+
+function light.newBeamImage()
+  local w, h = 128, 64
+  local data = love.image.newImageData(w, h)
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      local u = (x + 0.5) / w
+      local v = math.abs((y + 0.5) / h * 2 - 1)
+      local side = 1 - math.min(1, math.max(0, (v / u - 0.55) / 0.45)) -- soft cone edge
+      local along = math.min(1, u / 0.12) * (1 - u) ^ 1.4
+      local f = side * side * along * 1.6
+      data:setPixel(x, y, f, f, f, 0)
+    end
+  end
+  return love.graphics.newImage(data)
+end
+
+--- The flashlight's pool on the ground, under the camera transform, over the
+--- floor and grass and under the sprites standing in it.
+function light.drawBeam()
+  if not player.lightsOn then return end
+  local px, py = player.body:getPosition()
+  local w, h = light.beamImage:getDimensions()
+  local shader = love.graphics.getShader()
+  local mode, alphaMode = love.graphics.getBlendMode()
+  love.graphics.setShader()
+  love.graphics.setBlendMode("add", "premultiplied")
+  love.graphics.setColor(BEAM_COLOR[1], BEAM_COLOR[2], BEAM_COLOR[3], 1)
+  love.graphics.draw(light.beamImage, px, py, aim(), BEAM_LENGTH / w, BEAM_WIDTH / h, 0, h / 2)
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.setBlendMode(mode, alphaMode)
+  love.graphics.setShader(shader)
+end
+
+-- Before the lighting upload (shadow.update)
+function light.update(dt)
+  if not player.lightsOn then return end
+  local px, py = player.body:getPosition()
+  local angle = aim()
+  local dx, dy = math.cos(angle), math.sin(angle)
+  for _, b in ipairs(BEAM) do
+    shadow.addTransientLight(px + dx * b[1], py + dy * b[1], b[3], b[2])
+  end
+end
+
 function light.populate()
   table.insert(dynamic_draw_list, {
     sort_y = player.body:getY() + 100,
@@ -110,13 +184,7 @@ function light.renderLights(drawable)
 
       -- Aim the flashlight cone along the gun's current velocity/heading.
       local playerX, playerY = player.body:getPosition()
-      local velX, velY = gun.currentVel.x, gun.currentVel.y
-
-      -- Calculate the heading angle
-      local angle = 0
-      if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
-        angle = math.atan2(velY, velX)
-      end
+      local angle = aim()
 
       -- Convert angle to a direction vector for cone positioning
       local dirX = math.cos(angle)
