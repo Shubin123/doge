@@ -11,7 +11,9 @@
     - streets of facades with props and lamps in front, a landmark or two,
     - a pool, puddles and grass wherever a noise field puts them.
   Everything is lit by its height (see SPRITE_SHADER): tall things block light
-  and are lit up their faces, things underfoot are part of the ground.
+  and are lit up their faces, things underfoot are part of the ground. Things
+  that give off light (lamps, flames, neon, glowing glass) shine whatever the
+  dark, light the scene around them and glow (see the emitters below).
   The same seed gives the same layout, so every client in a multiplayer game
   agrees on it without sending anything.
 ]]
@@ -33,7 +35,7 @@ local ALPHA = { "alpha" }
 -- scene, so each decides whether the GI pass sees it as a wall (alpha > 0.5)
 local REPLACE = { "replace", "premultiplied" }
 local GROUND_ALPHA = 0.4  -- the map's ground alpha (draw.lua): never blocks light
--- Buildings, walls, towers, landmarks, lamps and anything glowing block light
+-- Buildings, walls, towers, landmarks, lamps and anything that glows block light
 -- like a wall (and give off their colour); props only when they're over head
 -- height. (A sprite's height is no guide below that: an isometric car's
 -- includes its roof seen from above.)
@@ -67,7 +69,6 @@ regions.list = {
             "can_d", "brick", "chainlink_a", "chainlink_b" },
         lights = {},
         portalLights = {},
-        glows = {},
         grass = { patches = 14, tint = { 2.1, 0.62, 0.7 } }, -- dry, straw coloured
         puddles = 16,
     },
@@ -89,7 +90,6 @@ regions.list = {
         flat = { "coins", "rune_carpet" },
         lights = { "brazier_a", "brazier_b", "brazier_c", "candelabra" },
         portalLights = { "brazier_b", "brazier_b" },
-        glows = {},
         grass = { patches = 22, tint = { 0.85, 1.0, 0.85 } },
         puddles = 8,
     },
@@ -113,9 +113,6 @@ regions.list = {
         flat = { "grate_a", "grate_b", "manhole", "rail" },
         lights = { "lamp_a", "lamp_b" },
         portalLights = { "lamp_a", "lamp_b" },
-        glows = { sign_arrows = true, sign_updown = true, sign_triangle = true, sign_bowl = true,
-            sign_ramen = true, sign_cyber = true, sign_kanji = true, neon_bar_a = true, neon_bar_b = true,
-            holo_cyan = true, holo_purple = true, holo_laser = true, holo_big = true, laser_fence = true },
         grass = { patches = 6, tint = { 0.45, 0.85, 1.25 } }, -- a few verges, neon-lit
         puddles = 22,
     },
@@ -137,7 +134,6 @@ regions.list = {
         flat = { "scroll_a", "scroll_b", "book", "sun_emblem" },
         lights = { "lantern_a", "lantern_b", "fountain", "urn", "shrine_a", "shrine_c" },
         portalLights = { "lantern_b", "lantern_b" },
-        glows = { orb_a = true, orb_b = true, orb_c = true, lotus_a = true, lotus_b = true, sun_emblem = true },
         cellular = true, -- its marble swaps whole tiles, at the grout
         grass = { patches = 14, tint = { 1.0, 1.05, 0.75 } },
         puddles = 10,
@@ -319,6 +315,9 @@ end
 -- The alpha it writes decides what the GI pass makes of it (> 0.5: a wall
 -- that blocks light and gives off its colour). Tall things do; low props
 -- don't; flat things underfoot are drawn into the ground, as dim as it is.
+-- Texels marked in the region's glow map are light sources themselves (a
+-- flame, a bulb, a neon tube): they shine at full strength however dark it is,
+-- and being bright in the scene, the GI pass spreads their colour around.
 -- Flags: 1 tall, 2 glass (blended with its own alpha), 4 flat.
 local SPRITE_SHADER = [[
     #define MAX_LIGHTS 64
@@ -330,6 +329,7 @@ local SPRITE_SHADER = [[
     uniform float spriteScale; // world px per texel
     uniform float zoom;
     uniform float groundAlpha;
+    uniform Image glowMap;     // the atlas's layout: how much each texel gives off light
 
     const float LIGHT_HEIGHT = 40.0; // world px: lamps and the player's light, about head height
 
@@ -361,9 +361,12 @@ local SPRITE_SHADER = [[
         }
         float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
         if (isFlat) contact = 1.0;
-        vec3 rgb = texel.rgb * min(1.0, ambient + totalLight) * contact;
+        float lit = min(1.0, ambient + totalLight) * contact;
+        if (isFlat) lit *= groundAlpha;
+        float glow = Texel(glowMap, tc).r;
+        vec3 rgb = texel.rgb * mix(lit, 1.2, glow);
 
-        if (isFlat) return vec4(rgb * groundAlpha, groundAlpha);
+        if (isFlat) return vec4(rgb, groundAlpha);
         if (isGlass) return vec4(rgb, texel.a);
         return vec4(rgb, isTall ? 1.0 : groundAlpha);
     }
@@ -374,6 +377,7 @@ local function sendSpriteUniforms(r)
     shader:send("spriteScale", r.scale)
     shader:send("zoom", camera.zoom)
     shader:send("groundAlpha", GROUND_ALPHA)
+    shader:send("glowMap", r.glowImage)
     shadow.sendLights(shader)
 end
 
@@ -385,7 +389,7 @@ local function loadArt(r)
     local iw, ih = r.image:getDimensions()
     for name, s in pairs(meta.sprites) do
         r.sprites[name] = {
-            w = s.w, h = s.h, cat = s.cat, glass = s.glass,
+            w = s.w, h = s.h, cat = s.cat, glass = s.glass, glow = s.glow,
             base = s.y + s.h - 2, -- the row its art stands on (2 px of padding below)
             quad = love.graphics.newQuad(s.x, s.y, s.w, s.h, iw, ih),
         }
@@ -398,6 +402,15 @@ local function loadArt(r)
     end
     r.flatSet = {}
     for _, name in ipairs(r.flat) do r.flatSet[name] = true end
+    if meta.glowImage then
+        r.glowImage = love.graphics.newImage(meta.glowImage)
+    else
+        -- nothing here gives off light: one black texel says so everywhere
+        local none = love.image.newImageData(1, 1)
+        none:setPixel(0, 0, 0, 0, 0, 1)
+        r.glowImage = love.graphics.newImage(none)
+    end
+    r.glowImage:setFilter("nearest", "nearest")
 
     if meta.floorImage then
         r.floorImage = love.graphics.newImage(meta.floorImage)
@@ -431,7 +444,7 @@ local function place(r, name, x, base, check)
     -- How it meets the light (SPRITE_SHADER): its base row and flags ride in
     -- the vertex colour
     local flat = r.flatSet[name]
-    local tall = not flat and (TALL[s.cat] or r.glows[name] or (s.h - 4) * scale >= OCCLUDE_HEIGHT)
+    local tall = not flat and (TALL[s.cat] or s.glow or (s.h - 4) * scale >= OCCLUDE_HEIGHT)
     local flags = (tall and 1 or 0) + (s.glass and 2 or 0) + (flat and 4 or 0)
     local color = { math.floor(s.base / 256) / 255, s.base % 256 / 255, flags / 255, 1 }
     -- the sprite's bottom 2 px are padding: drop it so its art sits on the base
@@ -464,10 +477,24 @@ local function place(r, name, x, base, check)
     else
         mark(r.grid, x + w * 0.2, base - 6, w * 0.6, 6)
     end
-    if s.cat == "light" then
-        r.lightList[#r.lightList + 1] = { x + w / 2, base - h * 0.6, 0.9, 230 }
-    elseif r.glows and r.glows[name] then
-        r.lightList[#r.lightList + 1] = { x + w / 2, base - h * 0.5, 0.45, 140 }
+    if s.glow then
+        local g = s.glow
+        -- about as wide as the part that glows; street lamps are lamps whatever their bulb
+        local size = math.sqrt(g.area) * scale
+        local lamp = s.cat == "light"
+        r.emitters[#r.emitters + 1] = {
+            x = item.x + g.x * scale, -- the glow itself
+            y = item.y + g.y * scale,
+            base = base,              -- the ground under it, where its light pools
+            r = g.r, g = g.g, b = g.b,
+            size = size,
+            flicker = g.kind == "fire",
+            intensity = lamp and 0.9 or math.min(1, 0.3 + size / 40),
+            range = lamp and 240 or math.max(110, math.min(80 + size * 6, 280)),
+            halo = lamp and 30 or math.max(14, math.min(size * 2.2, 70)), -- px
+            lamp = lamp,
+            phase = #r.emitters * 1.37,
+        }
     end
     return w, item
 end
@@ -481,7 +508,7 @@ local function generate(r, index)
     r.ox, r.oy = SPACING * (index - 1), 0
     local ox, oy = r.ox, r.oy
     r.grid = newGrid(r)
-    r.items, r.solids, r.lightList = {}, {}, {}
+    r.items, r.solids, r.emitters = {}, {}, {}
     r.flatBatch = love.graphics.newSpriteBatch(r.image, 128, "static")
 
     r.ground = groundMesh(r)
@@ -643,7 +670,25 @@ local function generate(r, index)
     r.grid = nil -- only needed while laying out (and by the grass, which is built)
 end
 
+-- A soft spot of light, its strength in rgb and alpha 0, so drawn with
+-- ("add", "premultiplied") it brightens what's there and leaves the scene's
+-- alpha (what the GI pass reads as walls) alone
+local function glowImage()
+    local n = 64
+    local data = love.image.newImageData(n, n)
+    for y = 0, n - 1 do
+        for x = 0, n - 1 do
+            local d = math.min(1, math.sqrt((x + 0.5 - n / 2) ^ 2 + (y + 0.5 - n / 2) ^ 2) / (n / 2))
+            local f = (1 - d) ^ 2
+            data:setPixel(x, y, f, f, f, 0)
+        end
+    end
+    return love.graphics.newImage(data)
+end
+
 function regions.load()
+    regions.time = 0
+    regions.glow = glowImage()
     groundShader = love.graphics.newShader(GROUND_SHADER)
     regions.spriteShader = love.graphics.newShader(SPRITE_SHADER)
     for i, r in ipairs(regions.list) do
@@ -698,13 +743,58 @@ function regions.update(dt)
         end
     end
 
-    -- Lamps and braziers on screen light the scene this frame
-    if here.lightList then
-        local x0, y0, x1, y1 = regions.view(240)
-        for _, l in ipairs(here.lightList) do
-            if l[1] > x0 and l[1] < x1 and l[2] > y0 and l[2] < y1 then
-                shadow.addTransientLight(l[1], l[2], l[3], l[4])
+    regions.time = regions.time + dt
+    -- What gives off light on screen lights the scene this frame, from the
+    -- ground under it (so faces it's behind stay dark: see SPRITE_SHADER)
+    if here.emitters then
+        local x0, y0, x1, y1 = regions.view(280)
+        for _, e in ipairs(here.emitters) do
+            if e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
+                e.now = e.flicker and 0.8 + 0.2 * love.math.noise(regions.time * 7, e.phase) or 1
+                shadow.addTransientLight(e.x, e.base + 8, e.intensity * e.now, e.range)
             end
+        end
+    end
+end
+
+-- Draw each emitter on screen: fn(e, strength) places the spot
+local function drawEmitters(r, fn)
+    local x0, y0, x1, y1 = regions.view(300)
+    love.graphics.push("all")
+    love.graphics.setShader()
+    love.graphics.setBlendMode("add", "premultiplied")
+    for _, e in ipairs(r.emitters) do
+        if e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
+            fn(e, e.intensity * (e.now or 1))
+        end
+    end
+    love.graphics.pop()
+end
+
+-- Its colour pooling on the ground around its foot
+local function drawPool(e, k)
+    local radius = e.range * 0.5
+    k = k * (e.lamp and 0.3 or 0.22)
+    love.graphics.setColor(e.r * k, e.g * k, e.b * k, 1)
+    love.graphics.draw(regions.glow, e.x - radius, e.base + 8 - radius * 0.55, 0,
+        radius * 2 / 64, radius * 1.1 / 64)
+end
+
+-- A halo round the glowing part itself
+local function drawHalo(e, k)
+    local radius = e.halo
+    k = k * (e.lamp and 0.65 or 0.4)
+    love.graphics.setColor(e.r * k, e.g * k, e.b * k, 1)
+    love.graphics.draw(regions.glow, e.x - radius, e.y - radius, 0, radius * 2 / 64, radius * 2 / 64)
+end
+
+--- Halos round everything that gives off light, over the sorted sprites
+--- (under the camera transform).
+function regions.drawGlows()
+    local x0, y0, x1, y1 = regions.view(0)
+    for _, r in ipairs(regions.list) do
+        if r.emitters and #r.emitters > 0 and overlaps(r, x0, y0, x1, y1) then
+            drawEmitters(r, drawHalo)
         end
     end
 end
@@ -732,6 +822,9 @@ function regions.drawGround()
             love.graphics.setBlendMode("replace", "premultiplied")
             love.graphics.draw(r.flatBatch)
             love.graphics.setBlendMode(mode, alphaMode)
+            if #r.emitters > 0 then
+                drawEmitters(r, drawPool) -- light spilling onto the ground
+            end
             love.graphics.setShader(groundShader)
         end
     end

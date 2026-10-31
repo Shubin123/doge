@@ -76,6 +76,7 @@ function draw.mydraw()
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
     suckLight.draw() -- dead enemies' light streaming into the player
+    regions.drawGlows() -- halos round lamps, flames and neon
 
 
     

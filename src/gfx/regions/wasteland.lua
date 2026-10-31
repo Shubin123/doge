@@ -1,5 +1,7 @@
 -- Generated from the region sprite sheets: sprite rects in wasteland.png
--- (cat: see game/regions.lua) and the ground textures in wasteland_floor.png.
+-- (cat: see game/regions.lua), the ground textures in wasteland_floor.png and,
+-- for things that give off light, their glowing texels in wasteland_glow.png
+-- and glow = where that light comes from (sprite px), its colour, size and kind.
 return {
     image = "gfx/regions/wasteland.png",
     floorImage = "gfx/regions/wasteland_floor.png",
