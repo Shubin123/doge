@@ -1,3 +1,5 @@
+local block = require("game.block")
+
 -- Gun prototype
 local Gun = {}
 Gun.__index = Gun
@@ -16,9 +18,7 @@ function Gun.new(params)
     gun.cooldown = 0
     gun.lastAimDirection = vec2.new(1, 0) -- default facing right
 
-    -- Initialize block instance for gun sprite
-    local block = require("game.block")
-    gun.blockInstance = block.new("gfx/3d/lauchergun.dds", 128, 128, 2, 450, 1)
+    gun.blockInstance = params.model -- held model (shared, see GunTool.load)
 
     -- Rocket-specific parameters
     gun.topSpeed = params.topSpeed or 300
@@ -279,36 +279,42 @@ function GunTool:updateAiming()
     GunTool.lastAimDirection  = dir
 end
 
-function Gun:drawBarrel()
+-- Draw a weapon's ring and held model (weapon.blockInstance) around the
+-- player, facing the aim. Also used by weapons outside this file (tesla coil).
+function GunTool.drawHeldModel(weapon)
+    local ringRadius = weapon.ringRadius or 25
     local playerX, playerY = player.getPosition()
+    local aim = GunTool.lastAimDirection
 
     -- Draw ring around player (semi-transparent)
     love.graphics.setColor(1, 1, 1, 0.3)
-    love.graphics.circle("line", playerX, playerY, self.ringRadius)
+    love.graphics.circle("line", playerX, playerY, ringRadius)
 
-    -- Calculate barrel position on the ring (start from ring edge)
-    local barrelStartX = playerX + self.lastAimDirection.x * self.ringRadius
-    local barrelStartY = playerY + self.lastAimDirection.y * self.ringRadius
-
-    -- Use the block instance to draw the gun sprite with rotation based on aiming direction
-    if self.blockInstance then
-        -- local vx = self.lastAimDirection.x
-        -- local vy = self.lastAimDirection.y
-        
-        local vx = GunTool.lastAimDirection.x
-        local vy = GunTool.lastAimDirection.y
-        
-        self.lastAimDirection.x = GunTool.lastAimDirection.x
-        self.lastAimDirection.y = GunTool.lastAimDirection.y
-
-        -- GunTool.lastAimDirection.x = self.lastAimDirection.x
-        -- GunTool.lastAimDirection.y = self.lastAimDirection.y
-        -- Adjust angle offset to align with aiming direction, compensating for the negated x-component in getSpriteForHeading
-        self.blockInstance:addToDrawList(dynamic_draw_list, barrelStartX, barrelStartY, vx, vy, 160, 60, 60)
+    -- The model sits on the ring edge; its sprite frame follows the aim
+    local model = weapon.blockInstance
+    if model then
+        model:addToDrawList(dynamic_draw_list, playerX + aim.x * ringRadius, playerY + aim.y * ringRadius,
+            aim.x, aim.y, 160, 60, 60, nil, model.angleOffset)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
     end
 
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+function Gun:drawBarrel()
+    -- Shots leave along the gun's own aim; keep it on the shared one
+    self.lastAimDirection.x = GunTool.lastAimDirection.x
+    self.lastAimDirection.y = GunTool.lastAimDirection.y
+    GunTool.drawHeldModel(self)
+end
+
+-- A held weapon model: a 128px turntable sheet in the 16-wide block layout,
+-- DXT5-compressed. angleOffset shifts which frame faces the aim (block.lua,
+-- default 155).
+local function loadModel(path, angleOffset)
+    local model = block.new(path, 128, 128, 2, 450, 1)
+    model.angleOffset = angleOffset
+    return model
 end
 
 function GunTool.load(world)
@@ -316,8 +322,16 @@ function GunTool.load(world)
     bullet.load(world)
     rocket.load(world)
 
+    -- Held models, loaded once and shared between the weapons that use them
+    local rifleModel = loadModel("gfx/3d/gun.dds")
+    local launcherModel = loadModel("gfx/3d/lauchergun.dds")
+    -- The portal gun was modelled facing backwards: turn it half a turn.
+    -- The sheets turn about 0.86 degrees per frame, so that's 210 frames.
+    local portalModel = loadModel("gfx/3d/portalGun.dds", 155 + 210)
+
     -- Create 5 weapon presets for number keys 1-5
     GunTool.guns[1] = Gun.new({ -- Pistol (1)
+        model = rifleModel,
         fireRate = 4,
         projectileType = "bullet",
         speed = 700,
@@ -353,6 +367,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[2] = Gun.new({ -- SMG (2)
+        model = rifleModel,
         tracer = { core = { 0.6, 1.0, 0.15 }, halo = { 0.0, 0.95, 0.55 }, radius = 10 }, -- acid green
         fireRate = 8,
         projectileType = "bullet",
@@ -389,6 +404,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[3] = Gun.new({ -- Shotgun (3)
+        model = rifleModel,
         tracer = { core = { 1.0, 0.5, 0.08 }, halo = { 1.0, 0.08, 0.35 }, radius = 9 }, -- molten orange
         fireRate = 1.2,
         projectileType = "bullet",
@@ -426,6 +442,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[4] = Gun.new({ -- Assault Rifle (4) - FULL AUTO
+        model = rifleModel,
         tracer = { core = { 0.4, 0.8, 1.0 }, halo = { 0.55, 0.15, 1.0 }, radius = 13 }, -- ice blue / violet
         fireRate = 12,          -- Higher fire rate for full auto
         projectileType = "bullet",
@@ -463,6 +480,7 @@ function GunTool.load(world)
     })
 
     GunTool.guns[5] = Gun.new({ -- Rocket Launcher (5)
+        model = launcherModel,
         fireRate = 0.7,
         projectileType = "rocket",
         speed = 300, -- Increased initial speed
@@ -499,6 +517,7 @@ function GunTool.load(world)
         }
     })
     GunTool.guns[6] = teslaCoil
+    teslaCoil.blockInstance = portalModel
     GunTool.guns[7] = arrows
     GunTool.guns[8] = fireballItem
     -- teslaCoil.updateAiming = GunTool.guns[5]:updateAiming()

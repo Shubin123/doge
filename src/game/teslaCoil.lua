@@ -371,8 +371,9 @@ function teslaCoil:update(dt)
     end
 end
 
---  inherited function
+--  inherited function: hold the portal gun model (set in gun.lua)
 function teslaCoil:drawBarrel()
+    gun.drawHeldModel(teslaCoil)
 end
 
 function teslaCoil:shoot()
