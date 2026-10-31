@@ -9,14 +9,13 @@ local world = nil
 
 -- simple explosion effect tracking
 local explosions = {}
--- deferred destruction list
-local toDestroy = {}
+
+local LIFETIME = 10 -- seconds before a rocket that hit nothing is removed
 
 function rocket.load(w)
     world = w
     rocket.rockets = {}
     explosions = {}
-    toDestroy = {}
 end
 
 -- params = { pos = vec2, dir = vec2 (normalized), topSpeed = number, accelTime = number, damage = number, radius = number }
@@ -54,79 +53,60 @@ function rocket.new(params)
     return inst
 end
 
--- Process deferred rocket destructions (called during update when world is not locked)
-function rocket.processDeferredDestructions()
-    for _, inst in ipairs(toDestroy) do
-        -- Find and remove from rockets list
-        for i = #rocket.rockets, 1, -1 do
-            if rocket.rockets[i] == inst then
-                rocket.destroyRocket(inst, i)
-                break
-            end
-        end
-    end
-    toDestroy = {} -- clear the list
-end
-
 function rocket.update(dt)
     local now = love.timer.getTime()
-
-    -- Process deferred destructions first (world is not locked during update)
-    -- rocket.processDeferredDestructions()
 
     -- update rockets
     for i = #rocket.rockets, 1, -1 do
         local r = rocket.rockets[i]
 
-        -- skip destroyed rockets
-        if r.destroyed then
-            -- goto continue
+        if r.destroyed or now - r.birthTime > LIFETIME then
+            -- Exploded (collision.lua flags it from inside the physics
+            -- callback, where the world is locked) or spent: remove it now.
+            if not r.body:isDestroyed() then
+                r.body:destroy()
+            end
+            table.remove(rocket.rockets, i)
+        else
+            -- accelerate
+            local accel = r.topSpeed / r.accelTime
+            r.currentSpeed = math.min(r.topSpeed, r.currentSpeed + accel * dt)
+
+            -- calculate thrust intensity for visual effects
+            r.thrustIntensity = math.min(1, r.currentSpeed / r.topSpeed)
+
+            -- set velocity
+            local vx, vy = r.dir.x * r.currentSpeed, r.dir.y * r.currentSpeed
+            r.body:setLinearVelocity(vx, vy)
+
+            -- Exhaust particle simulation disabled (rendering commented out in populate)
+            -- Uncomment below block when exhaust rendering is re-enabled in rocket.populate()
+            -- local x, y = r.body:getPosition()
+            -- local exhaustPos = vec2.new(x, y) - r.dir * (r.radius * 1.5)
+            -- for j = 1, math.ceil(r.thrustIntensity * 3) do
+            --     local spread = (math.random() - 0.5) * 0.3
+            --     local exhaustDir = vec2.new(
+            --         -r.dir.x + spread * r.dir.y,
+            --         -r.dir.y - spread * r.dir.x
+            --     )
+            --     table.insert(r.exhaustTrail, {
+            --         pos = vec2.new(exhaustPos.x, exhaustPos.y),
+            --         vel = exhaustDir * (50 + math.random() * 50),
+            --         life = 0.3 + math.random() * 0.2,
+            --         maxLife = 0.5,
+            --         size = 2 + math.random() * 3
+            --     })
+            -- end
+            -- for j = #r.exhaustTrail, 1, -1 do
+            --     local particle = r.exhaustTrail[j]
+            --     particle.life = particle.life - dt
+            --     particle.pos = particle.pos + particle.vel * dt
+            --     particle.vel = particle.vel * 0.95
+            --     if particle.life <= 0 then
+            --         table.remove(r.exhaustTrail, j)
+            --     end
+            -- end
         end
-
-        -- accelerate
-        local accel = r.topSpeed / r.accelTime
-        r.currentSpeed = math.min(r.topSpeed, r.currentSpeed + accel * dt)
-
-        -- calculate thrust intensity for visual effects
-        r.thrustIntensity = math.min(1, r.currentSpeed / r.topSpeed)
-
-        -- set velocity
-        local vx, vy = r.dir.x * r.currentSpeed, r.dir.y * r.currentSpeed
-        r.body:setLinearVelocity(vx, vy)
-
-        -- Exhaust particle simulation disabled (rendering commented out in populate)
-        -- Uncomment below block when exhaust rendering is re-enabled in rocket.populate()
-        -- local x, y = r.body:getPosition()
-        -- local exhaustPos = vec2.new(x, y) - r.dir * (r.radius * 1.5)
-        -- for j = 1, math.ceil(r.thrustIntensity * 3) do
-        --     local spread = (math.random() - 0.5) * 0.3
-        --     local exhaustDir = vec2.new(
-        --         -r.dir.x + spread * r.dir.y,
-        --         -r.dir.y - spread * r.dir.x
-        --     )
-        --     table.insert(r.exhaustTrail, {
-        --         pos = vec2.new(exhaustPos.x, exhaustPos.y),
-        --         vel = exhaustDir * (50 + math.random() * 50),
-        --         life = 0.3 + math.random() * 0.2,
-        --         maxLife = 0.5,
-        --         size = 2 + math.random() * 3
-        --     })
-        -- end
-        -- for j = #r.exhaustTrail, 1, -1 do
-        --     local particle = r.exhaustTrail[j]
-        --     particle.life = particle.life - dt
-        --     particle.pos = particle.pos + particle.vel * dt
-        --     particle.vel = particle.vel * 0.95
-        --     if particle.life <= 0 then
-        --         table.remove(r.exhaustTrail, j)
-        --     end
-        -- end
-        -- lifetime check
-        if now - r.birthTime > 10 then
-            -- rocket.destroyRocket(r, i)
-        end
-
-        -- ::continue::
     end
     -- update explosions
     for i = #explosions, 1, -1 do

@@ -82,6 +82,54 @@ function collision.handle(fixtureA, fixtureB, contact)
     end
 end
 
+-- Rocket blast at (x, y): damages and knocks back every live enemy the blast
+-- reaches (var.rocket_splash_radius, measured to the enemy's edge). Damage
+-- falls off with distance squared but never below 5, so anything caught in
+-- the blast is hit hard.
+local function rocketSplash(userData, x, y)
+    local splashRadius = var.rocket_splash_radius
+    local hits = 0
+    for _, e in ipairs(enemy.enemies) do
+        if not e.dead and e.body and not e.body:isDestroyed() then
+            local ex, ey = e.body:getPosition()
+            local distance = ((ex - x) ^ 2 + (ey - y) ^ 2) ^ 0.5
+            local reach = math.max(0, distance - e.fixture:getShape():getRadius())
+            if reach <= splashRadius then
+                local falloff = 1 - reach / splashRadius
+                local actualDamage = math.max(5, math.floor(45 * falloff * falloff))
+                local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
+                if blood and blood.onEnemyDamage then
+                    blood.onEnemyDamage(ex, ey, actualDamage, direction)
+                end
+                -- Knockback before damage: a kill destroys the body
+                local force = 150 * math.max(0.2, falloff)
+                if reach <= userData.radius then
+                    force = force * 1.5
+                end
+                e.body:applyLinearImpulse(direction.x * force, direction.y * force)
+                enemy.damageEnemy(e.fixture:getUserData(), actualDamage)
+                hits = hits + 1
+            end
+        end
+    end
+    if hits > 1 and enemy.damage_indicators then
+        table.insert(enemy.damage_indicators, {
+            x = x,
+            y = y - 30,
+            damage = "SPLASH!",
+            time = 0,
+            duration = 1.5,
+            velocity_y = -60,
+            velocity_x = 0,
+            alpha = 1,
+            scale = 1.5,
+            bounce_factor = 0.95,
+            nearby_count = 0,
+            is_splash_indicator = true
+        })
+    end
+end
+
 -- Initialize default collision responses with simplified logic
 function collision.init()
     -- Player vs Enemy: Damage player and destroy enemy
@@ -292,70 +340,7 @@ function collision.init()
 
             audio.playSoundAt("explosion", x, y, 0.1, 0.5)
             explosion.create(x, y, explosion.TYPES.ROCKET)
-            if enemies_bods then
-                local splash_enemies = {}
-                for i, eb in ipairs(enemies_bods) do
-                    if eb then
-                        local ex, ey = eb:getPosition()
-                        local distance = ((ex - x) ^ 2 + (ey - y) ^ 2) ^ 0.5
-                        local damageRadius = userData.radius * 5
-                        if distance <= damageRadius then
-                            local damageFactor = 1 - (distance / damageRadius)
-                            damageFactor = damageFactor * damageFactor
-                            local baseDamage = 45
-                            local actualDamage = math.floor(baseDamage * damageFactor)
-                            if actualDamage < 5 and distance <= damageRadius * 0.8 then
-                                actualDamage = 5
-                            end
-                            if blood and blood.onEnemyDamage and actualDamage > 0 then
-                                local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
-                                blood.onEnemyDamage(ex, ey, actualDamage, direction)
-                            end
-                            if enemy and enemy.damageEnemy and actualDamage > 0 then
-                                enemy.damageEnemy(i, actualDamage)
-                                local knockback_direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) /
-                                (distance + 0.1) }
-                                local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
-                                local final_force = 150 * distance_factor
-                                if distance <= userData.radius then
-                                    final_force = final_force * 1.5
-                                end
-                                local knockback_x = knockback_direction.x * final_force
-                                local knockback_y = knockback_direction.y * final_force
-                                eb:applyLinearImpulse(knockback_x, knockback_y)
-                                table.insert(splash_enemies, {
-                                    index = i,
-                                    x = ex,
-                                    y = ey,
-                                    distance = distance,
-                                    damage = actualDamage,
-                                    is_direct_hit = distance <= userData.radius,
-                                    knockback_force = final_force
-                                })
-                            end
-                        end
-                    end
-                end
-                if #splash_enemies > 1 and enemy and enemy.damage_indicators then
-                    table.insert(enemy.damage_indicators, {
-                        x = x,
-                        y = y - 30,
-                        damage = "SPLASH!",
-                        time = 0,
-                        duration = 1.5,
-                        velocity_y = -60,
-                        velocity_x = 0,
-                        alpha = 1,
-                        scale = 1.5,
-                        bounce_factor = 0.95,
-                        nearby_count = 0,
-                        is_splash_indicator = true
-                    })
-                end
-            end
-            if rocket and rocket.toDestroy then
-                table.insert(rocket.toDestroy, userData)
-            end
+            rocketSplash(userData, x, y)
         end
     end)
 
@@ -490,67 +475,7 @@ function collision.init()
 
             userData.destroyed = true
             local x, y = otherBody:getPosition()
-            if enemies_bods then
-                local splash_enemies = {}
-                for i, eb in ipairs(enemies_bods) do
-                    if eb then
-                        local ex, ey = eb:getPosition()
-                        local distance = ((ex - x) ^ 2 + (ey - y) ^ 2) ^ 0.5
-                        local damageRadius = userData.radius * 5
-                        if distance <= damageRadius then
-                            local damageFactor = 1 - (distance / damageRadius)
-                            damageFactor = damageFactor * damageFactor
-                            local baseDamage = 45
-                            local actualDamage = math.floor(baseDamage * damageFactor)
-                            if actualDamage < 5 and distance <= damageRadius * 0.8 then
-                                actualDamage = 5
-                            end
-                            if blood and blood.onEnemyDamage and actualDamage > 0 then
-                                local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
-                                blood.onEnemyDamage(ex, ey, actualDamage, direction)
-                            end
-                            if enemy and enemy.damageEnemy and actualDamage > 0 then
-                                enemy.damageEnemy(i, actualDamage)
-                                local knockback_direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) /
-                                (distance + 0.1) }
-                                local distance_factor = math.max(0.2, 1 - (distance / damageRadius))
-                                local final_force = 150 * distance_factor
-                                if distance <= userData.radius then
-                                    final_force = final_force * 1.5
-                                end
-                                local knockback_x = knockback_direction.x * final_force
-                                local knockback_y = knockback_direction.y * final_force
-                                eb:applyLinearImpulse(knockback_x, knockback_y)
-                                table.insert(splash_enemies, {
-                                    index = i,
-                                    x = ex,
-                                    y = ey,
-                                    distance = distance,
-                                    damage = actualDamage,
-                                    is_direct_hit = distance <= userData.radius,
-                                    knockback_force = final_force
-                                })
-                            end
-                        end
-                    end
-                end
-                if #splash_enemies > 1 and enemy and enemy.damage_indicators then
-                    table.insert(enemy.damage_indicators, {
-                        x = x,
-                        y = y - 30,
-                        damage = "SPLASH!",
-                        time = 0,
-                        duration = 1.5,
-                        velocity_y = -60,
-                        velocity_x = 0,
-                        alpha = 1,
-                        scale = 1.5,
-                        bounce_factor = 0.95,
-                        nearby_count = 0,
-                        is_splash_indicator = true
-                    })
-                end
-            end
+            rocketSplash(userData, x, y)
             -- Check for player damage
             -- if player and player.body then
             --     local px, py = player.body:getPosition()
@@ -582,9 +507,6 @@ function collision.init()
             --         end
             --     end
             -- end
-            if rocket and rocket.toDestroy then
-                table.insert(rocket.toDestroy, userData)
-            end
         end
     end)
 

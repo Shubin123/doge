@@ -12,6 +12,7 @@ local VERSION = "Doge alpha 0.0.2"
 local MIN_HEIGHT = 256 -- GUI units of height the save list needs
 local ROW_HEIGHT = 24
 local SPLASHES = { "Much light!", "Such ammo!", "Very tesla!", "Wow!", "So pixel!", "Many fireball!" }
+local SPLASH_RADII = { 60, 120, 180, 240 } -- Settings > Rocket Splash choices, world px
 
 local font
 local ps
@@ -179,6 +180,15 @@ local function layout(uw, uh)
         end)
         add(cx - 155, y + 72, 150, "Graphics: " .. (var.graphics_high and "Fancy" or "Fast"), function()
             var.graphics_high = not var.graphics_high
+        end)
+        add(cx + 5, y + 72, 150, "Rocket Splash: " .. var.rocket_splash_radius, function()
+            local next_radius = SPLASH_RADII[1]
+            for i, r in ipairs(SPLASH_RADII) do
+                if r == var.rocket_splash_radius then
+                    next_radius = SPLASH_RADII[i % #SPLASH_RADII + 1]
+                end
+            end
+            var.rocket_splash_radius = next_radius
         end)
         add(cx - 100, y + 168, 200, "Done", function() menu.currentMenu = "main" end)
 

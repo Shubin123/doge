@@ -31,6 +31,10 @@ var.gi_quality = "high"
 -- light level.
 var.tracer_brightness = 1.0
 
+-- How far a rocket blast reaches, in world px from the impact to an enemy's
+-- edge. Cycled in Settings > Rocket Splash.
+var.rocket_splash_radius = 120
+
 var.enemies_bods = {}
 
 var.max_grass = 20000 -- max grass blades per quadrant

@@ -7,6 +7,15 @@ explosion.TYPES = {
     DEATH = "death"
 }
 
+-- Blast wave per type: how far it spreads (px) and how long that takes (s).
+-- The shader fades it out as it reaches the edge, so it's gone right on time.
+local SHOCKWAVES = {
+    [explosion.TYPES.ROCKET] = { radius = 350, duration = 0.6 },
+    [explosion.TYPES.DEATH] = { radius = 500, duration = 0.9 },
+}
+
+explosion.MAX_SHOCKWAVES = 4 -- waves distorted at once; the newest win
+
 local explosion_image
 local rocket_animation
 local death_animation
@@ -110,6 +119,7 @@ function explosion.create(x, y, explosion_type)
         anim = rocket_animation -- Default to rocket animation
     end
     
+    local wave = SHOCKWAVES[explosion_type] or SHOCKWAVES[explosion.TYPES.ROCKET]
     local inst = {
         x = x,
         y = y,
@@ -118,8 +128,8 @@ function explosion.create(x, y, explosion_type)
         currentTime = 0,
         completed = false,
         shockwaveRadius = 0,
-        shockwaveMaxRadius = explosion_type == explosion.TYPES.DEATH and 500 or 350,
-        shockwaveDuration = 4
+        shockwaveMaxRadius = wave.radius,
+        shockwaveDuration = wave.duration
     }
     table.insert(explosion.explosions, inst)
     return inst
@@ -132,9 +142,11 @@ function explosion.update(dt)
         local e = explosion.explosions[i]
         e.currentTime = e.currentTime + dt
         
-        -- Update shockwave radius
+        -- Update shockwave radius. Ease-out: the front leaves fast (already
+        -- visible on the first frame) and slows as it spreads and fades.
         if e.currentTime <= e.shockwaveDuration then
-            e.shockwaveRadius = (e.currentTime / e.shockwaveDuration) * e.shockwaveMaxRadius
+            local k = 1 - e.currentTime / e.shockwaveDuration
+            e.shockwaveRadius = (1 - k * k) * e.shockwaveMaxRadius
         end
         
         if e.currentTime >= e.animation.duration and e.currentTime >= e.shockwaveDuration then
@@ -174,59 +186,53 @@ function explosion.applyShockwave()
     local shockwave_shader = explosion.SHADERS["shockwave"]
     if not shockwave_shader then return end
 
-    -- Fast path: skip if no explosions are active
-    if #explosion.explosions == 0 then return end
-
-    local has_active = false
-    for _, e in ipairs(explosion.explosions) do
+    -- Every live wave, newest first (each is two full-screen copies)
+    local active = {}
+    for i = #explosion.explosions, 1, -1 do
+        local e = explosion.explosions[i]
         if not e.completed and e.currentTime <= e.shockwaveDuration then
-            has_active = true
-            break
+            active[#active + 1] = e
+            if #active == explosion.MAX_SHOCKWAVES then break end
         end
     end
-    if not has_active then return end
+    if #active == 0 then return end
 
-    for _, e in ipairs(explosion.explosions) do
-        if not e.completed and e.currentTime <= e.shockwaveDuration then
-            -- Lazily create (or recreate on resize) the intermediate canvas
-            if not explosion.temp_canvas or
-               explosion.temp_canvas:getWidth() ~= W or
-               explosion.temp_canvas:getHeight() ~= H then
-                explosion.temp_canvas = love.graphics.newCanvas(W, H, {format = "rgba8"})
-            end
-
-            local screen_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
-            shockwave_shader:send("time", explosion.current_time)
-            shockwave_shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
-            shockwave_shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
-            shockwave_shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
-            shockwave_shader:send("distortionStrength", 22.0)
-
-            -- Both copies must be exact: the default alpha blend multiplies RGB
-            -- by alpha on every draw, and the current colour tints it, so the
-            -- scene came back darker wherever it isn't fully opaque.
-            local r, g, b, a = love.graphics.getColor()
-            local blend_mode, alpha_mode = love.graphics.getBlendMode()
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.setBlendMode("replace", "premultiplied")
-
-            -- Render distorted version of scene_canvas into temp_canvas
-            love.graphics.setCanvas(explosion.temp_canvas)
-            love.graphics.setShader(shockwave_shader)
-            love.graphics.draw(scene_canvas)
-            love.graphics.setShader()
-
-            -- Write distorted result back into scene_canvas
-            love.graphics.setCanvas(scene_canvas)
-            love.graphics.draw(explosion.temp_canvas)
-
-            love.graphics.setBlendMode(blend_mode, alpha_mode)
-            love.graphics.setColor(r, g, b, a)
-
-            break -- only apply one explosion per frame
-        end
+    -- Lazily create (or recreate on resize) the intermediate canvas
+    if not explosion.temp_canvas or
+       explosion.temp_canvas:getWidth() ~= W or
+       explosion.temp_canvas:getHeight() ~= H then
+        explosion.temp_canvas = love.graphics.newCanvas(W, H, {format = "rgba8"})
     end
 
+    -- Both copies must be exact: the default alpha blend multiplies RGB
+    -- by alpha on every draw, and the current colour tints it, so the
+    -- scene came back darker wherever it isn't fully opaque.
+    local r, g, b, a = love.graphics.getColor()
+    local blend_mode, alpha_mode = love.graphics.getBlendMode()
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setBlendMode("replace", "premultiplied")
+
+    for _, e in ipairs(active) do
+        local screen_pos = camera.pos + vec2.new(e.x * camera.zoom, e.y * camera.zoom)
+        shockwave_shader:send("time", explosion.current_time)
+        shockwave_shader:send("explosionCenter", {screen_pos.x, screen_pos.y})
+        shockwave_shader:send("explosionRadius", e.shockwaveRadius * camera.zoom)
+        shockwave_shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
+        shockwave_shader:send("distortionStrength", 22.0)
+
+        -- Render distorted version of scene_canvas into temp_canvas
+        love.graphics.setCanvas(explosion.temp_canvas)
+        love.graphics.setShader(shockwave_shader)
+        love.graphics.draw(scene_canvas)
+        love.graphics.setShader()
+
+        -- Write distorted result back into scene_canvas
+        love.graphics.setCanvas(scene_canvas)
+        love.graphics.draw(explosion.temp_canvas)
+    end
+
+    love.graphics.setBlendMode(blend_mode, alpha_mode)
+    love.graphics.setColor(r, g, b, a)
     love.graphics.setCanvas(scene_canvas)
 end
 
