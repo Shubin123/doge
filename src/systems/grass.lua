@@ -4,6 +4,10 @@
 local GrassRenderer = {}
 GrassRenderer.__index = GrassRenderer
 
+-- Most bodies pushing the grass aside at once (the player, enemies, bosses);
+-- must match the vertex shader's array
+local MAX_PUSHERS = 32
+
 function GrassRenderer.new(grassCount)
     local self = setmetatable({}, GrassRenderer)
     
@@ -27,8 +31,9 @@ function GrassRenderer:initShaders()
         uniform vec2 windDirection;
         uniform float windStrength;
         uniform float windSpeed;
-        uniform vec2 playerPos;
-        uniform float playerRadius;
+        #define MAX_PUSHERS 32
+        uniform int numPushers;
+        uniform vec4 pushers[MAX_PUSHERS]; // x, y, radius of everything walking through
         
         attribute float WindPhase;
         attribute float WindIntensity;
@@ -52,26 +57,33 @@ function GrassRenderer:initShaders()
             float heightFactor = max(0.0, -relativePos.y / 20.0); // Assuming max height ~20
             windEffect *= heightFactor * heightFactor;
             
-            // Calculate player interaction
-            vec2 toPlayer = bladeCenter - playerPos;
-            float distToPlayer = length(toPlayer);
+            // Everything walking through pushes the blades aside
             float playerInfluence = 0.0;
             vec2 playerOffset = vec2(0.0);
-            
-            if (distToPlayer < playerRadius && distToPlayer > 0.0) {
-                playerInfluence = 1.0 - (distToPlayer / playerRadius);
-                playerInfluence = playerInfluence * playerInfluence;
-                
-                vec2 pushDirection = normalize(toPlayer);
-                float maxDisplacement = 15.0 * playerInfluence * heightFactor;
-                playerOffset = pushDirection * maxDisplacement;
-                
-                // Dynamic movement when player is close
-                if (distToPlayer < playerRadius * 0.5) {
-                    float dynamicEffect = sin(time * 8.0 + WindPhase) * playerInfluence * 3.0;
+            for (int i = 0; i < MAX_PUSHERS; i++) {
+                if (i >= numPushers) break;
+                vec2 toPusher = bladeCenter - pushers[i].xy;
+                float dist = length(toPusher);
+                float radius = pushers[i].z;
+                if (dist >= radius || dist <= 0.0) continue;
+
+                float influence = 1.0 - (dist / radius);
+                influence = influence * influence;
+                playerInfluence = max(playerInfluence, influence);
+
+                vec2 pushDirection = toPusher / dist;
+                playerOffset += pushDirection * 15.0 * influence * heightFactor;
+
+                // Dynamic movement when it's close
+                if (dist < radius * 0.5) {
+                    float dynamicEffect = sin(time * 8.0 + WindPhase) * influence * 3.0;
                     playerOffset += pushDirection * dynamicEffect * heightFactor;
                 }
             }
+            // Where several overlap, bend no further than one would
+            float bend = length(playerOffset);
+            float maxBend = 18.0 * heightFactor;
+            if (bend > maxBend) playerOffset *= maxBend / bend;
             
             // Apply wind displacement
             vec2 windOffset = windDirection * windEffect * 8.0;
@@ -307,6 +319,55 @@ function GrassRenderer:update(dt)
     self.windStrength = 0.4 + math.sin(self.time * 0.8) * 0.2
 end
 
+-- Scratch tables for the pushers uploaded each frame (reused, no garbage)
+local pushers, pusherDist, sorted = {}, {}, {}
+local function byDistance(a, b) return pusherDist[a] < pusherDist[b] end
+
+-- Collect the bodies bending this patch: the player first, then enemies and
+-- bosses inside it, nearest the player first when there are too many.
+function GrassRenderer:gatherPushers(playerX, playerY, playerRadius)
+    local n = 0
+    local function add(x, y, radius)
+        if x + radius < self.x or x - radius > self.x + self.width or
+           y + radius < self.y or y - radius > self.y + self.height then
+            return
+        end
+        n = n + 1
+        local p = pushers[n]
+        if not p then p = {}; pushers[n] = p end
+        p[1], p[2], p[3], p[4] = x, y, radius, 0
+        pusherDist[p] = (x - playerX) ^ 2 + (y - playerY) ^ 2
+    end
+
+    if player and player.body then add(playerX, playerY, playerRadius) end
+    if enemy and enemy.enemies then
+        for _, e in ipairs(enemy.enemies) do
+            if not e.dead and e.body and not e.body:isDestroyed() then
+                local x, y = e.body:getPosition()
+                add(x, y, (e.scale or 0.6) * 50)
+            end
+        end
+    end
+    if boss and boss.bosses then
+        for _, b in pairs(boss.bosses) do
+            if b.body and not b.body:isDestroyed() then
+                local x, y = b.body:getPosition()
+                add(x, y, 60)
+            end
+        end
+    end
+
+    if n > MAX_PUSHERS then
+        -- The player is nearest itself (distance 0), so it always stays
+        for i = 1, n do sorted[i] = pushers[i] end
+        for i = #sorted, n + 1, -1 do sorted[i] = nil end
+        table.sort(sorted, byDistance)
+        for i = 1, n do pushers[i] = sorted[i] end
+        n = MAX_PUSHERS
+    end
+    return n
+end
+
 function GrassRenderer:draw()
     if not self.grassMesh then return end
     
@@ -324,8 +385,11 @@ function GrassRenderer:draw()
     -- self.grassShader:send("windDirection", {self.windDirection.x, self.windDirection.y})
     self.grassShader:send("windStrength", self.windStrength)
     self.grassShader:send("windSpeed", self.windSpeed)
-    self.grassShader:send("playerPos", {playerX, playerY})
-    self.grassShader:send("playerRadius", playerRadius)
+    local n = self:gatherPushers(playerX, playerY, playerRadius)
+    self.grassShader:send("numPushers", n)
+    if n > 0 then
+        self.grassShader:send("pushers", unpack(pushers, 1, n))
+    end
     -- self.grassShader:send("screenSize", {love.graphics.getWidth(), love.graphics.getHeight()})
     self.grassShader:send("noiseTexture", self.noiseTexture)
     self.grassShader:send("lightColor", {2.0, 0.95, 0.8})
