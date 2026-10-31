@@ -89,6 +89,7 @@ function snapshot.create()
         end
         
         full_game_state.coins = xp.getNetworkData()
+        full_game_state.blackhole = blackhole.getNetworkData()
         
         -- Add host's fire effects
         local host_fires = fire.getNetworkData()
@@ -373,6 +374,8 @@ function snapshot.apply(game_state)
         if last_full_game_state.enemies then
             enemy.applyNetworkData(last_full_game_state.enemies)
         end
+
+        blackhole.applyNetworkData(last_full_game_state.blackhole)
         
         if last_full_game_state.bosses then
             renderer.setNetworkedBosses(last_full_game_state.bosses)

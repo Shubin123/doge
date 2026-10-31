@@ -52,6 +52,7 @@ python3 tests/gpu/run.py --checks         # functional checks (enemy sprites, de
 - `editor.enable` / `editor.disable` - Toggle map editor
 - `save` / `load` - Save/load game state
 - `reload` - Reload game modules
+- `blackhole [x] [y]` - Move the black hole (default: just ahead of you)
 
 ## Architecture Overview
 
@@ -89,6 +90,9 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 - Light emitters: sprites with a `glow` entry in `gfx/regions/<id>.lua` (lamps, flames, neon, glowing glass) have their glowing texels in `<id>_glow.png`; those draw at full strength in the dark (and so feed GI their colour), and each emitter adds a transient point light from the ground under it, a coloured pool on the floor and a halo (`regions.drawGlows`, drawn after the sorted sprites). Fire flickers.
 - Art: one atlas per region in `gfx/regions/<id>.png`, sprite rects + categories in `gfx/regions/<id>.lua`, ground textures in `<id>_floor.png`. Sprite pools per region are named in `regions.list`.
 - `game/portal.lua`: standing in any region's portal opens the travel selector (Up/Down, Enter/E, 1-5, mouse, Esc); `regions.teleport` moves the player and `camera.snap` jumps the camera.
+
+### Black Hole & Time
+- `game/blackhole.lua` sits at (1400, 300) east of home (`blackhole [x] [y]` in the console moves it). Near it time slows: `love.update` multiplies `dt` by `blackhole.timeScale` right after networking, so everything after that line runs on slowed time (use `love.timer.getTime()` for real time). It pulls the player, enemies, globs and bullets, swallows what crosses the horizon, and `blackhole.applyLensing()` bends `scene_canvas` before GI. In multiplayer the host sends its position and the shared pace in the snapshot.
 
 ### Global Variables
 Key globals defined in main.lua:

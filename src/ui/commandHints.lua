@@ -31,6 +31,7 @@ hints.commands = {
         { "report", nil, "Print the results" },
         { "export", "[file]", "Save the results as JSON" },
     } },
+    { "blackhole", "[x] [y]", "Move the black hole (default: 320 px ahead of you)" },
     { "spawn", nil, "Spawn things", sub = {
         { "enemies", "<count>", "Replace all enemies with <count>" },
         { "coins", "<count>", "XP glob count, applied on restart" },

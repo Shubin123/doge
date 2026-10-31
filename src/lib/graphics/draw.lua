@@ -92,6 +92,7 @@ function draw.mydraw()
     if var.graphics_high then
         light.draw()
         explosion.applyShockwave() -- distort scene_canvas before GI processes it
+        blackhole.applyLensing() -- the black hole bends it too, and glows into the GI
         shader.pass(crtShader:target())
         love.graphics.draw(scene_canvas)
     end

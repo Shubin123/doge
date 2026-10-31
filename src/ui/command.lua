@@ -475,6 +475,17 @@ function command.execute(cmd, fromBlock)
         benchmarkCommand(tokenize(cmd))
     elseif verb == "spawn" then
         spawnCommand(tokenize(cmd))
+    elseif verb == "blackhole" then
+        local tokens = tokenize(cmd)
+        local x, y = tonumber(tokens[2]), tonumber(tokens[3])
+        if not (x and y) then
+            -- just ahead of where you're aiming, far enough not to fall straight in
+            local px, py = player.body:getPosition()
+            local aim = gun.lastAimDirection or { x = 1, y = 0 }
+            x, y = px + aim.x * 320, py + aim.y * 320
+        end
+        blackhole.moveTo(x, y)
+        command.addOutput(string.format("Black hole at %d, %d", x, y), outputColor)
     elseif runLua(cmd) and player.god and not fromBlock then
         command.createBlock(cmd)
     end
