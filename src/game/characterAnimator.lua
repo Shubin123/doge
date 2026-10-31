@@ -19,6 +19,15 @@ local spriteCount = 0
 local instances = {} -- Store all instances for populate
 local spriteLocationMap = {} -- Maps global sprite index to {u, v, uSize, vSize} coordinates
 
+-- Depth sorting against the dynamic draw list. An instance's key is
+-- y + sortYOffset, in the list's sort_y convention: 130 matches fire.lua's
+-- ring (pos.y + 130), so the orbiting fireballs pass behind and in front of
+-- the player rather than always over them.
+characterAnimator.sortYOffset = 130
+local sortKeys = {} -- depth key of each uploaded instance, in buffer order
+local sortKeyCount = 0
+local sortedDrawn = 0 -- instances of the sorted buffer already drawn this frame
+
 -- Define character types and their associated animation states
 -- This maps sprite sheet indices to character types and animation names
 local function defineCharacterTypes(metadata)
@@ -463,11 +472,15 @@ attribute vec4 InstanceUVData;
 attribute vec4 color;
 attribute vec3 InstanceMatrix1; 
 attribute vec3 InstanceMatrix2; 
-attribute vec3 InstanceMatrix4; 
+attribute vec3 InstanceMatrix4;
 attribute float onoff;
+attribute float InstanceOrder; // position in the depth-sorted buffer
+
+// Instances before this were drawn by an earlier run of the depth sort.
+uniform float instanceStart;
 
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-    if (onoff > 0.0) {
+    if (onoff > 0.0 && InstanceOrder >= instanceStart) {
         vec2 localUV = VaryingTexCoord.xy;
         VColor = vec4(color);
         VFade = onoff;
@@ -839,7 +852,8 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     -- Instance format for 3x3 matrix
     local instanceFormat = {{"InstanceUVData", "float", 4}, {"color", "float", 4}, {"InstanceMatrix1", "float", 3},
-                            {"InstanceMatrix2", "float", 3}, {"InstanceMatrix4", "float", 3}, {"onoff", "float", 1} -- bit repr for each instance
+                            {"InstanceMatrix2", "float", 3}, {"InstanceMatrix4", "float", 3}, {"onoff", "float", 1}, -- bit repr for each instance
+                            {"InstanceOrder", "float", 1}
     }
 
     local emptyInstanceData = {}
@@ -854,6 +868,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     mesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
     mesh:attachAttribute("onoff", instanceMesh, "perinstance")
+    mesh:attachAttribute("InstanceOrder", instanceMesh, "perinstance")
 
     litmesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
     litmesh:attachAttribute("color", instanceMesh, "perinstance")
@@ -861,6 +876,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     litmesh:attachAttribute("InstanceMatrix2", instanceMesh, "perinstance")
     litmesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
     litmesh:attachAttribute("onoff", instanceMesh, "perinstance")
+    litmesh:attachAttribute("InstanceOrder", instanceMesh, "perinstance")
 
     -- Create instances with character types
     instances = {}
@@ -993,13 +1009,15 @@ function characterAnimator.populate()
             local scale = instance.scale
 
             local u, v, uSize, vSize = getUV(instance)
+            sortKeys[i] = instance.y + characterAnimator.sortYOffset
 
             instanceData[i] = {u, v, uSize, vSize, -- InstanceUVData
             instance.color[1], instance.color[2], instance.color[3], instance.color[4],
             cos_r * scale, sin_r * scale, 0,       -- InstanceMatrix1
             -sin_r * scale, cos_r * scale, 0,       -- InstanceMatrix2
             instance.x, instance.y, 1,               -- InstanceMatrix4
-            instance.on and (instance.opacity or 1) or 0} -- onoff: visibility and opacity
+            instance.on and (instance.opacity or 1) or 0, -- onoff: visibility and opacity
+            i - 1}                                   -- InstanceOrder
         else
             -- Disabled padding entry (onoff=0 means shader skips it)
             instanceData[i] = {defaultUV[1], defaultUV[2], defaultUV[3], defaultUV[4],
@@ -1007,20 +1025,53 @@ function characterAnimator.populate()
             1, 0, 0,
             0, 1, 0,
             -10000, -10000, 1,
-            0}
+            0,
+            i - 1}
         end
     end
 
     instanceMesh:setVertices(instanceData)
+    sortKeyCount = activeInstanceCount
+    sortedDrawn = 0
 end
 
---- Draw every character instance with `shader` (characterAnimator.shader for
---- the sprites, .shaderWithTransforms for the death light), in world space:
---- call under camera.apply().
-function characterAnimator.drawInstances(shader)
+--- Draw character instances with `shader` (characterAnimator.shader for the
+--- sprites, .shaderWithTransforms for the death light), in world space: call
+--- under camera.apply(). `first`/`last` pick a run of the depth-sorted buffer
+--- (0-based, end exclusive) on shaders that support it; the default is all.
+function characterAnimator.drawInstances(shader, first, last)
     love.graphics.setShader(shader)
-    love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
+    if shader:hasUniform("instanceStart") then
+        shader:send("instanceStart", first or 0)
+    end
+    love.graphics.drawInstanced(mesh, last or characterAnimator.instanceCount)
     love.graphics.setShader()
+end
+
+--- Depth key of the next instance the sorted pass has yet to draw, or
+--- math.huge once every instance is drawn.
+function characterAnimator.nextSortY()
+    if sortedDrawn < sortKeyCount then
+        return sortKeys[sortedDrawn + 1]
+    end
+    return math.huge
+end
+
+--- Draw, as one instanced call, the run of not-yet-drawn instances whose depth
+--- key sorts before `sortY`. renderer.renderSortedDrawList calls this ahead of
+--- each drawable that a character sorts in front of, so characters interleave
+--- with the rest of the scene at the cost of one draw call per run. Leaves no
+--- shader bound. Returns nextSortY().
+function characterAnimator.drawSortedUpTo(sortY)
+    local first, last = sortedDrawn, sortedDrawn
+    while last < sortKeyCount and sortKeys[last + 1] < sortY do
+        last = last + 1
+    end
+    if last > first then
+        characterAnimator.drawInstances(characterAnimator.shader, first, last)
+        sortedDrawn = last
+    end
+    return characterAnimator.nextSortY()
 end
 
 function characterAnimator.draw()
@@ -1043,8 +1094,9 @@ function characterAnimator.draw()
         love.graphics.pop()
     end
 
-    characterAnimator.drawInstances(characterAnimator.shader)
-
+    -- The sprites themselves are drawn later, depth-sorted with the rest of
+    -- the scene: renderer.renderSortedDrawList interleaves them in runs
+    -- (drawSortedUpTo), so fire, props and effects sort against characters.
 end
 
 -- Helper functions to interact with instances

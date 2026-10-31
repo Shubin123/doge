@@ -47,7 +47,7 @@ function draw.mydraw()
     arrows.populate()
     car.populate()
     princess.x, princess.y = player.body:getX(), player.body:getY()
-    characterAnimator.draw() -- instanced, binds its own lit shader
+    characterAnimator.draw() -- uploads instances + death light; sprites draw in the sorted pass below
     
     
 

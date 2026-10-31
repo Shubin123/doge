@@ -782,9 +782,24 @@ function renderer.renderSortedDrawList()
     local last_color = { 1, 1, 1, 1 }
     local last_blend_mode = { "alpha" }
 
-
+    -- Instanced characters share this depth order (see
+    -- characterAnimator.drawSortedUpTo): ahead of each drawable, the run of
+    -- them sorting before it is drawn in one call. Most drawables skip this.
+    local next_character_y = characterAnimator.nextSortY()
+    local function drawCharactersUpTo(sort_y)
+        if last_blend_mode[1] ~= "alpha" or last_blend_mode[2] then
+            love.graphics.setBlendMode("alpha")
+            last_blend_mode = { "alpha" }
+        end
+        next_character_y = characterAnimator.drawSortedUpTo(sort_y)
+        love.graphics.setShader(current_shader)
+    end
 
     for _, drawable in ipairs(dynamic_draw_list) do
+        if drawable.sort_y > next_character_y then
+            drawCharactersUpTo(drawable.sort_y)
+        end
+
         -- print(drawable.source_object_type == "fire")
         -- Set color if different from last
         local color = drawable.color or { 1, 1, 1, 1 } -- Default to white if no color specified
@@ -1036,7 +1051,10 @@ function renderer.renderSortedDrawList()
         -- end
     end
 
-
+    -- Characters sorting after everything in the list
+    if next_character_y < math.huge then
+        drawCharactersUpTo(math.huge)
+    end
 
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])
