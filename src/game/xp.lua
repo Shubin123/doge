@@ -142,12 +142,27 @@ function xp.populate()
     end
 end
 
---- Add a networked client's globs (from the host's snapshot).
-function xp.populateNetworked(globs)
-    for _, g in pairs(globs) do
-        if g.active then
-            addGlob(g.x, g.y, 0.5, (g.x * 0.37 + g.y * 0.11) % 6.283, "networked_xp_glob")
-        end
+--- Host: every glob for the snapshot, flat to keep it small:
+--- { x1, y1, size1 * 100, x2, ... } in whole px.
+function xp.getNetworkData()
+    local flat = {}
+    for i = 1, #coin_bods do
+        local body = coin_bods[i]
+        local x, y = body:getPosition()
+        local data = body:getFixtures()[1]:getUserData()
+        local n = #flat
+        flat[n + 1] = math.floor(x + 0.5)
+        flat[n + 2] = math.floor(y + 0.5)
+        flat[n + 3] = math.floor((data and data.size or 0.5) * 100 + 0.5)
+    end
+    return flat
+end
+
+--- Client: add the host's globs (xp.getNetworkData) to the draw list.
+function xp.populateNetworked(flat)
+    for i = 1, #flat - 2, 3 do
+        local x, y = flat[i], flat[i + 1]
+        addGlob(x, y, flat[i + 2] / 100, (x * 0.37 + y * 0.11) % 6.283, "networked_xp_glob")
     end
 end
 

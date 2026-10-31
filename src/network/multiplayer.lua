@@ -14,6 +14,69 @@ end
 local multiplayer = {}
 multiplayer.__index = multiplayer
 
+-- Snapshots per second each side sends. Every snapshot replaces the last, so
+-- a connection still draining an older one just skips the next.
+multiplayer.SEND_RATE = 20
+-- Bytes a connection may have queued before snapshots to it are skipped
+local BACKLOG_LIMIT = 256 * 1024
+
+-- Outgoing data for one socket: whole messages queued, sent as far as the
+-- socket takes each frame. A non-blocking send that times out partway used
+-- to drop the rest of the message, which broke the newline framing of
+-- everything after it.
+local function newConnection(sock)
+    return { socket = sock, queue = {}, head = 1, sent = 0, queued = 0, buffer = "" }
+end
+
+local function enqueue(conn, message)
+    conn.queue[#conn.queue + 1] = message .. "\n"
+    conn.queued = conn.queued + #message + 1
+end
+
+-- Send what the socket will take. Returns false once it's closed.
+local function flush(conn)
+    while conn.queue[conn.head] do
+        local data = conn.queue[conn.head]
+        local last, err, partial = conn.socket:send(data, conn.sent + 1)
+        last = last or partial
+        if last and last > conn.sent then
+            conn.queued = conn.queued - (last - conn.sent)
+            conn.sent = last
+        end
+        if conn.sent >= #data then
+            conn.queue[conn.head] = nil
+            conn.head = conn.head + 1
+            conn.sent = 0
+        elseif err == "closed" then
+            return false
+        else
+            return true -- the socket's full (or still connecting): rest next frame
+        end
+    end
+    conn.queue, conn.head = {}, 1
+    return true
+end
+
+-- Every complete (newline-terminated) message received so far
+local function receive(conn, onMessage)
+    local data, err, partial = conn.socket:receive("*a")
+    local chunk = data or partial
+    if chunk and chunk ~= "" then
+        conn.buffer = conn.buffer .. chunk
+        local start = 1
+        while true do
+            local newline = conn.buffer:find("\n", start, true)
+            if not newline then break end
+            if newline > start then
+                onMessage(conn.buffer:sub(start, newline - 1))
+            end
+            start = newline + 1
+        end
+        conn.buffer = conn.buffer:sub(start)
+    end
+    return err ~= "closed"
+end
+
 -- Create new multiplayer instance
 function multiplayer.new(config)
     local self = setmetatable({}, multiplayer)
@@ -98,11 +161,14 @@ function multiplayer:connectToHost(host_address)
     self.client_socket = socket.tcp()
     if self.client_socket then
         self.client_socket:settimeout(0) -- Non-blocking
+        self.client_socket:setoption("tcp-nodelay", true)
         local success, err = self.client_socket:connect(self.address, self.port)
         
         -- In non-blocking mode, connect() may return "timeout" which means connection is in progress
+        -- (until it's made, sends fail and stay queued)
         if success or err == "timeout" then
             self.is_client = true
+            self.server = newConnection(self.client_socket)
             print("Attempting to connect to " .. self.address .. ":" .. self.port)
             return true
         else
@@ -145,91 +211,51 @@ function multiplayer:_updateHost()
     local client_socket = self.server_socket:accept()
     if client_socket then
         client_socket:settimeout(0) -- Make client socket non-blocking
+        client_socket:setoption("tcp-nodelay", true)
         local ip, port = client_socket:getpeername()
         local peer_key = ip .. ":" .. port
         print("Client connected: " .. peer_key)
-        self.connected_peers[peer_key] = {
-            socket = client_socket,
-            ip = ip,
-            port = port,
-            connect_time = love and love.timer.getTime() or os.time(),
-            buffer = "" -- Buffer for incomplete messages
-        }
+        local peer_info = newConnection(client_socket)
+        peer_info.ip, peer_info.port = ip, port
+        peer_info.connect_time = love and love.timer.getTime() or os.time()
+        self.connected_peers[peer_key] = peer_info
         self:_callConnectionHandler("connect", peer_key)
     end
 
-    -- Handle messages from connected clients
+    -- Send what's queued and handle messages from connected clients
     local disconnected_peers = {}
     for peer_key, peer_info in pairs(self.connected_peers) do
-        local data, err, partial = peer_info.socket:receive("*a")
-        
-        if err == "closed" then
+        local open = flush(peer_info) and receive(peer_info, function(message)
+            self:_handleMessage(message, peer_key, "host")
+        end)
+        if not open then
             print("Client disconnected: " .. peer_key)
             peer_info.socket:close()
             table.insert(disconnected_peers, peer_key)
-            self:_callConnectionHandler("disconnect", peer_key)
-        elseif data or partial then
-            -- Append received data to buffer
-            peer_info.buffer = peer_info.buffer .. (data or partial or "")
-            
-            -- Process complete messages (assuming messages are newline-delimited)
-            while true do
-                local newline_pos = peer_info.buffer:find("\n")
-                if not newline_pos then break end
-                
-                local message_data = peer_info.buffer:sub(1, newline_pos - 1)
-                peer_info.buffer = peer_info.buffer:sub(newline_pos + 1)
-                
-                if message_data ~= "" then
-                    self:_handleMessage(message_data, peer_key, "host")
-                end
-            end
         end
     end
 
-    -- Remove disconnected peers
     for _, peer_key in ipairs(disconnected_peers) do
+        local client_id = self.connected_peers[peer_key].client_id
         self.connected_peers[peer_key] = nil
+        self:_callConnectionHandler("disconnect", client_id or peer_key)
     end
-
-    -- Reduce CPU usage
-    socket.sleep(0.01)
 end
 
 -- Client update logic
 function multiplayer:_updateClient()
-    if not self.client_socket then return end
+    if not self.server then return end
 
-    -- Initialize buffer if it doesn't exist
-    if not self.client_buffer then
-        self.client_buffer = ""
-    end
-
-    local data, err, partial = self.client_socket:receive("*a")
-    
-    if err == "closed" then
+    local open = flush(self.server) and receive(self.server, function(message)
+        self:_handleMessage(message, "server", "client")
+    end)
+    if not open then
         print("Disconnected from server")
         self.client_socket:close()
         self.client_socket = nil
+        self.server = nil
         self.is_client = false
         self:_callConnectionHandler("disconnect", nil)
-        return
-    elseif data or partial then
-        -- Append received data to buffer
-        self.client_buffer = self.client_buffer .. (data or partial or "")
-        
-        -- Process complete messages (newline-delimited)
-        while true do
-            local newline_pos = self.client_buffer:find("\n")
-            if not newline_pos then break end
-            
-            local message_data = self.client_buffer:sub(1, newline_pos - 1)
-            self.client_buffer = self.client_buffer:sub(newline_pos + 1)
-            
-            if message_data ~= "" then
-                self:_handleMessage(message_data, "server", "client")
-            end
-        end
     end
 end
 
@@ -246,19 +272,16 @@ function multiplayer:sendToPeer(peer, message, channel)
 
     local peer_info = self.connected_peers[peer]
     if peer_info and peer_info.socket then
-        local success, err = peer_info.socket:send(message .. "\n")
-        if success then
-            return true
-        else
-            print("Failed to send to peer " .. peer .. ": " .. tostring(err))
-            return false
-        end
+        enqueue(peer_info, message)
+        return true
     end
     return false
 end
 
--- Send message to all connected peers (host only)
-function multiplayer:broadcast(message, channel, exclude_peer)
+-- Send message to all connected peers (host only). A `droppable` message
+-- (a snapshot, which the next one replaces) skips peers still draining a
+-- backlog.
+function multiplayer:broadcast(message, channel, exclude_peer, droppable)
     if self.fallback_mode then
         print("Cannot broadcast in fallback mode")
         return false
@@ -270,54 +293,55 @@ function multiplayer:broadcast(message, channel, exclude_peer)
 
     local sent_count = 0
     for peer_key, peer_info in pairs(self.connected_peers) do
-        if peer_key ~= exclude_peer and peer_info.socket then
-            local success, err = peer_info.socket:send(message .. "\n")
-            if success then
-                sent_count = sent_count + 1
-            else
-                print("Failed to broadcast to peer " .. peer_key .. ": " .. tostring(err))
-            end
+        if peer_key ~= exclude_peer and peer_info.socket
+            and not (droppable and peer_info.queued > BACKLOG_LIMIT) then
+            enqueue(peer_info, message)
+            sent_count = sent_count + 1
         end
     end
     return sent_count > 0
 end
 
 -- Send message to server (client only)
-function multiplayer:sendToServer(message, channel)
+function multiplayer:sendToServer(message, channel, droppable)
     if self.fallback_mode then
         print("Cannot send to server in fallback mode")
         return false
     end
 
-    if not self.is_client or not self.client_socket then
+    if not self.is_client or not self.server then
+        return false
+    end
+    if droppable and self.server.queued > BACKLOG_LIMIT then
         return false
     end
 
-    local success, err = self.client_socket:send(message .. "\n")
-    if success then
-        return true
-    else
-        print("Failed to send to server: " .. tostring(err))
-        return false
-    end
+    enqueue(self.server, message)
+    return true
 end
 
--- Handle sending movement messages
-function multiplayer.sendMovementMessage()
+-- Send this side's snapshot, multiplayer.SEND_RATE times a second
+local sendTimer = 0
+function multiplayer.sendMovementMessage(dt)
     if not mp or mp.fallback_mode then
-        if mp and mp.fallback_mode then
-            print("Cannot send movement message in fallback mode")
-        end
         return
+    end
+    sendTimer = sendTimer + (dt or 0)
+    if sendTimer < 1 / multiplayer.SEND_RATE then
+        return
+    end
+    sendTimer = sendTimer % (1 / multiplayer.SEND_RATE)
+    if var.multiplayer == 1 and next(mp.connected_peers) == nil then
+        return -- nobody to send to
     end
 
     local game_state = snapshot.create()
     local json_string = json.encode(game_state)
 
     if var.multiplayer == 1 then
-        mp:broadcast(json_string)
+        mp:broadcast(json_string, nil, nil, true)
     else
-        mp:sendToServer(json_string)
+        mp:sendToServer(json_string, nil, true)
     end
 end
 
@@ -341,12 +365,19 @@ function multiplayer:_handleMessage(data, peer, role)
     end
     
     if role == "host" then
-        local player_id = tonumber(string.sub(game_state.client_id, #game_state.client_id))
+        if not (game_state.client_id and game_state.player_data) then
+            return
+        end
+        local peer_info = self.connected_peers[peer]
+        if peer_info then
+            peer_info.client_id = game_state.client_id -- to forget them when they leave
+        end
+        local player_id = tonumber(game_state.client_id:match("%d+$"))
         if not player.online.bodies[player_id] then
             player.online.bodies[player_id] = love.physics.newBody(world, game_state.player_data.x, game_state.player_data.y)
             player.online.fixture = love.physics.newFixture(player.online.bodies[player_id], player.shape)
             player.online.fixture:setGroupIndex(-1)
-            player.online.health[player_id] = 100
+            player.online.health[player_id] = player.maxHealth
         end
 
         player.online.bodies[player_id]:setPosition(game_state.player_data.x, game_state.player_data.y)
@@ -422,7 +453,7 @@ function multiplayer:stop()
     self.is_host = false
     self.is_client = false
     self.connected_peers = {}
-    self.client_buffer = nil
+    self.server = nil
     self.fallback_mode = false
 
     print("Networking stopped")
@@ -449,16 +480,16 @@ function multiplayer.load()
     end)
 
     mp:onConnection("connect", function(peer)
-        print("Connection event:", peer)
-        if not mp.is_host then
-            mp:sendToPeer(peer, "Welcome to the server!")
-        else
-            print("host be aware:", peer, "has joined!")
-        end
+        print("host be aware:", peer, "has joined!")
     end)
 
-    mp:onConnection("disconnect", function(peer)
-        print("Disconnection event:", peer)
+    -- The host gets the client's id ("client_2"), or its address if it left
+    -- before sending anything; a client gets nil
+    mp:onConnection("disconnect", function(client_id)
+        print("Disconnection event:", client_id)
+        if mp.is_host and client_id then
+            snapshot.removeClient(client_id)
+        end
     end)
 
     if var.multiplayer then

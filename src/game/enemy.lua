@@ -754,6 +754,98 @@ channelPreserve = { 1, 0, 1 } -- its counter intuitive but you need to preserve 
 -- end
 
 
+-- An enemy's tint: a slow pulse, offset by its index so they don't all match
+local function enemyColor(enemy_index, colorPhase)
+    local idx_offset = enemy_index * 0.3
+    return {
+        math.cos(colorPhase + idx_offset) * channelPreserve[1],
+        math.cos(colorPhase + idx_offset) * channelPreserve[2],
+        math.cos(colorPhase + idx_offset) * channelPreserve[3],
+        math.sin(colorPhase + idx_offset)
+    }
+end
+
+--------------------------------------------------------------------------------
+-- Multiplayer: the host runs every enemy; clients only draw them
+--------------------------------------------------------------------------------
+
+local function round(v)
+    return math.floor(v + 0.5)
+end
+
+--- Host: every enemy still on screen anywhere (alive, or fading out), with
+--- what a client needs to draw it: its slot, position, character, facing,
+--- animation and, while it fades, opacity.
+function enemy.getNetworkData()
+    local list = {}
+    for i, e in ipairs(enemy.enemies) do
+        if not e.released and e.body and not e.body:isDestroyed() then
+            local sprite = gun_enemies[i + 1]
+            if sprite then
+                local x, y = e.body:getPosition()
+                list[#list + 1] = {
+                    i = i,
+                    x = round(x),
+                    y = round(y),
+                    c = sprite.getCharacterType(),
+                    a = sprite.getCurrentAnimation(),
+                    d = sprite.currentDirection,
+                    o = sprite.opacity,
+                }
+            end
+        end
+    end
+    return list
+end
+
+-- Client: where each enemy sprite is heading (it glides there between
+-- snapshots), by gun_enemies index
+local netTargets = {}
+
+--- Client: show the host's enemies (enemy.getNetworkData) on this side's
+--- sprites; every other enemy sprite is hidden.
+function enemy.applyNetworkData(list)
+    for k in pairs(netTargets) do
+        netTargets[k] = nil
+    end
+    for _, n in ipairs(list or {}) do
+        local sprite = gun_enemies[n.i + 1]
+        if sprite and n.c then
+            if sprite.getCharacterType() ~= n.c then
+                sprite.setCharacterType(n.c)
+                sprite.x, sprite.y = n.x, n.y -- new to us: appear in place
+            end
+            if n.a and sprite.getCurrentAnimation() ~= n.a then
+                sprite.setAnimation(n.a)
+            end
+            sprite.setDirection(n.d or 1)
+            sprite.opacity = n.o
+            netTargets[n.i + 1] = n
+        end
+    end
+end
+
+--- Client, every frame: glide each shown enemy to where the host has it.
+function enemy.updateNetworked(dt)
+    local k = math.min(1, dt * 15)
+    local colorPhase = math.cos(fire.t * 2)
+    for i = 2, var.num_enemies + 1 do
+        local sprite = gun_enemies[i]
+        local n = netTargets[i]
+        if sprite and n then
+            if not sprite.on then
+                sprite.x, sprite.y = n.x, n.y
+            end
+            sprite.on = true
+            sprite.x = sprite.x + (n.x - sprite.x) * k
+            sprite.y = sprite.y + (n.y - sprite.y) * k
+            sprite.color = enemyColor(i - 2, colorPhase)
+        elseif sprite then
+            sprite.on = false
+        end
+    end
+end
+
 function enemy.populate()
     -- Clear or reset gun_enemies positions for dead enemies
     for i = 1, #gun_enemies do
@@ -806,14 +898,7 @@ function enemy.populate()
                     if enemyInstance then
                         enemyInstance.active = true
                         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
-                        -- Pre-computed color: use enemy_index offset for per-enemy variation
-                        local idx_offset = enemy_index * 0.3
-                        enemyInstance.color = {
-                            math.cos(colorPhase + idx_offset) * channelPreserve[1],
-                            math.cos(colorPhase + idx_offset) * channelPreserve[2],
-                            math.cos(colorPhase + idx_offset) * channelPreserve[3],
-                            math.sin(colorPhase + idx_offset)
-                        }
+                        enemyInstance.color = enemyColor(enemy_index, colorPhase)
                     end
                 end
             end

@@ -22,27 +22,50 @@ renderer.local_player_state = {
 
 flipQuads = true
 
--- Interpolation smoothing factor (adjust for desired smoothness)
-local interpolation_speed = 1000
+-- How fast remote players glide to where their last snapshot put them (1/s)
+local interpolation_speed = 15
 
--- Update player interpolation
+-- The other players are drawn as princess sprites too: the character
+-- instances after the enemies' (var.max_remote_players of them, see conf.lua),
+-- one per player id in id order.
+local function remoteSprite(slot)
+    return gun_enemies and gun_enemies[var.num_enemies + 1 + slot]
+end
+
+-- Every frame in multiplayer: glide each remote player towards their last
+-- snapshot, and put their sprite there showing what they're doing.
 function renderer.updateInterpolation(dt)
+    local ids = {}
     for player_id, player_data in pairs(renderer.networked_state.players) do
-        if player_data.active and player_data.prev_x and player_data.prev_y then
-            -- Calculate interpolated positions
-            local target_x = player_data.x
-            local target_y = player_data.y
-            local current_x = player_data.prev_x
-            local current_y = player_data.prev_y
+        if player_data.active and player_data.x and player_data.y then
+            ids[#ids + 1] = player_id
+        end
+    end
+    table.sort(ids)
 
-            -- Smooth interpolation towards target position
-            local lerp_factor = math.min(1, dt * interpolation_speed)
-            player_data.interpolated_x = current_x + (target_x - current_x) * lerp_factor
-            player_data.interpolated_y = current_y + (target_y - current_y) * lerp_factor
+    local k = math.min(1, dt * interpolation_speed)
+    for slot = 1, var.max_remote_players do
+        local sprite = remoteSprite(slot)
+        local player_data = renderer.networked_state.players[ids[slot]]
+        if sprite and player_data then
+            if not player_data.interpolated_x then
+                player_data.interpolated_x, player_data.interpolated_y = player_data.x, player_data.y
+            end
+            player_data.interpolated_x = player_data.interpolated_x + (player_data.x - player_data.interpolated_x) * k
+            player_data.interpolated_y = player_data.interpolated_y + (player_data.y - player_data.interpolated_y) * k
 
-            -- Update previous position for next frame
-            player_data.prev_x = player_data.interpolated_x
-            player_data.prev_y = player_data.interpolated_y
+            if sprite.getCharacterType() ~= "princess" then
+                sprite.setCharacterType("princess")
+            end
+            if player_data.animation and sprite.getCurrentAnimation() ~= player_data.animation then
+                sprite.setAnimation(player_data.animation)
+            end
+            sprite.setDirection(player_data.direction or 1)
+            sprite.x, sprite.y = player_data.interpolated_x, player_data.interpolated_y
+            sprite.color = { 1, 1, 1, 1 }
+            sprite.on = true
+        elseif sprite then
+            sprite.on = false
         end
     end
 end
@@ -59,17 +82,12 @@ function renderer.setNetworkedPlayers(players_data)
         return
     end
 
-    -- Store previous positions for interpolation
+    -- Keep gliding from where each player is drawn now
     for player_id, new_data in pairs(players_data) do
         local existing_player = renderer.networked_state.players[player_id]
         if existing_player then
-            -- Store current position as previous before updating
-            new_data.prev_x = existing_player.x or new_data.x
-            new_data.prev_y = existing_player.y or new_data.y
-        else
-            -- New player - no previous position yet
-            new_data.prev_x = new_data.x
-            new_data.prev_y = new_data.y
+            new_data.interpolated_x = existing_player.interpolated_x
+            new_data.interpolated_y = existing_player.interpolated_y
         end
     end
 
@@ -113,10 +131,13 @@ function renderer.updateLocalPlayerFromPhysics()
     if player and player.body then
         local px, py = player.body:getX(), player.body:getY()
         renderer.local_player_state = {
-            x = px,
-            y = py,
+            x = math.floor(px + 0.5),
+            y = math.floor(py + 0.5),
             animation_frame = math.floor(player.animation.currentTime / (player.animation.duration) *
                 #player.animation.quads) + 1,
+            -- what the princess sprite shows, for everyone else's copy of her
+            animation = princess and princess.getCurrentAnimation(),
+            direction = princess and princess.currentDirection,
             scale = player.scale,
             rotation = var.character_rotation or 0,
             active = true
@@ -213,37 +234,25 @@ local function addEnemiesFromBodies()
 end
 
 local function addNetworkedEntities()
-    -- Networked players with interpolation
+    -- Networked players (their sprites are placed in updateInterpolation):
+    -- a name over each, "P2" for client_2
     for player_id, player_data in pairs(renderer.networked_state.players) do
-        if player_data.active then
-            -- Use interpolated positions if available, otherwise fall back to actual positions
-            local render_x = player_data.interpolated_x or player_data.x
-            local render_y = player_data.interpolated_y or player_data.y
-            addPlayer(render_x, render_y, player_data.animation_frame,
-                player_data.scale, player_data.rotation, player_id)
-        end
-    end
-
-    -- Networked enemies
-    for _, enemy_data in pairs(renderer.networked_state.enemies) do
-        if enemy_data.active then
+        if player_data.active and player_data.interpolated_x then
+            local name = "P" .. (tostring(player_id):match("%d+$") or "?")
             table.insert(dynamic_draw_list, {
-                sort_y = enemy_data.y + (enemy_image:getHeight() * 0.1) / 2 + 100,
-                image_or_particles = enemy_image,
-                x = enemy_data.x,
-                y = enemy_data.y,
-                rotation = 0,
-                scale_x = 0.1,
-                scale_y = 0.1,
-                offset_x = enemy_image:getWidth() / 2,
-                offset_y = enemy_image:getHeight() / 2,
-                color = { 1, 1, 1, 1 },
-                blend_mode = { "alpha" },
-                source_object_type = "networked_enemy",
-                enemy_id = enemy_data.enemy_id
+                sort_y = player_data.interpolated_y + 200,
+                draw_type = "text",
+                text = name,
+                x = player_data.interpolated_x - gameFont:getWidth(name) / 2,
+                y = player_data.interpolated_y - 75,
+                color = { 0.75, 0.9, 1, 1 },
+                blend_mode = { "alpha" }
             })
         end
     end
+
+    -- (Networked enemies are this side's own enemy sprites, placed by
+    -- enemy.applyNetworkData / enemy.updateNetworked.)
 
     -- Networked XP globs
     xp.populateNetworked(renderer.networked_state.coins)

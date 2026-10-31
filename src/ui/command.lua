@@ -1120,11 +1120,13 @@ function command.broadcastCommandBlock(block)
             creator = block.creator
         }
     }
-    local compressed_data = love.data.compress("string", "zlib", json.encode(message), 9)
+    -- Plain JSON: messages are newline-framed, and JSON never holds a raw
+    -- newline (compressed bytes could)
+    local data = json.encode(message)
     if var.multiplayer == 1 then
-        mp:broadcast(compressed_data) -- Server: to all clients
+        mp:broadcast(data) -- Server: to all clients
     else
-        mp:sendToServer(compressed_data) -- Client: to the server
+        mp:sendToServer(data) -- Client: to the server
     end
 end
 

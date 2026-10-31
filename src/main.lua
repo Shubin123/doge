@@ -169,6 +169,10 @@ function love.load()
     -- works for one-off in-editor experiments; it just isn't how the
     -- shipping atlas gets built any more.
     gun_enemies = characterAnimator.loadFromAtlas("gfx/atlas/atla.dds.zlib", "gfx/atlas/atlas_metadata3.lua", true)
+    -- the last few are other players' (renderer.updateInterpolation): hidden until someone joins
+    for slot = 1, var.max_remote_players do
+        gun_enemies[var.num_enemies + 1 + slot].on = false
+    end
 
     -- princess = characterAnimator.init({"gfx/3d/princess/walk copy.png","gfx/3d/princess/run copy.png","gfx/3d/princess/shoot copy.png","gfx/3d/princess/jump copy.png","gfx/3d/princess/roll2.png"},128,128)
 
@@ -258,7 +262,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     if var.multiplayer then
         mp:update()
-        multiplayer.sendMovementMessage()
+        multiplayer.sendMovementMessage(dt)
     end
 
     editor.update(dt)
@@ -321,6 +325,8 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     if var.multiplayer == 1 or not var.multiplayer then
         enemy.update(dt)
         boss.update(dt)
+    else
+        enemy.updateNetworked(dt) -- the host runs them; draw where it says
     end
 
     gun.update(dt)

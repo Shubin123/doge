@@ -20,7 +20,10 @@ var.coin_bods = {}
 -- raise for bigger battles if your machine has headroom (increase to 500/1000
 -- to stress-test with the profiler/benchmark framework -- see src/systems/profiler.lua).
 var.num_enemies = 80
-var.num_instances = var.num_enemies + 1
+-- Other players' sprites in multiplayer (character instances after the
+-- enemies'); more players than this connect fine but aren't drawn
+var.max_remote_players = 4
+var.num_instances = var.num_enemies + 1 + var.max_remote_players
 
 -- Global illumination quality preset: "high" | "medium" | "low" (see shader.lua).
 -- "high" matches the original look; drop to "medium"/"low" on weaker GPUs.

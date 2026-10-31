@@ -5,6 +5,8 @@ local json = require("util/json")
 local last_created_snapshot = nil
 -- Store last full game state for client to merge with delta updates
 local last_full_game_state = nil
+-- What the client last built the map and command blocks from (JSON)
+local last_map_data, last_command_blocks
 -- Counter for forcing full updates periodically for host
 local frame_counter = 0
 local full_update_interval = 5 -- Send full update every 5 frames to prevent flashing of stationary objects
@@ -29,6 +31,9 @@ local accumulated_game_state = {
     accumulated_command_blocks = {}
 }
 
+-- Host snapshots sent so far; the slow-changing map goes in about once a second
+local snapshots_sent = 0
+
 function snapshot.create()
     local full_game_state = {}
     
@@ -36,8 +41,11 @@ function snapshot.create()
     renderer.updateLocalPlayerFromPhysics()
     
     if var.multiplayer == 1 then
-        -- HOST: Create full game state snapshot
+        snapshots_sent = snapshots_sent + 1
+        -- HOST: Create full game state snapshot. Clients replace what they had
+        -- with it, so whatever's gone (a picked-up glob, a dead enemy) goes.
         full_game_state = {
+            type = "full_update",
             players = {},
             enemies = {},
             coins = {},
@@ -59,20 +67,12 @@ function snapshot.create()
         for client_id, player_data in pairs(accumulated_game_state.players) do
             if client_id ~= "client_1" then -- Don't overwrite host data
                 full_game_state.players[client_id] = player_data
-                local client_idNum = tonumber(string.sub(client_id,#client_id))
+                local client_idNum = tonumber(client_id:match("%d+$"))
                 full_game_state.players[client_id].health = player.online.health[client_idNum]
             end
         end
         
-        -- Collect enemy data from physics bodies
-        for i = 1, #enemies_bods do
-            local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
-            full_game_state.enemies[tostring(i)] = {
-                x = ex,
-                y = ey,
-                active = true
-            }
-        end
+        full_game_state.enemies = enemy.getNetworkData()
         
         -- Collect boss data
         if boss then
@@ -88,15 +88,7 @@ function snapshot.create()
             end
         end
         
-        -- Collect coin data from physics bodies
-        for i = 1, #coin_bods do
-            local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-            full_game_state.coins[tostring(i)] = {
-                x = cx,
-                y = cy,
-                active = true
-            }
-        end
+        full_game_state.coins = xp.getNetworkData()
         
         -- Add host's fire effects
         local host_fires = fire.getNetworkData()
@@ -143,7 +135,9 @@ function snapshot.create()
             end
         end
 
-        full_game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer
+        if snapshots_sent % multiplayer.SEND_RATE == 1 then
+            full_game_state.map_data = map.createSaveDataSmall() -- just arches and trees for the ground layer
+        end
 
         -- Collect host's command blocks (which now includes accumulated client blocks)
         full_game_state.command_blocks = command.getCommandBlocks()
@@ -332,7 +326,7 @@ function snapshot.apply(game_state)
             for client_id, player_data in pairs(last_full_game_state.players) do
                 if client_id ~= own_client_id then
                     other_players[client_id] = player_data
-                else
+                elseif player_data.health then
                     player.health = player_data.health
                 end
             end
@@ -377,7 +371,7 @@ function snapshot.apply(game_state)
         end
         
         if last_full_game_state.enemies then
-            renderer.setNetworkedEnemies(last_full_game_state.enemies)
+            enemy.applyNetworkData(last_full_game_state.enemies)
         end
         
         if last_full_game_state.bosses then
@@ -392,21 +386,46 @@ function snapshot.apply(game_state)
             renderer.setNetworkedCars(last_full_game_state.cars)
         end
 
-        if last_full_game_state.map_data then
-            map.restore(last_full_game_state.map_data)
+        -- Only sent now and then, and rebuilt only when it changed
+        if game_state.map_data then
+            local encoded = json.encode(game_state.map_data)
+            if encoded ~= last_map_data then
+                last_map_data = encoded
+                map.restore(game_state.map_data)
+            end
         end
 
+        -- Blocks are physics bodies: remade only when the host's list changes
         if last_full_game_state.command_blocks then
-            command.setCommandBlocks(last_full_game_state.command_blocks)
-            renderer.setNetworkedCommandBlocks(last_full_game_state.command_blocks)
+            local encoded = json.encode(last_full_game_state.command_blocks)
+            if encoded ~= last_command_blocks then
+                last_command_blocks = encoded
+                command.setCommandBlocks(last_full_game_state.command_blocks)
+                renderer.setNetworkedCommandBlocks(last_full_game_state.command_blocks)
+            end
         end
     end
 end
 
--- Helper function to clear accumulated data for a disconnected client
+-- Forget a client that left (host): its player, its body for enemies to
+-- shoot at, and everything it was sending
 function snapshot.removeClient(client_id)
     if var.multiplayer == 1 then
         accumulated_game_state.players[client_id] = nil
+        accumulated_game_state.accumulated_fires[client_id] = nil
+        accumulated_game_state.accumulated_bullets[client_id] = nil
+        accumulated_game_state.accumulated_rockets[client_id] = nil
+        accumulated_game_state.cars[client_id] = nil
+        local id = tonumber(tostring(client_id):match("%d+$"))
+        local body = id and player.online.bodies[id]
+        if body and not body:isDestroyed() then
+            body:destroy()
+        end
+        if id then
+            player.online.bodies[id] = nil
+            player.online.health[id] = nil
+        end
+        renderer.networked_state.players[client_id] = nil
     end
 end
 
