@@ -84,6 +84,11 @@ The `game.integration` module coordinates all gameplay systems:
 
 When modifying gameplay, ensure integration.lua is updated to maintain system cohesion.
 
+### Regions & Portal
+- `game/regions.lua` lays out four regions (Wasteland, Castle, Neon City, Sanctum) procedurally from fixed seeds, 20000 px apart east of the home map: blended seamless ground (its own shader), edge walls + a physics fence, facade streets, props/lamps (lamps add transient lights), a pool (sets `water.setWaterArea` while you're there), puddles and grass patches (`grass.public.addField`).
+- Art: one atlas per region in `gfx/regions/<id>.png`, sprite rects + categories in `gfx/regions/<id>.lua`, ground textures in `<id>_floor.png`. Sprite pools per region are named in `regions.list`.
+- `game/portal.lua`: standing in any region's portal opens the travel selector (Up/Down, Enter/E, 1-5, mouse, Esc); `regions.teleport` moves the player and `camera.snap` jumps the camera.
+
 ### Global Variables
 Key globals defined in main.lua:
 - `world` - Physics world

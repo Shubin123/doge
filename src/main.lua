@@ -21,6 +21,7 @@ vec4 = require("lib.math.vec4")
 enemy = require("game.enemy")
 boss = require("game.boss")
 portal = require("game.portal")
+regions = require("game.regions")
 crt = require("systems.crt")
 puddle = require("systems.puddle")
 renderer = require("lib.graphics.renderer")
@@ -232,6 +233,7 @@ function love.load()
     puddle.load()
     -- smoke.load()
     portal.load()
+    regions.load() -- after the world, grass, water and puddles it lays out into
     crt.load()
     blur.load()
     light.load()
@@ -322,6 +324,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     fire.update(dt)
     grass.public.update(dt)
     portal.update(dt)
+    regions.update(dt) -- before the lighting upload: its lamps add lights
     -- blur.update(dt)
     blood.update(dt)
     explosion.update(dt)
@@ -414,6 +417,9 @@ function love.mousepressed(x, y, button, istouch, presses)
     if command.mousepressed(x, y, button) then
         return -- command block was clicked
     end
+    if portal.mousepressed(x, y, button) then
+        return -- picked a destination in the travel selector
+    end
     -- Delegate to gun system for shooting (only when not in menu)
     gun.mousepressed(x, y, button)
 
@@ -447,6 +453,9 @@ end
 local zoomToggle = false;
 local zcycle = 0
 function love.keypressed(key)
+    if portal.keypressed(key) then
+        return -- the travel selector took it (Esc closes it, not the menu)
+    end
     if key == "f1" then
         profiler.overlay_visible = not profiler.overlay_visible
         if profiler.overlay_visible then
@@ -557,7 +566,9 @@ function love.wheelmoved(x, y)
     command.wheelmoved(x, y)
     cmdn.wheelmoved(x, y)
     if var.State ~= "menu" and not command.isOpen() and not cmdn.isOpen() then
-        gun.wheelmoved(x, y)
+        if not portal.wheelmoved(x, y) then
+            gun.wheelmoved(x, y)
+        end
     end
 end
 

@@ -129,6 +129,7 @@ function serial.apply(state)
     if p then
         player.body:setPosition(p.x, p.y)
         player.body:setLinearVelocity(p.vx or 0, p.vy or 0)
+        camera.snap(player) -- the save may be in another region, far off
         player.health = p.health or player.maxHealth
         player.lightsOn = p.lights_on ~= false
     end

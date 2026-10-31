@@ -8,7 +8,8 @@ GrassRenderer.__index = GrassRenderer
 -- must match the vertex shader's array
 local MAX_PUSHERS = 32
 
-function GrassRenderer.new(grassCount)
+-- template: an existing renderer whose shader and textures this one shares
+function GrassRenderer.new(grassCount, template)
     local self = setmetatable({}, GrassRenderer)
     
     self.grassCount = grassCount or 1000
@@ -17,9 +18,16 @@ function GrassRenderer.new(grassCount)
     self.windStrength = 3
     self.windSpeed = 4.0
     
-    self:initShaders()
-    self:createMesh()
-    self:createTextures()
+    if template then
+        self.grassShader = template.grassShader
+        self.grassTexture = template.grassTexture
+        self.noiseTexture = template.noiseTexture
+        self:createMesh()
+    else
+        self:initShaders()
+        self:createMesh()
+        self:createTextures()
+    end
     
     return self
 end
@@ -191,12 +199,30 @@ function GrassRenderer:createTextures()
     end
 end
 
-function GrassRenderer:setGrassArea(x, y, width, height, density)
+-- accept(x, y), if given, says where blades may grow (each gets a few tries
+-- to land somewhere it's true); tint multiplies their colour.
+function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
     density = density or 1.0
     
     -- Calculate grass count
     local areaGrassCount = math.floor((width * height * density) / 1000)
     areaGrassCount = math.min(areaGrassCount, var and var.max_grass or 2000)
+
+    local spots = {}
+    for _ = 1, areaGrassCount do
+        for _ = 1, accept and 8 or 1 do
+            local bx, by = x + love.math.random() * width, y + love.math.random() * height
+            if not accept or accept(bx, by) then
+                spots[#spots + 1] = { bx, by }
+                break
+            end
+        end
+    end
+    areaGrassCount = #spots
+    if areaGrassCount == 0 then
+        self.grassMesh = nil
+        return
+    end
     
     -- Clear existing data
     self.grassBlades = {}
@@ -206,8 +232,8 @@ function GrassRenderer:setGrassArea(x, y, width, height, density)
     local vertexIndex = 1
     
     for i = 1, areaGrassCount do
-        local bladeX = x + love.math.random() * width
-        local bladeY = y + love.math.random() * height
+        local bladeX = spots[i][1]
+        local bladeY = spots[i][2]
         local bladeWidth = 0.5 + love.math.random() * 1.5
         local bladeHeight = 8 + love.math.random() * 15
         local rotation = love.math.random() * math.pi * 0.2 - math.pi * 0.1
@@ -216,6 +242,9 @@ function GrassRenderer:setGrassArea(x, y, width, height, density)
         local r = 0.2 + love.math.random() * 0.3
         local g = 0.8 + love.math.random() * 0.4
         local b = 0.1 + love.math.random() * 0.2
+        if tint then
+            r, g, b = r * tint[1], g * tint[2], b * tint[3]
+        end
         -- local a = 0.8 
         local a = mymath.realRandom(0,0.1) + mymath.realRandom(0,0.2) + mymath.realRandom(0,0.3) - mymath.realRandom(0,0.05)
         
@@ -368,8 +397,17 @@ function GrassRenderer:gatherPushers(playerX, playerY, playerRadius)
     return n
 end
 
+-- Whether any of the patch is on screen (blades sway a little past its edges)
+function GrassRenderer:onScreen()
+    local zoom = camera.zoom
+    local x0, y0 = -camera.x / zoom, -camera.y / zoom
+    local x1, y1 = x0 + love.graphics.getWidth() / zoom, y0 + love.graphics.getHeight() / zoom
+    return self.x < x1 + 30 and self.x + self.width > x0 - 30
+        and self.y < y1 + 30 and self.y + self.height > y0 - 30
+end
+
 function GrassRenderer:draw()
-    if not self.grassMesh then return end
+    if not self.grassMesh or not self:onScreen() then return end
     
     love.graphics.push()
     love.graphics.setBlendMode("alpha")
@@ -428,18 +466,38 @@ end
 local grass = GrassRenderer.new(800)
 local demo = {}
 
+-- Further patches other systems lay out (the regions), each drawn only while
+-- it's on screen
+local fields = {}
+
 function demo.load()
     grass:setGrassArea(var.game_width/2, 50, var.game_width, var.game_height/4, 100)
+    fields = {}
+end
+
+--- A patch of about `count` blades over the rect, growing only where
+--- accept(x, y) is true, coloured by tint ({ r, g, b } multipliers).
+function demo.addField(x, y, width, height, count, accept, tint)
+    local field = GrassRenderer.new(count, grass)
+    field:setGrassArea(x, y, width, height, count * 1000 / (width * height), accept, tint)
+    fields[#fields + 1] = field
+    return field
 end
 
 function demo.update(dt)
     grass:update(dt)
+    for _, field in ipairs(fields) do
+        field:update(dt)
+    end
     -- grass:setGrassArea(var.game_width/2, 50, var.game_width*math.sin(fire.t) + 1, var.game_height/4, 100)
 
 end
 
 function demo.draw()
     grass:draw()
+    for _, field in ipairs(fields) do
+        field:draw()
+    end
 end
 
 return {

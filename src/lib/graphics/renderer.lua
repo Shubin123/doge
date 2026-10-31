@@ -165,21 +165,6 @@ local function addPlayer(x, y, animation_frame, scale, rotation, player_id)
     -- })
 end
 
-local function addPortal(x, y, sort_y)
-    table.insert(dynamic_draw_list, {
-        sort_y = sort_y,
-        shader = portal.SHADERS["portal"],
-        shader_params = portal.params,
-        x = x,
-        y = y,
-        width = 35,
-        height = 50,
-        color = { 1, 1, 1, 1 },
-        blend_mode = { "alpha" },
-        source_object_type = "portal_shader"
-    })
-end
-
 local function addLightEffect(light_shader, x, y, width, height, sort_y, color, light_type)
     table.insert(dynamic_draw_list, {
         sort_y = sort_y,
@@ -595,7 +580,8 @@ function renderer.populateDynamicDrawListNetworked()
         renderer.local_player_state.animation_frame, renderer.local_player_state.scale,
         0, 69)
 
-    addPortal(236, 190, 370)
+    portal.populate()
+    regions.populate()
 
     -- Add player light effect (using camera transforms)
     -- if blueNeon and player and player.body then
@@ -618,7 +604,8 @@ function renderer.populateDynamicDrawList()
     local spriteNum = math.floor(player.animation.currentTime / (player.animation.duration) * #player.animation.quads) +
     1
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
-    addPortal(290, 150, 315)
+    portal.populate()
+    regions.populate()
 
     -- -- Add player light effect
     -- if blueNeon then

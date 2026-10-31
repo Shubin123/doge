@@ -30,6 +30,7 @@ function draw.mydraw()
     love.graphics.setShader(shadow.getShader(false))
     love.graphics.setColor(1, 1, 1, 0.4)
     map.map:draw(-10000, 100, 1)
+    regions.drawGround()
 
     love.graphics.setColor(1, 1, 1, 1)
     puddle.draw() -- on the ground, under everything that wades through
@@ -99,6 +100,7 @@ function draw.mydraw()
     -- Call it again once its result is actually used.
 
     menu.drawUI() -- ui last, under the CRT like the rest of the picture
+    portal.drawUI() -- travel selector and the flash of a jump
 
     if var.graphics_high then
         crtShader:present()

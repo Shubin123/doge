@@ -135,6 +135,16 @@ function camera.update(dt, player)
 end
 
 
+-- Jump straight onto the player (after a teleport) instead of gliding there
+function camera.snap(player)
+    camera.x = love.graphics.getWidth() / 2 - player.body:getX() * camera.zoom
+    camera.y = love.graphics.getHeight() / 2 - player.body:getY() * camera.zoom
+    camera.target_x = camera.x
+    camera.target_y = camera.y
+    camera.pos.x = camera.x
+    camera.pos.y = camera.y
+end
+
 function camera.screenToWorld(x, y)
     local worldX = (x - camera.x) / camera.zoom
     local worldY = (y - camera.y) / camera.zoom
