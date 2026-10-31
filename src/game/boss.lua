@@ -265,6 +265,25 @@ function boss.despawnAll()
     end
 end
 
+-- Plain-data snapshot of the live bosses for save files (util/serial.lua).
+function boss.getSaveData()
+    local saved = {}
+    for _, b in pairs(boss.bosses) do
+        local x, y = b.body:getPosition()
+        table.insert(saved, { x = x, y = y, health = b.health })
+    end
+    return saved
+end
+
+-- Replace the live bosses with a getSaveData() snapshot. They come back idle.
+function boss.restore(saved)
+    boss.despawnAll()
+    for _, b in ipairs(saved) do
+        local id = boss.spawn(b.x, b.y)
+        boss.bosses[id].health = b.health or boss.max_health
+    end
+end
+
 function boss.update(dt)
     boss.t = boss.t + dt
     

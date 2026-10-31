@@ -202,6 +202,16 @@ function GunTool.useAmmo(cost)
     return true
 end
 
+-- Drain for continuous weapons: takes up to `amount`, so the last scrap goes
+-- too. False once there's nothing left.
+function GunTool.drainAmmo(amount)
+    if GunTool.ammo <= 0 then
+        return false
+    end
+    GunTool.ammo = math.max(0, GunTool.ammo - amount)
+    return true
+end
+
 -- Refill universal ammo; suckLight calls this as dead enemies' light reaches the player.
 function GunTool.addAmmo(amount)
     GunTool.ammo = math.min(GunTool.maxAmmo, GunTool.ammo + amount)

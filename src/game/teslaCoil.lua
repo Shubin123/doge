@@ -13,6 +13,7 @@ local config = {
     collision_radius = 15, -- Radius for endpoint collision detection
     lock_range = 400, -- Bolts attach to enemies up to this far from the coil...
     lock_angle = 60, -- ...and up to this many degrees either side of the aim
+    damage_per_second = 4, -- per bolt on an enemy (enemies have 1 health)
     colors = {
         spark = { 1, 1, 1 },
         glow = { 0.35, 0.6, 1.0 } -- electric blue around the white core
@@ -178,8 +179,8 @@ local function drawArcs(toX, toY, scale)
     local glow, spark = config.colors.glow, config.colors.spark
     love.graphics.setBlendMode("add")
     local layers = {
-        { 12, glow[1], glow[2], glow[3], 0.4 },
-        { 4, (glow[1] + 1) / 2, (glow[2] + 1) / 2, (glow[3] + 1) / 2, 0.75 },
+        { 5, glow[1], glow[2], glow[3], 0.4 },
+        { 2, (glow[1] + 1) / 2, (glow[2] + 1) / 2, (glow[3] + 1) / 2, 0.75 },
     }
     for _, layer in ipairs(layers) do
         love.graphics.setLineWidth(layer[1] * scale)
@@ -197,7 +198,7 @@ local function drawArcs(toX, toY, scale)
     love.graphics.setColor(spark[1], spark[2], spark[3], brightness)
     for _, bolt in ipairs(state.bolts) do
         for i = 1, #bolt - 1 do
-            drawPixelLine(toX(bolt[i].x), toY(bolt[i].y), toX(bolt[i + 1].x), toY(bolt[i + 1].y), 2 * scale)
+            drawPixelLine(toX(bolt[i].x), toY(bolt[i].y), toX(bolt[i + 1].x), toY(bolt[i + 1].y), scale)
         end
     end
 end
@@ -333,13 +334,27 @@ function teslaCoil.fireAt(x, y, world)
     end
 end
 
+-- Every bolt that lands on an enemy this frame burns it for
+-- damage_per_second; several bolts on one enemy stack.
+local function shockTargets(dt)
+    for _, body in ipairs(state.encapsulated_objects) do
+        if not body:isDestroyed() then
+            local fixture = body:getFixtures()[1]
+            if fixture and fixture:getGroupIndex() == collision.groups.enemy then
+                enemy.damageEnemy(fixture:getUserData(), config.damage_per_second * dt)
+            end
+        end
+    end
+end
+
 function teslaCoil:update(dt)
     teslaCoil.timer = teslaCoil.timer + dt
     if teslaCoil.timer < teslaCoil.cooldown and teslaCoil.firing then
-        if gun.useAmmo(teslaCoil.ammoPerSecond * dt) then
+        if gun.drainAmmo(teslaCoil.ammoPerSecond * dt) then
             -- You'll need to pass the physics world here
             teslaCoil.fireAt(player.body:getX() + gun.lastAimDirection.x * 400,
                 player.body:getY() + gun.lastAimDirection.y * 400, world)
+            shockTargets(dt)
         else
             teslaCoil.timer = teslaCoil.cooldown -- out of ammo: wind down next frame
         end

@@ -520,6 +520,72 @@ function enemy.removeEnemy(enemy_index)
     end
 end
 
+-- Plain-data snapshot of every enemy slot for save files (util/serial.lua).
+-- Dead slots are kept so each live enemy keeps its index, and with it its sprite.
+function enemy.getSaveData()
+    local slots = {}
+    for i, e in ipairs(enemy.enemies) do
+        if e.dead then
+            slots[i] = { dead = true }
+        else
+            local x, y = e.body:getPosition()
+            local vx, vy = e.body:getLinearVelocity()
+            local sprite = gun_enemies[i + 1]
+            slots[i] = {
+                x = x, y = y, vx = vx, vy = vy,
+                health = e.health,
+                character = sprite and sprite.getCharacterType(),
+            }
+        end
+    end
+    local queue = {}
+    for i, spawn in ipairs(enemy.spawnQueue) do
+        queue[i] = { x = spawn.x, y = spawn.y, charType = spawn.charType, index = spawn.index }
+    end
+    return { slots = slots, spawn_queue = queue }
+end
+
+-- Replace every enemy with the ones in a getSaveData() snapshot. Current
+-- enemies are removed quietly: no death light, no fade.
+function enemy.restore(data)
+    for i, e in ipairs(enemy.enemies) do
+        if not e.released then
+            if not e.dead then
+                e:killEnemy()
+            end
+            for _, b in ipairs(e.projectile_bodies) do
+                if not b:isDestroyed() then b:destroy() end
+            end
+            releaseEnemy(i)
+        end
+    end
+    enemy.enemies = {}
+    enemy.health = {}
+    enemy.enemy_damaged = {}
+    enemy.last_fire_times = {}
+
+    for i, slot in ipairs(data.slots or {}) do
+        local sprite = gun_enemies[i + 1]
+        if slot.dead then
+            enemy.enemies[i] = RELEASED
+        else
+            local index = enemy.addEnemy(slot.x, slot.y)
+            local e = enemy.enemies[index + 1]
+            e.body:setLinearVelocity(slot.vx or 0, slot.vy or 0)
+            e.health = slot.health or e.health
+            enemy.health[index] = e.health
+            if sprite then
+                sprite.on = true
+                sprite.opacity = nil
+                sprite.setCharacterType(slot.character or sprite.getCharacterType() or "watchman")
+            end
+        end
+    end
+
+    enemy.spawnQueue = data.spawn_queue or {}
+    enemy.spawningComplete = #enemy.spawnQueue == 0
+end
+
 function enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)
     local e = enemy.enemies[enemy_index]
     if e then

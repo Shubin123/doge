@@ -548,10 +548,14 @@ function map.createArches(pivot_x, pivot_y)
 end
 
 -- Improved tree creation
+-- createTree(x, y) puts the tree object at x + TREE_OFFSET_X; save data stores
+-- the createTree argument so a save/restore round trip doesn't drift.
+local TREE_OFFSET_X = 20
+
 function map.createTree(x, y)
     local tree = map.createDynamicObject({
         type = "tree",
-        x = x + 20,
+        x = x + TREE_OFFSET_X,
         y = y,
         width = 156,
         height = 156,
@@ -1060,7 +1064,7 @@ function map.createSaveData()
     map_data.trees = {}
     for i, tree in ipairs(map.treeInstances) do
         map_data.trees[i] = {
-            x = tree.x,
+            x = tree.x - TREE_OFFSET_X,
             y = tree.y,
             id = tree.id
         }
@@ -1115,7 +1119,7 @@ function map.createSaveDataSmall()
     map_data.trees = {}
     for i, tree in ipairs(map.treeInstances) do
         map_data.trees[i] = {
-            x = tree.x,
+            x = tree.x - TREE_OFFSET_X,
             y = tree.y,
             id = tree.id
         }
@@ -1156,6 +1160,7 @@ function map.restore(map_data)
                 map.map.tileData[y][x] = map_data.base_tiles.tile_data[y] and map_data.base_tiles.tile_data[y][x] or 0
             end
         end
+        map.map.dirty = true -- rebuild the sprite batch from the restored tiles
     end
 
     -- Clear existing arches
@@ -1196,6 +1201,10 @@ function map.restore(map_data)
 
     -- Restore houses
     if map_data.houses then
+        for _, house in ipairs(map.houseInstances) do
+            house:destroy()
+        end
+        map.houseInstances = {}
         for _, house_data in ipairs(map_data.houses) do
             map.createHouse(house_data.x, house_data.y)
         end

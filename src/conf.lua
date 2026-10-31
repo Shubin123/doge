@@ -68,6 +68,10 @@ var.graphics_high = true -- for now just a high settings for all the shaders or 
 var.indoors = false
 
 function love.conf(t)
+    -- Save directory name. Without it LOVE names the folder after however the
+    -- game was launched (source folder, .love file, fused executable), so saves
+    -- from one build wouldn't show up in another.
+    t.identity = "doge"
     t.window.depth = 16
     -- t.window.fsaa = 20           
 -- print(t)

@@ -495,10 +495,7 @@ function love.keypressed(key)
     -- end
 
     if key == "escape" then
-        var.State = (var.State == "menu") and "running" or "menu"
-        -- print(var.State)
-        menu.blur = not menu.blur
-        blur.blur_enabled = not blur.blur_enabled
+        menu.escape()
 
         -- blur.set_radius(0.00001)
     end
@@ -585,15 +582,18 @@ function quad_in_out(a, b, t)
     end
 end
 
+function createCoin(x, y)
+    coin_shape = coin_shape or love.physics.newCircleShape(5)
+    local _bod = love.physics.newBody(world, x, y, "dynamic")
+    table.insert(coin_bods, 1, _bod)
+    local _fixture = love.physics.newFixture(_bod, coin_shape)
+    _fixture:setGroupIndex(69)
+    return _bod, _fixture
+end
+
 function createCoins(n)
     for _ = 1, n do
-        local _bod = love.physics.newBody(world, math.random(200, var.game_width + 200),
-            math.random(50, var.game_height + 50),
-            "dynamic")
-        table.insert(coin_bods, 1, _bod)
-        _fixture = love.physics.newFixture(_bod, coin_shape)
-
-        _fixture:setGroupIndex(69)
+        createCoin(math.random(200, var.game_width + 200), math.random(50, var.game_height + 50))
     end
 end
 

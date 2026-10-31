@@ -1,294 +1,224 @@
--- Enhanced serial module with map data serialization
+--[[
+  Save / load. A save is the whole game state as JSON, zlib-compressed, in
+  LÖVE's save directory. Only LÖVE builtins touch the disk (love.filesystem,
+  love.data), never io/os paths, so it works wherever LÖVE does: desktop,
+  fused apps whose own folder is read-only, mobile, and the browser build
+  (where the save directory is IndexedDB).
+
+  Systems with more than a handful of fields own their snapshot format
+  (map.createSaveData / map.restore, enemy.getSaveData / enemy.restore,
+  boss.getSaveData / boss.restore, command.getCommandBlocks /
+  command.setCommandBlocks); this module gathers them and applies them.
+]]
 local serial = {}
 
+serial.VERSION = 2
+serial.EXTENSION = ".sav"
+serial.QUICKSAVE = "quicksave" .. serial.EXTENSION
+
+local function captureCoins()
+    local coins = {}
+    for _, body in ipairs(coin_bods) do
+        if not body:isDestroyed() then
+            local x, y = body:getPosition()
+            local vx, vy = body:getLinearVelocity()
+            local fixture = body:getFixtures()[1]
+            local data = fixture and fixture:getUserData()
+            table.insert(coins, {
+                x = x, y = y, vx = vx, vy = vy,
+                -- Merged coins carry their grown size and summed value
+                size = type(data) == "table" and data.size or nil,
+                value = type(data) == "table" and data.value or nil,
+            })
+        end
+    end
+    return coins
+end
+
+local function restoreCoins(coins)
+    for _, body in ipairs(coin_bods) do
+        if not body:isDestroyed() then
+            body:destroy()
+        end
+    end
+    coin_bods = {}
+    -- createCoin inserts at the front, so go backwards to keep the order
+    for i = #coins, 1, -1 do
+        local c = coins[i]
+        local body, fixture = createCoin(c.x, c.y)
+        body:setLinearVelocity(c.vx or 0, c.vy or 0)
+        if c.size or c.value then
+            fixture:setUserData({ size = c.size, value = c.value })
+        end
+    end
+    var.num_coins = #coins
+end
+
+local function captureCars()
+    local cars = {}
+    for i, c in ipairs(car.cars) do
+        local x, y = c.body:getPosition()
+        local vx, vy = c.body:getLinearVelocity()
+        cars[i] = { x = x, y = y, vx = vx, vy = vy, angle = c.body:getAngle() }
+    end
+    return cars
+end
+
+local function restoreCars(cars)
+    for i, saved in ipairs(cars) do
+        local c = car.cars[i]
+        if c and c.body then
+            c.body:setPosition(saved.x, saved.y)
+            c.body:setLinearVelocity(saved.vx or 0, saved.vy or 0)
+            c.body:setAngle(saved.angle or 0)
+        end
+    end
+end
+
+-- The whole game state as plain, JSON-encodable data.
 function serial.create()
-    local game_state = {}
+    local px, py = player.body:getPosition()
+    local pvx, pvy = player.body:getLinearVelocity()
 
-    -- Update local player from physics before capturing
-    renderer.updateLocalPlayerFromPhysics()
-
-    -- Capture player state
-    game_state.player = renderer.local_player_state
-
-    -- Capture enemy data from physics bodies
-    game_state.enemies = {}
-    if enemies_bods then
-        for i = 1, #enemies_bods do
-            local ex, ey = enemies_bods[i]:getX(), enemies_bods[i]:getY()
-            game_state.enemies[i] = {
-                x = ex,
-                y = ey,
-                active = true
-            }
-        end
-    end
-
-    -- Capture coin data from physics bodies
-    game_state.coins = {}
-    if coin_bods then
-        for i = 1, #coin_bods do
-            local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-            game_state.coins[i] = {
-                x = cx,
-                y = cy,
-                active = true
-            }
-        end
-    end
-
-    -- Capture fire effects
-    game_state.fire_effects = fire.getNetworkData() or {}
-
-    -- NEW: Capture map data
-    game_state.map_data = serial.captureMapData()
-    -- Capture command blocks (using the same serializable format as networking)
-    game_state.command_blocks = command.getCommandBlocks()
-
-    -- Capture additional game state data
-    game_state.game_data = {
-        level = var.level or 1,
-        score = var.score or 0,
-        time_played = var.time_played or 0,
-        difficulty = var.difficulty or 1,
-        -- Add any other global game variables you want to save
-    }
-
-    -- Add metadata
-    game_state.metadata = {
-        version = "1.1", -- Incremented version for map data support
+    return {
+        version = serial.VERSION,
         timestamp = os.time(),
-        save_type = "offline"
+        platform = love.system.getOS(),
+
+        player = {
+            x = px, y = py, vx = pvx, vy = pvy,
+            health = player.health,
+            lights_on = player.lightsOn,
+        },
+        inventory = {
+            weapon = gun.currentWeaponIndex,
+            ammo = gun.ammo,
+            fireballs = fire.getAvailableCount(),
+            fireball_regen = fire.regen_timer,
+        },
+        world = {
+            score = var.player_score,
+            indoors = var.indoors,
+        },
+        map = map.createSaveData(),
+        coins = captureCoins(),
+        enemies = enemy.getSaveData(),
+        bosses = boss.getSaveData(),
+        cars = captureCars(),
+        command_blocks = command.getCommandBlocks(),
     }
-
-    return game_state
 end
 
--- NEW: Function to capture map data including arches and trees
-function serial.captureMapData()
-    local map_data = {}
-    
-    -- Capture base tile map data if map module is available
-    if map and map.map and map.map.tileData then
-        map_data.base_tiles = {
-            width = map.map.width,
-            height = map.map.height,
-            tile_data = {}
-        }
-        
-        -- Deep copy tile data
-        for y = 1, map.map.height do
-            map_data.base_tiles.tile_data[y] = {}
-            for x = 1, map.map.width do
-                map_data.base_tiles.tile_data[y][x] = map.map.tileData[y] and map.map.tileData[y][x] or 0
-            end
-        end
+-- Put the game into a state produced by serial.create.
+function serial.apply(state)
+    if type(state) ~= "table" or state.version ~= serial.VERSION then
+        return false, "Unsupported save version " .. tostring(type(state) == "table" and state.version)
     end
-    
-    -- Capture arch instances
-    map_data.arches = {}
-    if map and map.archInstances then
-        for i, arch in ipairs(map.archInstances) do
-            map_data.arches[i] = {
-                pivot_x = arch.pivot_x,
-                pivot_y = arch.pivot_y,
-                id = arch.id,
-                visual_offset_x = arch.visual_offset_x,
-                visual_offset_y = arch.visual_offset_y
-            }
-        end
+
+    -- The world first, then what lives in it
+    if state.map and not map.restore(state.map) then
+        return false, "Failed to restore map data"
     end
-    
-    -- Capture tree instances
-    map_data.trees = {}
-    if map and map.treeInstances then
-        for i, tree in ipairs(map.treeInstances) do
-            map_data.trees[i] = {
-                x = tree.x,
-                y = tree.y,
-                id = tree.id
-            }
-        end
+    if state.coins then restoreCoins(state.coins) end
+    if state.enemies then enemy.restore(state.enemies) end
+    if state.bosses then boss.restore(state.bosses) end
+    if state.cars then restoreCars(state.cars) end
+    if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
+
+    local p = state.player
+    if p then
+        player.body:setPosition(p.x, p.y)
+        player.body:setLinearVelocity(p.vx or 0, p.vy or 0)
+        player.health = p.health or player.maxHealth
+        player.lightsOn = p.lights_on ~= false
     end
-    
-    return map_data
+
+    local inv = state.inventory
+    if inv then
+        gun.switchGun(inv.weapon or 1)
+        gun.ammo = math.min(inv.ammo or gun.maxAmmo, gun.maxAmmo)
+        local fireballs = math.min(inv.fireballs or 0, fire.max_fireballs)
+        while fire.getAvailableCount() > fireballs do fire.removeFireball() end
+        while fire.getAvailableCount() < fireballs do fire.addFireball() end
+        fire.regen_timer = inv.fireball_regen or 0
+    end
+
+    if state.world then
+        var.player_score = state.world.score or 0
+        var.indoors = state.world.indoors or false
+    end
+
+    return true, "Save loaded"
 end
 
-
-
-
-function serial.apply(game_state)
-    -- Validate the save data
-    if not game_state or not game_state.metadata or game_state.metadata.save_type ~= "offline" then
-        return false, "Invalid save data"
+-- Read and decode a save file; nil and a message on failure.
+local function readState(filename)
+    if not love.filesystem.getInfo(filename, "file") then
+        return nil, "Save file not found: " .. filename
     end
-
-    -- Apply player state
-    if game_state.player then
-        -- Set player position and state
-        if player.body then
-            player.body:setPosition(game_state.player.x, game_state.player.y)
-        end
-
-        -- Restore player health and other stats
-        player.health = game_state.player.health or 100
-
-        -- Apply any other player-specific data
-        renderer.local_player_state = game_state.player
+    local contents, err = love.filesystem.read(filename)
+    if not contents then
+        return nil, "Failed to read " .. filename .. ": " .. tostring(err)
     end
-
-    -- Restore enemies
-    if game_state.enemies then
-        -- Clear existing enemies first
-        if enemies_bods then
-            for i = 1, #enemies_bods do
-                if enemies_bods[i] then
-                    enemies_bods[i]:destroy()
-                end
-            end
-        end
-        enemies_bods = {}
-
-        -- Recreate enemies from save data
-        for i, enemy_data in pairs(game_state.enemies) do
-            if enemy_data.active then
-                enemy.addEnemy(enemy_data.x, enemy_data.y)
-            end
-        end
+    -- Saves are compressed; saveToFileUncompressed writes plain JSON
+    local inflated, text = pcall(love.data.decompress, "string", "zlib", contents)
+    local ok, state = pcall(json.decode, inflated and text or contents)
+    if not ok or type(state) ~= "table" then
+        return nil, "Failed to parse " .. filename
     end
-
-    -- Restore coins
-    if game_state.coins then
-        -- Clear existing coins first
-        if coin_bods then
-            for i = 1, #coin_bods do
-                if coin_bods[i] then
-                    coin_bods[i]:destroy()
-                end
-            end
-        end
-        coin_bods = {}
-
-        -- Recreate coins from save data
-        for i, coin_data in pairs(game_state.coins) do
-            if coin_data.active then
-                -- Create new coin body (adapt to your coin creation system)
-                local coin_body = love.physics.newBody(world, coin_data.x, coin_data.y, "static")
-                -- Add appropriate shape and fixture based on your coin system
-                _fixture = love.physics.newFixture(coin_body, love.physics.newCircleShape(5))
-                _fixture:setGroupIndex(69)
-
-                table.insert(coin_bods, coin_body)
-            end
-        end
-    end
-
-    -- NEW: Restore map data
-    if game_state.map_data then
-        local success = map.restore(game_state.map_data)
-        if not success then
-            return false, "Failed to restore map data"
-        end
-    end
-    if game_state.command_blocks then
-        command.setCommandBlocks(game_state.command_blocks)
-    end
-
-    -- Restore fire effects (commented out in original)
-    -- if game_state.fire_effects then
-    --     fire.loadNetworkData(game_state.fire_effects)
-    -- end
-
-    -- Restore game data
-    if game_state.game_data then
-        var.level = game_state.game_data.level or 1
-        var.score = game_state.game_data.score or 0
-        var.time_played = game_state.game_data.time_played or 0
-        var.difficulty = game_state.game_data.difficulty or 1
-        -- Restore other game variables as needed
-    end
-
-    return true, "Save loaded successfully"
+    return state
 end
 
--- Save game state to file
+local function encodeState()
+    local ok, result = pcall(function() return json.encode(serial.create()) end)
+    if not ok then
+        return nil, "Failed to capture game state: " .. tostring(result)
+    end
+    return result
+end
+
+-- Save game state to a file in the save directory
 function serial.saveToFile(filename)
-    local game_state = serial.create()
+    local encoded, err = encodeState()
+    if not encoded then return false, err end
 
-    -- Convert to JSON and compress
-    local json_string = json.encode(game_state)
-    local compressed_data = love.data.compress("data", "zlib", json_string, 9)
-
-    -- Write to file (binary mode required on Windows to prevent newline translation)
-    local f = io.open(filename, "wb")
-    if not f then
-        return false, "Failed to open file for writing"
+    local written, writeErr = love.filesystem.write(filename, love.data.compress("data", "zlib", encoded, 9))
+    if not written then
+        return false, "Failed to write " .. filename .. ": " .. tostring(writeErr)
     end
-
-    f:write(compressed_data:getString()) -- 3x smaller than raw json even on small data
-    f:close()
-
-    return true, "Game saved successfully"
+    return true, "Game saved to " .. love.filesystem.getSaveDirectory() .. "/" .. filename
 end
 
+-- Same as saveToFile but human-readable JSON, for debugging; loads the same way
 function serial.saveToFileUncompressed(filename)
-    local game_state = serial.create()
+    local encoded, err = encodeState()
+    if not encoded then return false, err end
 
-    local json_string = json.encode(game_state)
-
-    local f = io.open(filename, "w")
-    if not f then
-        return false, "Failed to open file for writing"
+    local written, writeErr = love.filesystem.write(filename, encoded)
+    if not written then
+        return false, "Failed to write " .. filename .. ": " .. tostring(writeErr)
     end
-
-    f:write(json_string)
-    f:close()
-
-    return true, "Game saved successfully"
+    return true, "Game saved to " .. love.filesystem.getSaveDirectory() .. "/" .. filename
 end
 
--- Load game state from file
+-- Load game state from a file in the save directory
 function serial.loadFromFile(filename)
-    -- Check if file exists by trying to open it
-    local f = io.open(filename, "rb") -- binary mode required on Windows
-    if not f then
-        return false, "Save file not found"
-    end
-    
-    -- Read compressed data from file
-    local compressed_data = f:read("*all")
-    f:close()
-    
-    if not compressed_data or compressed_data == "" then
-        return false, "Failed to read save file"
-    end
+    local state, err = readState(filename)
+    if not state then return false, err end
 
-    -- Decompress and decode JSON
-    -- print(compressed_data)
-    local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
-    if not success then
-        return false, "Failed to decompress save file"
+    local ok, applied, message = pcall(serial.apply, state)
+    if not ok then
+        return false, "Failed to apply save: " .. tostring(applied)
     end
-    
-    local success, game_state = pcall(json.decode, decompressed_data)
-    if not success then
-        return false, "Failed to parse save file"
-    end
-    
-    -- Apply the loaded state
-    local apply_success, apply_message = serial.apply(game_state)
-
-    return apply_success, apply_message
+    return applied, message
 end
 
--- Get list of available save files (cross-platform using love.filesystem)
+-- Saves in the save directory, newest first
 function serial.getSaveFiles()
     local save_files = {}
-
-    -- love.filesystem.getDirectoryItems lists files in the save directory
-    local items = love.filesystem.getDirectoryItems("")
-    for _, filename in ipairs(items) do
-        if filename:match("%.sav$") then
-            local info = love.filesystem.getInfo(filename)
+    for _, filename in ipairs(love.filesystem.getDirectoryItems("")) do
+        if filename:sub(-#serial.EXTENSION) == serial.EXTENSION then
+            local info = love.filesystem.getInfo(filename, "file")
             if info then
                 table.insert(save_files, {
                     filename = filename,
@@ -306,70 +236,48 @@ function serial.getSaveFiles()
     return save_files
 end
 
--- Delete a save file
 function serial.deleteSave(filename)
-    local success = os.remove(filename)
-    return success ~= nil
+    return love.filesystem.remove(filename)
 end
 
--- Quick save function (saves to "quicksave.sav")
 function serial.quickSave()
-    return serial.saveToFile("./quicksave.sav")
+    local ok, message = serial.saveToFile(serial.QUICKSAVE)
+    print(message)
+    return ok, message
 end
 
--- Quick load function (loads from "quicksave.sav")
 function serial.quickLoad()
-    return serial.loadFromFile("./quicksave.sav")
+    local ok, message = serial.loadFromFile(serial.QUICKSAVE)
+    print(message)
+    return ok, message
 end
 
--- NEW: Utility function to get save file info including map data summary
+-- Summary of a save file without loading it
 function serial.getSaveInfo(filename)
-    local f = io.open(filename, "r")
-    if not f then
-        return nil, "Save file not found"
-    end
-    
-    local compressed_data = f:read("*all")
-    f:close()
-    
-    if not compressed_data or compressed_data == "" then
-        return nil, "Failed to read save file"
-    end
-    
-    local success, decompressed_data = pcall(love.data.decompress, "data", "zlib", compressed_data)
-    if not success then
-        return nil, "Failed to decompress save file"
-    end
-    
-    local success, game_state = pcall(json.decode, decompressed_data)
-    if not success then
-        return nil, "Failed to parse save file"
-    end
-    
-    -- Extract summary information
-    local info = {
-        version = game_state.metadata and game_state.metadata.version or "Unknown",
-        timestamp = game_state.metadata and game_state.metadata.timestamp or 0,
-        level = game_state.game_data and game_state.game_data.level or "Unknown",
-        score = game_state.game_data and game_state.game_data.score or 0,
-        time_played = game_state.game_data and game_state.game_data.time_played or 0,
-        enemy_count = game_state.enemies and #game_state.enemies or 0,
-        coin_count = game_state.coins and #game_state.coins or 0,
-    }
-    
-    -- Add map data summary if available
-    if game_state.map_data then
-        info.arch_count = game_state.map_data.arches and #game_state.map_data.arches or 0
-        info.tree_count = game_state.map_data.trees and #game_state.map_data.trees or 0
-        info.has_map_tiles = game_state.map_data.base_tiles ~= nil
-    else
-        info.arch_count = 0
-        info.tree_count = 0
-        info.has_map_tiles = false
-    end
-    
-    return info, "Success"
-end
+    local state, err = readState(filename)
+    if not state then return nil, err end
 
+    local alive = 0
+    for _, slot in ipairs(state.enemies and state.enemies.slots or {}) do
+        if not slot.dead then alive = alive + 1 end
+    end
+    local map_data = state.map or {}
+
+    return {
+        version = state.version,
+        timestamp = state.timestamp or 0,
+        platform = state.platform,
+        score = state.world and state.world.score or 0,
+        health = state.player and state.player.health,
+        ammo = state.inventory and state.inventory.ammo,
+        enemy_count = alive,
+        boss_count = state.bosses and #state.bosses or 0,
+        coin_count = state.coins and #state.coins or 0,
+        arch_count = map_data.arches and #map_data.arches or 0,
+        tree_count = map_data.trees and #map_data.trees or 0,
+        house_count = map_data.houses and #map_data.houses or 0,
+        has_map_tiles = map_data.base_tiles ~= nil,
+    }, "Success"
+end
 
 return serial

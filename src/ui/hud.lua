@@ -5,6 +5,8 @@
 -- Everything is laid out in GUI units (one icon pixel) and scaled up by a whole
 -- number so the pixel art stays crisp.
 
+local skin = require("ui.skin")
+
 local hud = {}
 
 local SLOTS = 9              -- hotbar slots; weapons fill from the left
@@ -259,12 +261,6 @@ function hud.load()
     font:setFilter("nearest", "nearest")
 end
 
--- Largest whole GUI scale that fits a 320x240 layout, like Minecraft's "auto".
-local function guiScale()
-    local w, h = love.graphics.getDimensions()
-    return math.max(1, math.min(math.floor(w / 320), math.floor(h / 240)))
-end
-
 local function box(x, y, w, h)
     love.graphics.rectangle("fill", x, y, w, h)
 end
@@ -417,15 +413,14 @@ local function drawWeaponName(cx, y, ts)
 end
 
 function hud.draw()
-    local u = guiScale()
+    local u = skin.guiScale()
     local screenW, screenH = love.graphics.getDimensions()
     local slots = math.max(SLOTS, #gun.guns)
     local width = slots * 20 + 2
     -- Hotbar position in units, snapped to whole pixels.
     local x = math.floor((screenW / u - width) / 2)
     local y = math.floor(screenH / u) - 23
-    -- One font pixel in units: the 16px font reads like Minecraft's 8-unit text.
-    local ts = math.max(1, math.floor(u / 2)) / u
+    local ts = skin.textScale(u)
 
     local prevFont = love.graphics.getFont()
     love.graphics.setShader()
