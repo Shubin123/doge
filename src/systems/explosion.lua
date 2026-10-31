@@ -202,17 +202,26 @@ function explosion.applyShockwave()
             shockwave_shader:send("maxRadius", e.shockwaveMaxRadius * camera.zoom)
             shockwave_shader:send("distortionStrength", 22.0)
 
+            -- Both copies must be exact: the default alpha blend multiplies RGB
+            -- by alpha on every draw, and the current colour tints it, so the
+            -- scene came back darker wherever it isn't fully opaque.
+            local r, g, b, a = love.graphics.getColor()
+            local blend_mode, alpha_mode = love.graphics.getBlendMode()
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.setBlendMode("replace", "premultiplied")
+
             -- Render distorted version of scene_canvas into temp_canvas
             love.graphics.setCanvas(explosion.temp_canvas)
-            love.graphics.clear(0, 0, 0, 0)
             love.graphics.setShader(shockwave_shader)
             love.graphics.draw(scene_canvas)
             love.graphics.setShader()
 
             -- Write distorted result back into scene_canvas
             love.graphics.setCanvas(scene_canvas)
-            love.graphics.clear(0, 0, 0, 0)
             love.graphics.draw(explosion.temp_canvas)
+
+            love.graphics.setBlendMode(blend_mode, alpha_mode)
+            love.graphics.setColor(r, g, b, a)
 
             break -- only apply one explosion per frame
         end
