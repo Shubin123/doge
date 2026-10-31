@@ -663,95 +663,41 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     -- characterAnimator.shader:send("steveWalkUVBounds", {0, 0, 0, 0})
     
     -- below shader is for fully lit sprites so no need for shadow/light info
+    -- The death light: dying enemies (fading, 0 < onoff < 1) drawn into the
+    -- yellowNeon glow chain. Whatever the sprite's colours (most enemies are
+    -- dark, which made the glow vanish for them), its silhouette burns white so
+    -- the chain blooms it, fading with the body. Placement is the main pass's
+    -- exactly: same vertex stage, drawn under camera.apply() too.
     characterAnimator.shaderWithTransforms = love.graphics.newShader([[
-        varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
-        varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
         varying LOVE_HIGHP_OR_MEDIUMP float VFade;
 
         #ifdef VERTEX
-        uniform vec3 cameraPosition; // z component is zoom
-attribute vec4 InstanceUVData; 
-attribute vec4 color;
-attribute vec3 InstanceMatrix1; 
-attribute vec3 InstanceMatrix2; 
-attribute vec3 InstanceMatrix4; 
+attribute vec4 InstanceUVData;
+attribute vec3 InstanceMatrix1;
+attribute vec3 InstanceMatrix2;
+attribute vec3 InstanceMatrix4;
 attribute float onoff;
 
-// The death light: only dying enemies (fading, onoff below 1) glow here,
-// fading with them. Padding entries (onoff 0) sit far off-screen.
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
-if (onoff < 1.0) {
-    vec2 localUV = VaryingTexCoord.xy;
-    VColor = vec4(color);
-    VFade = onoff;
-    VaryingUV = vec2(
-        InstanceUVData.x + localUV.x * InstanceUVData.z,
-        InstanceUVData.y + localUV.y * InstanceUVData.w
-    );
-
-    mat3 instance_matrix = mat3(
-        InstanceMatrix1,
-        InstanceMatrix2, 
-        InstanceMatrix4
-    );
-
-    // World position as in the main pass, then to the screen (this pass runs
-    // after love.graphics.reset()). The camera used to be applied inside the
-    // instance matrix, which scaled it by the sprite's scale and put the glow
-    // off the body by a fraction of the camera offset.
-    vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
-    worldPos.xy = worldPos.xy * cameraPosition.z + cameraPosition.xy;
-    
-
-    pos = worldPos.xy;
-
-    return transform_projection * vec4(worldPos.xy, 0, 1.0);
+    if (onoff > 0.0 && onoff < 1.0) {
+        vec2 localUV = VaryingTexCoord.xy;
+        VFade = onoff;
+        VaryingUV = InstanceUVData.xy + localUV * InstanceUVData.zw;
+        mat3 instance_matrix = mat3(InstanceMatrix1, InstanceMatrix2, InstanceMatrix4);
+        vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
+        return transform_projection * vec4(worldPos.xy, 0.0, 1.0);
+    }
+    return vec4(0.0);
 }
-return vec4(0.0);
-}
-#endif
+        #endif
 
         #ifdef PIXEL
         uniform Image MainTex;
 
         void effect() {
-            vec4 texColor = Texel(MainTex, VaryingUV);
-            
-            vec4 finalColor = vec4(texColor);
-
-            if (VColor.w > 0.0) {
-                // If current pixel is transparent, check if any nearby pixels are opaque
-                if (texColor.a < 0.1) {
-                    float outline = 0.0;
-
-                    // Use a small fixed offset for sampling (adjust based on your atlas resolution)
-                    float pixelOffset = VColor.w * 0.0001; // Adjust this value as needed
-
-                    // 8-directional sampling for outline detection
-                    for (int x = -1; x <= 1; x++) {
-                        for (int y = -1; y <= 1; y++) {
-                            if (x == 0 && y == 0) continue;
-
-                            vec2 offset = vec2(float(x), float(y)) * pixelOffset;
-                            vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
-
-                            if (sampleColor.a > 0.1) {
-                                outline = 1.0;
-                                break;
-                            }
-                        }
-                        if (outline > 0.0) break;
-                    }
-
-                    if (outline > 0.0) {
-                        finalColor = VColor;
-                    }
-                }
-            }
-
-            finalColor *= VFade;
-            love_Canvases[0] = finalColor;
+            float a = Texel(MainTex, VaryingUV).a * VFade;
+            love_Canvases[0] = vec4(vec3(a), a);
         }
         #endif
     ]])
@@ -1050,33 +996,36 @@ function characterAnimator.populate()
     instanceMesh:setVertices(instanceData)
 end
 
-function characterAnimator.draw()
-    -- yellowNeon.godsray.light_x ,yellowNeon.godsray.light_y = gun.lastAimDirection.x, gun.lastAimDirection.y
+--- Draw every character instance with `shader` (characterAnimator.shader for
+--- the sprites, .shaderWithTransforms for the death light), in world space:
+--- call under camera.apply().
+function characterAnimator.drawInstances(shader)
+    love.graphics.setShader(shader)
+    love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
+    love.graphics.setShader()
+end
 
-    if var.graphics_high then -- wont be toggle will light up when hit with bullets or spells
+function characterAnimator.draw()
+    -- Upload this frame's instances here, after enemy.populate has synced them
+    -- to their bodies and enemy.update has advanced death fades. (Uploading in
+    -- update, before physics, drew every sprite a frame behind its body.)
+    characterAnimator.populate()
+
+    if var.graphics_high then
         love.graphics.push()
-        love.graphics.reset()
+        love.graphics.reset() -- the chain's full-screen passes must not inherit the camera
 
         yellowNeon.godsray.exposure = math.abs(math.sin(fire.t))
         yellowNeon(function()
-            local camPos = {camera.pos.x, camera.pos.y, camera.zoom}
-            -- camPos[0] = {camera.pos.x,camera.pos.y}
-            -- camPos[1] = {camera.pos.y}
-            characterAnimator.shaderWithTransforms:send("cameraPosition", camPos)
-            love.graphics.setShader(characterAnimator.shaderWithTransforms)
-            love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
-            love.graphics.setShader()
-
+            love.graphics.push()
+            camera.apply()
+            characterAnimator.drawInstances(characterAnimator.shaderWithTransforms)
+            love.graphics.pop()
         end)
         love.graphics.pop()
     end
-    -- else 
 
-    love.graphics.setShader(characterAnimator.shader)
-    love.graphics.drawInstanced(mesh, characterAnimator.instanceCount)
-    love.graphics.setShader()
-
-    -- end
+    characterAnimator.drawInstances(characterAnimator.shader)
 
 end
 
@@ -1147,8 +1096,7 @@ function characterAnimator.update(dt)
         end
         characterAnimator.frameTime = 0
     end
-
-    characterAnimator.populate()
+    -- (Instances are uploaded in characterAnimator.draw.)
 end
 
 return characterAnimator

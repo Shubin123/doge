@@ -32,3 +32,12 @@ def test_gpu_regression(tmp_path, capsys):
     report = json.loads(capsys.readouterr().out)
     print(json.dumps({k: report.get(k) for k in ("status", "failures", "perf")}, indent=2))
     assert code == 0, report.get("failures") or report.get("error")
+
+
+@pytest.mark.skipif(not _love_available(), reason="LOVE 11.x not found (set $LOVE)")
+def test_gpu_checks(tmp_path, capsys):
+    """The functional checks in tests/gpu/checks/ (enemy sprites and death light)."""
+    code = gpu_run.main(["--checks", "--json", "--out", str(tmp_path)])
+    report = json.loads(capsys.readouterr().out)
+    print(json.dumps({k: report.get(k) for k in ("status", "failures")}, indent=2))
+    assert code == 0, report.get("failures") or report.get("error")

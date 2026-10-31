@@ -8,7 +8,8 @@
     "build:web": "./buildjs.sh",
     "test:web:smoke": "node tools/test_web_smoke.js",
     "test:web": "npm run build:web && npm run test:web:smoke",
-    "test:gpu": "python3 tests/gpu/run.py"
+    "test:gpu": "python3 tests/gpu/run.py",
+    "test:gpu:checks": "python3 tests/gpu/run.py --checks"
   },
   "devDependencies": {
     "love.js": "11.4.1",

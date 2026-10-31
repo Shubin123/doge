@@ -717,8 +717,11 @@ function enemy.populate()
     end
     local halfW = var.screen_width / camera.zoom / 2 + 100
     local halfH = var.screen_height / camera.zoom / 2 + 100
-    local camX = -camera.pos.x / camera.zoom
-    local camY = -camera.pos.y / camera.zoom
+    -- World point at the centre of the screen (screen = (world + camera/zoom) * zoom).
+    -- This used to be -camera/zoom, the top-left corner, so enemies in the right
+    -- and lower parts of the screen were treated as off-screen.
+    local camX = (var.screen_width / 2 - camera.pos.x) / camera.zoom
+    local camY = (var.screen_height / 2 - camera.pos.y) / camera.zoom
     local viewLeft = camX - halfW
     local viewRight = camX + halfW
     local viewTop = camY - halfH
@@ -738,15 +741,20 @@ function enemy.populate()
             local enemy_index = e.fixture:getUserData()
             if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
                 local ex, ey = e.body:getPosition()
+                -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
+                local enemyInstance = gun_enemies[enemy_index + 2]
+                -- Every live sprite follows its body, culled or not: a culled one
+                -- used to stay where it left the view (and be drawn there), and an
+                -- enemy killed off-screen faded and glowed at that stale spot.
+                if enemyInstance then
+                    enemyInstance.x, enemyInstance.y = ex, ey
+                end
 
-                -- Viewport culling: skip enemies outside camera view
+                -- Viewport culling: skip the per-enemy direction/colour work
                 local offscreen = ex < viewLeft or ex > viewRight or ey < viewTop or ey > viewBottom
                 if not offscreen then
-                    -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
-                    local enemyInstance = gun_enemies[enemy_index + 2]
                     if enemyInstance then
                         enemyInstance.active = true
-                        enemyInstance.x, enemyInstance.y = ex, ey
                         enemyInstance.setDirection(e:getDirectionToPlayer() or 1)
                         -- Pre-computed color: use enemy_index offset for per-enemy variation
                         local idx_offset = enemy_index * 0.3

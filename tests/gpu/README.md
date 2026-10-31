@@ -31,6 +31,38 @@ times: two rounds, each rendering baseline then candidate.
 Exit status: **0** pass, **1** regression, **2** could not run (no LOVE, bad
 revision, or the game crashed; `report.json` has the log tail).
 
+## Functional checks
+
+```sh
+python3 tests/gpu/run.py --checks         # or: npm run test:gpu:checks
+DOGE_GPU_SEED=7 python3 tests/gpu/run.py --checks   # another random world
+```
+
+`--checks` plays each script in `checks/` against the working tree alone,
+with no baseline, pixel diff or timing. Each script asserts things about the
+running game with `h.check(name, ok, detail)`. The run fails if any check
+fails or a script crashes.
+
+`checks/enemy_death.lua` covers enemy sprites and the death light. It runs
+through zoom changes, screen shake, and with the player far from the world
+origin (where camera offsets are large):
+
+- Every frame, every live enemy's sprite must sit exactly on its physics
+  body, on screen or off, and every enemy on screen must be treated as on
+  screen (that's when it gets turned to face the player).
+- For each of 8 kills, it renders the game's own sprite pass and death-light
+  pass in isolation with the real camera transform. The light must exist,
+  cover the sprite to within 0.25 px, and the sprite must be on the body.
+- Every remaining enemy is killed (most of them off screen). Each must fade
+  where it died, then be released.
+- In a full frame, the death light must show up at the enemy.
+
+Run against the code from before these fixes, every check failed:
+sprites up to 3,240 px off their bodies, enemies right of the screen's centre
+treated as off-screen (the culling box was centred on the top-left corner),
+the light 8 px off during screen shake, off-screen kills fading thousands of
+px away, and a dark enemy whose death light added nothing to the frame.
+
 ## Output
 
 The runner prints a summary table, writes `dist/gpu-test/report.json`, and

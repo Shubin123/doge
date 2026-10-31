@@ -262,6 +262,13 @@ function H.advance(n)
     for _ = 1, n do step() end
 end
 
+--- Record a functional check (scripts in tests/gpu/checks/, run.py --checks).
+function H.check(name, ok, detail)
+    results.checks = results.checks or {}
+    results.checks[#results.checks + 1] = { name = name, ok = ok and true or false, detail = detail }
+    log(string.format("check %-44s %s%s", name, ok and "ok" or "FAILED", detail and ("  " .. detail) or ""))
+end
+
 --- Render one frame, save it for comparison, and record its pass trace.
 function H.capture(name)
     assert(not results.captures[name], "duplicate capture name: " .. name)

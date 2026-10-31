@@ -29,6 +29,7 @@ This is a 2D action game built with LÖVE2D featuring real-time global illuminat
 python3 tests/gpu/run.py                  # vs. tests/gpu/BASELINE
 python3 tests/gpu/run.py --baseline HEAD  # vs. the last commit
 python3 tests/gpu/run.py --json           # machine-readable report
+python3 tests/gpu/run.py --checks         # functional checks (enemy sprites, death light)
 
 # Test new game systems integration
 '/Applications/love.app/Contents/MacOS/love' ./src/test_improvements.lua

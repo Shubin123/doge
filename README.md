@@ -196,6 +196,23 @@ the pipeline's own test suite (bit-exact checks on the lossless stages,
 PSNR/visual-diff checks on the lossy BC3 stage, all run against real
 sprites from `src/gfx/`).
 
+### Sprite Resolutions
+
+Rule of thumb: **128px** for anything pre-rendered from 3D, **16–64px** for
+hand-drawn pixel art. 3D character sheets have 8 directions per row;
+turntable props have 5.
+
+| Category | Frame size | Notes |
+|---|---|---|
+| Pre-rendered 3D characters & props (watchman, princess, steve, mech, robot, guns, vehicles, apple, commodore64) | **128×128** | Packed into `src/gfx/atlas/atla.dds.zlib` (16384² atlas, 6,759 frames); `uniformWidth`/`uniformHeight = 128` in `configs/production_atlas.json` |
+| High-res 3D source renders (`watchmanOfDoom/`, `3d/princess/walk.png`, …) | 256×256 | 2048px ÷ 8 directions; not in the atlas — it uses the 1024px-wide `_lowres` / `copy` sheets |
+| Wave enemies (`EnemiesSpriteSheets/enemy-01/02/03.png`) | 48×48 | 4–5 frame strips |
+| Bear boss (`EnemiesSpriteSheets/BearBoss/`) | 64×64 | Dust / laser particles are 16×16 |
+| Player (`testCharacter/`) | 64×64 | LPC-style sheets; quad in `src/game/player.lua` uses 64×65 |
+| Map tiles | **16×16** | `var.tile_w` / `var.tile_h` in `src/conf.lua` |
+| Soldier sheets (`SoldierSpriteSheets/`) | 100×100 | Present but unused (commented out in `player.lua`) |
+| FX / explosions (`fx/`, `explosions/`) | ~32–150px | Varies per sheet |
+
 ## Building & Publishing
 
 ### Desktop

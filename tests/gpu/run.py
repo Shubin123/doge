@@ -150,7 +150,7 @@ def build_game_dir(dest, rev):
 # --------------------------------------------------------------------------
 # Running LOVE
 # --------------------------------------------------------------------------
-def run_love(love, game_dir, out_dir, label, args):
+def run_love(love, game_dir, out_dir, label, args, extra_env=None):
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
@@ -160,6 +160,7 @@ def run_love(love, game_dir, out_dir, label, args):
                DOGE_GPU_H=str(args.height),
                DOGE_GPU_PERF_FRAMES=str(args.perf_frames),
                DOGE_GPU_LABEL=label)
+    env.update(extra_env or {})
     started = time.time()
     try:
         proc = subprocess.run([love, str(game_dir)], env=env, stdout=subprocess.PIPE,
@@ -266,6 +267,9 @@ def parse_args(argv):
     p.add_argument("--max-changed", type=float, default=0.0,
                    help="largest allowed fraction of changed pixels per frame (default 0)")
     p.add_argument("--timeout", type=int, default=300, help="seconds per LOVE run")
+    p.add_argument("--checks", action="store_true",
+                   help="instead: run the functional checks in tests/gpu/checks/ against the "
+                        "working tree alone (no baseline, pixel diff or timing)")
     p.add_argument("--passes", metavar="FRAME",
                    help="also list every render pass of FRAME (a capture name, or 'all') for both "
                         "trees: target, size, draw calls and the line of code that set it")
@@ -290,11 +294,50 @@ def finish(report, out, args, say):
     return code
 
 
+def run_checks(love, out, args, say):
+    """Each tests/gpu/checks/*.lua is a scenario script that plays the real game
+    and reports results with h.check(name, ok, detail)."""
+    game = out / "game-candidate"
+    build_game_dir(game, None)
+    report = {"status": "pass", "checks": [], "failures": []}
+    for script in sorted((HERE / "checks").glob("*.lua")):
+        name = script.stem
+        say("checking %s ..." % name)
+        r = run_love(love, game, out / ("checks-" + name), "checks-" + name, args,
+                     extra_env={"DOGE_GPU_SCENARIO": str(script), "DOGE_GPU_PERF_FRAMES": "0"})
+        if not r.get("ok"):
+            return finish({"status": "error", "error": "%s did not finish: %s" % (name, r.get("error")),
+                           "log_tail": r.get("log_tail")}, out, args, say)
+        if not r.get("checks"):
+            report["failures"].append("%s: reported no checks" % name)
+        for c in r.get("checks", []):
+            c["script"] = name
+            report["checks"].append(c)
+            if not c["ok"]:
+                report["failures"].append("%s: %s%s" % (name, c["name"],
+                                          (" -- " + c["detail"]) if c.get("detail") else ""))
+    report["status"] = "fail" if report["failures"] else "pass"
+    if not args.json:
+        for c in report["checks"]:
+            say("  %-4s %s: %s" % ("ok" if c["ok"] else "FAIL", c["script"], c["name"]))
+            if c.get("detail"):
+                say("       " + c["detail"])
+        say("%s  (report: %s)" % (report["status"].upper(), out / "report.json"))
+    return finish(report, out, args, say)
+
+
 def main(argv=None):
     args = parse_args(argv)
     say = (lambda *a: print(*a, file=sys.stderr)) if args.json else print
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+
+    if args.checks:
+        try:
+            love = find_love(args.love)
+        except SetupError as e:
+            return finish({"status": "error", "error": str(e)}, out, args, say)
+        return run_checks(love, out, args, say)
 
     try:
         love = find_love(args.love)
