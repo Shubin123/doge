@@ -36,7 +36,7 @@ return {
         gatehouse = { x = 466, y = 0, w = 448, h = 211, cat = "landmark" },
         gothic_wall = { x = 1705, y = 0, w = 174, h = 117, cat = "facade" },
         great_gate = { x = 1298, y = 0, w = 193, h = 123, cat = "facade" },
-        ice_barrier = { x = 1188, y = 221, w = 140, h = 102, cat = "barrier" },
+        ice_barrier = { x = 1188, y = 221, w = 140, h = 102, cat = "barrier", glass = true },
         long_wall = { x = 0, y = 0, w = 354, h = 221, cat = "landmark" },
         portcullis = { x = 1328, y = 221, w = 100, h = 100, cat = "barrier" },
         portcullis_arch = { x = 1098, y = 221, w = 90, h = 105, cat = "tower" },

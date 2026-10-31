@@ -10,6 +10,8 @@
     - walls along the edge (a physics chain keeps everyone inside),
     - streets of facades with props and lamps in front, a landmark or two,
     - a pool, puddles and grass wherever a noise field puts them.
+  Everything is lit by its height (see SPRITE_SHADER): tall things block light
+  and are lit up their faces, things underfoot are part of the ground.
   The same seed gives the same layout, so every client in a multiplayer game
   agrees on it without sending anything.
 ]]
@@ -26,8 +28,17 @@ local ROWS = { 0.25, 0.46, 0.67 } -- facade street baselines, as fractions of H
 -- and their feet are ~25 px below the body: a sprite whose base is at world y
 -- sorts with a character standing on that line.
 local SORT_OFFSET = 105
-local WHITE = { 1, 1, 1, 1 }
 local ALPHA = { "alpha" }
+-- Cut-out sprites write their colour and their own alpha straight into the
+-- scene, so each decides whether the GI pass sees it as a wall (alpha > 0.5)
+local REPLACE = { "replace", "premultiplied" }
+local GROUND_ALPHA = 0.4  -- the map's ground alpha (draw.lua): never blocks light
+-- Buildings, walls, towers, landmarks, lamps and anything glowing block light
+-- like a wall (and give off their colour); props only when they're over head
+-- height. (A sprite's height is no guide below that: an isometric car's
+-- includes its roof seen from above.)
+local TALL = { facade = true, wall = true, tower = true, landmark = true, light = true }
+local OCCLUDE_HEIGHT = 96 -- world px
 
 regions.list = {
     {
@@ -51,8 +62,12 @@ regions.list = {
             "fence_broken", "fence_brick" },
         decor = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "can_a", "can_b", "can_c",
             "can_d", "brick", "chainlink_a", "chainlink_b" },
+        -- lying on the ground: walked over, drawn into the ground, never block light
+        flat = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "can_a", "can_b", "can_c",
+            "can_d", "brick", "chainlink_a", "chainlink_b" },
         lights = {},
         portalLights = {},
+        glows = {},
         grass = { patches = 14, tint = { 2.1, 0.62, 0.7 } }, -- dry, straw coloured
         puddles = 16,
     },
@@ -71,8 +86,10 @@ regions.list = {
         props = { "chest", "banner_blue", "banner_red", "column_a", "column_b", "column_c", "column_d",
             "column_e", "portcullis", "ice_barrier", "spiral_stair" },
         decor = { "coins", "rune_carpet" },
+        flat = { "coins", "rune_carpet" },
         lights = { "brazier_a", "brazier_b", "brazier_c", "candelabra" },
         portalLights = { "brazier_b", "brazier_b" },
+        glows = {},
         grass = { patches = 22, tint = { 0.85, 1.0, 0.85 } },
         puddles = 8,
     },
@@ -93,6 +110,7 @@ regions.list = {
             "barrier_c", "barrier_hazard" },
         decor = { "sign_arrows", "sign_updown", "sign_triangle", "sign_bowl", "sign_ramen", "sign_cyber",
             "sign_kanji", "neon_bar_a", "neon_bar_b", "grate_a", "grate_b", "manhole", "rail", "laser_small" },
+        flat = { "grate_a", "grate_b", "manhole", "rail" },
         lights = { "lamp_a", "lamp_b" },
         portalLights = { "lamp_a", "lamp_b" },
         glows = { sign_arrows = true, sign_updown = true, sign_triangle = true, sign_bowl = true,
@@ -116,6 +134,7 @@ regions.list = {
             "plant_b", "lectern", "bench", "rune_glass_a", "rune_glass_b", "spire_a", "spire_b" },
         decor = { "orb_a", "orb_b", "orb_c", "lotus_a", "lotus_b", "scroll_a", "scroll_b", "book",
             "sun_emblem" },
+        flat = { "scroll_a", "scroll_b", "book", "sun_emblem" },
         lights = { "lantern_a", "lantern_b", "fountain", "urn", "shrine_a", "shrine_c" },
         portalLights = { "lantern_b", "lantern_b" },
         glows = { orb_a = true, orb_b = true, orb_c = true, lotus_a = true, lotus_b = true, sun_emblem = true },
@@ -288,6 +307,76 @@ local function groundMesh(r)
     return mesh
 end
 
+-- Region sprites are lit as what they are: an upright thing is a face standing
+-- on its base, not a picture lying on the ground. Each texel's height above
+-- the base comes from its row (the sprite's base row in the atlas is packed
+-- into the vertex colour's red and green bytes; blue holds flags), so
+--   - a light's falloff runs from the point on the ground under the texel up
+--     to it: a building's roof isn't lit by a lamp merely above it on screen,
+--   - a light behind an upright face's base doesn't light it (faces look
+--     toward the camera, +y),
+--   - the foot of anything upright sits in a little contact shadow.
+-- The alpha it writes decides what the GI pass makes of it (> 0.5: a wall
+-- that blocks light and gives off its colour). Tall things do; low props
+-- don't; flat things underfoot are drawn into the ground, as dim as it is.
+-- Flags: 1 tall, 2 glass (blended with its own alpha), 4 flat.
+local SPRITE_SHADER = [[
+    #define MAX_LIGHTS 64
+    uniform int   numLights;
+    uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
+    uniform float u_ambient;
+
+    uniform float atlasHeight; // texels
+    uniform float spriteScale; // world px per texel
+    uniform float zoom;
+    uniform float groundAlpha;
+
+    const float LIGHT_HEIGHT = 40.0; // world px: lamps and the player's light, about head height
+
+    vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
+        vec4 texel = Texel(tex, tc);
+        float flags = floor(color.b * 255.0 + 0.5);
+        bool isFlat = flags >= 4.0;
+        bool isGlass = mod(flags, 4.0) >= 2.0;
+        bool isTall = mod(flags, 2.0) >= 1.0;
+        if (!isGlass && texel.a < 0.5) discard;
+
+        float base = floor(color.r * 255.0 + 0.5) * 256.0 + floor(color.g * 255.0 + 0.5);
+        float zs = isFlat ? 0.0 : max(0.0, base - tc.y * atlasHeight) * spriteScale * zoom;
+        vec2 ground = screen_coords + vec2(0.0, zs);
+        float lightZ = isFlat ? 0.0 : LIGHT_HEIGHT * zoom;
+        float upright = min(zs / (12.0 * zoom), 1.0);
+
+        float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
+        float totalLight = 0.0;
+        for (int i = 0; i < MAX_LIGHTS; i++) {
+            if (i >= numLights) break;
+            float range = lights[i].w;
+            if (range <= 0.0) continue;
+            float dist = length(vec3(lights[i].xy - ground, lightZ - zs));
+            if (dist >= range) continue;
+            float att = 1.0 - dist / range;
+            float facing = mix(1.0, smoothstep(-24.0 * zoom, 8.0 * zoom, lights[i].y - ground.y), upright);
+            totalLight += att * att * facing * lights[i].z;
+        }
+        float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
+        if (isFlat) contact = 1.0;
+        vec3 rgb = texel.rgb * min(1.0, ambient + totalLight) * contact;
+
+        if (isFlat) return vec4(rgb * groundAlpha, groundAlpha);
+        if (isGlass) return vec4(rgb, texel.a);
+        return vec4(rgb, isTall ? 1.0 : groundAlpha);
+    }
+]]
+local function sendSpriteUniforms(r)
+    local shader = regions.spriteShader
+    shader:send("atlasHeight", r.image:getHeight())
+    shader:send("spriteScale", r.scale)
+    shader:send("zoom", camera.zoom)
+    shader:send("groundAlpha", GROUND_ALPHA)
+    shadow.sendLights(shader)
+end
+
 local function loadArt(r)
     local meta = require("gfx.regions." .. r.id)
     r.image = love.graphics.newImage(meta.image)
@@ -295,14 +384,20 @@ local function loadArt(r)
     r.sprites = {}
     local iw, ih = r.image:getDimensions()
     for name, s in pairs(meta.sprites) do
-        r.sprites[name] = { w = s.w, h = s.h, cat = s.cat, quad = love.graphics.newQuad(s.x, s.y, s.w, s.h, iw, ih) }
+        r.sprites[name] = {
+            w = s.w, h = s.h, cat = s.cat, glass = s.glass,
+            base = s.y + s.h - 2, -- the row its art stands on (2 px of padding below)
+            quad = love.graphics.newQuad(s.x, s.y, s.w, s.h, iw, ih),
+        }
     end
     -- A typo in a pool would otherwise only show up as a hole in the layout
-    for _, pool in ipairs({ "edge", "posts", "facades", "landmarks", "props", "decor", "lights", "portalLights" }) do
+    for _, pool in ipairs({ "edge", "posts", "facades", "landmarks", "props", "decor", "lights", "portalLights", "flat" }) do
         for _, name in ipairs(r[pool]) do
             assert(r.sprites[name], ("region %s: no sprite %q (%s)"):format(r.id, name, pool))
         end
     end
+    r.flatSet = {}
+    for _, name in ipairs(r.flat) do r.flatSet[name] = true end
 
     if meta.floorImage then
         r.floorImage = love.graphics.newImage(meta.floorImage)
@@ -333,6 +428,12 @@ local function place(r, name, x, base, check)
     if check and not isFree(r.grid, fx, base - math.max(fh, 8), fw, math.max(fh, 8)) then
         return nil
     end
+    -- How it meets the light (SPRITE_SHADER): its base row and flags ride in
+    -- the vertex colour
+    local flat = r.flatSet[name]
+    local tall = not flat and (TALL[s.cat] or r.glows[name] or (s.h - 4) * scale >= OCCLUDE_HEIGHT)
+    local flags = (tall and 1 or 0) + (s.glass and 2 or 0) + (flat and 4 or 0)
+    local color = { math.floor(s.base / 256) / 255, s.base % 256 / 255, flags / 255, 1 }
     -- the sprite's bottom 2 px are padding: drop it so its art sits on the base
     local item = {
         sort_y = base + SORT_OFFSET,
@@ -345,12 +446,18 @@ local function place(r, name, x, base, check)
         scale_y = scale,
         offset_x = 0,
         offset_y = 0,
-        color = WHITE,
-        blend_mode = ALPHA,
+        color = color,
+        blend_mode = s.glass and ALPHA or REPLACE,
         source_object_type = "region",
     }
     item.x1, item.y1 = item.x + w, base
-    r.items[#r.items + 1] = item
+    if flat then
+        -- underfoot: drawn with the ground, so whoever walks over it is on top
+        r.flatBatch:setColor(unpack(color))
+        r.flatBatch:add(s.quad, item.x, item.y, 0, scale, scale)
+    else
+        r.items[#r.items + 1] = item
+    end
     if depth then
         r.solids[#r.solids + 1] = { fx, base - fh, fw, fh }
         mark(r.grid, fx, base - fh, fw, fh)
@@ -375,6 +482,7 @@ local function generate(r, index)
     local ox, oy = r.ox, r.oy
     r.grid = newGrid(r)
     r.items, r.solids, r.lightList = {}, {}, {}
+    r.flatBatch = love.graphics.newSpriteBatch(r.image, 128, "static")
 
     r.ground = groundMesh(r)
 
@@ -508,12 +616,13 @@ local function generate(r, index)
         local cx, cy = rand(ox + 80, ox + W - 80), rand(oy + TOP + 80, oy + H - 60)
         if freeAt(r.grid, cx, cy) then
             local hw, hh = rand(110, 230), rand(70, 140)
-            grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2, math.floor(hw * hh * 4 / 18),
+            local field = grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2, math.floor(hw * hh * 4 / 18),
                 function(x, y)
                     local d = ((x - cx) / hw) ^ 2 + ((y - cy) / hh) ^ 2
                     return d < 1 and freeAt(r.grid, x, y)
                         and love.math.noise(x * 0.02 + nx, y * 0.02 + ny) > 0.3 + 0.55 * d
                 end, r.grass.tint)
+            field.occludes = false -- ankle high: light passes over it
         end
     end
 
@@ -536,6 +645,7 @@ end
 
 function regions.load()
     groundShader = love.graphics.newShader(GROUND_SHADER)
+    regions.spriteShader = love.graphics.newShader(SPRITE_SHADER)
     for i, r in ipairs(regions.list) do
         if r.seed then
             loadArt(r)
@@ -614,6 +724,15 @@ function regions.drawGround()
             groundShader:send("cellular", r.cellular and 1 or 0)
             groundShader:send("seed", { r.seed % 97, r.seed % 89 })
             love.graphics.draw(r.ground)
+
+            -- grates, carpets, rubble: part of the ground, cut out over it
+            sendSpriteUniforms(r)
+            love.graphics.setShader(regions.spriteShader)
+            local mode, alphaMode = love.graphics.getBlendMode()
+            love.graphics.setBlendMode("replace", "premultiplied")
+            love.graphics.draw(r.flatBatch)
+            love.graphics.setBlendMode(mode, alphaMode)
+            love.graphics.setShader(groundShader)
         end
     end
     if prev then
@@ -621,11 +740,13 @@ function regions.drawGround()
     end
 end
 
---- Add the region sprites on screen to the dynamic draw list.
+--- Add the region sprites on screen to the dynamic draw list (the renderer
+--- draws them with regions.spriteShader).
 function regions.populate()
     local x0, y0, x1, y1 = regions.view(32)
     for _, r in ipairs(regions.list) do
         if r.items and overlaps(r, x0, y0, x1, y1) then
+            sendSpriteUniforms(r)
             for _, item in ipairs(r.items) do
                 if item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then
                     dynamic_draw_list[#dynamic_draw_list + 1] = item

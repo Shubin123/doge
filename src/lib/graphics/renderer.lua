@@ -993,6 +993,12 @@ function renderer.renderSortedDrawList()
             --     renderShader(drawable)
             -- elseif drawable.image_or_particles then
             --     renderImage(drawable)
+        elseif drawable.source_object_type == "region" then
+            -- lit by its height above the ground (game/regions.lua)
+            love.graphics.setShader(regions.spriteShader)
+            love.graphics.draw(drawable.image_or_particles, drawable.quad, drawable.x, drawable.y, 0,
+                drawable.scale_x, drawable.scale_y)
+            love.graphics.setShader(current_shader)
         elseif drawable.image_or_particles then      --default draw
         
             if drawable.quad then

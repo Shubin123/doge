@@ -438,7 +438,10 @@ function GrassRenderer:draw()
     love.graphics.setColor(1, 1, 1, 1)
     -- love.graphics.setBlendMode("add")
     
+    -- occludes == false: leave the scene's alpha be, so GI doesn't see a wall
+    if self.occludes == false then love.graphics.setColorMask(true, true, true, false) end
     love.graphics.draw(self.grassMesh)
+    if self.occludes == false then love.graphics.setColorMask() end
     
     -- Reset state
     love.graphics.setColor(1, 1, 1, 1)
