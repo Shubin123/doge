@@ -235,6 +235,7 @@ function lighting.update(dt)
     -- Instanced character shader (world space).
     if characterAnimator and characterAnimator.shader then
         characterAnimator.shader:send("numLights", n)
+        characterAnimator.shader:send("u_ambient", lighting.ambient)
         if n > 0 then
             characterAnimator.shader:send("lights", unpack(worldLights))
         end

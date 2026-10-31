@@ -74,6 +74,11 @@ var.graphics_high = true -- for now just a high settings for all the shaders or 
 
 var.indoors = false
 
+-- Day and night (systems/daynight.lua): seconds of game time a whole day
+-- takes, and the hour a new game starts at
+var.day_length = 480
+var.day_start = 8
+
 function love.conf(t)
     -- Save directory name. Without it LOVE names the folder after however the
     -- game was launched (source folder, .love file, fused executable), so saves

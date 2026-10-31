@@ -94,7 +94,11 @@ function draw.mydraw()
         explosion.applyShockwave() -- distort scene_canvas before GI processes it
         blackhole.applyLensing() -- the black hole bends it too, and glows into the GI
         shader.pass(crtShader:target())
+        -- The scene again over the composite: part of the night look, which
+        -- daylight fades out (the composite shows the scene itself by day)
+        love.graphics.setColor(1, 1, 1, 1 - daynight.daylight())
         love.graphics.draw(scene_canvas)
+        love.graphics.setColor(1, 1, 1, 1)
     end
     -- sampleScreen.pass() samples gi_canvas into a 1x1 canvas that nothing
     -- reads back yet (see sampleScreen.lua). Run per frame it only cost a

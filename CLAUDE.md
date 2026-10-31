@@ -53,6 +53,7 @@ python3 tests/gpu/run.py --checks         # functional checks (enemy sprites, de
 - `save` / `load` - Save/load game state
 - `reload` - Reload game modules
 - `blackhole [x] [y]` - Move the black hole (default: just ahead of you)
+- `time [hour]` - Show or set the time of day
 
 ## Architecture Overview
 
@@ -93,6 +94,9 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 
 ### Black Hole & Time
 - `game/blackhole.lua` sits at (1400, 300) east of home (`blackhole [x] [y]` in the console moves it). Near it time slows: `love.update` multiplies `dt` by `blackhole.timeScale` right after networking, so everything after that line runs on slowed time (use `love.timer.getTime()` for real time). It pulls the player, enemies, globs and bullets, swallows what crosses the horizon, and `blackhole.applyLensing()` bends `scene_canvas` before GI. In multiplayer the host sends its position and the shared pace in the snapshot.
+
+### Day & Night
+- `systems/daynight.lua` keeps `daynight.hour` (game time, so the black hole slows it; `var.day_length` seconds a day, starting at `var.day_start`). `daynight.apply()` sets `shadow.ambient` (0.2 at night, the old look, up to 1 by day), which every lit shader reads, characters included; `shader.pass` hands `daynight.daylight()` and `daynight.tint()` to the composite, which by day shows the scene's own colours under the sky. The HUD's clock is in `hud.lua` (`drawClock`); the host's hour goes out in the snapshot and saves keep it. The GPU scenario pins midnight.
 
 ### Global Variables
 Key globals defined in main.lua:

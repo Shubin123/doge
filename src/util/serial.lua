@@ -99,6 +99,7 @@ function serial.create()
         world = {
             score = var.player_score,
             indoors = var.indoors,
+            hour = daynight.hour,
         },
         map = map.createSaveData(),
         coins = captureCoins(),
@@ -147,6 +148,7 @@ function serial.apply(state)
     if state.world then
         var.player_score = state.world.score or 0
         var.indoors = state.world.indoors or false
+        if state.world.hour then daynight.setHour(state.world.hour) end
     end
 
     return true, "Save loaded"

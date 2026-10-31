@@ -514,6 +514,74 @@ local function drawWeaponName(cx, y, ts)
     love.graphics.print(text, tx, y, 0, ts, ts)
 end
 
+-- The sky behind the clock's hands: day blue, golden at dawn and dusk, night navy
+local DAY_SKY = { 0.36, 0.62, 0.95 }
+local NIGHT_SKY = { 0.05, 0.07, 0.20 }
+
+local function skyColor()
+    local d = daynight.daylight()
+    local tint = daynight.tint()
+    local warm = 1 - tint[3] -- how golden the light is (blue drops off at dawn and dusk)
+    local r = NIGHT_SKY[1] + (DAY_SKY[1] - NIGHT_SKY[1]) * d
+    local g = NIGHT_SKY[2] + (DAY_SKY[2] - NIGHT_SKY[2]) * d
+    local b = NIGHT_SKY[3] + (DAY_SKY[3] - NIGHT_SKY[3]) * d
+    local k = math.min(1, warm * 1.6)
+    return r + (1.00 - r) * k * 0.8, g + (0.55 - g) * k * 0.8, b + (0.30 - b) * k * 0.8
+end
+
+-- An analog clock in the top right corner: a dial the colour of the sky with
+-- the sun or moon riding round it (the sun's at the top at noon, the moon at
+-- midnight), hour and minute hands, and the time written underneath.
+local function drawClock(cx, cy, ts)
+    local hour = daynight.hour
+    local R = 11
+    love.graphics.setColor(0.08, 0.08, 0.10, 0.9)
+    love.graphics.circle("fill", cx, cy, R + 1.5)
+    love.graphics.setColor(0.64, 0.66, 0.73, 1)
+    love.graphics.setLineWidth(1)
+    love.graphics.circle("line", cx, cy, R + 0.5)
+    love.graphics.setColor(skyColor())
+    love.graphics.circle("fill", cx, cy, R - 0.5)
+
+    -- The sun by day, the moon by night: a 24-hour trip round the dial
+    local a = (hour / 24) * 2 * math.pi + math.pi / 2
+    local sx, sy = cx + math.cos(a) * (R - 4.5), cy + math.sin(a) * (R - 4.5)
+    if daynight.daylight() > 0.5 then
+        love.graphics.setColor(1.00, 0.86, 0.30, 1)
+        love.graphics.circle("fill", sx, sy, 2.2)
+    else
+        love.graphics.setColor(0.90, 0.92, 1.00, 1)
+        love.graphics.circle("fill", sx, sy, 2)
+        love.graphics.setColor(skyColor())
+        love.graphics.circle("fill", sx + 0.9, sy - 0.6, 1.6) -- a crescent
+    end
+
+    -- Twelve ticks, the quarters longer
+    love.graphics.setColor(0.86, 0.88, 0.94, 0.9)
+    for i = 0, 11 do
+        local t = i / 12 * 2 * math.pi
+        local inner = (i % 3 == 0) and R - 3 or R - 1.8
+        love.graphics.line(cx + math.cos(t) * inner, cy + math.sin(t) * inner,
+            cx + math.cos(t) * (R - 0.6), cy + math.sin(t) * (R - 0.6))
+    end
+
+    -- Hands: hour (twelve-hour dial) and minute
+    local h12 = hour % 12
+    local ha = h12 / 12 * 2 * math.pi - math.pi / 2
+    local ma = (hour % 1) * 2 * math.pi - math.pi / 2
+    love.graphics.setColor(0.08, 0.08, 0.10, 1)
+    love.graphics.setLineWidth(1.6)
+    love.graphics.line(cx, cy, cx + math.cos(ha) * 5.5, cy + math.sin(ha) * 5.5)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(cx, cy, cx + math.cos(ma) * 8.5, cy + math.sin(ma) * 8.5)
+    love.graphics.setColor(1.00, 0.84, 0.20, 1)
+    love.graphics.circle("fill", cx, cy, 1.1)
+
+    local text = daynight.clockText()
+    local tx = cx - font:getWidth(text) * ts / 2
+    outlinedText(text, tx, cy + R + 2.5, ts, { 1, 1, 1, 1 }, { 0, 0, 0, 1 })
+end
+
 -- Red light creeping in from the screen's edges, fading after a hit.
 local function drawHurtFlash(screenW, screenH)
     local age = love.timer.getTime() - (player.hurtAt or -math.huge)
@@ -548,6 +616,7 @@ function hud.draw()
     drawHurtFlash(screenW, screenH)
     love.graphics.scale(u)
 
+    drawClock(math.floor(screenW / u) - 26, 26, ts) -- clear of the CRT bulge round the edges
     drawHotbar(x, y, slots, ts)
     drawXP(x, y - 7, width, ts)
     drawHearts(x, y - 17)

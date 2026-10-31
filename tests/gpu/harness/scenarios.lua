@@ -11,6 +11,9 @@ return function(h)
     -- die and drop to the menu partway through. (player.god predates that,
     -- so the baseline accepts it too.)
     player.god = true
+    -- Night: the look these frames have always had (by day the composite
+    -- shows the scene's own colours). Older baselines have no clock.
+    if daynight then daynight.setHour(0) end
     h.advance(90) -- every enemy spawned, physics settled
     h.capture("default")
 

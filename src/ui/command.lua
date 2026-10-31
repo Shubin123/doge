@@ -475,6 +475,13 @@ function command.execute(cmd, fromBlock)
         benchmarkCommand(tokenize(cmd))
     elseif verb == "spawn" then
         spawnCommand(tokenize(cmd))
+    elseif verb == "time" then
+        local hour = tonumber((cmd:match("^%s*time%s+(%S+)")))
+        if hour then
+            daynight.setHour(hour)
+        end
+        command.addOutput("It's " .. daynight.clockText() .. (daynight.isOpen() and " (the shop's open)" or ""),
+            outputColor)
     elseif verb == "blackhole" then
         local tokens = tokenize(cmd)
         local x, y = tonumber(tokens[2]), tonumber(tokens[3])

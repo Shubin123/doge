@@ -510,6 +510,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         #define MAX_LIGHTS 64
 
         uniform int numLights;
+        uniform float u_ambient; // the lighting's ambient floor: 0.2 at night, up to 1 by day
         uniform vec4 lights[MAX_LIGHTS];
 
         // Outline uniforms
@@ -632,7 +633,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             }
 
             // Ambient floor so sprites stay dim (not pure black) when unlit/indoors.
-            float lit = min(1.0, 0.20 + totalLight);
+            float lit = min(1.0, max(0.20, u_ambient) + totalLight);
             vec3 litColor = texColor.rgb * lit;
             
             vec4 finalColor = vec4(litColor, texColor.a);

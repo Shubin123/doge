@@ -37,6 +37,7 @@ wind = require("lib.graphics.wind")
 car = require("game.car")
 xp = require("game.xp") -- XP globs (the coin_bods)
 blackhole = require("game.blackhole")
+daynight = require("systems.daynight")
 collision = require("util.collision")
 tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
@@ -235,6 +236,7 @@ function love.load()
     suckLight.load()
     car.load(world)
     blackhole.load()
+    daynight.load()
     collision.init()
     audio.loadSounds()
 
@@ -291,6 +293,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- (the network above keeps real time)
     blackhole.update(dt)
     dt = dt * blackhole.timeScale
+    daynight.update(dt)
 
     characterAnimator.update(dt)
     -- teslaCoil.fireAt(love.mouse.getPosition())
@@ -341,6 +344,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     blackhole.addLights() -- its disk's glow on the ground
+    daynight.apply() -- the hour's ambient light, before the lighting upload
     shadow.updateBothShaders(dt)
     -- bullet.update(dt)
     -- rocket.update(dt)

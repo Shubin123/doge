@@ -168,13 +168,21 @@ function shader.load()
     upscale_shader = love.graphics.newShader([[
         //#pragma language glsl3
         uniform sampler2D giTexture;
+        uniform float daylight; // 0 night .. 1 day (systems/daynight.lua)
+        uniform vec3 skyTint;
         
         vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
             // Upscale the low-res GI buffer (hardware bilinear) and add it on top
             // of the full-res scene as an additive indirect-light term.
             vec4 gi    = Texel(giTexture, tc);
             vec4 scene = Texel(tex, tc);
-            return scene + gi;
+            vec4 night = scene + gi;
+            if (daylight <= 0.0) return night;
+            // By day: the scene's own colours (the ground is drawn at alpha
+            // 0.4 so GI won't take it for a wall, which darkens it; undo that)
+            // under the sky, with a little of the GI's bounce on top
+            vec3 day = scene.rgb / max(scene.a, 0.05) * skyTint + gi.rgb * 0.35;
+            return vec4(mix(night.rgb, day, daylight), night.a);
         }
     ]])
 end
@@ -243,6 +251,8 @@ function shader.pass(target)
     if target then love.graphics.clear(0, 0, 0, 1) end
     love.graphics.setShader(upscale_shader)
     upscale_shader:send("giTexture", gi_canvas)
+    upscale_shader:send("daylight", daynight.daylight())
+    upscale_shader:send("skyTint", daynight.tint())
     love.graphics.draw(scene_canvas)
     
 

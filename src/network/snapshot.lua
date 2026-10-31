@@ -90,6 +90,7 @@ function snapshot.create()
         
         full_game_state.coins = xp.getNetworkData()
         full_game_state.blackhole = blackhole.getNetworkData()
+        full_game_state.hour = daynight.hour
         
         -- Add host's fire effects
         local host_fires = fire.getNetworkData()
@@ -376,6 +377,9 @@ function snapshot.apply(game_state)
         end
 
         blackhole.applyNetworkData(last_full_game_state.blackhole)
+        if last_full_game_state.hour then
+            daynight.setHour(last_full_game_state.hour) -- everyone shares the host's clock
+        end
         
         if last_full_game_state.bosses then
             renderer.setNetworkedBosses(last_full_game_state.bosses)
