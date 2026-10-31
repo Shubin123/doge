@@ -344,10 +344,6 @@ function player.hurt(amount, dir)
     if player.god or not player.body then return end
     player.health = math.max(0, player.health - amount)
     player.hurtAt = love.timer.getTime()
-    local px, py = player.body:getPosition()
-    if blood and blood.onEnemyDamage then
-        blood.onEnemyDamage(px, py, math.max(1, amount / 10), dir)
-    end
     if dir then
         player.applyKnockback(dir, amount * 1.5)
     end

@@ -98,9 +98,6 @@ local function rocketSplash(userData, x, y)
                 local falloff = 1 - reach / splashRadius
                 local actualDamage = math.max(5, math.floor(45 * falloff * falloff))
                 local direction = { x = (ex - x) / (distance + 0.1), y = (ey - y) / (distance + 0.1) }
-                if blood and blood.onEnemyDamage then
-                    blood.onEnemyDamage(ex, ey, actualDamage, direction)
-                end
                 -- Knockback before damage: a kill destroys the body
                 local force = 150 * math.max(0.2, falloff)
                 if reach <= userData.radius then
@@ -136,10 +133,6 @@ function collision.init()
     collision.registerResponse("player", "enemy", function(fixtureA, fixtureB, contact)
         if player then
             player.health = player.health - 1
-            local x, y = fixtureA:getBody():getPosition()
-            if blood and blood.onEnemyDamage then
-                blood.onEnemyDamage(x, y, 1)
-            end
             local enemyBody = fixtureB:getBody()
             for i = 1, #enemies_bods do
                 if enemies_bods[i] == enemyBody then
@@ -245,13 +238,8 @@ function collision.init()
         --     audio.playSound("coin", 0.05, pitch)
         -- end
 
-        -- Create absorption effect (if you have particle systems)
         local ax, ay = absorber:getPosition()
         local bx, by = absorbed:getPosition()
-        -- if blood and blood.onEnemyDamage then
-        --     -- Repurpose blood effect for coin absorption visual
-        --     blood.onEnemyDamage(bx, by, 1, {x = (ax - bx) / 10, y = (ay - by) / 10})
-        -- end
 
         -- Remove absorbed coin
         for i = 1, #coin_bods do
@@ -301,11 +289,7 @@ function collision.init()
 
         -- Apply effects
         local enemyBody = enemyFixture:getBody()
-        local x, y = enemyBody:getPosition()
 
-        if blood and blood.onEnemyDamage then
-            blood.onEnemyDamage(x, y, 1, { x = 1, y = 1 })
-        end
         -- Use constant damage instead of expensive canvas sampling
         local brightness = 128  -- mid-brightness as default; was sampling screen pixel every hit
         if (projectileFixture:getUserData()[1] ~= "fireball") then
@@ -356,17 +340,11 @@ function collision.init()
     --                 player.online.health[k] = player.online.health[k] - 1
     --                 hit_client = true
     --                 local px, py = body:getPosition()
-    --                 if blood and blood.onEnemyDamage then
-    --                     blood.onEnemyDamage(px, py, 1)
-    --                 end
     --             end
     --         end
     --         if not hit_client then
     --             player.health = player.health - 1
     --             local px, py = playerBody:getPosition()
-    --             if blood and blood.onEnemyDamage then
-    --                 blood.onEnemyDamage(px, py, 1)
-    --             end
     --         end
     --         if bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
     --             table.insert(bullet.toReturn, userData)
@@ -398,16 +376,10 @@ function collision.init()
     --                 if body == playerBody then
     --                     player.online.health[k] = player.online.health[k] - actualDamage
     --                     hit_client = true
-    --                     if blood and blood.onEnemyDamage then
-    --                         blood.onEnemyDamage(px, py, actualDamage)
-    --                     end
     --                 end
     --             end
     --             if not hit_client then
     --                 player.health = player.health - actualDamage
-    --                 if blood and blood.onEnemyDamage then
-    --                     blood.onEnemyDamage(px, py, actualDamage)
-    --                 end
     --             end
     --         end
     --         if rocket and rocket.toDestroy then
@@ -505,16 +477,10 @@ function collision.init()
             --             if body == player.body then
             --                 player.online.health[k] = player.online.health[k] - actualDamage
             --                 hit_client = true
-            --                 if blood and blood.onEnemyDamage then
-            --                     blood.onEnemyDamage(px, py, actualDamage)
-            --                 end
             --             end
             --         end
             --         if not hit_client then
             --             player.health = player.health - actualDamage
-            --             if blood and blood.onEnemyDamage then
-            --                 blood.onEnemyDamage(px, py, actualDamage)
-            --             end
             --         end
             --     end
             -- end

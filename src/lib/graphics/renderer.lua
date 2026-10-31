@@ -887,8 +887,6 @@ function renderer.renderSortedDrawList()
             love.graphics.setShader(current_shader)
         elseif drawable.source_object_type == "networked_bullet_tracer" then
             bullet.drawSingleNetworkedBullet(drawable.bullet_data, drawable.x, drawable.y)
-        elseif drawable.source_object_type == "blood_drop" then
-            blood.drawSingleBloodDrop(drawable)
 
             -- Handle rocket draw types
         elseif drawable.draw_type == "rocket_body" or

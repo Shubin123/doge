@@ -354,13 +354,6 @@ function bullet.collision(fixture_a, fixture_b, contact)
 
     -- if hit an enemy, apply damage
     if otherGroup == -777 then
-        -- Add blood effect at hit location
-        local x, y = otherBody:getPosition()
-        if blood and blood.onEnemyDamage then
-            -- blood.onEnemyDamage(x, y, inst.damage or 1, inst.dir)
-            blood.onEnemyDamage(x, y, 1, vec2.new(1,1))
-        end
-        
         -- Find enemy index and apply damage using the new health system
         for i = 1, #enemies_bods do
             if enemies_bods[i] and enemies_bods[i] == otherBody then
@@ -386,13 +379,6 @@ function bullet.collision(fixture_a, fixture_b, contact)
     
     -- if (var.multiplayer == 1) then
         if other_f:getGroupIndex() == -1 then
-            
-            -- Add blood effect at player hit location
-            -- local x, y = player.body:getPosition()
-            -- if blood and blood.onEnemyDamage then
-            --     blood.onEnemyDamage(x, y, 1)
-            -- end
-            
             -- Damage player or trigger player hit logic here
             -- print("Player hit by enemy fire! or collided with enemy", not_enemy_proj:getBody())
             -- print(player.online.bodies)
@@ -405,12 +391,6 @@ function bullet.collision(fixture_a, fixture_b, contact)
                     -- game_state
                     player.online.health[k] =  player.online.health[k] - 1
                     hit_client = true
-                    
-                    -- Add blood effect for online players
-                    local px, py = body:getPosition()
-                    if blood and blood.onEnemyDamage then
-                        blood.onEnemyDamage(px, py, 1)
-                    end
                 end
 
             end

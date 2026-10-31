@@ -516,10 +516,6 @@ function boss.applyAreaDamage(x, y, radius, damage)
         local dist = math.sqrt((px - x)^2 + (py - y)^2)
         if dist <= radius then
             player.health = player.health - damage
-            -- Add visual feedback
-            if blood and blood.onEnemyDamage then
-                blood.onEnemyDamage(px, py, damage / 10)
-            end
         end
     end
     
@@ -531,9 +527,6 @@ function boss.applyAreaDamage(x, y, radius, damage)
                 local dist = math.sqrt((px - x)^2 + (py - y)^2)
                 if dist <= radius then
                     player.online.health[k] = player.online.health[k] - damage
-                    if blood and blood.onEnemyDamage then
-                        blood.onEnemyDamage(px, py, damage / 10)
-                    end
                 end
             end
         end
@@ -566,9 +559,6 @@ function boss.checkLaserHits(boss_instance)
                 -- Apply laser damage
                 if player and player.body and fixture:getBody() == player.body then
                     player.health = player.health - boss_instance.laser_damage
-                    if blood and blood.onEnemyDamage then
-                        blood.onEnemyDamage(hit_x, hit_y, boss_instance.laser_damage / 10)
-                    end
                 end
                 
                 -- Check online players
@@ -576,9 +566,6 @@ function boss.checkLaserHits(boss_instance)
                     for k, body in pairs(player.online.bodies) do
                         if body == fixture:getBody() then
                             player.online.health[k] = player.online.health[k] - boss_instance.laser_damage
-                            if blood and blood.onEnemyDamage then
-                                blood.onEnemyDamage(hit_x, hit_y, boss_instance.laser_damage / 10)
-                            end
                         end
                     end
                 end
