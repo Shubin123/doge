@@ -101,6 +101,9 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 ### Shop & Safe Zone
 - `game/shop.lua`: the home map's house is the shop. Inside it (`var.indoors`) `player.isSafe()` is true and every damage path skips the player; its door is too narrow for enemies. A shopkeeper behind a counter sells for XP (`var.player_score`) by day only (`daynight.isOpen()`, 07:00-19:00); at night they sleep. E at the counter opens the panel (`shop.keypressed`, before the rest of the game's keys).
 
+### Car
+- `game/car.lua`: the parked car is drivable. Near it an arrow and "[E] Drive" show over it (`car.drawUI`); E gets in (`car.enter`: the player's body becomes the car's, wider, faster and coasting; `player.inCar` hides the princess and stops shooting and dodging), E again gets out beside it (`car.exit`). Host and single player only.
+
 ### Global Variables
 Key globals defined in main.lua:
 - `world` - Physics world

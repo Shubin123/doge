@@ -312,6 +312,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     -- end
 
     player.update(dt)
+    car.update(dt)
 
     -- Spatial audio: keep the listener on the player, reap finished voices.
     audio.setListener(player.getPosition())
@@ -471,6 +472,9 @@ function love.keypressed(key)
     end
     if shop.keypressed(key) then
         return -- E at the counter, or the trade panel's keys
+    end
+    if car.keypressed(key) then
+        return -- E: into the car or out of it
     end
     if portal.keypressed(key) then
         return -- the travel selector took it (Esc closes it, not the menu)

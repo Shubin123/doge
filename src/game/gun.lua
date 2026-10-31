@@ -236,7 +236,7 @@ local fireballItem = { ammoCost = 6 }
 -- Throw a fireball from the ring along `dir` (unit vec2), paying its light.
 -- Used by the hotbar slot and the right-click quick throw.
 function GunTool.throwFireball(dir)
-    if fire.getAvailableCount() == 0 or not GunTool.useAmmo(fireballItem.ammoCost) then
+    if player.inCar or fire.getAvailableCount() == 0 or not GunTool.useAmmo(fireballItem.ammoCost) then
         return false
     end
     return fire.throw(dir)
@@ -586,6 +586,7 @@ function GunTool.update(dt)
 end
 
 function GunTool.mousepressed(x, y, button)
+    if player.inCar then return end -- no shooting from the car
     if button == 1 and GunTool.currentGun then -- left mouse button
         GunTool.mousePressed = true
         GunTool.currentGun:shoot(x, y)
@@ -599,8 +600,8 @@ function GunTool.mousereleased(x, y, button)
 end
 
 function GunTool.drawWorld()
-    -- Draw barrel and ring
-    if GunTool.currentGun then
+    -- Draw barrel and ring (not while you're in the car)
+    if GunTool.currentGun and not player.inCar then
         GunTool.currentGun:drawBarrel()
     end
 

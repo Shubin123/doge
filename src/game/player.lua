@@ -93,7 +93,8 @@ function player.update(dt)
     end
     
     -- Check for dodge input (space key)
-    if love.keyboard.isDown("space") and not player.isDodging and player.dodgeCooldownTimer <= 0 then
+    if love.keyboard.isDown("space") and not player.isDodging and player.dodgeCooldownTimer <= 0
+        and not player.inCar then
         -- Get current movement direction for dodge
         local inputX, inputY = 0, 0
         

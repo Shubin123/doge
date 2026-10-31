@@ -116,6 +116,9 @@ function serial.apply(state)
         return false, "Unsupported save version " .. tostring(type(state) == "table" and state.version)
     end
 
+    -- Out of the car first: the save puts you (and it) where it says
+    if car.driving then car.exit() end
+
     -- The world first, then what lives in it
     if state.map and not map.restore(state.map) then
         return false, "Failed to restore map data"
