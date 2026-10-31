@@ -135,6 +135,13 @@ end
 
 -- Apply the water effect
 function water.pass()
+    -- No water area set: the scene goes over as it is (what the shader does
+    -- outside the area anyway)
+    if water_area.w <= 0 or water_area.z <= 0 then
+        love.graphics.draw(scene_canvas)
+        return
+    end
+
     -- Send the reflection texture to the shader
     
     water_final_shader:send("reflectionTexture", reflection_canvas)
