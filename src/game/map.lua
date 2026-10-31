@@ -197,8 +197,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         
         -- Rebuild spriteBatch only if map data has changed
         if self.dirty then
-            local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
-            local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
+            local max_tiles_x, max_tiles_y = self.width, self.height
             self.spriteBatch:clear()
             for row = 1, max_tiles_y do
                 for col = 1, max_tiles_x do
@@ -227,9 +226,7 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         scale = scale or 1
     -- Initialize spriteBatch if not already created
         -- if not self.spriteBatch then
-            local max_tiles_x = math.ceil(var.game_width / (self.tiles.tileWidth * scale)) + 200
-            local max_tiles_y = math.ceil(var.game_height / (self.tiles.tileHeight * scale)) + 200
-            self.spriteBatch = love.graphics.newSpriteBatch(self.tiles.tilesetImage, max_tiles_x * max_tiles_y)
+            self.spriteBatch = love.graphics.newSpriteBatch(self.tiles.tilesetImage, self.width * self.height)
             self.dirty = true
         -- end
     end
@@ -805,25 +802,12 @@ function map.load()
 
     
 
-    local tilesetImage = love.graphics.newImage("gfx/TileSet/grounds.png")
+    -- The courtyard: always grass, its paths and patches laid out by game/courtyard.lua
+    local courtyard = require("game.courtyard")
+    local tilesetImage = love.graphics.newImage(courtyard.TILESET)
     map.tiles = newTiles(tilesetImage, var.tile_w, var.tile_h)
-    map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-    
-
-
-    -- local tilesetImage =  love.graphics.newImage("gfx/TileSet/houseInterior.png")
-    -- map.tiles = newTiles(tilesetImage, 16, 16)
-    -- map.map = createMap(map.tiles, var.map_display_w, var.map_display_h)
-
-
-
-    for x = 1, 200 do
-        for y = 1, 200 do
-            
-            map.map:setTile(x, y, tileRules.getValidTile(x, y))
-            -- end
-        end
-    end
+    map.map = createMap(map.tiles, courtyard.COLS, courtyard.ROWS)
+    courtyard.fill(map.map, tilesetImage)
 
     -- Load arch tileset
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")

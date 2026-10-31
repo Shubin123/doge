@@ -85,6 +85,9 @@ The `game.integration` module coordinates all gameplay systems:
 
 When modifying gameplay, ensure integration.lua is updated to maintain system cohesion.
 
+### Courtyard
+- The home map's ground (`map.map`) is always grass: `game/courtyard.lua` sorts TX Tileset Grass's tiles by what's on them and lays out clumped tufts, flower patches, pebbles and flagstone paths (portal, door, car, east to the black hole) from a fixed seed. It covers -2000..3760 x -2000..2800.
+
 ### Regions & Portal
 - `game/regions.lua` lays out four regions (Wasteland, Castle, Neon City, Sanctum) procedurally from fixed seeds, 20000 px apart east of the home map: blended seamless ground (its own shader), edge walls + a physics fence, facade streets, props/lamps (lamps add transient lights), a pool (one big puddle), puddles and grass patches (`grass.public.addField`).
 - Light by height (`SPRITE_SHADER` in regions.lua): region sprites carry their base row and flags in their vertex colour. Tall ones (facades, walls, towers, lamps, glowing signs, props over 96 px) write alpha 1 and block GI; low props write the ground's 0.4 so light passes; `flat` ones (grates, carpets, rubble) are drawn into the ground pass under whoever walks over them. Faces are lit from the ground point under each texel, not by lights behind their base.

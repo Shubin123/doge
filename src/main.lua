@@ -40,7 +40,6 @@ blackhole = require("game.blackhole")
 daynight = require("systems.daynight")
 shop = require("game.shop")
 collision = require("util.collision")
-tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
 suckLight = require("systems.suckLight")
 characterAnimator = require("game.characterAnimator")
@@ -465,7 +464,6 @@ lurker.preswap = function(file)
 end
 
 local zoomToggle = false;
-local zcycle = 0
 function love.keypressed(key)
     if command.keypressed(key) then
         return -- the console is open (or "/" or "," just opened it)
@@ -495,18 +493,6 @@ function love.keypressed(key)
         profiler.report()
     end
     if key == "z" then
-        if zcycle % 3 == 0 then
-            map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/houseInterior.png"), var.tile_w, var.tile_h)
-            map.map:setBatch()
-        elseif zcycle % 3 == 1 then
-            map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/TX Tileset Grass.png"), var.tile_w, var.tile_h)
-            map.map:setBatch()
-        else
-            map.map.tiles = newTiles(love.graphics.newImage("gfx/TileSet/grounds.png"), var.tile_w, var.tile_h)
-            map.map:setBatch()
-        end
-        zcycle = zcycle + 1
-
         if not zoomToggle then
             camera.setZoom(2)
             -- gun_enemy.setState(1)
