@@ -25,11 +25,14 @@ local dragOffsetX = 0
 local dragOffsetY = 0
 local titleBarHeight = 30
 
+local hints = require("ui.commandHints")
+
 -- Autocomplete state
 local autocompleteText = ""
 local autocompleteIndex = 0
 local autocompleteOptions = {}
 local showingAutocomplete = false
+local commandHintItems = {} -- hints.match() for the current input
 
 -- Command index for autocomplete (all available commands)
 local commandIndex = {
@@ -159,8 +162,20 @@ end
 -- Find autocomplete options using simple search
 local function findAutocompleteOptions(input)
     local options = {}
+    commandHintItems = {}
     if not input or input == "" then 
         return options 
+    end
+
+    -- A console command's subcommands, once its name is typed
+    commandHintItems = hints.match(hints.debug, input)
+    if input:find("%s") and #commandHintItems > 0 then
+        for _, it in ipairs(commandHintItems) do
+            if #it.complete > #input and it.complete:sub(1, #input):lower() == input:lower() then
+                table.insert(options, it.complete)
+            end
+        end
+        return options
     end
     
     -- Check for dot notation (object.property)
@@ -184,18 +199,20 @@ local function findAutocompleteOptions(input)
     end
     
     local inputLower = input:lower()
+    local seen = {}
     for i = 1, #commandIndex do
         local cmd = commandIndex[i]
         if cmd and type(cmd) == "string" then
             if cmd:sub(1, #inputLower):lower() == inputLower then
                 table.insert(options, cmd)
+                seen[cmd] = true
             end
         end
     end
     
     -- Add global variables that match
     for name, value in pairs(_G) do
-        if type(name) == "string" and name:sub(1, #inputLower):lower() == inputLower then
+        if type(name) == "string" and not seen[name] and name:sub(1, #inputLower):lower() == inputLower then
             if type(value) == "table" or type(value) == "function" or type(value) == "userdata" then
                 table.insert(options, name)
             end
@@ -236,6 +253,7 @@ function cmdn.toggle()
         historyIndex = #history + 1
         showingAutocomplete = false
         autocompleteText = ""
+        commandHintItems = {}
     end
     keyRepeatState = {}
 end
@@ -392,6 +410,9 @@ function cmdn.execute(cmd)
     end
     historyIndex = #history + 1
     cmdn.addOutput("{green}> {/green}" .. cmd, promptColor)
+    -- Commands are matched on their first word, so Lua that merely contains
+    -- one (print(output) has "tp") still runs as Lua
+    local verb = cmd:match("^%s*(%S+)")
     if cmd == "help" then
         cmdn.showHelp()
     elseif cmd == "clear" then
@@ -400,7 +421,7 @@ function cmdn.execute(cmd)
         love.event.quit()
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
-    elseif string.find(cmd, "tp") then
+    elseif verb == "tp" then
         local tokens = {}
         for token in cmd:gmatch("%S+") do
             table.insert(tokens, token)
@@ -418,7 +439,7 @@ function cmdn.execute(cmd)
         if serial and serial.quickLoad then
             serial.quickLoad()
         end
-    elseif string.find(cmd, "boss") then
+    elseif verb == "boss" then
         -- Handle boss commands
         local tokens = {}
         for token in cmd:gmatch("%S+") do
@@ -468,7 +489,7 @@ function cmdn.execute(cmd)
         else
             cmdn.addOutput("{red}Error:{/red} Boss module not loaded", errorColor)
         end
-    elseif string.find(cmd, "profile") then
+    elseif verb == "profile" then
         local tokens = {}
         for token in cmd:gmatch("%S+") do
             table.insert(tokens, token)
@@ -495,7 +516,7 @@ function cmdn.execute(cmd)
         else
             cmdn.addOutput("{red}Error:{/red} Profiler not loaded", errorColor)
         end
-    elseif string.find(cmd, "benchmark") then
+    elseif verb == "benchmark" then
         local tokens = {}
         for token in cmd:gmatch("%S+") do
             table.insert(tokens, token)
@@ -523,7 +544,7 @@ function cmdn.execute(cmd)
         else
             cmdn.addOutput("{red}Error:{/red} Profiler not loaded", errorColor)
         end
-    elseif string.find(cmd, "spawn") then
+    elseif verb == "spawn" then
         local tokens = {}
         for token in cmd:gmatch("%S+") do
             table.insert(tokens, token)
@@ -577,6 +598,7 @@ function cmdn.execute(cmd)
     end
     inputText = ""
     cursorPos = 0
+    updateAutocomplete()
 end
 
 -- Convert table to string representation
@@ -605,18 +627,14 @@ end
 
 -- Show help information
 function cmdn.showHelp()
-    cmdn.addOutput("{green}Available cmdns:{/green}", promptColor)
-    cmdn.addOutput("  {yellow}help{/yellow}          - Show this help", outputColor)
-    cmdn.addOutput("  {yellow}clear{/yellow}         - Clear console output", outputColor)
-    cmdn.addOutput("  {yellow}exit{/yellow}          - Quit game", outputColor)
-    cmdn.addOutput("  {yellow}reload{/yellow}        - Restart game", outputColor)
-    cmdn.addOutput("  {yellow}tp x y{/yellow}        - Teleport player", outputColor)
-    cmdn.addOutput("  {yellow}save{/yellow}          - Quick save", outputColor)
-    cmdn.addOutput("  {yellow}load{/yellow}          - Quick load", outputColor)
-    cmdn.addOutput("  {yellow}boss spawn [x] [y]{/yellow} - Spawn a boss", outputColor)
-    cmdn.addOutput("  {yellow}boss despawn <id|all>{/yellow} - Despawn boss(es)", outputColor)
-    cmdn.addOutput("  {yellow}boss list{/yellow}      - List active bosses", outputColor)
-    cmdn.addOutput("  {yellow}boss damage <id> [amt]{/yellow} - Damage a boss", outputColor)
+    cmdn.addOutput("{green}Available commands:{/green}", promptColor)
+    for _, c in ipairs(hints.debug) do
+        for _, s in ipairs(c.sub or { false }) do
+            local usage = s and (c[1] .. " " .. s[1] .. (s[2] and " " .. s[2] or ""))
+                or (c[1] .. (c[2] and " " .. c[2] or ""))
+            cmdn.addOutput("  {yellow}" .. usage .. "{/yellow} - " .. (s and s[3] or c[3]), outputColor)
+        end
+    end
     cmdn.addOutput("", outputColor)
     cmdn.addOutput("{green}Lua expressions/statements:{/green}", promptColor)
     cmdn.addOutput("  {cyan}print(value){/cyan}           - Print value", outputColor)
@@ -741,6 +759,16 @@ function cmdn.keypressed(key)
             cmdn.execute(inputText)
         end
     elseif key == "tab" then
+        -- On an empty line: list every console command
+        if inputText == "" and not showingAutocomplete then
+            commandHintItems = hints.match(hints.debug, "")
+            autocompleteOptions = {}
+            for i, c in ipairs(hints.debug) do autocompleteOptions[i] = c[1] end
+            showingAutocomplete = true
+            autocompleteIndex = 1
+            autocompleteText = autocompleteOptions[1]
+            return
+        end
         -- Cycle through autocomplete options or accept suggestion
         if showingAutocomplete and #autocompleteOptions > 0 then
             if #autocompleteOptions > 1 then
@@ -899,6 +927,10 @@ function cmdn.draw()
     love.graphics.setColor(textColor)
     local promptWidth = font:getWidth("> ")
     love.graphics.print(inputText, windowX + padding + promptWidth, inputY)
+    if inputText == "" and not showingAutocomplete then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.7)
+        love.graphics.print("command or Lua; Tab lists commands", windowX + padding + promptWidth + 4, inputY)
+    end
     
     -- Draw autocomplete preview (grayed out)
     if showingAutocomplete and autocompleteText ~= "" then
@@ -917,36 +949,24 @@ function cmdn.draw()
         love.graphics.rectangle("fill", cursorX, inputY, 2, lineHeight)
     end
     
-    -- Draw autocomplete dropdown (above input area)
-    if showingAutocomplete and autocompleteOptions and #autocompleteOptions > 1 then
-        local dropdownY = inputY - (lineHeight * #autocompleteOptions) - 10
-        local maxWidth = 0
-        for _, option in ipairs(autocompleteOptions) do
-            local width = font:getWidth(option)
-            if width > maxWidth then maxWidth = width end
-        end
-        maxWidth = maxWidth + 20
-        
-        -- Background for dropdown
-        love.graphics.setColor(0.08, 0.08, 0.08, 0.95)
-        love.graphics.rectangle("fill", windowX + padding + promptWidth, dropdownY, maxWidth, lineHeight * #autocompleteOptions, 5)
-        
-        -- Border
-        love.graphics.setColor(0.2, 0.6, 0.9, 0.8)
-        love.graphics.setLineWidth(1)
-        love.graphics.rectangle("line", windowX + padding + promptWidth, dropdownY, maxWidth, lineHeight * #autocompleteOptions, 5)
-        
-        -- Options
+    -- Autocomplete list (above the input area). Console commands show their
+    -- arguments and what they do; while typing a command's arguments, its usage.
+    local hinted = {}
+    for _, it in ipairs(commandHintItems) do
+        hinted[(it.complete:gsub("%s+$", ""))] = it
+    end
+    local rows = {}
+    if showingAutocomplete and autocompleteOptions then
         for i, option in ipairs(autocompleteOptions) do
-            local optionY = dropdownY + (i - 1) * lineHeight
-            if i == autocompleteIndex then
-                -- Highlight selected option
-                love.graphics.setColor(0.2, 0.5, 0.8, 0.7)
-                love.graphics.rectangle("fill", windowX + padding + promptWidth + 2, optionY + 1, maxWidth - 4, lineHeight - 2, 3)
-            end
-            love.graphics.setColor(textColor)
-            love.graphics.print(option, windowX + padding + promptWidth + 10, optionY)
+            local it = hinted[(option:gsub("%s+$", ""))]
+            rows[i] = { label = it and it.label or option, desc = it and it.desc }
         end
+    else
+        rows = commandHintItems
+    end
+    if #rows > 1 or (rows[1] and rows[1].desc) then
+        hints.draw(rows, showingAutocomplete and autocompleteIndex or 0,
+            windowX + padding + promptWidth - 8, inputY - 6, font, consoleWidth - 2 * padding)
     end
     
     -- Draw scroll bar if needed

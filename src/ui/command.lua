@@ -36,6 +36,8 @@ local keyRepeatDelay = 0.5 -- Initial delay before repeat starts
 local keyRepeatRate = 0.05 -- Time between repeats
 
 local block = require("game.block")
+local hints = require("ui.commandHints")
+local tabState = hints.newTab()
 
 -- Initialize the command module
 function command.load()
@@ -55,7 +57,7 @@ function command.load()
 
     -- Add initial help message
     command.addOutput("=== LUA DEBUG CONSOLE ===", promptColor)
-    command.addOutput("Type 'help' for available commands", outputColor)
+    command.addOutput("Type 'help' for available commands, Tab to complete one", outputColor)
     command.addOutput("Press '/' to toggle console", outputColor)
     command.addOutput("Ctrl+C/Cmd+C to copy, Ctrl+V/Cmd+V to paste", outputColor)
     command.addOutput("", outputColor)
@@ -169,8 +171,9 @@ function command.execute(cmd)
     elseif cmd == "reload" then
         love.event.push("quit", "restart")
         return
-    elseif cmd == "tp" then
-        player.body:setPosition(0, 0)
+    elseif cmd == "tp" or cmd:match("^tp%s") then
+        local x, y = cmd:match("^tp%s+(%S+)%s+(%S+)")
+        player.body:setPosition(tonumber(x) or 0, tonumber(y) or 0)
         return
     elseif cmd == "save" then
         -- for this function expect 3 tokens "tp", "x: float", "y: float"
@@ -184,6 +187,7 @@ function command.execute(cmd)
         return
     elseif cmd =="boss" then
         boss.requestSpawn(0, 0)
+        return
     end
 
     -- Try to execute as Lua code
@@ -338,19 +342,19 @@ end
 -- Show help information
 function command.showHelp()
     command.addOutput("Available commands:", promptColor)
-    command.addOutput("  help          - Show this help", outputColor)
-    command.addOutput("  clear         - Clear console output", outputColor)
-    command.addOutput("  cont/continue - Close console and continue", outputColor)
-    command.addOutput("  exit          - Quit game", outputColor)
+    for _, c in ipairs(hints.slash) do
+        local usage = c[1] .. (c[2] and " " .. c[2] or "")
+        command.addOutput(string.format("  %-14s - %s", usage, c[3]), outputColor)
+    end
     command.addOutput("", outputColor)
     command.addOutput("Lua expressions and statements:", promptColor)
     command.addOutput("  print(value)           - Print a value", outputColor)
     command.addOutput("  player.x = 100         - Set variables", outputColor)
     command.addOutput("  love.graphics.getWidth() - Call functions", outputColor)
     command.addOutput("  var                     - Access global table", outputColor)
-    command.addOutput("  tp (x) (y) - teleport player ", outputColor)
     command.addOutput("", outputColor)
     command.addOutput("Keyboard shortcuts:", promptColor)
+    command.addOutput("  Tab - Complete a command, again to cycle", outputColor)
     command.addOutput("  Ctrl+C/Cmd+C - Copy last output line", outputColor)
     command.addOutput("  Ctrl+V/Cmd+V - Paste from clipboard", outputColor)
     command.addOutput("  Ctrl+A/Cmd+A - Select all text", outputColor)
@@ -367,6 +371,7 @@ function command.toggle()
         cursorPos = 0
         historyIndex = #history + 1
     end
+    hints.resetTab(tabState)
     -- Clear key repeat state when toggling
     keyRepeatState = {}
 end
@@ -452,6 +457,7 @@ function command.textinput(text)
     -- Insert text at cursor position
     inputText = inputText:sub(1, cursorPos) .. text .. inputText:sub(cursorPos + 1)
     cursorPos = cursorPos + #text
+    hints.resetTab(tabState)
 end
 
 -- Handle key presses
@@ -463,6 +469,13 @@ function command.keypressed(key)
     end
 
     if not isActive then return end
+
+    if key == "tab" then
+        inputText = hints.tab(tabState, hints.slash, inputText)
+        cursorPos = #inputText
+        return
+    end
+    hints.resetTab(tabState)
 
     -- Handle modifier key combinations first
     if isModifierPressed() then
@@ -609,6 +622,21 @@ function command.draw()
     love.graphics.setColor(textColor)
     local promptWidth = font:getWidth("< ")
     love.graphics.print(inputText, padding + promptWidth, inputY)
+
+    -- Command hints: matches for the word being typed (or the command's
+    -- usage once it's typed), with the first one's rest greyed out inline
+    local inputX = padding + promptWidth + font:getWidth(inputText)
+    if inputText == "" and not tabState.base then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.7)
+        love.graphics.print("type a command, or Tab to list them", inputX + 4, inputY)
+    else
+        local items, selected = hints.current(tabState, hints.slash, inputText)
+        if not tabState.base then
+            love.graphics.setColor(0.5, 0.5, 0.5, 0.7)
+            love.graphics.print(hints.ghost(items, inputText), inputX, inputY)
+        end
+        hints.draw(items, selected, padding + promptWidth - 8, inputY - 4, font, screenWidth - 2 * padding)
+    end
 
     -- Cursor
     if cursorVisible then
