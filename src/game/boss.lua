@@ -514,7 +514,7 @@ function boss.applyAreaDamage(x, y, radius, damage)
     if player and player.body then
         local px, py = player.body:getPosition()
         local dist = math.sqrt((px - x)^2 + (py - y)^2)
-        if dist <= radius then
+        if dist <= radius and not player.isSafe() then
             player.health = player.health - damage
         end
     end
@@ -557,7 +557,7 @@ function boss.checkLaserHits(boss_instance)
                 local hit_y = start_y + (end_y - start_y) * fraction
                 
                 -- Apply laser damage
-                if player and player.body and fixture:getBody() == player.body then
+                if player and player.body and fixture:getBody() == player.body and not player.isSafe() then
                     player.health = player.health - boss_instance.laser_damage
                 end
                 

@@ -34,6 +34,7 @@ function draw.mydraw()
 
     love.graphics.setColor(1, 1, 1, 1)
     puddle.draw() -- on the ground, under everything that wades through
+    shop.drawFloor() -- the shop's floor while you're inside
     
 
     -- Populate and sort dynamic draw list if neccessary
@@ -108,6 +109,7 @@ function draw.mydraw()
 
     menu.drawUI() -- ui last, under the CRT like the rest of the picture
     portal.drawUI() -- travel selector and the flash of a jump
+    shop.drawUI() -- the shop's prompt and trade panel
 
     if var.graphics_high then
         crtShader:present()

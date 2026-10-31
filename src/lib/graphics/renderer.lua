@@ -551,6 +551,7 @@ function renderer.populateDynamicDrawListNetworked()
 
     portal.populate()
     regions.populate()
+    shop.populate()
 
     -- Add player light effect (using camera transforms)
     -- if blueNeon and player and player.body then
@@ -575,6 +576,7 @@ function renderer.populateDynamicDrawList()
     addPlayer(px, py, spriteNum, player.scale, var.character_rotation, nil)
     portal.populate()
     regions.populate()
+    shop.populate()
 
     -- -- Add player light effect
     -- if blueNeon then

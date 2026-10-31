@@ -131,7 +131,7 @@ end
 function collision.init()
     -- Player vs Enemy: Damage player and destroy enemy
     collision.registerResponse("player", "enemy", function(fixtureA, fixtureB, contact)
-        if player then
+        if player and not player.isSafe() then
             player.health = player.health - 1
             local enemyBody = fixtureB:getBody()
             for i = 1, #enemies_bods do

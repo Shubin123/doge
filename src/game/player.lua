@@ -337,11 +337,16 @@ function player.collision(fixture_a,fixture_b,contact)
 
 end
 
+-- Somewhere nothing can hurt you: inside the shop (game/shop.lua)
+function player.isSafe()
+    return shop ~= nil and shop.isSafe()
+end
+
 -- An enemy shot hit: take `amount` HP (player.maxHealth is ten hearts of 100)
 -- and get knocked along the shot's `dir`. Nothing in god mode. Safe inside a
 -- physics callback: it only sets the velocity, never creates or destroys.
 function player.hurt(amount, dir)
-    if player.god or not player.body then return end
+    if player.god or not player.body or player.isSafe() then return end
     player.health = math.max(0, player.health - amount)
     player.hurtAt = love.timer.getTime()
     if dir then

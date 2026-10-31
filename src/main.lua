@@ -38,6 +38,7 @@ car = require("game.car")
 xp = require("game.xp") -- XP globs (the coin_bods)
 blackhole = require("game.blackhole")
 daynight = require("systems.daynight")
+shop = require("game.shop")
 collision = require("util.collision")
 tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
@@ -237,6 +238,7 @@ function love.load()
     car.load(world)
     blackhole.load()
     daynight.load()
+    shop.load()
     collision.init()
     audio.loadSounds()
 
@@ -294,6 +296,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     blackhole.update(dt)
     dt = dt * blackhole.timeScale
     daynight.update(dt)
+    shop.update(dt)
 
     characterAnimator.update(dt)
     -- teslaCoil.fireAt(love.mouse.getPosition())
@@ -344,6 +347,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     blackhole.addLights() -- its disk's glow on the ground
+    shop.addLights() -- the shopkeeper's lantern
     daynight.apply() -- the hour's ambient light, before the lighting upload
     shadow.updateBothShaders(dt)
     -- bullet.update(dt)
@@ -421,6 +425,9 @@ function love.mousepressed(x, y, button, istouch, presses)
         return -- Don't process game input when in menu
     end
 
+    if shop.mousepressed(x, y, button) then
+        return -- bought something, or clicked on the trade panel
+    end
     if command.clickBlock(x, y, button) then
         return -- command block was clicked
     end
@@ -461,6 +468,9 @@ local zcycle = 0
 function love.keypressed(key)
     if command.keypressed(key) then
         return -- the console is open (or "/" or "," just opened it)
+    end
+    if shop.keypressed(key) then
+        return -- E at the counter, or the trade panel's keys
     end
     if portal.keypressed(key) then
         return -- the travel selector took it (Esc closes it, not the menu)
@@ -569,6 +579,9 @@ end
 function love.wheelmoved(x, y)
     if command.wheelmoved(x, y) then
         return -- scrolled the console
+    end
+    if shop.open then
+        return -- the wheel stays on your weapon while trading
     end
     if var.State ~= "menu" then
         if not portal.wheelmoved(x, y) then

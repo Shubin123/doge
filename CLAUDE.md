@@ -98,6 +98,9 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 ### Day & Night
 - `systems/daynight.lua` keeps `daynight.hour` (game time, so the black hole slows it; `var.day_length` seconds a day, starting at `var.day_start`). `daynight.apply()` sets `shadow.ambient` (0.2 at night, the old look, up to 1 by day), which every lit shader reads, characters included; `shader.pass` hands `daynight.daylight()` and `daynight.tint()` to the composite, which by day shows the scene's own colours under the sky. The HUD's clock is in `hud.lua` (`drawClock`); the host's hour goes out in the snapshot and saves keep it. The GPU scenario pins midnight.
 
+### Shop & Safe Zone
+- `game/shop.lua`: the home map's house is the shop. Inside it (`var.indoors`) `player.isSafe()` is true and every damage path skips the player; its door is too narrow for enemies. A shopkeeper behind a counter sells for XP (`var.player_score`) by day only (`daynight.isOpen()`, 07:00-19:00); at night they sleep. E at the counter opens the panel (`shop.keypressed`, before the rest of the game's keys).
+
 ### Global Variables
 Key globals defined in main.lua:
 - `world` - Physics world
