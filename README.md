@@ -2,9 +2,9 @@
 ![Screenshot 2025-05-24 at 1 47 35 AM](https://github.com/user-attachments/assets/9c959565-c9f8-4ceb-9ea5-f9ac615b4ff3)
 
 
-# LÖVE2D Real-Time Global Illumination & Water Effects
+# LÖVE2D Real-Time Global Illumination & Puddles
 
-A 2D game engine implementation featuring real-time global illumination using Jump Flood Algorithm (JFA) and realistic water shader effects, built with LÖVE2D (Lua).
+A 2D game engine implementation featuring real-time global illumination using Jump Flood Algorithm (JFA) and rippling puddles, built with LÖVE2D (Lua).
 
 ## Features
 
@@ -14,11 +14,10 @@ A 2D game engine implementation featuring real-time global illumination using Ju
 - **Configurable sampling** with adjustable ray count and maximum distance
 - **Optimized rendering** with multi-pass shader pipeline
 
-### 🌊 Advanced Water Effects
-- **Real-time water distortion** with animated ripples and waves
-- **Reflection mapping** for realistic water surface reflections  
-- **World-space positioning** that works correctly with camera movement and zoom
-- **Noise-based animation** for natural water movement patterns
+### 🌊 Puddles and Pools
+- **Wobbly elliptical water** drawn onto the ground (`systems/puddle.lua`)
+- **Rings that spread and interfere** wherever the player or an enemy wades through
+- **Lit by the scene's own point lights**, so water stays dark at night
 
 ### 📷 Smooth Camera System
 - **Interpolated following** with configurable smoothing speed
@@ -43,20 +42,15 @@ shader.prepass()
 shader.pass(maxDistance, sampleCount)
 ```
 
-### Water Shader System
+### Puddles
 
-The water system uses world-space coordinates to maintain position consistency:
+Water is a set of puddles in world space, drawn onto the ground before the
+sprites:
 
 ```lua
--- Set water area in world coordinates
-water.setWaterArea(x, y, width, height)
-
--- Update with camera transform
-water.setCameraTransform(camera.x, camera.y, camera.zoom)
-water.update(dt)
-
--- Render water effects
-water.pass()
+puddle.add(x, y, radiusX, radiusY) -- a wobbly ellipse
+puddle.update(dt)                  -- rings where walkers wade
+puddle.draw()                      -- under the camera transform
 ```
 
 ### Camera System
@@ -85,10 +79,9 @@ love.graphics.pop()
 - **Scene Canvas**: `rgba8` format for color rendering
 - **JFA Canvases**: `rg16f` format for UV coordinate storage
 - **Distance Field**: `r16f` format for distance values
-- **Water Canvases**: `rgba8` format for water effects
 
 ### External Assets
-- **Noise Texture**: `gfx/noise.png` - Required for water distortion effects
+- **Noise Texture**: `gfx/noise.png` - Smoke distortion
 
 ## Performance Considerations
 
@@ -97,10 +90,8 @@ love.graphics.pop()
 - **Max Distance**: Tune based on scene size to balance quality vs performance
 - **JFA Passes**: Automatically calculated based on screen resolution
 
-### Water Effects
-- **Noise Scale**: Affects detail level of water distortion
-- **Distortion Strength**: Controls intensity of water warping
-- **Update Frequency**: Water animation updates can be throttled if needed
+### Puddles
+- **Ripples**: Each puddle keeps at most 24 live rings (`MAX_RIPPLES`)
 
 ## Configuration Variables
 
@@ -108,10 +99,6 @@ love.graphics.pop()
 -- Global Illumination
 local maxDistance = 40    -- Maximum ray marching distance
 local sampleCount = 32    -- Number of rays per pixel
-
--- Water Effects
-local distortionStrength = 0.015  -- Water distortion intensity
-local reflectionStrength = 0.1    -- Reflection opacity
 
 -- Camera
 local lerpSpeed = 0.1            -- Camera following speed
@@ -122,20 +109,14 @@ local zoomLerpSpeed = 0.1        -- Zoom transition speed
 ```lua
 function love.load()
     shader.load()
-    water.load()
+    puddle.load()
     -- Initialize other systems
 end
 
 function love.update(dt)
     -- Update camera
     camera.update(dt, player)
-    
-    -- Update water with camera transform
-    water.setCameraTransform(camera.x, camera.y, camera.zoom)
-    water.update(dt)
-    
-    -- Set water areas in world space
-    water.setWaterArea(100, 200, 300, 150)
+    puddle.update(dt)
 end
 
 function love.draw()
@@ -144,13 +125,11 @@ function love.draw()
     
     -- Render scene with global illumination
     shader.prepass()
+    puddle.draw()
     -- Draw your game objects here
     shader.pass(40, 32) -- maxDistance=40, samples=32
     
     love.graphics.pop()
-    
-    -- Apply water effects
-    water.pass()
 end
 ```
 

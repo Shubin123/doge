@@ -48,7 +48,7 @@ local commandIndex = {
     
     -- Game modules  
     "player", "enemy", "gun", "camera", "map", "var", "fire", "bullet",
-    "menu", "mymath", "effects", "mydraw", "shader", "water", "grass", "smoke", "sprite",
+    "menu", "mymath", "effects", "mydraw", "shader", "grass", "smoke", "sprite",
     "portal", "crt", "renderer", "snapshot", "blur", "serial", "editor", "multiplayer",
     "vec2", "vec4", "json",
     

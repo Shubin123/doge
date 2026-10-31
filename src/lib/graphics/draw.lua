@@ -7,7 +7,7 @@ oldhand = love.graphics.newImage("gfx/menu/old_hand.png")
 --        forward-lit map + sorted sprites (shadow/Lighting object shader),
 --        instanced characters (characterAnimator's own lit shader)
 --   -> screen-space passes: neon/god-rays (light), explosion shockwave distortion,
---      JFA global illumination (shader.pass), water, CRT capture
+--      JFA global illumination (shader.pass), CRT capture
 --   -> UI / console on top
 function draw.mydraw()
     -- love.window.setMode (fullscreen and resolution changes) doesn't always
@@ -85,14 +85,14 @@ function draw.mydraw()
 
     love.graphics.pop() -- back to screen space
 
-    -- Screen-space passes. Order matters: lights -> shockwave -> GI -> water -> CRT.
-    -- GI composites into the CRT's capture canvas; water and the HUD draw on
-    -- top of it there, and the CRT pass then puts all of it on screen.
+    -- Screen-space passes. Order matters: lights -> shockwave -> GI -> CRT.
+    -- GI composites into the CRT's capture canvas; the scene and the HUD draw
+    -- on top of it there, and the CRT pass then puts all of it on screen.
     if var.graphics_high then
         light.draw()
         explosion.applyShockwave() -- distort scene_canvas before GI processes it
         shader.pass(crtShader:target())
-        water.pass()
+        love.graphics.draw(scene_canvas)
     end
     -- sampleScreen.pass() samples gi_canvas into a 1x1 canvas that nothing
     -- reads back yet (see sampleScreen.lua). Run per frame it only cost a

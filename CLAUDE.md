@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a 2D action game built with LÖVE2D featuring real-time global illumination using Jump Flood Algorithm (JFA) and advanced water shader effects. The game includes combat mechanics, multiplayer support, and a built-in level editor.
+This is a 2D action game built with LÖVE2D featuring real-time global illumination using Jump Flood Algorithm (JFA) and puddle water effects. The game includes combat mechanics, multiplayer support, and a built-in level editor.
 
 ## Essential Commands
 
@@ -67,13 +67,12 @@ Multi-pass rendering system for advanced visual effects:
 1. Scene renders to canvas
 2. JFA generates distance fields using ping-pong buffers
 3. Ray marching calculates global illumination
-4. Water effects apply distortion and reflection
-5. Post-processing (bloom, CRT filter) applied
+4. Post-processing (bloom, CRT filter) applied
 
 Key shader files:
 - `src/shaders/jfa_*.frag` - Jump Flood Algorithm passes
 - `src/shaders/raymarching.frag` - Global illumination
-- `src/shaders/water.frag` - Water distortion effects
+- `systems/puddle.lua` - Puddle and pool water (wobbly ellipses on the ground)
 
 ### Integration System
 The `game.integration` module coordinates all gameplay systems:
@@ -85,7 +84,7 @@ The `game.integration` module coordinates all gameplay systems:
 When modifying gameplay, ensure integration.lua is updated to maintain system cohesion.
 
 ### Regions & Portal
-- `game/regions.lua` lays out four regions (Wasteland, Castle, Neon City, Sanctum) procedurally from fixed seeds, 20000 px apart east of the home map: blended seamless ground (its own shader), edge walls + a physics fence, facade streets, props/lamps (lamps add transient lights), a pool (sets `water.setWaterArea` while you're there), puddles and grass patches (`grass.public.addField`).
+- `game/regions.lua` lays out four regions (Wasteland, Castle, Neon City, Sanctum) procedurally from fixed seeds, 20000 px apart east of the home map: blended seamless ground (its own shader), edge walls + a physics fence, facade streets, props/lamps (lamps add transient lights), a pool (one big puddle), puddles and grass patches (`grass.public.addField`).
 - Light by height (`SPRITE_SHADER` in regions.lua): region sprites carry their base row and flags in their vertex colour. Tall ones (facades, walls, towers, lamps, glowing signs, props over 96 px) write alpha 1 and block GI; low props write the ground's 0.4 so light passes; `flat` ones (grates, carpets, rubble) are drawn into the ground pass under whoever walks over them. Faces are lit from the ground point under each texel, not by lights behind their base.
 - Light emitters: sprites with a `glow` entry in `gfx/regions/<id>.lua` (lamps, flames, neon, glowing glass) have their glowing texels in `<id>_glow.png`; those draw at full strength in the dark (and so feed GI their colour), and each emitter adds a transient point light from the ground under it, a coloured pool on the floor and a halo (`regions.drawGlows`, drawn after the sorted sprites). Fire flickers.
 - Art: one atlas per region in `gfx/regions/<id>.png`, sprite rects + categories in `gfx/regions/<id>.lua`, ground textures in `<id>_floor.png`. Sprite pools per region are named in `regions.list`.
@@ -128,13 +127,11 @@ Lurker automatically reloads changed Lua files. On file change, the game restart
 ### Shader Development
 - Shaders auto-reload on file change
 - Use `shader.prepass()` and `shader.pass()` for global illumination
-- Water effects require `water.setCameraTransform()` before rendering
 - All shaders expect specific canvas formats (rgba8, rg16f, r16f)
 
 ### Performance Considerations
 - Global illumination sample count affects FPS (16-32 for gameplay, 64+ for screenshots)
 - Dynamic draw list sorting happens every frame
-- Water areas should be limited to visible regions
 - Enemy AI updates can be throttled for large enemy counts
 
 

@@ -9,7 +9,6 @@ audio = require("systems.audio")
 player = require("game.player")
 mydraw = require("lib.graphics.draw")
 shader = require("lib.graphics.shader")
-water = require("systems.water")
 grass = require("systems.grass")
 smoke = require("systems.smoke")
 sprite = require('lib.graphics.sprite')
@@ -229,11 +228,10 @@ function love.load()
     fire.load()
 
     shader.load()
-    water.load()
     puddle.load()
     -- smoke.load()
     portal.load()
-    regions.load() -- after the world, grass, water and puddles it lays out into
+    regions.load() -- after the world, grass and puddles it lays out into
     crt.load()
     blur.load()
     light.load()
@@ -318,7 +316,6 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     -- camera.update(dt, player)
-    water.update(dt)
     puddle.update(dt)
     -- smoke.update(dt)
     fire.update(dt)

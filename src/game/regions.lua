@@ -606,8 +606,6 @@ local function generate(r, index)
     local prx, pry = rand(170, 230), rand(70, 90)
     puddle.add(px, py, prx, pry)
     mark(r.grid, px - prx, py - pry, prx * 2, pry * 2)
-    -- the water shader's distortion, kept well inside the pool's wobbly edge
-    r.water = { px - prx * 0.48, py - pry * 0.48, prx * 0.96, pry * 0.96 }
     for _ = 1, r.puddles do
         for _ = 1, 12 do
             local rx, ry = rand(26, 70), rand(12, 28)
@@ -734,14 +732,7 @@ function regions.update(dt)
     if not (player and player.body) then return end
     local px, py = player.body:getPosition()
     local here = regions.at(px, py)
-    if here ~= regions.current then
-        regions.current = here
-        if here.water then
-            water.setWaterArea(unpack(here.water))
-        else
-            water.setWaterArea(0, 0, 0, 0)
-        end
-    end
+    regions.current = here
 
     regions.time = regions.time + dt
     -- What gives off light on screen lights the scene this frame, from the

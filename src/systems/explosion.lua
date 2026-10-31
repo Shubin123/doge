@@ -32,7 +32,7 @@ function explosion.load()
     rocket_animation = createAnimation(explosion_image, 100, 100, 0.5, 60)
     death_animation = createAnimation(explosion_image, 128, 128, 1.067, 16)
     
-    -- Create shockwave distortion shader like water.lua
+    -- Create shockwave distortion shader
     explosion.SHADERS["shockwave"] = love.graphics.newShader([[
 
         #if defined(VERTEX) || __VERSION__ > 100 || defined(GL_FRAGMENT_PRECISION_HIGH)

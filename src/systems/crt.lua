@@ -68,7 +68,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
         tc.x = tc.x + 0.001*glitch_intensity*clamp(offset_l, clamp(offset_r, -1.0, 0.0), 1.0);
     }
 
-    // Sample the finished frame (opaque: scene, GI, water and HUD)
+    // Sample the finished frame (opaque: scene, GI and HUD)
 	MY_HIGHP_OR_MEDIUMP vec4 crt_tex = Texel(tex, tc);
 
     //intensity multiplier for any visual artifacts
@@ -221,7 +221,7 @@ function crt:updateParams(newParams)
     end
 end
 
--- The canvas the finished frame is drawn into -- scene composite, water and
+-- The canvas the finished frame is drawn into -- scene composite and
 -- HUD -- so the CRT pass can then cover the whole screen with it. It follows
 -- the window's size.
 function crt:target()
