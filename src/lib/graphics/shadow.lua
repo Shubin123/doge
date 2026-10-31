@@ -241,6 +241,18 @@ function lighting.update(dt)
     end
 end
 
+--- Upload this frame's screen-space lights to another shader that declares
+--- the object shader's uniforms (numLights, lights, u_ambient), so it is lit
+--- the same way. Call after lighting.update.
+function lighting.sendLights(shader)
+    local n = #screenLights
+    shader:send("numLights", n)
+    shader:send("u_ambient", lighting.ambient)
+    if n > 0 then
+        shader:send("lights", unpack(screenLights))
+    end
+end
+
 -- Legacy alias: main.lua calls shadow.updateBothShaders(dt).
 lighting.updateBothShaders = lighting.update
 

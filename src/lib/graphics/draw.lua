@@ -32,6 +32,7 @@ function draw.mydraw()
     map.map:draw(-10000, 100, 1)
 
     love.graphics.setColor(1, 1, 1, 1)
+    puddle.draw() -- on the ground, under everything that wades through
     
 
     -- Populate and sort dynamic draw list if neccessary
