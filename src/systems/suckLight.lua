@@ -11,6 +11,7 @@
 
   enemy.lua calls suckLight.spawn on a death; main.lua updates it before the
   lighting upload, and draw.lua draws it in world space after the bullets.
+  Each mote the player absorbs refills AMMO_PER_MOTE of gun.lua's universal ammo.
 ]]
 local suckLight = {}
 
@@ -21,6 +22,7 @@ suckLight.RADIUS = 15                       -- glow reach of a mote, world px
 suckLight.LIGHT = 0.5                       -- point light per mote (the player's key light is 1.0)
 suckLight.TRAIL = 14                        -- trail samples behind each mote
 suckLight.FLARE_TIME = 0.35                 -- seconds a flare at the player lasts
+suckLight.AMMO_PER_MOTE = 2                 -- universal ammo refilled per absorbed mote
 
 suckLight.t = 0
 local motes, flares = {}, {}
@@ -101,6 +103,7 @@ function suckLight.update(dt)
         if d <= math.max(14, step) or m.age > 4 then
             table.remove(motes, i)
             flares[#flares + 1] = { age = 0 }
+            gun.addAmmo(suckLight.AMMO_PER_MOTE)
         else
             m.x, m.y = m.x + m.vx * dt, m.y + m.vy * dt
             m.progress = math.max(0, math.min(1, 1 - d / m.start))

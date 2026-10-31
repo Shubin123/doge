@@ -1,6 +1,7 @@
 -- math.randomseed(os.time())
 
 menu = require("ui.menu")
+hud = require("ui.hud")
 mymath = require("lib.math.myMath")
 effects = require("lib.graphics.effects")
 map = require("game.map")
@@ -114,6 +115,7 @@ function love.load()
 
     -- Initialize the menu
     menu.load(var.ScreenInfo)
+    hud.load()
 
     -- Physics setup
     world = love.physics.newWorld(0, 0)
@@ -417,20 +419,9 @@ function love.mousepressed(x, y, button, istouch, presses)
     local direction = vec2.new(x - center_x, y - center_y)
     local normalized_direction = vec2.norm(direction)
 
-    -- Check if we have fireballs available in the ring
-    if fire.getAvailableCount() > 0 and button == 2 then
-        -- Get the position of the last fireball in the ring
-        local fireball_pos = fire_instances[#fire_instances].pos
-
-        -- Create a projectile fireball
-        table.insert(fire.fireables, {
-            vec2.new(fireball_pos.x, fireball_pos.y),
-            normalized_direction,
-            false
-        })
-
-        -- Remove the fireball from the ring
-        fire.removeFireball()
+    -- Right click quick-throws a fireball without selecting its hotbar slot
+    if button == 2 then
+        fire.throw(normalized_direction)
     end
 
     editor.mousepressed(x, y, button)
@@ -564,7 +555,9 @@ end
 function love.wheelmoved(x, y)
     command.wheelmoved(x, y)
     cmdn.wheelmoved(x, y)
-    -- your other mouse wheel handling
+    if var.State ~= "menu" and not command.isOpen() and not cmdn.isOpen() then
+        gun.wheelmoved(x, y)
+    end
 end
 
 function round(x, n)

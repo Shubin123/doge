@@ -1,5 +1,6 @@
 local player = {}
 player.health = 1000
+player.maxHealth = player.health -- full row of HUD hearts
 player.online = {}
 player.online.bodies = {}
 player.online.health = {}

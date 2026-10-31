@@ -139,14 +139,8 @@ function menu.drawUI()
         love.graphics.draw(oldhand, love.mouse.getX(), love.mouse.getY(), 0, 0.05, 0.05)
         return
     end
-    
 
-    -- Draw header
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 0, 0, W, var.header_height)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Health: "..player.health, 10, 10)
-    love.graphics.print("Points: " .. var.player_score, W - 100, 10)
+    hud.draw()
 end
 
 function menu.mousepressed(x, y, button, screenInfo)

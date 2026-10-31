@@ -23,6 +23,7 @@ local state = {
 bezierArrow.firing = false
 bezierArrow.timer = 0
 bezierArrow.cooldown = 1.5
+bezierArrow.ammoCost = 5 -- universal ammo per volley
 
 -- Cubic bezier curve calculation
 local function cubicBezier(t, p0, p1, p2, p3)
@@ -331,6 +332,7 @@ function bezierArrow:drawBarrel()
 end
 
 function bezierArrow:shoot()
+    if not gun.useAmmo(bezierArrow.ammoCost) then return end
     bezierArrow.firing = true
     bezierArrow.timer = 0
     

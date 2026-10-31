@@ -240,6 +240,10 @@ function cmdn.toggle()
     keyRepeatState = {}
 end
 
+function cmdn.isOpen()
+    return isActive
+end
+
 -- Check if mouse is over title bar
 local function isMouseOverTitleBar(mx, my)
     if not isActive then return false end

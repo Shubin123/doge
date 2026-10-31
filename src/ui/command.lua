@@ -371,6 +371,10 @@ function command.toggle()
     keyRepeatState = {}
 end
 
+function command.isOpen()
+    return isActive
+end
+
 -- Handle key repeat for continuous key presses
 local function handleKeyRepeat(key, dt)
     if not keyRepeatState[key] then

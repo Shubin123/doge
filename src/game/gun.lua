@@ -28,6 +28,7 @@ function Gun.new(params)
     gun.bulletsPerShot = params.bulletsPerShot or 1 -- for shotguns
     gun.shellType = params.shellType or nil         -- "pistol", "shotgun", "rifle", "smg", or nil for no shells
     gun.isFullAuto = params.isFullAuto or false     -- full auto firing mode
+    gun.ammoCost = params.ammoCost or 1             -- universal ammo spent per shot
     gun.tracer = params.tracer                      -- neon tracer colours (bullet.NEON layout); nil = default
 
     -- Muzzle flash parameters
@@ -72,6 +73,9 @@ end
 
 function Gun:shoot(mouseX, mouseY)
     if self.cooldown > 0 then
+        return
+    end
+    if not gun.useAmmo(self.ammoCost) then
         return
     end
 
@@ -186,6 +190,48 @@ GunTool.currentVel = {}
 GunTool.lastAimDirection.x, GunTool.lastAimDirection.y = 0, 0
 GunTool.currentVel.x, GunTool.currentVel.y = 0, 0
 GunTool.totalGuns = 0
+GunTool.maxAmmo = 100
+GunTool.ammo = GunTool.maxAmmo -- universal ammo shared by every weapon
+
+-- Spend universal ammo; false (and nothing spent) when there isn't enough.
+function GunTool.useAmmo(cost)
+    if GunTool.ammo < cost then
+        return false
+    end
+    GunTool.ammo = GunTool.ammo - cost
+    return true
+end
+
+-- Refill universal ammo; suckLight calls this as dead enemies' light reaches the player.
+function GunTool.addAmmo(amount)
+    GunTool.ammo = math.min(GunTool.maxAmmo, GunTool.ammo + amount)
+end
+
+-- Whether a hotbar entry can be used right now.
+function GunTool.canFire(weapon)
+    if weapon.getCount then
+        return weapon:getCount() > 0
+    end
+    return GunTool.ammo > 0 and GunTool.ammo >= (weapon.ammoCost or 0)
+end
+
+-- Fireballs as a hotbar item. The stack is fire.lua's ring of orbiting
+-- fireballs, so throwing one costs no universal ammo.
+local fireballItem = {}
+
+function fireballItem:update(dt)
+end
+
+function fireballItem:drawBarrel()
+end
+
+function fireballItem:shoot()
+    fire.throw(GunTool.lastAimDirection)
+end
+
+function fireballItem:getCount()
+    return fire.getAvailableCount()
+end
 
 function GunTool:updateAiming()
     -- Get current mouse position
@@ -345,6 +391,7 @@ function GunTool.load(world)
         projectileRadius = 1.5,   -- Slightly smaller pellets
         projectileLifetime = 2.0, -- Shorter lifetime - shotgun pellets lose velocity faster
         bulletsPerShot = 8,       -- Increased from 6 to 8 pellets for more realistic spread
+        ammoCost = 3,
         shellType = "shotgun",
         muzzleFlash = {
             duration = 0.12,
@@ -418,6 +465,7 @@ function GunTool.load(world)
         accelTime = 0.6, -- Faster acceleration (reduced time to reach top speed)
         projectileRadius = 10,
         bulletsPerShot = 1,
+        ammoCost = 10,
         -- No shellType - rockets don't eject shells
         muzzleFlash = {
             duration = 0.15,
@@ -442,6 +490,7 @@ function GunTool.load(world)
     })
     GunTool.guns[6] = teslaCoil
     GunTool.guns[7] = arrows
+    GunTool.guns[8] = fireballItem
     -- teslaCoil.updateAiming = GunTool.guns[5]:updateAiming()
 
 
@@ -449,6 +498,7 @@ function GunTool.load(world)
     -- Set default gun (pistol)
     GunTool.currentGun = GunTool.guns[1]
     GunTool.currentWeaponIndex = 1
+    GunTool.ammo = GunTool.maxAmmo
 end
 
 function GunTool.update(dt)
@@ -525,6 +575,13 @@ function GunTool.keypressed(key)
     if weaponNum and weaponNum >= 1 and weaponNum <=  GunTool.totalGuns then
         GunTool.switchGun(weaponNum)
     end
+end
+
+-- Scroll through the hotbar like Minecraft: wheel down moves right, wrapping.
+function GunTool.wheelmoved(x, y)
+    if y == 0 then return end
+    local step = y > 0 and -1 or 1
+    GunTool.switchGun((GunTool.currentWeaponIndex - 1 + step) % GunTool.totalGuns + 1)
 end
 
 function GunTool.getCurrentGun()

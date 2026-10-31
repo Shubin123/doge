@@ -8,6 +8,8 @@ fire.fireables = {}
 fire.online_fireables = {}
 fire.count = 1
 fire.max_fireballs = 7
+fire.regen_time = 3 -- seconds to regrow one fireball while the ring is below max
+fire.regen_timer = 0
 fire.pierce = true
 fire.loaded_effects = {}
 fire.current_effect_index = 1
@@ -130,7 +132,18 @@ function fire.update(dt)
         fire.loaded_effects[i].particleSystem:update(dt)
     end
     fire.t = fire.t + dt
-    
+
+    -- Regrow the ring one fireball at a time until it's full again
+    if #fire_instances < fire.max_fireballs then
+        fire.regen_timer = fire.regen_timer + dt
+        if fire.regen_timer >= fire.regen_time then
+            fire.regen_timer = 0
+            fire.addFireball()
+        end
+    else
+        fire.regen_timer = 0
+    end
+
     -- Clear previous draw data
     fire_draw_data = {}
     
@@ -323,6 +336,22 @@ function fire.removeFireball()
 end
 
 -- Get available fireball count
+-- Throw the last fireball in the ring along `direction` (a unit vec2).
+-- Returns false when the ring is empty.
+function fire.throw(direction)
+    if #fire_instances == 0 then
+        return false
+    end
+    local fireball_pos = fire_instances[#fire_instances].pos
+    table.insert(fire.fireables, {
+        vec2.new(fireball_pos.x, fireball_pos.y),
+        vec2.new(direction.x, direction.y),
+        false
+    })
+    fire.removeFireball()
+    return true
+end
+
 function fire.getAvailableCount()
     return #fire_instances
 end

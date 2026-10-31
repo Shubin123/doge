@@ -28,6 +28,7 @@ local state = {
 teslaCoil.firing = false
 teslaCoil.timer = 0
 teslaCoil.cooldown = 5
+teslaCoil.ammoPerSecond = 4 -- universal ammo drained while the bolts are live
 
 -- Generate a Collatz sequence
 local function collatz(n)
@@ -335,9 +336,13 @@ end
 function teslaCoil:update(dt)
     teslaCoil.timer = teslaCoil.timer + dt
     if teslaCoil.timer < teslaCoil.cooldown and teslaCoil.firing then
-        -- You'll need to pass the physics world here
-        teslaCoil.fireAt(player.body:getX() + gun.lastAimDirection.x * 400,
-            player.body:getY() + gun.lastAimDirection.y * 400, world)
+        if gun.useAmmo(teslaCoil.ammoPerSecond * dt) then
+            -- You'll need to pass the physics world here
+            teslaCoil.fireAt(player.body:getX() + gun.lastAimDirection.x * 400,
+                player.body:getY() + gun.lastAimDirection.y * 400, world)
+        else
+            teslaCoil.timer = teslaCoil.cooldown -- out of ammo: wind down next frame
+        end
     elseif teslaCoil.timer >= teslaCoil.cooldown then
         teslaCoil.timer = 0
         teslaCoil.firing = false
@@ -356,6 +361,7 @@ function teslaCoil:drawBarrel()
 end
 
 function teslaCoil:shoot()
+    if not gun.canFire(teslaCoil) then return end
     teslaCoil.firing = true
 end
 
