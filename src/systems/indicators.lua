@@ -138,8 +138,8 @@ function indicators.createPickup(x, y, text, item_type)
     local color = {0.3, 1, 0.3, 1}
     local special_effects = {"glow"}
     
-    if item_type == "coin" then
-        color = {1, 1, 0.3, 1}
+    if item_type == "xp" then
+        color = {0.55, 1, 0.2, 1}
     elseif item_type == "health" then
         color = {1, 0.3, 0.3, 1}
     elseif item_type == "ammo" then

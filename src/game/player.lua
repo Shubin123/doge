@@ -324,7 +324,7 @@ function player.collision(fixture_a,fixture_b,contact)
         end
         -- Create pickup indicator
         local px, py = player.body:getPosition()
-        indicators.createPickup(px, py - 20, "+1 COIN", "coin")
+        indicators.createPickup(px, py - 20, "+1 XP", "xp")
         
     elseif  checkDestroy(enemies_bods, not_player) then
         if not player.god then

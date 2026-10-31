@@ -33,7 +33,7 @@ hints.commands = {
     } },
     { "spawn", nil, "Spawn things", sub = {
         { "enemies", "<count>", "Replace all enemies with <count>" },
-        { "coins", "<count>", "Coin count, applied on restart" },
+        { "coins", "<count>", "XP glob count, applied on restart" },
     } },
 }
 

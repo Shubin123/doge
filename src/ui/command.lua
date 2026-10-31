@@ -73,7 +73,7 @@ local commandIndex = {
     "dynamic_draw_list", "map_a", "map_b",
 
     -- Assets
-    "coin_image", "coin_quad", "coin_sprite", "enemy_image", "statsFont", "gameFont",
+    "xp", "enemy_image", "statsFont", "gameFont",
     "fireSpriteImg", "hitmarkerImage",
 
     -- Game state
@@ -428,9 +428,9 @@ local function spawnCommand(tokens)
     elseif tokens[2] == "coins" then
         local count = tonumber(tokens[3]) or 50
         var.num_coins = count
-        command.addOutput("Set coin count to " .. count .. " (restart to apply)", outputColor)
+        command.addOutput("Set XP glob count to " .. count .. " (restart to apply)", outputColor)
     else
-        command.addOutput("Usage: spawn enemies <count> | spawn coins <count>", outputColor)
+        command.addOutput("Usage: spawn enemies <count> | spawn coins <count> (XP globs)", outputColor)
     end
 end
 

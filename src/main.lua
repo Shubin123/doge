@@ -35,6 +35,7 @@ moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 wind = require("lib.graphics.wind")
 car = require("game.car")
+xp = require("game.xp") -- XP globs (the coin_bods)
 collision = require("util.collision")
 tileRules = require("systems.tileRules")
 explosion = require("systems.explosion")
@@ -59,10 +60,9 @@ benchmark = require("util.benchmark")
 world = 0
 t = 0 -- Timer for network updates
 local fence_body, fence_shape, fence_fixture
-coin_bods = {}
+coin_bods = {} -- XP globs (game/xp.lua)
 enemies_bods = {}
 local coin_shape, enemy_shape
-coin_image, coin_quad, coin_sprite = 0, 0, 0
 png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
 enemy_image = 0
 
@@ -189,7 +189,7 @@ function love.load()
     
     command.load()
     
-    -- Coins and enemies
+    -- XP globs and enemies
 
     -- physics
 
@@ -202,13 +202,7 @@ function love.load()
         -- createEnemies(var.num_enemies)
     end
 
-    -- Graphics
-    if var.num_coins > 0 then
-        coin_image = love.graphics.newImage("gfx/coin.png")
-        coin_x, coin_y = coin_image:getDimensions()
-        coin_quad = love.graphics.newQuad(0, 0, 36, 36, coin_x, coin_y)
-        coin_sprite = love.graphics.newSpriteBatch(coin_image, var.num_coins, "stream")
-    end
+    xp.load()
 
     -- enemy_image = love.graphics.newImage("gfx/enemy.png")
     -- enemy_width, enemy_height = enemy_image:getDimensions()
@@ -330,6 +324,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
 
     gun.update(dt)
+    xp.update(dt)
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     shadow.updateBothShaders(dt)

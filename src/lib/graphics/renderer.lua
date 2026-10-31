@@ -212,28 +212,6 @@ local function addEnemiesFromBodies()
     end
 end
 
-local function addCoinsFromBodies()
-    for i = 1, #coin_bods do
-        local cx, cy = coin_bods[i]:getX(), coin_bods[i]:getY()
-        local scale = coin_bods[i]:getFixtures()[1]:getUserData() ~= nil and
-            coin_bods[i]:getFixtures()[1]:getUserData().size or 0.5
-        table.insert(dynamic_draw_list, {
-            sort_y = cy + (coin_image:getHeight() * 0.5) / 2 + 100,
-            image_or_particles = coin_image,
-            x = cx,
-            y = cy,
-            rotation = 0,
-            scale_x = scale,
-            scale_y = scale,
-            offset_x = coin_image:getWidth() / 2,
-            offset_y = coin_image:getHeight() / 2,
-            color = { 1, 1, 1, 1 },
-            blend_mode = { "alpha" },
-            source_object_type = "coin"
-        })
-    end
-end
-
 local function addNetworkedEntities()
     -- Networked players with interpolation
     for player_id, player_data in pairs(renderer.networked_state.players) do
@@ -267,26 +245,8 @@ local function addNetworkedEntities()
         end
     end
 
-    -- Networked coins
-    for _, coin_data in pairs(renderer.networked_state.coins) do
-        if coin_data.active then
-            table.insert(dynamic_draw_list, {
-                sort_y = coin_data.y + (coin_image:getHeight() * 0.5) / 2 + 100,
-                image_or_particles = coin_image,
-                x = coin_data.x,
-                y = coin_data.y,
-                rotation = 0,
-                scale_x = 0.5,
-                scale_y = 0.5,
-                offset_x = coin_image:getWidth() / 2,
-                offset_y = coin_image:getHeight() / 2,
-                color = { 1, 1, 1, 1 },
-                blend_mode = { "alpha" },
-                source_object_type = "networked_coin",
-                coin_id = coin_data.coin_id
-            })
-        end
-    end
+    -- Networked XP globs
+    xp.populateNetworked(renderer.networked_state.coins)
 
     -- Networked fire effects
     for _, fire_data in pairs(renderer.networked_state.fire_effects) do
@@ -613,7 +573,7 @@ function renderer.populateDynamicDrawList()
     -- end
 
     
-    addCoinsFromBodies()
+    xp.populate()
 
 
     fire.populate()
@@ -629,7 +589,7 @@ end
 
 function renderer.populateDynamicDrawListNETHOST()
     -- addEnemiesFromBodies()
-    addCoinsFromBodies()
+    xp.populate()
     enemy.populate()
     boss.populate()
 end

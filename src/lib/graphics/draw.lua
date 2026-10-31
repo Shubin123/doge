@@ -75,6 +75,7 @@ function draw.mydraw()
     renderer.renderSortedDrawList()
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
+    xp.drawGlow() -- XP globs shining in the dark
     suckLight.draw() -- dead enemies' light streaming into the player
     regions.drawGlows() -- halos round lamps, flames and neon
 
