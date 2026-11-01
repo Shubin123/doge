@@ -44,7 +44,9 @@ function draw.mydraw()
 
     -- Populate and sort dynamic draw list if neccessary
     
-    grass.public.draw()
+    if var.grass then
+        grass.public.draw()
+    end
     light.drawBeam() -- the flashlight lighting the floor in front of you
     if var.multiplayer then
         renderer.populateDynamicDrawListNetworked()
@@ -99,7 +101,8 @@ function draw.mydraw()
         light.draw()
         explosion.applyShockwave() -- distort scene_canvas before GI processes it
         blackhole.applyLensing() -- the black hole bends it too, and glows into the GI
-        shader.pass(crtShader:target())
+        -- (straight onto the screen with the CRT filter off)
+        shader.pass(crt.enabled() and crtShader:target() or nil)
         -- The scene again over the composite: part of the night look, which
         -- daylight fades out (the composite shows the scene itself by day)
         love.graphics.setColor(1, 1, 1, 1 - daynight.daylight())
@@ -117,7 +120,7 @@ function draw.mydraw()
     shop.drawUI() -- the shop's prompt and trade panel
     car.drawUI() -- the arrow and prompt for getting in the car
 
-    if var.graphics_high then
+    if crt.enabled() then
         crtShader:present()
     end
 

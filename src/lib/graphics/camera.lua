@@ -48,6 +48,7 @@ end
 
 -- Trigger screen shake effect
 function camera.shake(intensity, duration)
+    if not var.screen_shake then return end -- Settings > Screen Shake
     camera.shake_intensity = intensity or 2
     camera.shake_duration = duration or 0.1
     camera.shake_timer = camera.shake_duration

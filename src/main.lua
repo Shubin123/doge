@@ -326,7 +326,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     puddle.update(dt)
     -- smoke.update(dt)
     fire.update(dt)
-    grass.public.update(dt)
+    if var.grass then
+        grass.public.update(dt)
+    end
     portal.update(dt)
     regions.update(dt) -- before the lighting upload: its lamps add lights
     -- blur.update(dt)

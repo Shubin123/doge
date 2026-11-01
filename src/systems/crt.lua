@@ -152,9 +152,23 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 pc)
 crtShader = crt:new({
     crt_intensity = 0.06,
     glitch_intensity = 0.2,
-    bloom_fac = 0.4
+    bloom_fac = var.crt_bloom and crt.BLOOM or 0
 })
 
+end
+
+crt.BLOOM = 0.4 -- bloom_fac with Settings > Bloom on
+
+-- Settings > CRT Filter: Fancy graphics put the frame through the CRT pass
+-- unless it's switched off.
+function crt.enabled()
+    return var.graphics_high and var.crt_filter and crtShader ~= nil
+end
+
+-- Settings > Bloom
+function crt.setBloom(on)
+    var.crt_bloom = on
+    crtShader:updateParams({ bloom_fac = on and crt.BLOOM or 0 })
 end
 
 -- Default parameters
@@ -248,7 +262,7 @@ end
 -- near the edges; aim and clicks go through this so they hit what is drawn
 -- under the cursor.
 function crt.toImage(x, y)
-    if not (var.graphics_high and crtShader) then return x, y end
+    if not crt.enabled() then return x, y end
     local w, h = love.graphics.getDimensions()
     local p = crtShader.params
     local u = (x / w * 2 - 1) * p.scale_fac[1]

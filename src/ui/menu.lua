@@ -13,6 +13,8 @@ local MIN_HEIGHT = 256 -- GUI units of height the save list needs
 local ROW_HEIGHT = 24
 local SPLASHES = { "Much light!", "Such ammo!", "Very tesla!", "Wow!", "So pixel!", "Many fireball!" }
 local SPLASH_RADII = { 60, 120, 180, 240 } -- Settings > Rocket Splash choices, world px
+local GI_QUALITIES = { "high", "medium", "low" } -- Settings > Lighting (shader.qualityPresets)
+local TRACER_LEVELS = { 1.0, 0.7, 0.45, 0.25, 0 } -- Settings > Tracers, var.tracer_brightness
 
 local font
 local ps
@@ -32,7 +34,9 @@ local graphicsSettings = {
         {width = 800, height = 600, text = "800x600"},
         {width = 1024, height = 768, text = "1024x768"},
         {width = 1280, height = 720, text = "1280x720"},
-        {width = 1920, height = 1080, text = "1920x1080"}
+        {width = 1600, height = 900, text = "1600x900"},
+        {width = 1920, height = 1080, text = "1920x1080"},
+        {width = 2560, height = 1440, text = "2560x1440"}
     },
     currentResolution = 1,
     fullscreen = false,
@@ -42,6 +46,18 @@ local graphicsSettings = {
 
 local function onOff(value)
     return value and "ON" or "OFF"
+end
+
+local function percent(value, max)
+    return math.floor(math.max(0, value) / max * 100 + 0.5) .. "%"
+end
+
+-- The choice after `value` in `list`, wrapping; the first when it isn't there.
+local function nextIn(list, value)
+    for i, v in ipairs(list) do
+        if v == value then return list[i % #list + 1] end
+    end
+    return list[1]
 end
 
 function menu.load(screenInfo)
@@ -160,37 +176,57 @@ local function layout(uw, uh)
 
     elseif menu.currentMenu == "settings" then
         local y = math.floor(uh / 6)
+        local left, right = cx - 155, cx + 5
+        local fancy = var.graphics_high -- the GI and CRT only run on Fancy
         local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-        add(cx - 155, y + 24, 150, "Resolution: " .. res.text, function()
+        add(left, y + 24, 150, "Resolution: " .. res.text, function()
             graphicsSettings.currentResolution = graphicsSettings.currentResolution % #graphicsSettings.resolutions + 1
             menu.applyResolution()
             local r = graphicsSettings.resolutions[graphicsSettings.currentResolution]
             love.resize(r.width, r.height)
         end)
-        add(cx + 5, y + 24, 150, "Fullscreen: " .. onOff(graphicsSettings.fullscreen), function()
+        add(right, y + 24, 150, "Fullscreen: " .. onOff(graphicsSettings.fullscreen), function()
             graphicsSettings.fullscreen = not graphicsSettings.fullscreen
             menu.applyFullscreen()
         end)
-        add(cx - 155, y + 48, 150, "V-Sync: " .. onOff(graphicsSettings.vsync), function()
+        add(left, y + 48, 150, "V-Sync: " .. onOff(graphicsSettings.vsync), function()
             graphicsSettings.vsync = not graphicsSettings.vsync
             menu.applyVsync()
         end)
-        add(cx + 5, y + 48, 150, "Particles: " .. onOff(graphicsSettings.particles), function()
-            graphicsSettings.particles = not graphicsSettings.particles
+        add(right, y + 48, 150, "Show FPS: " .. onOff(profiler.overlay_visible), function()
+            profiler.overlay_visible = not profiler.overlay_visible
+            profiler.overlay_detail = 1
         end)
-        add(cx - 155, y + 72, 150, "Graphics: " .. (var.graphics_high and "Fancy" or "Fast"), function()
+        add(left, y + 72, 150, "Graphics: " .. (fancy and "Fancy" or "Fast"), function()
             var.graphics_high = not var.graphics_high
         end)
-        add(cx + 5, y + 72, 150, "Rocket Splash: " .. var.rocket_splash_radius, function()
-            local next_radius = SPLASH_RADII[1]
-            for i, r in ipairs(SPLASH_RADII) do
-                if r == var.rocket_splash_radius then
-                    next_radius = SPLASH_RADII[i % #SPLASH_RADII + 1]
-                end
-            end
-            var.rocket_splash_radius = next_radius
+        add(right, y + 72, 150, "Lighting: " .. (var.gi_quality:gsub("^%l", string.upper)), function()
+            var.gi_quality = nextIn(GI_QUALITIES, var.gi_quality)
+            shader.load() -- the preset sets the GI canvases' size and the shader's loops
+        end, fancy)
+        add(left, y + 96, 150, "CRT Filter: " .. onOff(var.crt_filter), function()
+            var.crt_filter = not var.crt_filter
+        end, fancy)
+        add(right, y + 96, 150, "Bloom: " .. onOff(var.crt_bloom), function()
+            crt.setBloom(not var.crt_bloom)
+        end, fancy and var.crt_filter)
+        add(left, y + 120, 150, "Grass: " .. onOff(var.grass), function()
+            var.grass = not var.grass
         end)
-        add(cx - 100, y + 168, 200, "Done", function() menu.currentMenu = "main" end)
+        local tracers = var.tracer_brightness > 0 and percent(var.tracer_brightness, 1) or "OFF"
+        add(right, y + 120, 150, "Tracers: " .. tracers, function()
+            var.tracer_brightness = nextIn(TRACER_LEVELS, var.tracer_brightness)
+        end)
+        add(left, y + 144, 150, "Particles: " .. onOff(graphicsSettings.particles), function()
+            graphicsSettings.particles = not graphicsSettings.particles
+        end)
+        add(right, y + 144, 150, "Screen Shake: " .. onOff(var.screen_shake), function()
+            var.screen_shake = not var.screen_shake
+        end)
+        add(left, y + 168, 150, "Rocket Splash: " .. var.rocket_splash_radius, function()
+            var.rocket_splash_radius = nextIn(SPLASH_RADII, var.rocket_splash_radius)
+        end)
+        add(cx - 100, y + 192, 200, "Done", function() menu.currentMenu = "main" end)
 
     elseif menu.currentMenu == "saves" then
         local filled = slotInfo[selected] and true or false
@@ -210,10 +246,6 @@ local function slotRows(uw)
         rows[i] = { x = x, y = 32 + (i - 1) * ROW_HEIGHT, w = w, h = ROW_HEIGHT }
     end
     return rows
-end
-
-local function percent(value, max)
-    return math.floor(math.max(0, value) / max * 100 + 0.5) .. "%"
 end
 
 local function drawSaves(uw, uh, ts)

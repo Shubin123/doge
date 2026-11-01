@@ -201,7 +201,8 @@ end
 function profiler.drawOverlay()
     if not profiler.overlay_visible then return end
 
-    love.graphics.push()
+    -- "all": reset() also drops the font, and the menu draws with whatever is set
+    love.graphics.push("all")
     love.graphics.reset()  -- reset to screen coords (bypass camera)
 
     local w = love.graphics.getWidth()

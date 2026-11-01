@@ -72,6 +72,17 @@ var.sprite_width = 100
 
 var.graphics_high = true -- for now just a high settings for all the shaders or nothing
 
+-- Settings > CRT Filter / Bloom: the CRT pass over the finished frame
+-- (systems/crt.lua) and its bloom. Fancy graphics only.
+var.crt_filter = true
+var.crt_bloom = true
+
+-- Settings > Grass: draw (and sway) the grass fields
+var.grass = true
+
+-- Settings > Screen Shake: camera.shake does nothing while off
+var.screen_shake = true
+
 var.indoors = false
 
 -- Day and night (systems/daynight.lua): seconds of game time a whole day
