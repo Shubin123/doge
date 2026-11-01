@@ -249,6 +249,12 @@ function love.load()
 
     smoke.setsmokeArea(320, 138, 165, 67)
 
+    -- Carry on from the newest save, everything it restores loaded by now
+    -- (not as a client: it shows the host's game)
+    if not var.multiplayer or var.multiplayer == 1 then
+        serial.loadMostRecent()
+    end
+
     love.draw = mydraw.mydraw
 end
 
@@ -392,6 +398,12 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
 end
 
+-- Settings changed outside the Settings screen ("b", the FPS keys) are
+-- kept too; a restart (New Game, hot reload) comes through here as well
+function love.quit()
+    settings.saveIfChanged()
+end
+
 function love.resize(w, h)
     var.screen_width = w
     var.screen_height = h
@@ -424,6 +436,7 @@ function love.mousepressed(x, y, button, istouch, presses)
             var.State = "running"
             -- player.health = 100
             --reset game here
+            serial.startFresh() -- not straight back into the newest save
             love.event.push("quit", "restart")
         elseif nextStateAction == "exit" then
             love.event.quit()

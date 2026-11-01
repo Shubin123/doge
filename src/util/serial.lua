@@ -20,6 +20,9 @@ local serial = {}
 serial.VERSION = 2
 serial.EXTENSION = ".sav"
 serial.QUICKSAVE = "quicksave" .. serial.EXTENSION
+-- New Game restarts the game (main.lua); this file, there only across the
+-- restart, says to start that one fresh instead of from the newest save
+serial.FRESH_START = "fresh_start"
 
 -- nil and a message unless filename is a save's: *.sav, not in a folder
 local function checkName(filename)
@@ -260,6 +263,26 @@ function serial.getSaveFiles()
     end)
 
     return save_files
+end
+
+--- Carry on from the newest save that loads (the end of love.load, every
+--- launch and restart), unless serial.startFresh asked for a new game.
+function serial.loadMostRecent()
+    if love.filesystem.getInfo(serial.FRESH_START) then
+        love.filesystem.remove(serial.FRESH_START)
+        return false, "New game"
+    end
+    for _, save in ipairs(serial.getSaveFiles()) do
+        local ok, message = serial.loadFromFile(save.filename)
+        print(save.filename .. ": " .. tostring(message))
+        if ok then return true, save.filename end
+    end
+    return false, "No save to load"
+end
+
+--- Have the next launch (New Game's restart) start fresh.
+function serial.startFresh()
+    return love.filesystem.write(serial.FRESH_START, "")
 end
 
 function serial.deleteSave(filename)

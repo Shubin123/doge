@@ -2,7 +2,8 @@
   Settings: the choices on the menu's Settings screen, kept in settings.json
   in LÖVE's save directory. settings.load puts them back at the top of
   love.load, before the window opens and anything that reads them loads;
-  the Settings screen calls settings.save after every change.
+  the Settings screen calls settings.save after every change, and quitting
+  writes any made elsewhere (the "b" tracer key, the FPS keys).
 
   They are never part of a save. Saves (*.sav, util/serial.lua) hold the
   game's state and nothing else, loading one leaves these alone, and serial
@@ -48,9 +49,17 @@ local FIELDS = {
     varField("rocket_splash_radius", "rocket_splash_radius", isPositive),
 }
 
---- Put back what settings.json holds. A missing or unreadable file, or a
---- value that doesn't fit, leaves the defaults (config/var in conf.lua).
-function settings.load()
+-- Each setting as settings.json last had it (the defaults without one)
+local written = {}
+
+local function remember()
+    for _, field in ipairs(FIELDS) do
+        written[field[1]] = field[2]()
+    end
+end
+
+-- Apply settings.json's values; false without a usable file
+local function apply()
     if not love.filesystem.getInfo(settings.FILE, "file") then return false end
     local contents = love.filesystem.read(settings.FILE)
     local ok, saved = pcall(json.decode, contents or "")
@@ -74,6 +83,14 @@ function settings.load()
     return true
 end
 
+--- Put back what settings.json holds. A missing or unreadable file, or a
+--- value that doesn't fit, leaves the defaults (config/var in conf.lua).
+function settings.load()
+    local loaded = apply()
+    remember()
+    return loaded
+end
+
 --- Write every setting to settings.json.
 function settings.save()
     local out = { version = settings.VERSION }
@@ -81,8 +98,22 @@ function settings.save()
         out[field[1]] = field[2]()
     end
     local ok, err = love.filesystem.write(settings.FILE, json.encode(out))
-    if not ok then print("settings: couldn't write " .. settings.FILE .. ": " .. tostring(err)) end
+    if ok then
+        remember()
+    else
+        print("settings: couldn't write " .. settings.FILE .. ": " .. tostring(err))
+    end
     return ok
+end
+
+--- settings.save, if any setting differs from what settings.json has.
+function settings.saveIfChanged()
+    for _, field in ipairs(FIELDS) do
+        if field[2]() ~= written[field[1]] then
+            return settings.save()
+        end
+    end
+    return true
 end
 
 return settings
