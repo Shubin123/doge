@@ -29,10 +29,40 @@ local BASE = ...
 
 local moonshine = {}
 
+-- Clipped chains. Given the rect its input can be non-zero in, an effect's
+-- `reach` returns the rect its passes are scissored to: all it can light, and
+-- anything its own later passes read that the full pass wouldn't leave at
+-- zero. Each pass's canvas is still cleared whole before the scissor goes on
+-- (clear obeys it), and the chain presents only the last rect, so every pixel
+-- comes out as the unclipped chain's would.
+moonshine.clip = nil -- {x, y, w, h} of the pass being drawn, nil = all of it
+
+-- Clear the bound canvas, then scissor the draws that follow to the clip
+moonshine.clear = function()
+  local c = moonshine.clip
+  if c then love.graphics.setScissor() end
+  love.graphics.clear()
+  if c then love.graphics.setScissor(c[1], c[2], c[3], c[4]) end
+end
+
+-- {x0, y0, x1, y1} grown by m pixels each way
+moonshine.grow = function(r, m)
+  return {r[1] - m, r[2] - m, r[3] + m, r[4] + m}
+end
+
+-- The scissor {x, y, w, h} covering r inside a w x h canvas (never empty, so
+-- it is always valid; a pass with nothing to draw is zero anyway)
+local function scissor(r, w, h)
+  local x0, y0 = math.max(0, math.floor(r[1])), math.max(0, math.floor(r[2]))
+  local x1, y1 = math.min(w, math.ceil(r[3])), math.min(h, math.ceil(r[4]))
+  if x1 <= x0 or y1 <= y0 then return {0, 0, 1, 1} end
+  return {x0, y0, x1 - x0, y1 - y0}
+end
+
 moonshine.draw_shader = function(buffer, shader)
   local front, back = buffer()
   love.graphics.setCanvas(front)
-  love.graphics.clear()
+  moonshine.clear()
   if shader ~= love.graphics.getShader() then
     love.graphics.setShader(shader)
   end
@@ -59,16 +89,19 @@ moonshine.chain = function(w,h,effect)
     return chain
   end
 
-  chain.draw = function(func, ...)
+  -- `bounds` {x0, y0, x1, y1}: the screen rect func draws inside, if known.
+  -- Every pass, and the result, is then clipped to where it can reach.
+  chain.draw = function(func, bounds)
     -- save state
     local canvas = love.graphics.getCanvas()
     local shader = love.graphics.getShader()
     local fg_r, fg_g, fg_b, fg_a = love.graphics.getColor()
+    local sx, sy, sw, sh = love.graphics.getScissor()
 
     -- draw scene to front buffer
     love.graphics.setCanvas((buffer())) -- parens are needed: take only front buffer
     love.graphics.clear(love.graphics.getBackgroundColor())
-    func(...)
+    func()
 
     -- save more state
     local blendmode = love.graphics.getBlendMode()
@@ -76,16 +109,30 @@ moonshine.chain = function(w,h,effect)
     -- process all shaders
     love.graphics.setColor(fg_r, fg_g, fg_b, fg_a)
     -- love.graphics.setBlendMode("lighten", "premultiplied")
+    local cw, ch = front:getDimensions()
+    local reach = bounds
     for _,e in ipairs(chain) do
       if not disabled[e.name] then
-        (e.draw or moonshine.draw_shader)(buffer, e.shader)
+        local draw = e.draw or moonshine.draw_shader
+        reach = reach and e.reach and e.reach(reach, cw, ch)
+        moonshine.clip = reach and scissor(reach, cw, ch)
+        if not reach then love.graphics.setScissor(sx, sy, sw, sh) end
+        draw(buffer, e.shader)
       end
     end
+    moonshine.clip = nil
 
     -- present result
     love.graphics.setShader()
     love.graphics.setCanvas(scene_canvas)
+    if reach then
+      local c = scissor(reach, cw, ch)
+      love.graphics.setScissor(c[1], c[2], c[3], c[4])
+    else
+      love.graphics.setScissor(sx, sy, sw, sh)
+    end
     love.graphics.draw(front,0,0)
+    love.graphics.setScissor(sx, sy, sw, sh)
 
     -- restore state
     -- print(blendmode)

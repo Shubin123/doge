@@ -189,7 +189,10 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         end
     end
     
-    map.draw = function(self, x, y, scale)
+    -- With sy0, sy1 (screen rows), only the batch's rows that band of the
+    -- screen shows are drawn (lighting.drawTiled draws the map a band at a
+    -- time; the courtyard is 108,000 tiles).
+    map.draw = function(self, x, y, scale, sy0, sy1)
         scale = scale or 1
         
         
@@ -199,7 +202,12 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
         if self.dirty then
             local max_tiles_x, max_tiles_y = self.width, self.height
             self.spriteBatch:clear()
+            -- each row's first sprite in the batch, and where rows start
+            self.rowStart = {}
+            self.rowTop = y - (y + 2000) * scale
+            self.rowHeight = self.tiles.tileHeight * scale
             for row = 1, max_tiles_y do
+                self.rowStart[row] = self.spriteBatch:getCount()
                 for col = 1, max_tiles_x do
                     local tileId = self.tileData[row] and self.tileData[row][col]
                     if tileId and tileId > 0 and self.tiles.quads[tileId] then
@@ -216,11 +224,28 @@ function createMap(tiles, mapWidth, mapHeight, tileData)
                     end
                 end
             end
+            self.rowStart[max_tiles_y + 1] = self.spriteBatch:getCount()
             self.dirty = false
         end
-        
+
         -- Draw the existing spriteBatch
-        love.graphics.draw(self.spriteBatch)
+        if sy0 then
+            -- the band's world rows (any transform without rotation), a row
+            -- to spare each side
+            local _, wy0 = love.graphics.inverseTransformPoint(0, sy0)
+            local _, wy1 = love.graphics.inverseTransformPoint(0, sy1)
+            wy0, wy1 = math.min(wy0, wy1), math.max(wy0, wy1)
+            local first = math.max(1, math.floor((wy0 - self.rowTop) / self.rowHeight))
+            local last = math.min(self.height, math.floor((wy1 - self.rowTop) / self.rowHeight) + 2)
+            local start = self.rowStart[first]
+            local count = last >= first and self.rowStart[last + 1] - start or 0
+            if count <= 0 then return end
+            self.spriteBatch:setDrawRange(start + 1, count)
+            love.graphics.draw(self.spriteBatch)
+            self.spriteBatch:setDrawRange()
+        else
+            love.graphics.draw(self.spriteBatch)
+        end
     end
     map.setBatch = function(self,scale)
         scale = scale or 1

@@ -130,9 +130,16 @@ return function(moonshine)
     shader = build_shader(taps, offset, offset_type, sigma)
   end
 
+  -- Its taps reach offset * (taps - 1) / 2 pixels each way, plus one for the
+  -- bilinear fetch between texels; twice, for the x then y pass.
+  local reach = function(r)
+    return moonshine.grow(r, 2 * (math.ceil(math.abs(offset) * (taps - 1) / 2) + 2))
+  end
+
   return moonshine.Effect{
     name = "fastgaussianblur",
     draw = draw,
+    reach = reach,
     setters = setters,
     -- no defaults here, as we dont want the shader to be built 3 times on startup
   }

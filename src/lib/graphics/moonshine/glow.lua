@@ -51,8 +51,11 @@ return function(moonshine)
     }]]
 
   local setters = {}
+  local support -- the blur's taps reach this many pixels each way
   setters.strength = function(v)
-    blurshader = make_blur_shader(math.max(0,tonumber(v) or 1))
+    local sigma = math.max(0,tonumber(v) or 1)
+    support = math.max(1, math.floor(3*sigma + .5))
+    blurshader = make_blur_shader(sigma)
   end
   setters.min_luma = function(v)
     threshold:send("min_luma", math.max(0, math.min(1, tonumber(v) or 0.5)))
@@ -65,20 +68,20 @@ return function(moonshine)
 
     -- 1st pass: draw scene with brightness threshold
     love.graphics.setCanvas(front)
-    love.graphics.clear()
+    moonshine.clear()
     love.graphics.setShader(threshold)
     love.graphics.draw(scene)
 
     -- 2nd pass: apply blur shader in x
     blurshader:send('direction', {1 / love.graphics.getWidth(), 0})
     love.graphics.setCanvas(back)
-    love.graphics.clear()
+    moonshine.clear()
     love.graphics.setShader(blurshader)
     love.graphics.draw(front)
 
     -- 3nd pass: apply blur shader in y and draw original and blurred scene
     love.graphics.setCanvas(front)
-    love.graphics.clear()
+    moonshine.clear()
 
     -- original scene without blur shader
     love.graphics.setShader()
@@ -95,9 +98,19 @@ return function(moonshine)
     scene = back
   end
 
+  -- The glow spreads its scene by the blur's support, in x then in y. The
+  -- passes are clipped three supports out: the threshold pass keeps alpha
+  -- where it has no colour (min_luma 0 keeps everything), and the x blur
+  -- weighs its colour by that alpha, so it must be exact as far as the x
+  -- blur reads around anything it can light.
+  local reach = function(r)
+    return moonshine.grow(r, 3 * (support + 2))
+  end
+
   return moonshine.Effect{
     name = "glow",
     draw = draw,
+    reach = reach,
     setters = setters,
     defaults = {min_luma=.7, strength = 5}
   }

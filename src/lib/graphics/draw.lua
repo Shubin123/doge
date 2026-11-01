@@ -27,10 +27,13 @@ function draw.mydraw()
     camera.apply()
 
     -- Map and sorted sprites are lit in screen space by the Lighting object shader.
-    love.graphics.setShader(shadow.getShader(false))
+    local lit = shadow.getShader(false)
+    love.graphics.setShader(lit)
     -- (the courtyard's grass a touch greener than its sheet's olive)
     love.graphics.setColor(0.84, 1, 0.74, 0.4)
-    map.map:draw(-11800, 100, 1) -- its first tile at -2000, -2000
+    shadow.drawTiled(lit, function(y0, y1)
+        map.map:draw(-11800, 100, 1, y0, y1) -- its first tile at -2000, -2000
+    end)
     love.graphics.setColor(1, 1, 1, 0.4)
     regions.drawGround()
 

@@ -308,15 +308,32 @@ function H.perf(n)
     end
     local avg = {}
     for k, v in pairs(sums) do avg[k] = v / n end
+
+    -- Frame cost under load: frames back to back, with one wait for the GPU
+    -- at the end of each batch, so it stays busy at its working clock. The
+    -- per-frame timing above leaves the GPU idle between frames, and Apple
+    -- GPUs then clock down: less GPU work can come back later (taking the
+    -- death light's eight passes out of an unchanged tree read ~20% slower
+    -- there). This is the frame's GPU cost, or its CPU cost if that's more.
+    local batch, frame = math.max(1, math.floor(n / 10)), {}
+    for i = 1, 10 do
+        local t0 = realTime()
+        for _ = 1, batch do step() end
+        gpuSync()
+        frame[i] = (realTime() - t0) / batch * 1000
+    end
+
     results.perf = {
         frames = n,
         render_ms_median = median(render),
         render_ms_p90 = percentile(render, 0.9),
         update_ms_median = median(update),
+        frame_ms_median = median(frame),
         stats_avg = avg,
     }
-    log(string.format("perf: render %.3f ms median (p90 %.3f), update %.3f ms, %d frames",
-        results.perf.render_ms_median, results.perf.render_ms_p90, results.perf.update_ms_median, n))
+    log(string.format("perf: render %.3f ms median (p90 %.3f), update %.3f ms, %d frames; under load %.3f ms a frame",
+        results.perf.render_ms_median, results.perf.render_ms_p90, results.perf.update_ms_median, n,
+        results.perf.frame_ms_median))
 end
 
 --------------------------------------------------------------------------------

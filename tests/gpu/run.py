@@ -13,8 +13,10 @@ Checks:
                exceed the baseline's
   counters     canvas switches, draw calls, shader switches and texture memory
                (love.graphics.getStats, averaged over the timed frames) likewise
-  timing       median frame render time (draw + wait for the GPU) must not be
-               more than --perf-tolerance slower than the baseline's
+  timing       median frame time under load (frames back to back, one wait
+               for the GPU per batch) must not be more than --perf-tolerance
+               slower than the baseline's; per-frame render time (draw + wait
+               for the GPU) is reported alongside
   determinism  each tree must render identical frames in every round
 
 See tests/gpu/README.md.
@@ -261,7 +263,7 @@ def parse_args(argv):
     p.add_argument("--perf-frames", type=int, default=240,
                    help="timed frames per run; 0 skips the timing check")
     p.add_argument("--perf-tolerance", type=float, default=0.10,
-                   help="allowed median render-time slowdown vs. baseline (0.10 = 10%%)")
+                   help="allowed median frame-time-under-load slowdown vs. baseline (0.10 = 10%%)")
     p.add_argument("--max-diff", type=int, default=0,
                    help="largest allowed per-channel difference, 0-255 (default 0: bit-exact)")
     p.add_argument("--max-changed", type=float, default=0.0,
@@ -407,15 +409,23 @@ def main(argv=None):
             perf[key] = {"baseline": b, "candidate": c}
             if c > b + 0.5:
                 failures.append("%s went up: %.1f -> %.1f per frame" % (key, b, c))
-        best = {tree: min(r["perf"]["render_ms_median"] for r in rs) for tree, rs in runs.items()}
-        b, c = best["baseline"], best["candidate"]
-        perf["render_ms_median"] = {"baseline": b, "candidate": c, "speedup": (b / c) if c else None,
-                                    "rounds": {t: [r["perf"]["render_ms_median"] for r in rs]
-                                               for t, rs in runs.items()}}
+        for key in ("render_ms_median", "frame_ms_median"):
+            if all(key in r["perf"] for rs in runs.values() for r in rs):
+                best = {tree: min(r["perf"][key] for r in rs) for tree, rs in runs.items()}
+                b, c = best["baseline"], best["candidate"]
+                perf[key] = {"baseline": b, "candidate": c, "speedup": (b / c) if c else None,
+                             "rounds": {t: [r["perf"][key] for r in rs] for t, rs in runs.items()}}
         perf["update_ms_median"] = {"baseline": bp["update_ms_median"], "candidate": cp["update_ms_median"]}
+        # The gate is the frame's cost under load. Per-frame render time waits
+        # on the GPU every frame, which lets it clock down, so taking GPU work
+        # out can read slower there; it is reported, and gates only when the
+        # harness that ran had no load timing.
+        gate = perf.get("frame_ms_median") or perf["render_ms_median"]
+        b, c = gate["baseline"], gate["candidate"]
         if c > b * (1 + args.perf_tolerance):
-            failures.append("render time regressed: %.3f -> %.3f ms median (> %d%% slower)"
-                            % (b, c, round(args.perf_tolerance * 100)))
+            failures.append("%s regressed: %.3f -> %.3f ms median (> %d%% slower)"
+                            % ("frame time under load" if "frame_ms_median" in perf else "render time",
+                               b, c, round(args.perf_tolerance * 100)))
 
     report = {
         "status": "fail" if failures else "pass",
@@ -442,10 +452,11 @@ def main(argv=None):
         for key in WORK_COUNTERS:
             if key in perf:
                 say("  %-16s %12.1f -> %12.1f per frame" % (key, perf[key]["baseline"], perf[key]["candidate"]))
-        if "render_ms_median" in perf:
-            m = perf["render_ms_median"]
-            say("  %-16s %9.3f ms -> %9.3f ms  (x%.2f)" % ("render median", m["baseline"], m["candidate"],
-                                                          m["speedup"] or 0))
+        for key, label in (("render_ms_median", "render median"), ("frame_ms_median", "under load")):
+            if key in perf:
+                m = perf[key]
+                say("  %-16s %9.3f ms -> %9.3f ms  (x%.2f)" % (label, m["baseline"], m["candidate"],
+                                                              m["speedup"] or 0))
         for name, fr in frames.items():
             for tree in ("baseline", "candidate") if "passes" in fr else ():
                 say("passes of %s, %s:" % (name, tree))

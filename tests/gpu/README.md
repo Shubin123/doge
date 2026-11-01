@@ -9,7 +9,7 @@ the candidate:
 | **pixels** | every captured frame matches the baseline bit-for-bit |
 | **passes** | per frame, no more render passes and no more pixels covered by them |
 | **counters** | per frame on average, no more canvas switches, draw calls, shader switches or texture memory (`love.graphics.getStats`) |
-| **timing** | median frame render time (draw plus waiting for the GPU) is at most 10% slower |
+| **timing** | median frame time under load (frames back to back, one wait for the GPU per batch) is at most 10% slower; per-frame render time (draw plus waiting for the GPU) is reported too |
 | **determinism** | each tree renders identical frames every round, so a difference always means a real change |
 
 ## Run it
@@ -94,6 +94,11 @@ everything that would make two runs differ:
 - the mouse and keyboard are stubbed to a fixed aim, with nothing pressed;
 - window events are ignored, and vsync is off.
 
+Timing runs after the play-through. The per-frame render time waits for
+the GPU after every frame; the frame time under load, which the timing check
+uses, runs batches of frames back to back with one wait at the end of each,
+so the GPU stays busy the way it is in play.
+
 `harness/scenarios.lua` is the play-through itself. Each `h.capture(name)`
 saves one frame and its pass trace. Add a capture whenever you add a render
 path. Use only game APIs that the baseline revision also has, because the
@@ -126,6 +131,13 @@ that made the change.
   this reason.
 - **Randomness at require time.** Seeding in `love.load` was too late; the
   grass differed between identical runs.
+- **Less GPU work, slower frames, by the old clock.** The timing check used
+  to gate on per-frame render time, which waits for the GPU after every
+  frame and leaves it idle in between. Apple GPUs clock down when idle, so
+  removing work early in the frame made the rest come back later: skipping
+  the death light's eight passes in an otherwise unchanged tree read about
+  20% slower there, while frames back to back got faster. The check now
+  gates on the frame time under load.
 - **Fewer canvases, slower frames.** Letting all moonshine glow chains share
   one set of scratch canvases kept every frame bit-identical and saved 11.5 MB
   of VRAM. It also made the median frame about 1.3 ms slower, because each

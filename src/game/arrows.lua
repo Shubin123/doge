@@ -119,13 +119,13 @@ local function createArrow(start_x, start_y, end_x, end_y, curve_variation)
 end
 
 -- Draw curved arrow body using bezier
-local function drawArrow(arrow)
-    love.graphics.setColor(config.colors.arrow)
-    
-    -- Draw the arrow as a bezier curve from start to current position
+-- An arrow on screen: its body's bezier points from start to where it has
+-- got to (nil before it's under way), and its head's triangle
+local function arrowShape(arrow)
+    local curve_points
     if arrow.t > 0.05 then
         local segments = 20
-        local curve_points = {}
+        curve_points = {}
         
         -- Generate bezier curve points from start to current t
         for i = 0, segments do
@@ -135,16 +135,9 @@ local function drawArrow(arrow)
             table.insert(curve_points, camera.pos.x + x * camera.zoom)
             table.insert(curve_points, camera.pos.y + y * camera.zoom)
         end
-        
-        -- Draw the curved arrow body
-        if #curve_points >= 4 then
-            love.graphics.setLineWidth(3)
-            love.graphics.line(curve_points)
-            love.graphics.setLineWidth(1)
-        end
     end
     
-    -- Draw arrow head at current position
+    -- Arrow head at current position
     local head_length = config.arrow_length
     local head_width = config.arrow_width
     
@@ -152,14 +145,47 @@ local function drawArrow(arrow)
     local sin_a = math.sin(arrow.angle)
     
     -- Apply camera transform to arrow head
-    local x1 = camera.pos.x + arrow.x * camera.zoom
-    local y1 = camera.pos.y + arrow.y * camera.zoom
-    local x2 = camera.pos.x + (arrow.x - head_length * cos_a + head_width * sin_a) * camera.zoom
-    local y2 = camera.pos.y + (arrow.y - head_length * sin_a - head_width * cos_a) * camera.zoom
-    local x3 = camera.pos.x + (arrow.x - head_length * cos_a - head_width * sin_a) * camera.zoom
-    local y3 = camera.pos.y + (arrow.y - head_length * sin_a + head_width * cos_a) * camera.zoom
+    local head = {
+        camera.pos.x + arrow.x * camera.zoom,
+        camera.pos.y + arrow.y * camera.zoom,
+        camera.pos.x + (arrow.x - head_length * cos_a + head_width * sin_a) * camera.zoom,
+        camera.pos.y + (arrow.y - head_length * sin_a - head_width * cos_a) * camera.zoom,
+        camera.pos.x + (arrow.x - head_length * cos_a - head_width * sin_a) * camera.zoom,
+        camera.pos.y + (arrow.y - head_length * sin_a + head_width * cos_a) * camera.zoom,
+    }
+    return curve_points, head
+end
+
+local ARROW_WIDTH = 3
+
+local function drawArrow(arrow)
+    love.graphics.setColor(config.colors.arrow)
+    local curve_points, head = arrowShape(arrow)
     
-    love.graphics.polygon("fill", x1, y1, x2, y2, x3, y3)
+    -- Draw the curved arrow body
+    if curve_points and #curve_points >= 4 then
+        love.graphics.setLineWidth(ARROW_WIDTH)
+        love.graphics.line(curve_points)
+        love.graphics.setLineWidth(1)
+    end
+    
+    love.graphics.polygon("fill", head)
+end
+
+-- Screen rect every arrow draws inside (nil when it can't be told), for the
+-- glow chain's bounds
+local function arrowsBounds()
+    local bounds
+    for _, arrow in ipairs(state.arrows) do
+        local curve_points, head = arrowShape(arrow)
+        if curve_points and #curve_points >= 4 then
+            local r = light.lineBounds(curve_points, ARROW_WIDTH)
+            if not r then return nil end
+            bounds = light.cover(bounds, r)
+        end
+        bounds = light.cover(bounds, light.pointsBounds(head, 2))
+    end
+    return bounds
 end
 
 local function drawArrowNoTF(arrow)
@@ -231,12 +257,13 @@ function bezierArrow.renderArrows()
     if #state.arrows == 0 then
         light.skipChain() -- nothing to glow (see light.skipChain)
     else
+    local bounds = arrowsBounds()
     whiteNeon(function()
     
     for _, arrow in ipairs(state.arrows) do
         drawArrow(arrow)
     end
-    end)
+    end, bounds)
     end
       love.graphics.pop()
   love.graphics.setShader(currentShader)

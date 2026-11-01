@@ -1432,7 +1432,7 @@ function regions.drawGround()
             groundShader:send("zones", r.zones)
             groundShader:send("zoneSize", r.zoneSize)
             groundShader:send("zoneScale", TILE / ZONE)
-            love.graphics.draw(r.ground)
+            shadow.drawTiled(groundShader, function() love.graphics.draw(r.ground) end)
 
             -- grates, carpets, rubble: part of the ground, cut out over it
             sendSpriteUniforms(r)

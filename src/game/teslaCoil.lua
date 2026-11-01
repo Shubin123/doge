@@ -207,6 +207,25 @@ local function worldX(x) return x end
 local function screenX(x) return camera.pos.x + x * camera.zoom end
 local function screenY(y) return camera.pos.y + y * camera.zoom end
 
+-- Screen rect drawArcs(screenX, screenY, camera.zoom) draws inside (nil when
+-- it can't be told), for the glow chain's bounds: its widest lines are 5 px
+-- a world unit, and the pixel lines sit on the same points.
+local function arcsBounds()
+    local bounds, points = nil, {}
+    for _, bolt in ipairs(state.bolts) do
+        if #bolt > 1 then
+            for i = 1, #bolt do
+                points[2 * i - 1], points[2 * i] = screenX(bolt[i].x), screenY(bolt[i].y)
+            end
+            for i = 2 * #bolt + 1, #points do points[i] = nil end
+            local r = light.lineBounds(points, 5 * camera.zoom)
+            if not r then return nil end
+            bounds = light.cover(bounds, r)
+        end
+    end
+    return bounds
+end
+
 function teslaCoil.renderPixelLine(drawable)
     local visible = #state.bolts > 0 and (var.tracer_brightness or 1) > 0
     if var.graphics_high then
@@ -223,7 +242,7 @@ function teslaCoil.renderPixelLine(drawable)
         drawArcs(screenX, screenY, camera.zoom)
         love.graphics.setBlendMode("alpha")
         love.graphics.setColor(1, 1, 1, 1)
-    end)
+    end, arcsBounds())
     end
   love.graphics.pop()
     -- ...and again on top of it, under the camera transform, so the arc stays

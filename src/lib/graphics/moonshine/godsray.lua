@@ -63,10 +63,12 @@ return function(moonshine)
 
 
   local setters, light_position = {}
+  local sent = {} -- what the shader was sent, for reach
 
   for _,k in ipairs{"exposure", "decay", "density", "weight"} do
     setters[k] = function(v)
-      shader:send(k, math.min(1, math.max(0, tonumber(v) or 0)))
+      sent[k] = math.min(1, math.max(0, tonumber(v) or 0))
+      shader:send(k, sent[k])
     end
   end
 
@@ -86,7 +88,37 @@ return function(moonshine)
   end
 
   setters.samples = function(v)
-    shader:send("samples", math.max(1,tonumber(v) or 1))
+    sent.samples = math.max(1,tonumber(v) or 1)
+    shader:send("samples", sent.samples)
+  end
+
+  -- Pixel p is its own colour plus 30 samples at p + t (light - p), t = i *
+  -- density / samples, so it can only light up where one of them lands in r:
+  -- in r scaled about the light by 1 / (1 - t). At t = 1 every pixel samples
+  -- the light itself (the whole canvas, if r holds it); past t = 1 samples
+  -- leave the canvas and clamp to its edge (the whole canvas).
+  local reach = function(r, w, h)
+    local lx, ly = light_position[1] * w, light_position[2] * h
+    if lx < 0 or lx > w or ly < 0 or ly > h then return {0, 0, w, h} end
+    local x0, y0, x1, y1 = r[1] - 2, r[2] - 2, r[3] + 2, r[4] + 2
+    local bx0, by0, bx1, by1 = x0, y0, x1, y1
+    local near = 1e-3 * (w + h) + 2 -- how far from the light t ~ 1 lands
+    for i = 1, 30 do
+      local t = i * sent.density / sent.samples
+      if t > 1 + 1e-3 then return {0, 0, w, h} end
+      if math.abs(1 - t) <= 1e-3 then
+        if lx >= x0 - near and lx <= x1 + near and ly >= y0 - near and ly <= y1 + near then
+          return {0, 0, w, h}
+        end
+      else
+        local k = 1 / (1 - t)
+        local ax, bx = lx + (x0 - lx) * k, lx + (x1 - lx) * k
+        local ay, by = ly + (y0 - ly) * k, ly + (y1 - ly) * k
+        bx0, bx1 = math.min(bx0, ax, bx), math.max(bx1, ax, bx)
+        by0, by1 = math.min(by0, ay, by), math.max(by1, ay, by)
+      end
+    end
+    return {bx0 - 2, by0 - 2, bx1 + 2, by1 + 2}
   end
 
   local defaults = {
@@ -101,6 +133,7 @@ return function(moonshine)
   return moonshine.Effect{
     name = "godsray",
     shader = shader,
+    reach = reach,
     setters = setters,
     defaults = defaults
   }

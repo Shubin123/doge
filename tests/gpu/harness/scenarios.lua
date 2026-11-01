@@ -82,4 +82,20 @@ return function(h)
         h.advance(1)
     end
     for _, b in ipairs(bullet.pool) do b.fixture:setMask() end
+
+    -- A region's street at night, lit by its lamps and neon: with that many
+    -- lights the ground is drawn tile by tile, each tile given only the
+    -- lights that reach it (shadow.drawTiled). Then home again, so the timed
+    -- frames stay where they were. Older baselines have no regions.
+    if regions and regions.teleport then
+        local x, y = player.body:getPosition()
+        for _, r in ipairs(regions.list) do
+            if r.id == "neon" then regions.teleport(r) end
+        end
+        h.advance(20)
+        h.capture("neon_city")
+        player.body:setPosition(x, y)
+        camera.snap(player)
+        h.advance(20)
+    end
 end

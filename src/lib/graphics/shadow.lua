@@ -254,6 +254,76 @@ function lighting.sendLights(shader)
     end
 end
 
+--==========================================================================--
+-- Tiled draws
+--
+-- A full-screen draw lit by many lights loops over all of them at every
+-- pixel, though most only reach a corner of the screen (a street of lamps,
+-- a spill of XP globs). Drawn once per screen tile instead, under a scissor,
+-- each tile is sent only the lights that reach it, in their order: every
+-- pixel then adds up the same lights in the same order and comes out
+-- exactly as before, for a fraction of the work. With few lights the extra
+-- draws aren't worth it, so it is one plain draw below TILE_MIN_LIGHTS.
+--==========================================================================--
+
+lighting.TILE_SIZE = 400 -- px, about
+lighting.TILE_MIN_LIGHTS = 12
+
+local tileLights = {}
+
+--- Draw `draw(y0, y1)` lit through `shader` (bound, and sent this frame's
+--- lights: lighting.sendLights), tile by tile over the render target;
+--- y0..y1 is the band of screen rows the call must cover (the whole target
+--- when untiled). Leaves `shader` with the full light list again.
+function lighting.drawTiled(shader, draw)
+    local n = #screenLights
+    local canvas = love.graphics.getCanvas()
+    local w, h
+    if canvas then w, h = canvas:getDimensions() else w, h = love.graphics.getDimensions() end
+    if n < lighting.TILE_MIN_LIGHTS then
+        draw(0, h)
+        return
+    end
+
+    local sx, sy, sw, sh = love.graphics.getScissor()
+    local cols = math.max(1, math.ceil(w / lighting.TILE_SIZE))
+    local rows = math.max(1, math.ceil(h / lighting.TILE_SIZE))
+    for row = 0, rows - 1 do
+        local y0, y1 = math.floor(h * row / rows), math.floor(h * (row + 1) / rows)
+        for col = 0, cols - 1 do
+            local x0, x1 = math.floor(w * col / cols), math.floor(w * (col + 1) / cols)
+            -- the tile within any scissor already set
+            local cx0, cy0, cx1, cy1 = x0, y0, x1, y1
+            if sx then
+                cx0, cy0 = math.max(cx0, sx), math.max(cy0, sy)
+                cx1, cy1 = math.min(cx1, sx + sw), math.min(cy1, sy + sh)
+            end
+            if cx1 > cx0 and cy1 > cy0 then
+                -- the lights whose reach (the shader's dist < range) touches
+                -- the tile, a pixel's slack for rounding
+                local k = 0
+                for i = 1, n do
+                    local l = screenLights[i]
+                    local dx = math.max(cx0 - l[1], 0, l[1] - cx1)
+                    local dy = math.max(cy0 - l[2], 0, l[2] - cy1)
+                    if l[4] > 0 and dx * dx + dy * dy < (l[4] + 1) ^ 2 then
+                        k = k + 1
+                        tileLights[k] = l
+                    end
+                end
+                for i = #tileLights, k + 1, -1 do tileLights[i] = nil end
+                love.graphics.setScissor(cx0, cy0, cx1 - cx0, cy1 - cy0)
+                shader:send("numLights", k)
+                if k > 0 then shader:send("lights", unpack(tileLights)) end
+                draw(cy0, cy1)
+            end
+        end
+    end
+    love.graphics.setScissor(sx, sy, sw, sh)
+    shader:send("numLights", n)
+    shader:send("lights", unpack(screenLights))
+end
+
 -- Legacy alias: main.lua calls shadow.updateBothShaders(dt).
 lighting.updateBothShaders = lighting.update
 

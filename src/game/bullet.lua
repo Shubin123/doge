@@ -509,6 +509,27 @@ function bullet.drawMuzzleFlashes()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+-- World rect {x0, y0, x1, y1} every live muzzle flash draws inside, or nil
+-- when there are none: the circles reach size * 2.45 from the barrel, the
+-- cone layers coneLength along dir and tan(coneAngle) of that sideways.
+function bullet.muzzleFlashBounds()
+    local r
+    for _, flash in ipairs(bullet.muzzleFlashes) do
+        local alpha = flash.life / flash.maxLife
+        local len = math.sqrt(flash.dir.x ^ 2 + flash.dir.y ^ 2)
+        local reach = math.max(math.abs(flash.size * alpha) * 2.45,
+            math.abs(flash.coneLength * alpha) * len * (1 + math.abs(math.tan(flash.coneAngle)))) + 2
+        local x, y = flash.pos.x, flash.pos.y
+        if r then
+            r[1], r[2] = math.min(r[1], x - reach), math.min(r[2], y - reach)
+            r[3], r[4] = math.max(r[3], x + reach), math.max(r[4], y + reach)
+        else
+            r = { x - reach, y - reach, x + reach, y + reach }
+        end
+    end
+    return r
+end
+
 -- Create shell ejection effect
 function bullet.createShellEjection(gunPos, gunDir, shellType)
     -- Calculate ejection position (right side of gun barrel)

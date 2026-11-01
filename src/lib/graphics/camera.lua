@@ -151,6 +151,18 @@ function camera.screenToWorld(x, y)
     return worldX, worldY
 end
 
+-- The screen rect {x0, y0, x1, y1} a world rect lands on under camera.apply()
+-- (its flooring and shake included)
+function camera.screenRect(x0, y0, x1, y1)
+    love.graphics.push()
+    love.graphics.origin()
+    camera.apply()
+    local ax, ay = love.graphics.transformPoint(x0, y0)
+    local bx, by = love.graphics.transformPoint(x1, y1)
+    love.graphics.pop()
+    return { math.min(ax, bx), math.min(ay, by), math.max(ax, bx), math.max(ay, by) }
+end
+
 function camera.worldToScreen(x, y)
     local screenX = (x * camera.zoom) + camera.x
     local screenY = (y * camera.zoom) + camera.y

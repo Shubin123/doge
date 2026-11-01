@@ -64,6 +64,59 @@ function light.skipChain()
   love.graphics.setBlendMode((love.graphics.getBlendMode()))
 end
 
+-- Union of two {x0, y0, x1, y1} rects (either may be nil)
+function light.cover(a, b)
+  if not a then return b end
+  if not b then return a end
+  return { math.min(a[1], b[1]), math.min(a[2], b[2]), math.max(a[3], b[3]), math.max(a[4], b[4]) }
+end
+
+-- {x0, y0, x1, y1} round points {x1, y1, x2, y2, ...}, m pixels out
+function light.pointsBounds(points, m)
+  local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+  for i = 1, #points - 1, 2 do
+    x0, x1 = math.min(x0, points[i]), math.max(x1, points[i])
+    y0, y1 = math.min(y0, points[i + 1]), math.max(y1, points[i + 1])
+  end
+  return { x0 - m, y0 - m, x1 + m, y1 + m }
+end
+
+-- Screen rect a love.graphics.line through points {x1, y1, x2, y2, ...} of
+-- this width draws inside, for a glow chain's bounds; nil when it can't be
+-- told. A miter join (the default) reaches half the width over sin(half the
+-- corner's angle) from its point, which runs away as the line doubles back,
+-- so a corner within ~0.1 degree of that, or a zero-length segment, gives
+-- nil. Each point gets 1% and 3 px to spare (LOVE works it out in floats,
+-- and a smooth line's edge is feathered).
+function light.lineBounds(points, width)
+  local n = #points / 2
+  if n < 2 then return nil end
+  local hw = width / 2
+  local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+  for i = 1, n do
+    local x, y = points[2 * i - 1], points[2 * i]
+    local reach = hw
+    if i > 1 then
+      local sx, sy = x - points[2 * i - 3], y - points[2 * i - 2]
+      local ls = math.sqrt(sx * sx + sy * sy)
+      if ls == 0 then return nil end
+      if i < n then
+        local tx, ty = points[2 * i + 1] - x, points[2 * i + 2] - y
+        local lt = math.sqrt(tx * tx + ty * ty)
+        if lt == 0 then return nil end
+        -- the corner's angle phi: sin(phi / 2)^2 = (1 + cos turn) / 2
+        local half = (1 + (sx * tx + sy * ty) / (ls * lt)) / 2
+        if half < 1e-6 then return nil end
+        reach = hw / math.sqrt(half)
+      end
+    end
+    reach = reach * 1.01 + 3
+    x0, y0 = math.min(x0, x - reach), math.min(y0, y - reach)
+    x1, y1 = math.max(x1, x + reach), math.max(y1, y + reach)
+  end
+  return { x0, y0, x1, y1 }
+end
+
 -- Indoor key light: a soft warm glow rendered through the godray/glow chain.
 -- Only visible while indoors (outdoors it is drawn with alpha 0).
 function light.draw()
@@ -71,20 +124,15 @@ function light.draw()
     light.skipChain()
     return
   end
+  -- local mx = player.body:getX() + 20*math.sin(fire.t)
+  -- local my = player.body:getY() + 20*math.cos(fire.t)
+  local mx = 500 - 2
+  local my = 300 - 25
+  local x, y, r = camera.pos.x + (mx) * camera.zoom, camera.pos.y + (my) * camera.zoom, 8 * camera.zoom
   yellowNeon(function()
     love.graphics.setColor(1, 0.46, 0.3, var.indoors and 1 or 0)
-    -- local mx = player.body:getX() + 20*math.sin(fire.t)
-    -- local my = player.body:getY() + 20*math.cos(fire.t)
-
-    local mx = 500 - 2
-    local my = 300 - 25
-
-
-
-
-    love.graphics.circle("fill", (camera.pos.x + (mx) * camera.zoom), (camera.pos.y + (my) * camera.zoom), 8 *
-    camera.zoom)
-  end)
+    love.graphics.circle("fill", x, y, r)
+  end, { x - r - 2, y - r - 2, x + r + 2, y + r + 2 })
 end
 
 -- The flashlight's heading: the gun's current velocity, else to the right.
@@ -177,12 +225,12 @@ function light.renderLights(drawable)
   if drawable.draw_type == "light" and (player.lightsOn or flashes) then
     love.graphics.push()
 
-    love.graphics.reset()
-    
-    blueNeon(function()
-      if player.lightsOn then
-      love.graphics.setColor(0.17, 0.46, 1, 0.5 * daynight.glow())
+    -- The screen rect it all draws inside, so the chain only runs where the
+    -- glow can reach (see moonshine's chain.draw)
+    local bounds
 
+    local cone
+    if player.lightsOn then
       -- Aim the flashlight cone along the gun's current velocity/heading.
       local playerX, playerY = player.body:getPosition()
       local angle = aim()
@@ -213,24 +261,27 @@ function light.renderLights(drawable)
       -- Cone tip width (small rectangle at the tip)
       local tipWidth = 20 * camera.zoom
 
-      -- Tip corners (small rectangle at car end)
-      local tipCorner1X = tipX + perpX * tipWidth / 2
-      local tipCorner1Y = tipY + perpY * tipWidth / 2
-      local tipCorner2X = tipX - perpX * tipWidth / 2
-      local tipCorner2Y = tipY - perpY * tipWidth / 2
+      -- Trapezoid: tip corners (small rectangle at car end), then the base
+      -- corners (wide end)
+      cone = {
+        tipX + perpX * tipWidth / 2, tipY + perpY * tipWidth / 2,
+        baseX + perpX * coneWidth / 2, baseY + perpY * coneWidth / 2,
+        baseX - perpX * coneWidth / 2, baseY - perpY * coneWidth / 2,
+        tipX - perpX * tipWidth / 2, tipY - perpY * tipWidth / 2,
+      }
+      bounds = light.pointsBounds(cone, 2)
+    end
+    if flashes then
+      local r = bullet.muzzleFlashBounds()
+      bounds = light.cover(bounds, camera.screenRect(r[1], r[2], r[3], r[4]))
+    end
 
-      -- Base corners (wide end of trapezoid)
-      local baseCorner1X = baseX + perpX * coneWidth / 2
-      local baseCorner1Y = baseY + perpY * coneWidth / 2
-      local baseCorner2X = baseX - perpX * coneWidth / 2
-      local baseCorner2Y = baseY - perpY * coneWidth / 2
-      -- Draw trapezoid (4 vertices: tip rectangle + base rectangle)
-      love.graphics.polygon("fill",
-        tipCorner1X, tipCorner1Y,           -- tip corner 1
-        baseCorner1X, baseCorner1Y,         -- base corner 1
-        baseCorner2X, baseCorner2Y,         -- base corner 2
-        tipCorner2X, tipCorner2Y)           -- tip corner 2
-
+    love.graphics.reset()
+    
+    blueNeon(function()
+      if cone then
+      love.graphics.setColor(0.17, 0.46, 1, 0.5 * daynight.glow())
+      love.graphics.polygon("fill", cone)
       love.graphics.setColor(1, 1, 1, 1)
       end
 
@@ -241,7 +292,7 @@ function light.renderLights(drawable)
         love.graphics.pop()
         love.graphics.setShader()
       end
-    end)
+    end, bounds)
 
     love.graphics.pop()
   end

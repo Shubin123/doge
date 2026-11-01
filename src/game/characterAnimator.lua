@@ -17,6 +17,8 @@ local characterDefinitions = {} -- Character types with their animation states
 
 local spriteCount = 0
 local instances = {} -- Store all instances for populate
+local quadHalf = 0 -- the sprite quad's half size, before an instance's scale
+local fadeBounds -- world rect every fading (death-lit) instance covers, or nil
 local spriteLocationMap = {} -- Maps global sprite index to {u, v, uSize, vSize} coordinates
 
 -- Depth sorting against the dynamic draw list. An instance's key is
@@ -844,6 +846,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     print("Loaded " .. metadata.totalSprites .. " sprites from atlas")
 
     local size = metadata.uniformWidth / 2
+    quadHalf = size
     local vertices = {{-size, -size, 0, 0}, {size, -size, 1, 0}, {size, size, 1, 1}, {-size, size, 0, 1}}
 
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
@@ -1001,6 +1004,7 @@ function characterAnimator.populate()
     local instanceData = {}
     local totalInstances = characterAnimator.instanceCount
     local defaultUV = {0, 0, 0.001, 0.001}  -- tiny UV to avoid sampling wrong texture
+    fadeBounds = nil
 
     for i = 1, totalInstances do
         if i <= activeInstanceCount then
@@ -1008,6 +1012,19 @@ function characterAnimator.populate()
             local cos_r = math.cos(instance.rotation)
             local sin_r = math.sin(instance.rotation)
             local scale = instance.scale
+
+            -- What the death light's vertex stage draws: 0 < onoff < 1
+            local onoff = instance.on and (instance.opacity or 1) or 0
+            if onoff > 0 and onoff < 1 then
+                local r = quadHalf * math.abs(scale) * (math.abs(cos_r) + math.abs(sin_r)) + 1
+                local b = fadeBounds
+                if b then
+                    b[1], b[2] = math.min(b[1], instance.x - r), math.min(b[2], instance.y - r)
+                    b[3], b[4] = math.max(b[3], instance.x + r), math.max(b[4], instance.y + r)
+                else
+                    fadeBounds = { instance.x - r, instance.y - r, instance.x + r, instance.y + r }
+                end
+            end
 
             local u, v, uSize, vSize = getUV(instance)
             sortKeys[i] = instance.y + characterAnimator.sortYOffset
@@ -1086,12 +1103,17 @@ function characterAnimator.draw()
         love.graphics.reset() -- the chain's full-screen passes must not inherit the camera
 
         yellowNeon.godsray.exposure = math.abs(math.sin(fire.t))
-        yellowNeon(function()
-            love.graphics.push()
-            camera.apply()
-            characterAnimator.drawInstances(characterAnimator.shaderWithTransforms)
-            love.graphics.pop()
-        end)
+        if not fadeBounds then
+            light.skipChain() -- nobody dying, nothing to glow (see light.skipChain)
+        else
+            local b = fadeBounds
+            yellowNeon(function()
+                love.graphics.push()
+                camera.apply()
+                characterAnimator.drawInstances(characterAnimator.shaderWithTransforms)
+                love.graphics.pop()
+            end, camera.screenRect(b[1], b[2], b[3], b[4]))
+        end
         love.graphics.pop()
     end
 
