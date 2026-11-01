@@ -9,12 +9,26 @@
   (map.createSaveData / map.restore, enemy.getSaveData / enemy.restore,
   boss.getSaveData / boss.restore, command.getCommandBlocks /
   command.setCommandBlocks); this module gathers them and applies them.
+
+  A save is only ever game state: the Settings screen's choices live in
+  settings.json (util/settings.lua) and load-time caches in cache/
+  (util/cache.lua), and every function here refuses a name that isn't a
+  plain *.sav in the save directory, so a save can't land on either.
 ]]
 local serial = {}
 
 serial.VERSION = 2
 serial.EXTENSION = ".sav"
 serial.QUICKSAVE = "quicksave" .. serial.EXTENSION
+
+-- nil and a message unless filename is a save's: *.sav, not in a folder
+local function checkName(filename)
+    if type(filename) ~= "string" or filename:find("[/\\]")
+        or #filename <= #serial.EXTENSION or filename:sub(-#serial.EXTENSION) ~= serial.EXTENSION then
+        return nil, "Not a save file name (saves are *" .. serial.EXTENSION .. "): " .. tostring(filename)
+    end
+    return true
+end
 
 local function captureCoins()
     local coins = {}
@@ -159,6 +173,8 @@ end
 
 -- Read and decode a save file; nil and a message on failure.
 local function readState(filename)
+    local named, nameErr = checkName(filename)
+    if not named then return nil, nameErr end
     if not love.filesystem.getInfo(filename, "file") then
         return nil, "Save file not found: " .. filename
     end
@@ -185,6 +201,8 @@ end
 
 -- Save game state to a file in the save directory
 function serial.saveToFile(filename)
+    local named, nameErr = checkName(filename)
+    if not named then return false, nameErr end
     local encoded, err = encodeState()
     if not encoded then return false, err end
 
@@ -197,6 +215,8 @@ end
 
 -- Same as saveToFile but human-readable JSON, for debugging; loads the same way
 function serial.saveToFileUncompressed(filename)
+    local named, nameErr = checkName(filename)
+    if not named then return false, nameErr end
     local encoded, err = encodeState()
     if not encoded then return false, err end
 
@@ -243,6 +263,7 @@ function serial.getSaveFiles()
 end
 
 function serial.deleteSave(filename)
+    if not checkName(filename) then return false end
     return love.filesystem.remove(filename)
 end
 

@@ -109,6 +109,8 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 
 ### Saves, Settings & Cache
 All in LÖVE's save directory (`love.filesystem`, identity `doge`), each in its own file:
+- `util/serial.lua`: saves are `*.sav` (quicksave and the menu's slots) and hold game state only. Every serial function refuses a name that isn't a plain `*.sav`, so a save can never land on the settings or the cache.
+- `util/settings.lua`: the Settings screen's choices (resolution as `var.window_width/height`, fullscreen, v-sync, show FPS, graphics, lighting, CRT, bloom, grass, tracers, particles, screen shake, rocket splash) in `settings.json`. `settings.load()` runs at the top of `love.load`, before the window opens; the menu calls `settings.save()` after every click on the Settings screen. Values that don't fit are skipped, and loading a save never touches these. To persist a new setting, add it to `FIELDS` there.
 - `util/cache.lua`: `cache/` holds slow load-time results keyed by an md5 of what they're worked out from (the courtyard's tile layout keyed by `game/courtyard.lua` and its sheet; the sprite atlas as LZ4, which unpacks about six times faster than the shipped zlib, desktop only). A changed input just recomputes it; deleting `cache/` is always safe.
 
 ### Global Variables

@@ -27,6 +27,7 @@ renderer = require("lib.graphics.renderer")
 snapshot = require("network.snapshot")
 blur = require("systems.blur")
 serial = require("util.serial")
+settings = require("util.settings") -- Settings screen choices, in settings.json (never in a save)
 editor = require("ui.editor")
 multiplayer = require("network.multiplayer")
 bullet = require("game.bullet")
@@ -87,6 +88,9 @@ game_area_y = var.header_height
 
 function love.load()
     preLoadDraw()
+    -- The Settings screen's choices, before the window opens and anything
+    -- reading them loads
+    settings.load()
 
 
     -- love.draw = preLoadDraw

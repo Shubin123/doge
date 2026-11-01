@@ -28,20 +28,15 @@ local confirming      -- "save" or "delete" while waiting for the second click
 local armed           -- what confirming was when the current click came in
 local status          -- result of the last save/load/delete
 
--- Graphics settings data
-local graphicsSettings = {
-    resolutions = {
-        {width = 800, height = 600, text = "800x600"},
-        {width = 1024, height = 768, text = "1024x768"},
-        {width = 1280, height = 720, text = "1280x720"},
-        {width = 1600, height = 900, text = "1600x900"},
-        {width = 1920, height = 1080, text = "1920x1080"},
-        {width = 2560, height = 1440, text = "2560x1440"}
-    },
-    currentResolution = 1,
-    fullscreen = false,
-    vsync = true,
-    particles = true,
+-- Settings > Resolution choices (var.window_width/height). The settings
+-- themselves live in var and util/settings.lua keeps them in settings.json.
+local RESOLUTIONS = {
+    {width = 800, height = 600},
+    {width = 1024, height = 768},
+    {width = 1280, height = 720},
+    {width = 1600, height = 900},
+    {width = 1920, height = 1080},
+    {width = 2560, height = 1440}
 }
 
 local function onOff(value)
@@ -58,6 +53,13 @@ local function nextIn(list, value)
         if v == value then return list[i % #list + 1] end
     end
     return list[1]
+end
+
+-- The RESOLUTIONS entry the window is set to; nil for a size that isn't one
+local function currentResolution()
+    for _, r in ipairs(RESOLUTIONS) do
+        if r.width == var.window_width and r.height == var.window_height then return r end
+    end
 end
 
 function menu.load(screenInfo)
@@ -87,7 +89,7 @@ function menu.load(screenInfo)
 end
 
 function menu.update(dt)
-    if graphicsSettings.particles then
+    if var.menu_particles then
         ps:update(dt)
     end
 end
@@ -178,20 +180,18 @@ local function layout(uw, uh)
         local y = math.floor(uh / 6)
         local left, right = cx - 155, cx + 5
         local fancy = var.graphics_high -- the GI and CRT only run on Fancy
-        local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-        add(left, y + 24, 150, "Resolution: " .. res.text, function()
-            graphicsSettings.currentResolution = graphicsSettings.currentResolution % #graphicsSettings.resolutions + 1
-            menu.applyResolution()
-            local r = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-            love.resize(r.width, r.height)
+        add(left, y + 24, 150, "Resolution: " .. var.window_width .. "x" .. var.window_height, function()
+            local r = nextIn(RESOLUTIONS, currentResolution())
+            var.window_width, var.window_height = r.width, r.height
+            menu.applyWindow()
         end)
-        add(right, y + 24, 150, "Fullscreen: " .. onOff(graphicsSettings.fullscreen), function()
-            graphicsSettings.fullscreen = not graphicsSettings.fullscreen
-            menu.applyFullscreen()
+        add(right, y + 24, 150, "Fullscreen: " .. onOff(var.screen_flags.fullscreen), function()
+            var.screen_flags.fullscreen = not var.screen_flags.fullscreen
+            menu.applyWindow()
         end)
-        add(left, y + 48, 150, "V-Sync: " .. onOff(graphicsSettings.vsync), function()
-            graphicsSettings.vsync = not graphicsSettings.vsync
-            menu.applyVsync()
+        add(left, y + 48, 150, "V-Sync: " .. onOff(var.screen_flags.vsync), function()
+            var.screen_flags.vsync = not var.screen_flags.vsync
+            menu.applyWindow()
         end)
         add(right, y + 48, 150, "Show FPS: " .. onOff(profiler.overlay_visible), function()
             profiler.overlay_visible = not profiler.overlay_visible
@@ -217,8 +217,8 @@ local function layout(uw, uh)
         add(right, y + 120, 150, "Tracers: " .. tracers, function()
             var.tracer_brightness = nextIn(TRACER_LEVELS, var.tracer_brightness)
         end)
-        add(left, y + 144, 150, "Particles: " .. onOff(graphicsSettings.particles), function()
-            graphicsSettings.particles = not graphicsSettings.particles
+        add(left, y + 144, 150, "Particles: " .. onOff(var.menu_particles), function()
+            var.menu_particles = not var.menu_particles
         end)
         add(right, y + 144, 150, "Screen Shake: " .. onOff(var.screen_shake), function()
             var.screen_shake = not var.screen_shake
@@ -332,7 +332,7 @@ function menu.draw()
     love.graphics.origin()
     love.graphics.setColor(0.06, 0.06, 0.06, 0.55)
     love.graphics.rectangle("fill", 0, 0, sw, sh)
-    if graphicsSettings.particles then
+    if var.menu_particles then
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(ps)
     end
@@ -382,41 +382,25 @@ function menu.mousepressed(x, y, button, screenInfo)
         end
     end
 
+    local onSettings = menu.currentMenu == "settings"
     for _, b in ipairs(layout(sw / u, sh / u)) do
         if b.enabled and skin.contains(b, ux, uy) then
-            return b.onClick()
+            local result = b.onClick()
+            if onSettings then
+                settings.save() -- every change, straight away, to settings.json
+            end
+            return result
         end
     end
     return nil
 end
 
-function menu.applyResolution()
-    local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-    love.window.setMode(res.width, res.height, {
-        fullscreen = graphicsSettings.fullscreen,
-        vsync = graphicsSettings.vsync
-    })
-    if var then
-        var.screen_width = res.width
-        var.screen_height = res.height
-    end
-    print("Resolution changed to: " .. res.text)
-end
-
-function menu.applyFullscreen()
-    local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-    love.window.setMode(res.width, res.height, {
-        fullscreen = graphicsSettings.fullscreen,
-        vsync = graphicsSettings.vsync
-    })
-end
-
-function menu.applyVsync()
-    local res = graphicsSettings.resolutions[graphicsSettings.currentResolution]
-    love.window.setMode(res.width, res.height, {
-        fullscreen = graphicsSettings.fullscreen,
-        vsync = graphicsSettings.vsync
-    })
+-- Settings > Resolution / Fullscreen / V-Sync: the window in the mode they say
+function menu.applyWindow()
+    love.window.setMode(var.window_width, var.window_height, var.screen_flags)
+    love.resize(love.graphics.getDimensions())
+    print("Window: " .. var.window_width .. "x" .. var.window_height
+        .. (var.screen_flags.fullscreen and ", fullscreen" or ""))
 end
 
 return menu

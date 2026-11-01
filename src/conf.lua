@@ -5,8 +5,14 @@ var.screen_width = 800
 var.screen_height = 600
 var.screen_flags = {
     ["resizable"] = true,
-    ["vsync"] = true -- doesnt always work (could cause performance hit with worse fps)
+    ["fullscreen"] = false, -- Settings > Fullscreen
+    ["vsync"] = true -- Settings > V-Sync; doesnt always work (could cause performance hit with worse fps)
 }
+-- Settings > Resolution: the window's size out of fullscreen. The window
+-- opens at it (util/settings.lua); var.screen_width/height follow the
+-- window as it is (love.resize).
+var.window_width = var.screen_width
+var.window_height = var.screen_height
 
 var.character_rotation = 0
 var.prev_x = 0
@@ -82,6 +88,9 @@ var.grass = true
 
 -- Settings > Screen Shake: camera.shake does nothing while off
 var.screen_shake = true
+
+-- Settings > Particles: the doges falling behind the menu
+var.menu_particles = true
 
 var.indoors = false
 
