@@ -156,7 +156,6 @@ end
 function GrassRenderer:createMesh()
     -- We'll create the mesh when we have grass data
     self.grassMesh = nil
-    self.grassBlades = {}
 end
 
 function GrassRenderer:createTextures()
@@ -199,139 +198,152 @@ function GrassRenderer:createTextures()
     end
 end
 
+-- A blade's corners: across and up (times its width and height), and the
+-- texture coordinate there
+local CORNERS = {
+    { -0.5, 0, 0, 1 },  -- bottom left
+    { 0.5, 0, 1, 1 },   -- bottom right
+    { 0.5, -1, 1, 0 },  -- top right
+    { -0.5, -1, 0, 0 }, -- top left
+}
+
+local VERTEX_FORMAT = {
+    {"VertexPosition", "float", 2},
+    {"VertexTexCoord", "float", 2},
+    {"VertexColor", "byte", 4},
+    {"WindPhase", "float", 1},
+    {"WindIntensity", "float", 1},
+    {"BladeCenter", "float", 2}
+}
+
+-- With LuaJIT's FFI and its compiler running, blades are written straight
+-- into the mesh's vertex data, laid out as VERTEX_FORMAT, instead of a table
+-- per vertex for LÖVE to read back: ten times quicker. Interpreted (LÖVE
+-- turns the JIT off on Apple Silicon) FFI writes are slower than the tables,
+-- and the browser build's Lua has no FFI, so those hand LÖVE the tables.
+-- Same mesh either way.
+local ffi
+do
+    local ok, lib = pcall(require, "ffi")
+    if ok and (pcall(lib.typeof, "grass_vertex") or pcall(lib.cdef, [[
+        typedef struct {
+            float x, y, u, v;
+            uint8_t r, g, b, a;
+            float windPhase, windIntensity, cx, cy;
+        } grass_vertex;
+    ]])) then
+        ffi = lib
+    end
+end
+
+-- A colour component as LÖVE stores a "byte" one given a number
+local function unorm8(v)
+    return math.floor(math.min(math.max(v, 0), 1) * 255)
+end
+
 -- accept(x, y), if given, says where blades may grow (each gets a few tries
 -- to land somewhere it's true); tint multiplies their colour.
 function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
     density = density or 1.0
-    
+    local random = love.math.random
+
     -- Calculate grass count
     local areaGrassCount = math.floor((width * height * density) / 1000)
     areaGrassCount = math.min(areaGrassCount, var and var.max_grass or 2000)
 
-    local spots = {}
+    local spotX, spotY = {}, {}
     for _ = 1, areaGrassCount do
         for _ = 1, accept and 8 or 1 do
-            local bx, by = x + love.math.random() * width, y + love.math.random() * height
+            local bx, by = x + random() * width, y + random() * height
             if not accept or accept(bx, by) then
-                spots[#spots + 1] = { bx, by }
+                spotX[#spotX + 1], spotY[#spotY + 1] = bx, by
                 break
             end
         end
     end
-    areaGrassCount = #spots
+    areaGrassCount = #spotX
     if areaGrassCount == 0 then
         self.grassMesh = nil
         return
     end
-    
-    -- Clear existing data
-    self.grassBlades = {}
-    
-    -- Create vertices for all grass blades in one mesh
-    local vertices = {}
-    local vertexIndex = 1
-    
+
+    -- Every blade's four corners in one mesh: into vertexData (FFI) or vertices
+    local vertexData, out, vertices
+    if ffi and jit.status() then
+        vertexData = love.data.newByteData(areaGrassCount * 4 * ffi.sizeof("grass_vertex"))
+        out = ffi.cast("grass_vertex *", vertexData:getFFIPointer())
+    else
+        vertices = {}
+    end
+
     for i = 1, areaGrassCount do
-        local bladeX = spots[i][1]
-        local bladeY = spots[i][2]
-        local bladeWidth = 0.5 + love.math.random() * 1.5
-        local bladeHeight = 8 + love.math.random() * 15
-        local rotation = love.math.random() * math.pi * 0.2 - math.pi * 0.1
-        
+        local bladeX = spotX[i]
+        local bladeY = spotY[i]
+        local bladeWidth = 0.5 + random() * 1.5
+        local bladeHeight = 8 + random() * 15
+        local rotation = random() * math.pi * 0.2 - math.pi * 0.1
+
         -- Color variation
-        local r = 0.2 + love.math.random() * 0.3
-        local g = 0.8 + love.math.random() * 0.4
-        local b = 0.1 + love.math.random() * 0.2
+        local r = 0.2 + random() * 0.3
+        local g = 0.8 + random() * 0.4
+        local b = 0.1 + random() * 0.2
         if tint then
             r, g, b = r * tint[1], g * tint[2], b * tint[3]
         end
-        -- local a = 0.8 
         local a = mymath.realRandom(0,0.1) + mymath.realRandom(0,0.2) + mymath.realRandom(0,0.3) - mymath.realRandom(0,0.05)
-        
-        -- Wind properties (stored in texture coordinates for shader access)
-        local windPhase = love.math.random() * math.pi * 2
-        local windIntensity = 0.7 + love.math.random() * 0.6
-        
-        -- Calculate rotated and scaled vertices
+
+        -- Wind properties (per-vertex attributes for the shader)
+        local windPhase = random() * math.pi * 2
+        local windIntensity = 0.7 + random() * 0.6
+
         local cos_r = math.cos(rotation)
         local sin_r = math.sin(rotation)
-        
-        -- Base quad vertices (relative to center)
-        local baseVerts = {
-            {-0.5, 0},   -- Bottom left
-            { 0.5, 0},   -- Bottom right  
-            { 0.5, -1},  -- Top right
-            {-0.5, -1}   -- Top left
-        }
-        
-        -- Transform and add vertices for this blade
+        local r8, g8, b8, a8 = unorm8(r), unorm8(g), unorm8(b), unorm8(a)
+
         for j = 1, 4 do
-            local localX = baseVerts[j][1] * bladeWidth
-            local localY = baseVerts[j][2] * bladeHeight
-            
-            -- Apply rotation
-            local rotatedX = localX * cos_r - localY * sin_r
-            local rotatedY = localX * sin_r + localY * cos_r
-            
-            -- World position
-            local worldX = bladeX + rotatedX
-            local worldY = bladeY + rotatedY
-            
-            -- Texture coordinates
-            local u = (j == 2 or j == 3) and 1 or 0
-            local v = (j == 3 or j == 4) and 0 or 1
-            
-            -- Store grass properties in unused vertex attributes
-            -- We'll use the vertex color to pass per-blade data
-            vertices[vertexIndex] = {
-                worldX, worldY,  -- Position
-                u, v,            -- Texture coordinates
-                r, g, b, a,      -- Color
-                -- Store additional data in extra attributes if needed
-                windPhase,       -- Custom attribute 1
-                windIntensity,   -- Custom attribute 2
-                bladeX, bladeY   -- Original blade center for shader calculations
-            }
-            vertexIndex = vertexIndex + 1
+            local corner = CORNERS[j]
+            local localX = corner[1] * bladeWidth
+            local localY = corner[2] * bladeHeight
+
+            -- Rotated, then placed at the blade
+            local worldX = bladeX + (localX * cos_r - localY * sin_r)
+            local worldY = bladeY + (localX * sin_r + localY * cos_r)
+
+            if out then
+                local v = out[(i - 1) * 4 + j - 1]
+                v.x, v.y, v.u, v.v = worldX, worldY, corner[3], corner[4]
+                v.r, v.g, v.b, v.a = r8, g8, b8, a8
+                v.windPhase, v.windIntensity, v.cx, v.cy = windPhase, windIntensity, bladeX, bladeY
+            else
+                vertices[(i - 1) * 4 + j] = {
+                    worldX, worldY,              -- Position
+                    corner[3], corner[4],        -- Texture coordinates
+                    r, g, b, a,                  -- Color
+                    windPhase, windIntensity,    -- Wind
+                    bladeX, bladeY               -- Blade center for the shader
+                }
+            end
         end
-        
-        -- Store blade info for reference
-        table.insert(self.grassBlades, {
-            x = bladeX, y = bladeY,
-            width = bladeWidth, height = bladeHeight,
-            rotation = rotation, windPhase = windPhase, windIntensity = windIntensity
-        })
     end
-    
-    -- Create mesh with all vertices
-    local vertexFormat = {
-        {"VertexPosition", "float", 2},
-        {"VertexTexCoord", "float", 2}, 
-        {"VertexColor", "byte", 4},
-        {"WindPhase", "float", 1},
-        {"WindIntensity", "float", 1},
-        {"BladeCenter", "float", 2}
-    }
-    
-    self.grassMesh = love.graphics.newMesh(vertexFormat, vertices, "triangles", "static")
-    
-    -- Set up indices for triangulated quads
+
+    if vertexData then
+        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, areaGrassCount * 4, "triangles", "static")
+        self.grassMesh:setVertices(vertexData)
+    else
+        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, vertices, "triangles", "static")
+    end
+
+    -- Two triangles per blade's quad
     local indices = {}
     for i = 0, areaGrassCount - 1 do
-        local base = i * 4 + 1
-        -- First triangle
-        table.insert(indices, base)     -- 0
-        table.insert(indices, base + 1) -- 1  
-        table.insert(indices, base + 2) -- 2
-        -- Second triangle  
-        table.insert(indices, base)     -- 0
-        table.insert(indices, base + 2) -- 2
-        table.insert(indices, base + 3) -- 3
+        local base, k = i * 4 + 1, i * 6
+        indices[k + 1], indices[k + 2], indices[k + 3] = base, base + 1, base + 2
+        indices[k + 4], indices[k + 5], indices[k + 6] = base, base + 2, base + 3
     end
-    
+
     self.grassMesh:setVertexMap(indices)
     self.grassMesh:setTexture(self.grassTexture)
-    
+
     self.x = x
     self.y = y
     self.width = width

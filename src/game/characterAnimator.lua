@@ -1,5 +1,7 @@
 -- Manages character animations from sprite sheets with 8-directional support using instanced rendering
 -- WebGL/Emscripten compatible version - supports multiple animation states per character
+local cache = require("util.cache")
+
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
     directions = 8,
@@ -774,6 +776,27 @@ function characterAnimator.setSteveWalkUVBounds(metadata)
     -- characterAnimator.shader:send("steveTotalFrames", spriteType.totalFrames)
 end
 
+-- A zlib'd DDS atlas file's DDS bytes. It ships zlib'd (the smallest
+-- download), but inflating 256 MB takes a while, so desktop keeps an LZ4
+-- copy in util/cache.lua that unpacks about six times faster. The browser
+-- build inflates it every time rather than keep a copy in IndexedDB.
+local function unpackAtlas(filename)
+    local packed = love.filesystem.read(filename)
+    if love.system.getOS() == "Web" then
+        return love.data.decompress("data", "zlib", packed)
+    end
+    local name = "atlas_" .. filename:match("[^/]*$") .. ".lz4"
+    local key = cache.key(filename, love.data.hash("md5", packed))
+    local stored = cache.get(name, key)
+    if stored then
+        local ok, dds = pcall(love.data.decompress, "data", "lz4", stored)
+        if ok then return dds end
+    end
+    local dds = love.data.decompress("data", "zlib", packed)
+    cache.put(name, key, love.data.compress("string", "lz4", dds))
+    return dds
+end
+
 -- Fast loading function that uses ONLY metadata
 function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compressed)
     -- Load metadata
@@ -813,8 +836,7 @@ function characterAnimator.loadFromAtlas(atlasFilename, metadataFilename, compre
                     maxSize, metadata.textureWidth, metadata.textureHeight))
             end
         end
-        atlasImageData = love.image.newCompressedData(love.data.decompress("data", "zlib",
-            love.filesystem.read(atlasFilename)))
+        atlasImageData = love.image.newCompressedData(unpackAtlas(atlasFilename))
     else
         atlasImageData = love.image.newImageData(atlasFilename)
     end

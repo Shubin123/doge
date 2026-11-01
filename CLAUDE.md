@@ -86,7 +86,7 @@ The `game.integration` module coordinates all gameplay systems:
 When modifying gameplay, ensure integration.lua is updated to maintain system cohesion.
 
 ### Courtyard
-- The home map's ground (`map.map`) is always grass: `game/courtyard.lua` sorts TX Tileset Grass's tiles by what's on them and lays out clumped tufts, flower patches, pebbles and flagstone paths (portal, door, car, east to the black hole) from a fixed seed. It covers -2000..3760 x -2000..2800.
+- The home map's ground (`map.map`) is always grass: `game/courtyard.lua` sorts TX Tileset Grass's tiles by what's on them and lays out clumped tufts, flower patches, pebbles and flagstone paths (portal, door, car, east to the black hole) from a fixed seed. It covers -2000..3760 x -2000..2800. Each tile only measures the path segments binned near it, and the result is cached (`cache/courtyard`).
 
 ### Regions & Portal
 - `game/regions.lua` lays out four regions (Wasteland, Castle, Neon City, Sanctum) procedurally from fixed seeds, 20000 px apart east of the home map, as a street plan on a 64 px grid: rows of buildings in blocks (corners at the ends, alleys between), each facing a pavement and a road with a pavement and a wall across it (gateways into the yards behind), avenues crossing in line through post-flanked gaps and lined with posts, the main one from the portal's square to a landmark, a square across from the pool. Each region's `layout` table says which sprites play which part (kerb, wall, flank, parked, roadworks, companions...). The ground follows the plan: every cell is lot, pavement, road or square (`r.zones`, one texel per cell: floor layer weights and a shade), blending over ragged edges or, for tiled floors (`ground.hard`), changing at the cell edge. Neon City's pavements and squares are TileSet/grounds.png's dark tiles, each multi-tile piece assembled as drawn, its roads the asphalt plates. Puddles lie in roads and lots, grass in lots (`grass.public.addField`), the pool beside the portal's square.
@@ -106,6 +106,10 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 
 ### Car
 - `game/car.lua`: the parked car is drivable. Near it an arrow and "[E] Drive" show over it (`car.drawUI`); E gets in (`car.enter`: the player's body becomes the car's, wider, faster and coasting; `player.inCar` hides the princess and stops shooting and dodging), E again gets out beside it (`car.exit`). Host and single player only.
+
+### Saves, Settings & Cache
+All in LÖVE's save directory (`love.filesystem`, identity `doge`), each in its own file:
+- `util/cache.lua`: `cache/` holds slow load-time results keyed by an md5 of what they're worked out from (the courtyard's tile layout keyed by `game/courtyard.lua` and its sheet; the sprite atlas as LZ4, which unpacks about six times faster than the shipped zlib, desktop only). A changed input just recomputes it; deleting `cache/` is always safe.
 
 ### Global Variables
 Key globals defined in main.lua:

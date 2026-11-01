@@ -15,8 +15,12 @@
       odd stray one in the grass beside them; and there's a paved apron in
       front of the door and a pad where the car parks.
 
-  The same seed gives the same courtyard on every machine.
+  The same seed gives the same courtyard on every machine. Laying it out
+  takes a moment, so the result is kept in util/cache.lua, keyed by this
+  file and the sheet: the next launch just reads it back.
 ]]
+local cache = require("util.cache")
+
 local courtyard = {}
 
 courtyard.TILESET = "gfx/TileSet/TX Tileset Grass.png"
@@ -122,19 +126,53 @@ local function trace(path, rng)
     return out
 end
 
--- How far (px) world point x, y is from the nearest path's middle, minus
--- that path's width: <= 0 is on the slabs
-local function pathDistance(traced, x, y)
-    local best = math.huge
+-- The layout stops looking at a tile's distance from the paths at NEAR px
+-- (pebbles thin out there), so a tile only measures the segments that could
+-- be that close: the courtyard is cut into CELL px cells, each listing the
+-- segments that come within NEAR of it. Same tiles as measuring them all.
+local NEAR, CELL = 60, 64
+
+-- The traced paths' segments ({ ax, ay, bx, by, width }) by cell, and how
+-- many cells a row has
+local function binSegments(traced, cols, rows)
+    local nx, ny = math.ceil(cols * T / CELL), math.ceil(rows * T / CELL)
+    local bins = {}
     for _, p in ipairs(traced) do
         local pts = p.points
+        local reach = p.width + NEAR + 1 -- a px to spare
         for i = 1, #pts - 1 do
             local ax, ay, bx, by = pts[i][1], pts[i][2], pts[i + 1][1], pts[i + 1][2]
-            local dx, dy = bx - ax, by - ay
-            local t = math.max(0, math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
-            local d = math.sqrt((x - ax - dx * t) ^ 2 + (y - ay - dy * t) ^ 2) - p.width
-            if d < best then best = d end
+            local segment = { ax, ay, bx, by, p.width }
+            local c0 = math.max(0, math.floor((math.min(ax, bx) - reach - ORIGIN_X) / CELL))
+            local c1 = math.min(nx - 1, math.floor((math.max(ax, bx) + reach - ORIGIN_X) / CELL))
+            local r0 = math.max(0, math.floor((math.min(ay, by) - reach - ORIGIN_Y) / CELL))
+            local r1 = math.min(ny - 1, math.floor((math.max(ay, by) + reach - ORIGIN_Y) / CELL))
+            for r = r0, r1 do
+                for c = c0, c1 do
+                    local bin = bins[r * nx + c]
+                    if not bin then
+                        bin = {}
+                        bins[r * nx + c] = bin
+                    end
+                    bin[#bin + 1] = segment
+                end
+            end
         end
+    end
+    return bins, nx
+end
+
+-- How far (px) world point x, y is from the nearest path's middle, minus
+-- that path's width: <= 0 is on the slabs (math.huge past NEAR from them all)
+local function pathDistance(bins, nx, x, y)
+    local best = math.huge
+    local bin = bins[math.floor((y - ORIGIN_Y) / CELL) * nx + math.floor((x - ORIGIN_X) / CELL)]
+    for _, s in ipairs(bin or {}) do
+        local ax, ay, bx, by = s[1], s[2], s[3], s[4]
+        local dx, dy = bx - ax, by - ay
+        local t = math.max(0, math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
+        local d = math.sqrt((x - ax - dx * t) ^ 2 + (y - ay - dy * t) ^ 2) - s[5]
+        if d < best then best = d end
     end
     for _, r in ipairs(PADS) do
         local dx = math.max(r[1] - x, 0, x - (r[1] + r[3]))
@@ -150,9 +188,8 @@ local function smooth(a, b, v)
     return k * k * (3 - 2 * k)
 end
 
---- Fill tileMap (a createMap from courtyard.TILESET's tiles, whose image is
---- tilesetImage) with the courtyard.
-function courtyard.fill(tileMap, tilesetImage)
+-- Every tile's id, a row at a time, worked out from the sheet and the seed
+local function layout(cols, rows)
     local kinds = classify(love.image.newImageData(courtyard.TILESET))
     assert(#kinds.plain > 0 and #kinds.slab > 0, "courtyard: the grass sheet has no plain grass or slabs")
     local rng = love.math.newRandomGenerator(SEED)
@@ -162,12 +199,15 @@ function courtyard.fill(tileMap, tilesetImage)
     for i, p in ipairs(PATHS) do
         traced[i] = { width = p.width, points = trace(p, rng) }
     end
+    local bins, nx = binSegments(traced, cols, rows)
 
-    for row = 1, tileMap.height do
-        for col = 1, tileMap.width do
+    local ids = {}
+    for row = 1, rows do
+        local line = {}
+        for col = 1, cols do
             local x = ORIGIN_X + (col - 0.5) * T
             local y = ORIGIN_Y + (row - 0.5) * T
-            local d = pathDistance(traced, x, y)
+            local d = pathDistance(bins, nx, x, y)
             local id
             if d <= 0 then
                 -- the path: whole slabs, a few cracked
@@ -185,7 +225,7 @@ function courtyard.fill(tileMap, tilesetImage)
                 local r = rng:random()
                 if patch > 0.8 and r < 0.4 and #kinds.flower > 0 then
                     id = pick(kinds.flower)
-                elseif r < (d < 60 and 0.08 or 0.012) and #kinds.pebble > 0 then
+                elseif r < (d < NEAR and 0.08 or 0.012) and #kinds.pebble > 0 then
                     id = pick(kinds.pebble)
                 elseif r < 0.06 + 0.5 * smooth(0.45, 0.85, clump) then
                     id = pick(kinds.tuft)
@@ -193,10 +233,56 @@ function courtyard.fill(tileMap, tilesetImage)
                     id = pick(kinds.plain)
                 end
             end
-            tileMap:setTile(col, row, id)
+            line[col] = id
+        end
+        ids[row] = line
+    end
+    return ids
+end
+
+-- The ids as the cache keeps them: 2 bytes each, row after row, zlib'd
+local function encode(ids, cols)
+    local fmt = "<" .. ("I2"):rep(cols)
+    local packed = {}
+    for row, line in ipairs(ids) do
+        packed[row] = love.data.pack("string", fmt, unpack(line, 1, cols))
+    end
+    return love.data.compress("string", "zlib", table.concat(packed))
+end
+
+-- encode's data back into rows of ids; nil if it isn't a cols x rows layout
+local function decode(data, cols, rows)
+    local ok, raw = pcall(love.data.decompress, "string", "zlib", data)
+    if not ok or #raw ~= cols * rows * 2 then return nil end
+    local fmt = "<" .. ("I2"):rep(cols)
+    local ids, pos = {}, 1
+    for row = 1, rows do
+        local line = { love.data.unpack(fmt, raw, pos) }
+        pos = table.remove(line) -- unpack ends with where it got to
+        ids[row] = line
+    end
+    return ids
+end
+
+--- Fill tileMap (a createMap from courtyard.TILESET's tiles, whose image is
+--- tilesetImage) with the courtyard: from the cache when this file and the
+--- sheet are as they were when it was last laid out.
+function courtyard.fill(tileMap, tilesetImage)
+    local cols, rows = tileMap.width, tileMap.height
+    local key = cache.key(love.filesystem.read("game/courtyard.lua"),
+        love.filesystem.read(courtyard.TILESET), cols, rows)
+    local stored = cache.get("courtyard", key)
+    local ids = stored and decode(stored, cols, rows)
+    if not ids then
+        ids = layout(cols, rows)
+        cache.put("courtyard", key, encode(ids, cols))
+    end
+    for row = 1, rows do
+        local line = ids[row]
+        for col = 1, cols do
+            tileMap:setTile(col, row, line[col])
         end
     end
-    return kinds
 end
 
 return courtyard
