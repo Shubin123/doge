@@ -472,12 +472,14 @@ end
 -- into the vertex colour's red and green bytes; blue holds flags), so
 --   - a light's falloff runs from the point on the ground under the texel up
 --     to it: a building's roof isn't lit by a lamp merely above it on screen,
---   - a light behind an upright face's base doesn't light it (faces look
---     toward the camera, +y),
+--     and a light lights it the same whichever side of it the light is,
 --   - the foot of anything upright sits in a little contact shadow.
 -- The alpha it writes decides what the GI pass makes of it (> 0.5: a wall
 -- that blocks light and gives off its colour). Tall things do; low props
 -- don't; flat things underfoot are drawn into the ground, as dim as it is.
+-- By day the composite divides the scene by its alpha (shader.lua: it undoes
+-- the ground's dimming), so a low prop is dimmed to match first, and shows
+-- as bright as a tall thing beside it.
 -- Texels marked in the region's glow map are light sources themselves (a
 -- flame, a bulb, a neon tube): they shine at full strength however dark it is,
 -- and being bright in the scene, the GI pass spreads their colour around.
@@ -493,6 +495,7 @@ local SPRITE_SHADER = [[
     uniform float zoom;
     uniform float groundAlpha;
     uniform Image glowMap;     // the atlas's layout: how much each texel gives off light
+    uniform float daylight;    // 0 night .. 1 day (systems/daynight.lua)
 
     const float LIGHT_HEIGHT = 40.0; // world px: lamps and the player's light, about head height
 
@@ -508,7 +511,6 @@ local SPRITE_SHADER = [[
         float zs = isFlat ? 0.0 : max(0.0, base - tc.y * atlasHeight) * spriteScale * zoom;
         vec2 ground = screen_coords + vec2(0.0, zs);
         float lightZ = isFlat ? 0.0 : LIGHT_HEIGHT * zoom;
-        float upright = min(zs / (12.0 * zoom), 1.0);
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
         float totalLight = 0.0;
@@ -519,8 +521,7 @@ local SPRITE_SHADER = [[
             float dist = length(vec3(lights[i].xy - ground, lightZ - zs));
             if (dist >= range) continue;
             float att = 1.0 - dist / range;
-            float facing = mix(1.0, smoothstep(-24.0 * zoom, 8.0 * zoom, lights[i].y - ground.y), upright);
-            totalLight += att * att * facing * lights[i].z;
+            totalLight += att * att * lights[i].z;
         }
         float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
         if (isFlat) contact = 1.0;
@@ -531,7 +532,10 @@ local SPRITE_SHADER = [[
 
         if (isFlat) return vec4(rgb, groundAlpha);
         if (isGlass) return vec4(rgb, texel.a);
-        return vec4(rgb, isTall ? 1.0 : groundAlpha);
+        if (isTall) return vec4(rgb, 1.0);
+        // night shows it as drawn, day divides it by groundAlpha: between
+        // them, both together leave it as bright as a tall thing
+        return vec4(rgb * groundAlpha / mix(groundAlpha, 1.0, daylight), groundAlpha);
     }
 ]]
 local function sendSpriteUniforms(r)
@@ -541,6 +545,7 @@ local function sendSpriteUniforms(r)
     shader:send("zoom", camera.zoom)
     shader:send("groundAlpha", GROUND_ALPHA)
     shader:send("glowMap", r.glowImage)
+    shader:send("daylight", daynight.daylight())
     shadow.sendLights(shader)
 end
 
