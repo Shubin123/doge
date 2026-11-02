@@ -104,12 +104,19 @@ return function(h)
     local state = serial.create()
     inventory.reset()
     serial.apply(state)
+    -- (the car key lies by the car whenever nobody has it: game/car.lua's check covers it)
+    local function lying()
+        local list = {}
+        for _, g in ipairs(inventory.ground) do
+            if g.id ~= "car_key" then list[#list + 1] = g end
+        end
+        return list
+    end
     h.check("a save keeps the bag", inventory.count("bandage") == 5 and inventory.count("light_cell") == 2)
-    h.check("and what's on the ground", #inventory.ground == 1 and inventory.ground[1].x == 123
-        and inventory.ground[1].id == "medkit")
+    h.check("and what's on the ground", #lying() == 1 and lying()[1].x == 123 and lying()[1].id == "medkit")
     state.bag = nil
     serial.apply(state)
-    h.check("a save from before the bag empties it", inventory.count("bandage") == 0 and #inventory.ground == 0)
+    h.check("a save from before the bag empties it", inventory.count("bandage") == 0 and #lying() == 0)
 
     -- 6. The panel
     inventory.add("bandage", 12)

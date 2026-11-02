@@ -6,6 +6,8 @@
       uses what's in it, Q or a right click drops one at your feet; Esc, I or
       Tab closes it. The game goes on while it's open.
     * H uses a Bandage, or a Medkit without one, when your hearts aren't full.
+    * K uses the car key: the car drives itself to you (car.summon). Nobody
+      has it at first: it lies on the ground in front of the car.
     * Items lie about the world too (inventory.ground): dropped ones, and
       what enemies leave behind now and then. Walk near one and it slides
       into the bag, if there's room.
@@ -101,6 +103,28 @@ inventory.ITEMS = {
             "................",
         },
     },
+    car_key = {
+        name = "Car key", desc = "Calls the car to you", stack = 1, keep = true,
+        use = function() return car.summon() end,
+        icon = {
+            "................",
+            "................",
+            "................",
+            "..kkkk..........",
+            ".kyyyyk.........",
+            "kyykkyyk........",
+            "kyk..kykkkkkkkk.",
+            "kyk..kyyyyyyyyyk",
+            "kyykkyykkkYkkYkk",
+            ".kyyyyk..kYk.kYk",
+            "..kkkk...kkk.kkk",
+            "................",
+            "................",
+            "................",
+            "................",
+            "................",
+        },
+    },
     light_cell = {
         name = "Light cell", desc = "Fills the light bar", stack = 16,
         use = function()
@@ -165,6 +189,20 @@ local function say(text)
     message, messageAt = text, love.timer.getTime()
 end
 
+--- Show a line of text over the hotbar for a moment (what just happened).
+inventory.notify = say
+
+-- The car key lies in front of the car while nobody has it (a new game, or
+-- a save from before it)
+local function placeKey()
+    if inventory.count("car_key") > 0 then return end
+    for _, g in ipairs(inventory.ground) do
+        if g.id == "car_key" then return end
+    end
+    local x, y = car.keySpot()
+    if x then inventory.place("car_key", 1, x, y) end
+end
+
 --- An empty bag and nothing on the ground (a new game, or a save from
 --- before there was a bag).
 function inventory.reset()
@@ -178,6 +216,7 @@ function inventory.load()
     font:setFilter("nearest", "nearest")
     message = nil
     inventory.reset()
+    placeKey()
 end
 
 --- How many of item `id` are in the bag.
@@ -252,6 +291,7 @@ function inventory.use(i)
         say(why or ("Can't use the " .. item.name))
         return false
     end
+    if why then say(why) end -- what it's doing
     if not item.keep then
         s.count = s.count - 1
         if s.count == 0 then inventory.slots[i] = nil end
@@ -276,7 +316,7 @@ function inventory.useFirst(ids)
                         s.count = s.count - 1
                         if s.count == 0 then inventory.slots[i] = nil end
                     end
-                    say("Used a " .. item.name)
+                    say(reason or ("Used a " .. item.name))
                     return true
                 end
                 why = why or reason
@@ -438,6 +478,14 @@ function inventory.keypressed(key)
         inventory.useFirst({ "bandage", "medkit" })
         return true
     end
+    if key == "k" then
+        if inventory.count("car_key") > 0 then
+            inventory.useFirst({ "car_key" })
+        else
+            say("You haven't got the car key")
+        end
+        return true
+    end
     if not inventory.open then return false end
     local cols = inventory.COLS
     if key == "escape" then
@@ -594,6 +642,7 @@ function inventory.restore(data)
             inventory.place(g.id, g.count or 1, g.x, g.y)
         end
     end
+    placeKey()
 end
 
 return inventory

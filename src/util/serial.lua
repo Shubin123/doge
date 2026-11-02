@@ -76,6 +76,7 @@ local function captureCars()
     for i, c in ipairs(car.cars) do
         local x, y = c.body:getPosition()
         local vx, vy = c.body:getLinearVelocity()
+        if c.autopilot then vx, vy = 0, 0 end -- (driving itself to you: it's kept parked)
         cars[i] = { x = x, y = y, vx = vx, vy = vy, angle = c.body:getAngle() }
     end
     return cars
