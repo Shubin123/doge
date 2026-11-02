@@ -34,6 +34,7 @@
 ============================================================================]]--
 
 local lighting = {}
+local normalmap = require("lib.graphics.normalmap")
 
 --==========================================================================--
 -- Configuration
@@ -49,6 +50,11 @@ lighting.ambient = 0.20
 -- Default key light that follows the player so the play area is always lit.
 lighting.PLAYER_LIGHT_RANGE     = 450
 lighting.PLAYER_LIGHT_INTENSITY = 1.0
+
+-- How high the lights are over the ground (world px), for which way they
+-- strike an upright thing's normals: about head height, as in regions'
+-- sprite shader
+lighting.LIGHT_HEIGHT = 40
 
 --==========================================================================--
 -- LightSet — encapsulated light pool
@@ -115,17 +121,32 @@ end
 -- The one true forward-lighting model, shared (in spirit) with the character
 -- shader. Lights and the fragment are expressed in the SAME space by the caller
 -- (screen space here), so the math is space-agnostic.
-local OBJECT_SHADER_SRC = [[
+-- An upright thing with a normal map (lighting.setNormals) is shaded by it
+-- too: each texel stands over the point on its ground line below it, and
+-- faces each light, and the sky, or not (lib/graphics/normalmap.lua).
+local OBJECT_SHADER_SRC = normalmap.GLSL .. [[
     #define MAX_LIGHTS 64
 
     uniform int   numLights;
     uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
     uniform float u_ambient;          // ambient floor; <= 0 falls back to 0.20
 
+    uniform bool  hasNormals;  // this draw is an upright thing with normalMap
+    uniform Image normalMap;
+    uniform float baseY;       // its ground line, screen px
+    uniform float lightHeight; // the lights' height, screen px
+
     vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
         vec4 texColor = Texel(tex, tc);
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
+        vec3 n = vec3(0.0, 0.0, 1.0);
+        float zs = 0.0; // the texel's height over its ground line
+        if (hasNormals) {
+            n = faceNormal(normalMap, tc);
+            zs = max(0.0, baseY - screen_coords.y);
+            ambient *= skyShade(n);
+        }
 
         float totalLight = 0.0;
         for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -139,6 +160,10 @@ local OBJECT_SHADER_SRC = [[
 
             float att = 1.0 - dist / range;          // smooth quadratic falloff
             att *= att;
+            if (hasNormals) {
+                att *= faceShade(n, vec3(lights[i].x - screen_coords.x,
+                    lights[i].y - baseY, lightHeight - zs));
+            }
             totalLight += att * lights[i].z;
         }
 
@@ -228,6 +253,7 @@ function lighting.update(dt)
     -- array (unpack of an empty table errors). count == 0 -> ambient-only fallback.
     objectShader:send("numLights", n)
     objectShader:send("u_ambient", lighting.ambient)
+    objectShader:send("lightHeight", lighting.LIGHT_HEIGHT * zoom)
     if n > 0 then
         objectShader:send("lights", unpack(screenLights))
     end
@@ -239,6 +265,19 @@ function lighting.update(dt)
         if n > 0 then
             characterAnimator.shader:send("lights", unpack(worldLights))
         end
+    end
+end
+
+--- Light the object shader's next draws as an upright thing with this
+--- normal map (lib/graphics/normalmap.lua) standing on world row baseY;
+--- nil goes back to lighting them flat.
+function lighting.setNormals(normals, baseY)
+    if normals then
+        objectShader:send("normalMap", normals)
+        objectShader:send("baseY", baseY * camera.zoom + camera.y)
+        objectShader:send("hasNormals", true)
+    else
+        objectShader:send("hasNormals", false)
     end
 end
 

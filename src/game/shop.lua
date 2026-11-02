@@ -13,6 +13,7 @@
   What's sold costs XP (var.player_score, the globs you've picked up).
 ]]
 local skin = require("ui.skin")
+local normalmap = require("lib.graphics.normalmap")
 
 local shop = {}
 
@@ -113,7 +114,7 @@ local function makeImage(rows)
     return image
 end
 
-local keeperAwake, keeperAsleep, counter, floor
+local keeperAwake, keeperAsleep, counter, counterNormals, floor
 
 -- The room's floor, 64x64 drawn at twice that over the house's 128 px walls:
 -- planks in rows of uneven lengths, the walls dark round the edge, and the
@@ -165,6 +166,7 @@ function shop.load()
     asleep[5] = ASLEEP_EYES
     keeperAsleep = makeImage(asleep)
     counter = makeImage(COUNTER)
+    counterNormals = normalmap.of(counter) -- it stands up (lib/graphics/normalmap.lua)
     floor = newFloorImage()
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
@@ -273,6 +275,7 @@ function shop.populate()
         offset_x = 9, offset_y = 7,
         color = { 1, 1, 1, 1 },
         blend_mode = { "alpha" },
+        normal_map = counterNormals,
         source_object_type = "shop_counter"
     }
 end

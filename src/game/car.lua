@@ -10,6 +10,7 @@
 ]]
 local block = require("game.block")
 local skin = require("ui.skin")
+local normalmap = require("lib.graphics.normalmap")
 local car = {}
 car.cars = {} -- List to store multiple car instances
 car.scale = 1
@@ -32,6 +33,9 @@ function car.load(world)
     
     -- Create an initial car instance for all players
     table.insert(car.cars, car.blockInstance)
+    -- it stands up, so it's lit by its normals (lib/graphics/normalmap.lua)
+    car.normals = normalmap.of(car.blockInstance.spriteSheet, car.blockInstance.animation.quads,
+        "gfx/vehicles/car.dds")
     car.blockInstance:setInUse(false)
     car.blockInstance.headingX, car.blockInstance.headingY = 1, 0.35
     -- Disable physics on clients, only host handles physics and collisions
@@ -225,6 +229,7 @@ function car.populate()
         -- Update the source_object_type and car_id for identification
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "car"
         dynamic_draw_list[#dynamic_draw_list].car_id = i
+        dynamic_draw_list[#dynamic_draw_list].normal_map = car.normals
         
         -- ::continue::
     end

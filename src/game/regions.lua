@@ -28,6 +28,7 @@
   agrees on it without sending anything.
 ]]
 local regions = {}
+local normalmap = require("lib.graphics.normalmap")
 
 local TILE = 128        -- world px each ground texture covers before it repeats
 local W, H = 2560, 1920 -- region size, inside its walls
@@ -480,11 +481,13 @@ end
 -- By day the composite divides the scene by its alpha (shader.lua: it undoes
 -- the ground's dimming), so a low prop is dimmed to match first, and shows
 -- as bright as a tall thing beside it.
+-- Upright things have normal maps too (lib/graphics/normalmap.lua): each
+-- light, and the sky's ambient light, shades a texel by which way it faces.
 -- Texels marked in the region's glow map are light sources themselves (a
 -- flame, a bulb, a neon tube): they shine at full strength however dark it is,
 -- and being bright in the scene, the GI pass spreads their colour around.
 -- Flags: 1 tall, 2 glass (blended with its own alpha), 4 flat.
-local SPRITE_SHADER = [[
+local SPRITE_SHADER = normalmap.GLSL .. [[
     #define MAX_LIGHTS 64
     uniform int   numLights;
     uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
@@ -495,6 +498,7 @@ local SPRITE_SHADER = [[
     uniform float zoom;
     uniform float groundAlpha;
     uniform Image glowMap;     // the atlas's layout: how much each texel gives off light
+    uniform Image normalMap;   // and which way each texel faces
     uniform float daylight;    // 0 night .. 1 day (systems/daynight.lua)
 
     const float LIGHT_HEIGHT = 40.0; // world px: lamps and the player's light, about head height
@@ -511,17 +515,23 @@ local SPRITE_SHADER = [[
         float zs = isFlat ? 0.0 : max(0.0, base - tc.y * atlasHeight) * spriteScale * zoom;
         vec2 ground = screen_coords + vec2(0.0, zs);
         float lightZ = isFlat ? 0.0 : LIGHT_HEIGHT * zoom;
+        // things underfoot are part of the ground, which is flat
+        vec3 n = isFlat ? vec3(0.0, 0.0, 1.0) : faceNormal(normalMap, tc);
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
+        if (!isFlat) ambient *= skyShade(n);
         float totalLight = 0.0;
         for (int i = 0; i < MAX_LIGHTS; i++) {
             if (i >= numLights) break;
             float range = lights[i].w;
             if (range <= 0.0) continue;
-            float dist = length(vec3(lights[i].xy - ground, lightZ - zs));
+            vec3 toLight = vec3(lights[i].xy - ground, lightZ - zs);
+            float dist = length(toLight);
             if (dist >= range) continue;
             float att = 1.0 - dist / range;
-            totalLight += att * att * lights[i].z;
+            float k = att * att * lights[i].z;
+            if (!isFlat) k *= faceShade(n, toLight);
+            totalLight += k;
         }
         float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
         if (isFlat) contact = 1.0;
@@ -545,6 +555,7 @@ local function sendSpriteUniforms(r)
     shader:send("zoom", camera.zoom)
     shader:send("groundAlpha", GROUND_ALPHA)
     shader:send("glowMap", r.glowImage)
+    shader:send("normalMap", r.normalImage)
     shader:send("daylight", daynight.daylight())
     shadow.sendLights(shader)
 end
@@ -591,6 +602,12 @@ local function loadArt(r)
         r.glowImage = love.graphics.newImage(none)
     end
     r.glowImage:setFilter("nearest", "nearest")
+    -- (in name order, so it bakes the same every time)
+    local names, quads = {}, {}
+    for name in pairs(r.sprites) do names[#names + 1] = name end
+    table.sort(names)
+    for i, name in ipairs(names) do quads[i] = r.sprites[name].quad end
+    r.normalImage = normalmap.of(r.image, quads, meta.image)
 
     if meta.floorImage then
         r.floorImage = love.graphics.newImage(meta.floorImage)

@@ -726,6 +726,19 @@ local function renderDrawType(drawable)
 end
 
 
+-- An upright thing with a normal map (drawable.normal_map, from
+-- lib/graphics/normalmap.lua) stands on the bottom row of what's drawn of it
+local function setNormals(d)
+    local h
+    if d.quad then
+        local _
+        _, _, _, h = d.quad:getViewport()
+    else
+        h = d.image_or_particles:getHeight()
+    end
+    shadow.setNormals(d.normal_map, d.y + (h - (d.offset_y or 0)) * (d.scale_y or 1))
+end
+
 function renderer.renderSortedDrawList()
     -- Track draw list size for profiler
     if profiler then
@@ -875,6 +888,7 @@ function renderer.renderSortedDrawList()
 
             -- Draw the tree with shader
             if drawable.quad then
+                if drawable.normal_map then setNormals(drawable) end
                 love.graphics.draw(
                     drawable.image_or_particles,
                     drawable.quad,
@@ -886,6 +900,7 @@ function renderer.renderSortedDrawList()
                     drawable.offset_x or 0,
                     drawable.offset_y or 0
                 )
+                if drawable.normal_map then shadow.setNormals(nil) end
             end
 
 
@@ -969,7 +984,7 @@ function renderer.renderSortedDrawList()
                 drawable.scale_x, drawable.scale_y)
             love.graphics.setShader(current_shader)
         elseif drawable.image_or_particles then      --default draw
-        
+            if drawable.normal_map then setNormals(drawable) end
             if drawable.quad then
                 love.graphics.draw(
                     drawable.image_or_particles,
@@ -994,6 +1009,7 @@ function renderer.renderSortedDrawList()
                     drawable.offset_y or 0
                 )
             end
+            if drawable.normal_map then shadow.setNormals(nil) end
         elseif drawable.draw_type == "teslaCoil" then
             teslaCoil.renderPixelLine(drawable)
         elseif drawable.draw_type == "bezierArrow" then

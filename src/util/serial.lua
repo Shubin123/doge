@@ -326,7 +326,6 @@ function serial.getSaveInfo(filename)
         arch_count = map_data.arches and #map_data.arches or 0,
         tree_count = map_data.trees and #map_data.trees or 0,
         house_count = map_data.houses and #map_data.houses or 0,
-        has_map_tiles = map_data.base_tiles ~= nil,
     }, "Success"
 end
 

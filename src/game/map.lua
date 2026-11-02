@@ -1,4 +1,5 @@
 local map = {}
+local normalmap = require("lib.graphics.normalmap")
 
 -- Configuration
 local MAP_CONFIG = {
@@ -834,15 +835,19 @@ function map.load()
     map.map = createMap(map.tiles, courtyard.COLS, courtyard.ROWS)
     courtyard.fill(map.map, tilesetImage)
 
+    -- The arches, trees and house stand up, so each sheet has a normal map
+    -- (lib/graphics/normalmap.lua)
     -- Load arch tileset
     local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
     map.tiles3 = newTiles(tilesetImage3, 98, 128)
+    map.tiles3.normals = normalmap.of(tilesetImage3, map.tiles3.quads, "gfx/TileSet/TX Struct.png")
     map.arches = createMap(map.tiles3, 1, 1) -- Just for tileset storage
     map.arches:setTile(1, 1, 10)             -- Default arch tile
 
     -- Load tree tileset
     local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
     map.tiles4 = newTiles(tilesetImage4, 156, 156)
+    map.tiles4.normals = normalmap.of(tilesetImage4, map.tiles4.quads, "gfx/TileSet/TX Plant.png")
     map.tree = createMap(map.tiles4, 1, 1) -- Just for tileset storage
     map.tree:setTile(1, 1, 1)              -- Default tree tile
 
@@ -850,6 +855,7 @@ function map.load()
 
     local tilesetImage5 = love.graphics.newImage("gfx/TileSet/house.png")
     map.tiles5 = newTiles(tilesetImage5, 100, 100)
+    map.tiles5.normals = normalmap.of(tilesetImage5, map.tiles5.quads, "gfx/TileSet/house.png")
     map.house = createMap(map.tiles5, var.map_display_w, var.map_display_h)
     for x = 1, 70 do
         for y = 1, 50 do
@@ -887,6 +893,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_y = 0,
                         color = arch.color,
                         blend_mode = { "alpha" },
+                        normal_map = map.tiles3.normals,
                         source_object_type = "arch",
                         object_id = arch.id,
                     })
@@ -948,9 +955,15 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_y = 0,
                         color = tree.color,
                         blend_mode = { "alpha" },
+                        normal_map = map.tiles4.normals,
                         source_object_type = "tree",
                         object_id = tree.id,
                     }
+                    -- Where its trunk meets the ground, which stops the
+                    -- flashlight (systems/light.lua): columns 74-84 of the
+                    -- tile, down to row 152
+                    local s = drawItem.scale_x
+                    tree.trunk = { x = drawItem.x + 79 * s, y = drawItem.y + 150 * s, r = 5 * s + 1 }
                     -- print(visual.usewind, wind.shader)
 
                     -- Add wind shader if enabled
@@ -993,6 +1006,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         offset_y = 0,
                         color = house.color,
                         blend_mode = { "alpha" },
+                        normal_map = map.tiles5.normals,
                         source_object_type = "house",
                         object_id = house.id,
                     })
@@ -1040,22 +1054,7 @@ end
 function map.createSaveData()
     local map_data = {}
 
-    -- Capture base tile map data
-    if map.map and map.map.tileData then
-        map_data.base_tiles = {
-            width = map.map.width,
-            height = map.map.height,
-            tile_data = {}
-        }
-
-        -- Deep copy tile data
-        for y = 1, map.map.height do
-            map_data.base_tiles.tile_data[y] = {}
-            for x = 1, map.map.width do
-                map_data.base_tiles.tile_data[y][x] = map.map.tileData[y] and map.map.tileData[y][x] or 0
-            end
-        end
-    end
+    -- (Not the ground: game/courtyard.lua lays it out the same every time)
 
     -- Capture arch instances
     map_data.arches = {}
@@ -1153,24 +1152,9 @@ function map.restore(map_data)
         return true -- No map data to restore, but not an error
     end
 
-    -- Restore base tile map
-    if map_data.base_tiles and map.map then
-        -- Ensure map dimensions match or resize if needed
-        if map.map.width ~= map_data.base_tiles.width or map.map.height ~= map_data.base_tiles.height then
-            map.map.width = map_data.base_tiles.width
-            map.map.height = map_data.base_tiles.height
-            map.map.tileData = {}
-        end
-
-        -- Restore tile data
-        for y = 1, map_data.base_tiles.height do
-            map.map.tileData[y] = {}
-            for x = 1, map_data.base_tiles.width do
-                map.map.tileData[y][x] = map_data.base_tiles.tile_data[y] and map_data.base_tiles.tile_data[y][x] or 0
-            end
-        end
-        map.map.dirty = true -- rebuild the sprite batch from the restored tiles
-    end
+    -- Older saves carry the ground's tiles too (base_tiles): left alone, as
+    -- the ground is always the courtyard (game/courtyard.lua), and theirs
+    -- are from before it, plain grass that would cover its paths
 
     -- Clear existing arches
     for _, arch in ipairs(map.archInstances) do

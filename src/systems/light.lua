@@ -44,6 +44,8 @@ function light.load()
 
   light.passBreak = love.graphics.newCanvas(1, 1) -- see light.skipChain
   light.beamImage = light.newBeamImage()
+  light.beamMesh = love.graphics.newMesh(light.RAYS + 1, "fan", "stream")
+  light.beamMesh:setTexture(light.beamImage)
 end
 
 -- A glow chain given nothing visible to draw adds exactly nothing to
@@ -164,6 +166,79 @@ local BEAM_LENGTH = 320 -- px
 local BEAM_WIDTH = 260  -- px across at the far end
 local BEAM_COLOR = { 0.55, 0.68, 0.85 }
 
+-- The beam stops at what stands in its way. It's cast as a fan of rays
+-- across its width, each ending where it meets a wall, a building, a prop, a
+-- pillar of the arch, the parked car or a tree's trunk: their footprints on
+-- the ground, which is where the beam runs. The pool on the floor is drawn
+-- out to where each ray ends, the lights strung along the beam stop at the
+-- first thing its middle meets (the rest of its light lands on that), and
+-- the glow at the gun is cut short there too.
+light.RAYS = 41
+local SPREAD = math.rad(24) -- each side of the aim: the pool fades out by 22 degrees
+local CENTER = (light.RAYS + 1) / 2
+local WALL_GAP = 12         -- px short of what it hits, a light from the beam lands
+-- what stops it, by the userData type of the fixtures in its way
+local BLOCKS = { region = true, house = true, arch = true }
+
+local rayCos, raySin = {}, {}
+for i = 1, light.RAYS do
+  local a = -SPREAD + 2 * SPREAD * (i - 1) / (light.RAYS - 1)
+  rayCos[i], raySin[i] = math.cos(a), math.sin(a)
+end
+
+local reach = {}          -- px, how far each ray gets
+local castX, castY, castAngle
+
+local function blocks(fixture)
+  if fixture:isSensor() then return false end
+  local data = fixture:getUserData()
+  if type(data) == "table" and BLOCKS[data.type] then return true end
+  local body = fixture:getBody()
+  for _, c in ipairs(car.cars or {}) do
+    if c.body == body then return not c.inUse end
+  end
+  return false
+end
+
+local rayMax, rayHit
+local function onRay(fixture, x, y, xn, yn, fraction)
+  if not blocks(fixture) then return -1 end
+  rayHit = math.min(rayHit, fraction * rayMax)
+  return fraction -- only nearer ones from here
+end
+
+-- How far from (x, y) along (dx, dy) the beam gets, up to max
+local function castRay(x, y, dx, dy, max)
+  rayMax, rayHit = max, max
+  world:rayCast(x, y, x + dx * max, y + dy * max, onRay)
+  for _, tree in ipairs(map.treeInstances) do
+    local t = tree.active and tree.trunk
+    if t then
+      local ox, oy = t.x - x, t.y - y
+      local along = ox * dx + oy * dy
+      local off2 = ox * ox + oy * oy - along * along
+      if along > 0 and off2 < t.r * t.r then
+        local enter = along - math.sqrt(t.r * t.r - off2)
+        if enter >= 0 then rayHit = math.min(rayHit, enter) end
+      end
+    end
+  end
+  return rayHit
+end
+
+-- Cast the beam's rays from (x, y) aimed at angle, unless that's what was
+-- cast last (light.update casts each frame; the two draws reuse it)
+local function castBeam(x, y, angle)
+  if x == castX and y == castY and angle == castAngle then return end
+  castX, castY, castAngle = x, y, angle
+  local dx, dy = math.cos(angle), math.sin(angle)
+  for i = 1, light.RAYS do
+    -- turned by the ray's angle off the aim; unblocked, out to the far end of the pool
+    local rx, ry = dx * rayCos[i] - dy * raySin[i], dy * rayCos[i] + dx * raySin[i]
+    reach[i] = castRay(x, y, rx, ry, BEAM_LENGTH / rayCos[i])
+  end
+end
+
 function light.newBeamImage()
   local w, h = 128, 64
   local data = love.image.newImageData(w, h)
@@ -180,19 +255,32 @@ function light.newBeamImage()
   return love.graphics.newImage(data)
 end
 
+local beamVertices = {}
+
 --- The flashlight's pool on the ground, under the camera transform, over the
---- floor and grass and under the sprites standing in it.
+--- floor and grass and under the sprites standing in it: a fan out to where
+--- each ray ends, textured as the pool would be there.
 function light.drawBeam()
   if not player.lightsOn then return end
   local px, py = player.body:getPosition()
-  local w, h = light.beamImage:getDimensions()
+  local angle = aim()
+  castBeam(px, py, angle)
+  local dx, dy = math.cos(angle), math.sin(angle)
+  beamVertices[1] = { px, py, 0, 0.5, 1, 1, 1, 1 }
+  for i = 1, light.RAYS do
+    -- along the aim and across it, and where that is in the pool's image
+    local along, across = reach[i] * rayCos[i], reach[i] * raySin[i]
+    beamVertices[i + 1] = { px + along * dx - across * dy, py + along * dy + across * dx,
+      along / BEAM_LENGTH, 0.5 + across / BEAM_WIDTH, 1, 1, 1, 1 }
+  end
+  light.beamMesh:setVertices(beamVertices)
   local shader = love.graphics.getShader()
   local mode, alphaMode = love.graphics.getBlendMode()
   love.graphics.setShader()
   love.graphics.setBlendMode("add", "premultiplied")
   local k = daynight.glow() -- a flashlight hardly shows in daylight
   love.graphics.setColor(BEAM_COLOR[1] * k, BEAM_COLOR[2] * k, BEAM_COLOR[3] * k, 1)
-  love.graphics.draw(light.beamImage, px, py, aim(), BEAM_LENGTH / w, BEAM_WIDTH / h, 0, h / 2)
+  love.graphics.draw(light.beamMesh)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.setBlendMode(mode, alphaMode)
   love.graphics.setShader(shader)
@@ -203,9 +291,19 @@ function light.update(dt)
   if not player.lightsOn then return end
   local px, py = player.body:getPosition()
   local angle = aim()
+  castX = nil -- things move (the car): cast afresh each frame, the draws reuse it
+  castBeam(px, py, angle)
   local dx, dy = math.cos(angle), math.sin(angle)
+  local ahead = reach[CENTER]
   for _, b in ipairs(BEAM) do
-    shadow.addTransientLight(px + dx * b[1], py + dy * b[1], b[3], b[2])
+    if b[1] < ahead then
+      shadow.addTransientLight(px + dx * b[1], py + dy * b[1], b[3], b[2])
+    else
+      -- it lights what's in the way, and stops there
+      local d = math.max(0, ahead - WALL_GAP)
+      shadow.addTransientLight(px + dx * d, py + dy * d, b[3], b[2])
+      break
+    end
   end
 end
 
@@ -246,9 +344,11 @@ function light.renderLights(drawable)
       local tipX = camera.pos.x + (playerX + dirX * lightDistance) * camera.zoom
       local tipY = camera.pos.y + (playerY + dirY * lightDistance) * camera.zoom
 
-      -- Cone dimensions
-      local coneLength = 60 * camera.zoom
-      local coneWidth = 55 * camera.zoom
+      -- Cone dimensions, cut short by whatever the beam meets
+      castBeam(playerX, playerY, angle)
+      local length = math.min(60, reach[CENTER] - lightDistance)
+      local coneLength = length * camera.zoom
+      local coneWidth = (20 + 35 * length / 60) * camera.zoom
 
       -- Calculate perpendicular vector for cone base
       local perpX = -dirY
@@ -270,10 +370,15 @@ function light.renderLights(drawable)
         tipX - perpX * tipWidth / 2, tipY - perpY * tipWidth / 2,
       }
       bounds = light.pointsBounds(cone, 2)
+      if length <= 0 then cone, bounds = nil, nil end -- right up against it
     end
     if flashes then
       local r = bullet.muzzleFlashBounds()
       bounds = light.cover(bounds, camera.screenRect(r[1], r[2], r[3], r[4]))
+    end
+    if not (cone or flashes) then
+      love.graphics.pop()
+      return
     end
 
     love.graphics.reset()
