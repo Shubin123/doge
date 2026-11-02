@@ -64,6 +64,7 @@ function draw.mydraw()
     teslaCoil.populate()
     arrows.populate()
     car.populate()
+    inventory.populate() -- items on the ground
     princess.x, princess.y = player.body:getX(), player.body:getY()
     characterAnimator.draw() -- uploads instances + death light; sprites draw in the sorted pass below
     
@@ -84,6 +85,7 @@ function draw.mydraw()
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
     xp.drawGlow() -- XP globs shining in the dark
+    inventory.drawGlow() -- and items on the ground
     suckLight.draw() -- dead enemies' light streaming into the player
     regions.drawGlows() -- halos round lamps, flames and neon
 
@@ -119,6 +121,7 @@ function draw.mydraw()
     menu.drawUI() -- ui last, under the CRT like the rest of the picture
     portal.drawUI() -- travel selector and the flash of a jump
     shop.drawUI() -- the shop's prompt and trade panel
+    inventory.drawUI() -- the bag, and what was just picked up or used
     car.drawUI() -- the arrow and prompt for getting in the car
 
     if crt.enabled() then

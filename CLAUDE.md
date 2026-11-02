@@ -109,6 +109,9 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 ### Shop & Safe Zone
 - `game/shop.lua`: the home map's house is the shop. Inside it (`var.indoors`) `player.isSafe()` is true and every damage path skips the player; its door is too narrow for enemies. A shopkeeper behind a counter sells for XP (`var.player_score`) by day only (`daynight.isOpen()`, 07:00-19:00); at night they sleep. E at the counter opens the panel (`shop.keypressed`, before the rest of the game's keys).
 
+### Inventory
+- `game/inventory.lua`: the bag, two rows of nine slots of item stacks (`inventory.ITEMS`: id -> name, desc, stack, `use()` returning true or false and why, `keep` to not use it up, a 16x16 palette icon). I or Tab opens the panel (arrows/mouse pick, Enter/click use, Q/right-click drop, Esc closes); H uses a bandage or medkit. `inventory.add/remove/count/room`, `inventory.place(id, count, x, y)` lays one on the ground, where it slides into the bag when you're near (host and single player only). Enemies leave one now and then (`ENEMY_DROPS`, from `Enemy:damageEnemy`'s death, on their own RNG). The shop sells into it. Saves keep it as `bag` (`inventory.getSaveData` / `restore`; a save without one empties it).
+
 ### Car
 - `game/car.lua`: the parked car is drivable. Near it an arrow and "[E] Drive" show over it (`car.drawUI`); E gets in (`car.enter`: the player's body becomes the car's, wider, faster and coasting; `player.inCar` hides the princess and stops shooting and dodging), E again gets out beside it (`car.exit`). Host and single player only.
 

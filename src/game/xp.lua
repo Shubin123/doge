@@ -68,6 +68,7 @@ end
 function xp.load()
     globImage = newGlobImage()
     haloImage = newHaloImage()
+    xp.haloImage = haloImage -- (items on the ground glow with it too, game/inventory.lua)
     haloBatch = love.graphics.newSpriteBatch(haloImage, 512, "stream")
     xp.time = 0
 end

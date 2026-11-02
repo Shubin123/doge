@@ -10,25 +10,30 @@
     * At night the shopkeeper sleeps behind the counter and won't sell, but
       the house is still a safe place to wait for morning.
 
-  What's sold costs XP (var.player_score, the globs you've picked up).
+  What's sold costs XP (var.player_score, the globs you've picked up) and
+  goes in your bag (game/inventory.lua) to use when you need it, but for
+  fireballs, which go straight onto the hotbar.
 ]]
 local skin = require("ui.skin")
 local normalmap = require("lib.graphics.normalmap")
+local inventory = require("game.inventory")
 
 local shop = {}
 
 local REACH = 70 -- px from the shopkeeper you can trade at
 
+-- One of the bag's items (inventory.ITEMS[id]) for `price` XP
+local function bagged(id, price)
+    local item = inventory.ITEMS[id]
+    return { name = item.name, desc = item.desc, price = price,
+        can = function() return inventory.room(id) > 0, "Bag is full" end,
+        buy = function() inventory.add(id, 1) end }
+end
+
 shop.ITEMS = {
-    { name = "Bandage", desc = "+2 hearts", price = 40,
-        can = function() return player.health < player.maxHealth, "Hearts are full" end,
-        buy = function() player.health = math.min(player.maxHealth, player.health + player.maxHealth / 5) end },
-    { name = "Medkit", desc = "Full hearts", price = 120,
-        can = function() return player.health < player.maxHealth, "Hearts are full" end,
-        buy = function() player.health = player.maxHealth end },
-    { name = "Light cell", desc = "Fill the light bar", price = 50,
-        can = function() return gun.ammo < gun.maxAmmo, "Light is full" end,
-        buy = function() gun.ammo = gun.maxAmmo end },
+    bagged("bandage", 40),
+    bagged("medkit", 120),
+    bagged("light_cell", 50),
     { name = "Fireballs", desc = "+3 fireballs", price = 45,
         can = function() return fire.getAvailableCount() < fire.max_fireballs, "Fireballs are full" end,
         buy = function()

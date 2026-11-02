@@ -3,7 +3,8 @@
 
       python3 tests/gpu/run.py --checks
 
-  1. by day, E at the counter opens it; a number buys that item for XP;
+  1. by day, E at the counter opens it; a number buys that item for XP,
+     into the bag (game/inventory.lua);
   2. without the XP nothing is bought;
   3. it shuts at night: the open panel closes and E won't open it;
   4. inside, nothing hurts you; outside it does.
@@ -25,16 +26,15 @@ return function(h)
     love.keypressed("e")
     h.check("by day, E at the counter opens the shop", shop.open)
 
-    player.health = player.maxHealth / 2
+    inventory.reset()
     var.player_score = 100
     love.keypressed("1")
-    h.check("1 buys a bandage for 40 XP", var.player_score == 60 and player.health > player.maxHealth / 2,
-        string.format("%d XP, health %d", var.player_score, player.health))
+    h.check("1 buys a bandage for 40 XP, into the bag", var.player_score == 60 and inventory.count("bandage") == 1,
+        string.format("%d XP, %d bandages", var.player_score, inventory.count("bandage")))
 
     var.player_score = 10
-    local health = player.health
     love.keypressed("2")
-    h.check("without the XP, nothing's bought", var.player_score == 10 and player.health == health)
+    h.check("without the XP, nothing's bought", var.player_score == 10 and inventory.count("medkit") == 0)
 
     daynight.setHour(22)
     h.advance(2)

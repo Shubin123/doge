@@ -124,6 +124,7 @@ function serial.create()
         bosses = boss.getSaveData(),
         cars = captureCars(),
         command_blocks = command.getCommandBlocks(),
+        bag = inventory.getSaveData(), -- the bag and items on the ground
     }
 end
 
@@ -145,6 +146,7 @@ function serial.apply(state)
     if state.bosses then boss.restore(state.bosses) end
     if state.cars then restoreCars(state.cars) end
     if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
+    inventory.restore(state.bag) -- (empty for a save from before the bag)
 
     local p = state.player
     if p then

@@ -40,6 +40,7 @@ xp = require("game.xp") -- XP globs (the coin_bods)
 blackhole = require("game.blackhole")
 daynight = require("systems.daynight")
 shop = require("game.shop")
+inventory = require("game.inventory") -- the bag, and items lying about
 collision = require("util.collision")
 explosion = require("systems.explosion")
 suckLight = require("systems.suckLight")
@@ -243,6 +244,7 @@ function love.load()
     blackhole.load()
     daynight.load()
     shop.load()
+    inventory.load()
     collision.init()
     audio.loadSounds()
 
@@ -357,6 +359,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
 
     gun.update(dt)
     xp.update(dt)
+    inventory.update(dt) -- items on the ground sliding into the bag
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     blackhole.addLights() -- its disk's glow on the ground
@@ -448,6 +451,9 @@ function love.mousepressed(x, y, button, istouch, presses)
     if shop.mousepressed(x, y, button) then
         return -- bought something, or clicked on the trade panel
     end
+    if inventory.mousepressed(x, y, button) then
+        return -- used or dropped something, or clicked on the bag
+    end
     if command.clickBlock(x, y, button) then
         return -- command block was clicked
     end
@@ -490,6 +496,9 @@ function love.keypressed(key)
     end
     if shop.keypressed(key) then
         return -- E at the counter, or the trade panel's keys
+    end
+    if inventory.keypressed(key) then
+        return -- I / Tab, H, or the open bag's keys
     end
     if car.keypressed(key) then
         return -- E: into the car or out of it

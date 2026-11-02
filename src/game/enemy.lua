@@ -270,6 +270,7 @@ function Enemy:damageEnemy(damage)
             -- Its light leaves the body and is drawn into the player, while the
             -- sprite fades out (enemy.update) and the enemy is then released.
             suckLight.spawn(self.body:getPosition())
+            inventory.enemyDrop(self.body:getPosition()) -- now and then it leaves something
             -- print(self.fixture:getUserData())
             self.sprite = gun_enemies[self.fixture:getUserData() + 2]
             self.fadeT = 0
