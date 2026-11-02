@@ -8,17 +8,18 @@ Enemy.__index = Enemy
 --   shots, interval: rounds per trigger pull and the seconds between them
 --   pellets, spread: bullets per round and the cone (radians) they scatter in
 --   cooldown:        seconds between trigger pulls (plus up to 1 s of jitter)
+--   range:           how far off it likes to fight from (px)
 local WEAPONS = {
-    { name = "tracer", weight = 4, shots = 1, pellets = 1, spread = math.rad(4),
+    { name = "tracer", weight = 4, range = 280, shots = 1, pellets = 1, spread = math.rad(4),
       speed = 560, damage = 20, radius = 3, lifetime = 1.4, cooldown = 2.2,
       neon = { core = { 1.0, 0.2, 0.12 }, halo = { 1.0, 0.0, 0.08 }, radius = 10 } },
-    { name = "burst", weight = 3, shots = 3, interval = 0.1, pellets = 1, spread = math.rad(7),
+    { name = "burst", weight = 3, range = 230, shots = 3, interval = 0.1, pellets = 1, spread = math.rad(7),
       speed = 500, damage = 12, radius = 3, lifetime = 1.4, cooldown = 2.8,
       neon = { core = { 1.0, 0.85, 0.25 }, halo = { 1.0, 0.2, 0.0 }, radius = 9 } },
-    { name = "spread", weight = 2, shots = 1, pellets = 5, spread = math.rad(30),
+    { name = "spread", weight = 2, range = 150, shots = 1, pellets = 5, spread = math.rad(30),
       speed = 430, damage = 8, radius = 2, lifetime = 0.8, cooldown = 3.0,
       neon = { core = { 1.0, 0.4, 0.6 }, halo = { 0.9, 0.0, 0.35 }, radius = 8 } },
-    { name = "orb", weight = 1, shots = 1, pellets = 1, spread = 0,
+    { name = "orb", weight = 1, range = 320, shots = 1, pellets = 1, spread = 0,
       speed = 220, damage = 45, radius = 7, lifetime = 2.6, cooldown = 3.6,
       neon = { core = { 1.0, 0.65, 1.0 }, halo = { 0.6, 0.0, 1.0 }, radius = 22 } },
 }
@@ -34,6 +35,101 @@ local function pickWeapon()
     return WEAPONS[1]
 end
 
+--[[
+  How enemies think. Each thinks a few times a second rather than every
+  frame (Enemy:think), staggered so they don't all think on the same frame,
+  and between times steers toward the velocity it last decided on
+  (Enemy:update): a force, so knockback still throws it about.
+
+    * Far off (FAR) it only drifts your way; further still (IDLE) it waits.
+    * With you in sight (one raycast a thought) and within ENGAGE, it holds
+      its weapon's range, circling you one way or the other, so a crowd
+      surrounds you rather than piling up, and turns about when it's stuck.
+      It shoots only then (not through walls), leading you as you move.
+    * Out of sight it comes for you round what's in the way: every enemy
+      follows one flow field from where you are (lib/nav.lua), worked out
+      at most twice a second, and only once you've moved.
+    * Each keeps clear of the others nearby (a spatial hash a frame).
+]]
+local nav = require("lib.nav")
+local AI = {
+    ENGAGE = 650,         -- px: closer, with you in sight, it fights
+    FAR = 2600,           -- px: further, it only drifts your way
+    IDLE = 4000,          -- px: further still, it waits
+    THINK_NEAR = 0.2,     -- s between thoughts: fighting or nearly
+    THINK_MID = 0.4,      -- coming for you
+    THINK_FAR = 1.0,      -- far off
+    SPEED = 150,          -- px/s coming for you
+    STRAFE = 110,         -- px/s circling you
+    DRIFT = 60,           -- px/s far off
+    STEER = 6,            -- how fast it takes up the velocity it wants (1/s)
+    SPACE = 44,           -- px it keeps from the others
+    FLOW_CELL = 48,       -- px, the flow field's grid
+    FLOW_RADIUS = 24,     -- cells round you it covers
+    FLOW_EVERY = 0.5,     -- s at most between flow fields
+    now = 0,              -- s, enemy.update's clock
+}
+-- (an enemy's radius is 20: cells it fits in keep 22 px clear)
+local grid = nav.new(AI.FLOW_CELL, 22)
+local field, fieldAt = nil, -math.huge
+
+-- The flow field to where you are, worked out again when it's old enough
+-- and you've moved off its cell
+local function flowTo(px, py, now)
+    if not field or (now - fieldAt > AI.FLOW_EVERY and
+            (math.floor(px / AI.FLOW_CELL) ~= field.gx or math.floor(py / AI.FLOW_CELL) ~= field.gy)) then
+        field, fieldAt = grid:flow(px, py, AI.FLOW_RADIUS), now
+    end
+    return field
+end
+
+-- Whether nothing static stands between (x1, y1) and (x2, y2)
+local function inSight(x1, y1, x2, y2)
+    local clear = true
+    world:rayCast(x1, y1, x2, y2, function(f)
+        if not f:isSensor() and f:getBody():getType() == "static" then
+            clear = false
+            return 0
+        end
+        return -1
+    end)
+    return clear
+end
+
+-- The spatial hash of live enemies (enemy.update fills it each frame), in
+-- buckets SPACE px square
+local buckets, usedBuckets = {}, {}
+local function bucketKey(x, y)
+    return math.floor(x / AI.SPACE) * 100003 + math.floor(y / AI.SPACE)
+end
+
+-- Which way to go to keep clear of the others round (x, y), stronger the closer they are
+local function separation(self, x, y)
+    local sx, sy = 0, 0
+    local bx, by = math.floor(x / AI.SPACE), math.floor(y / AI.SPACE)
+    for ox = -1, 1 do
+        for oy = -1, 1 do
+            local list = buckets[(bx + ox) * 100003 + by + oy]
+            if list then
+                for i = 1, list.n do
+                    local other = list[i]
+                    if other ~= self then
+                        local ex, ey = other.body:getPosition()
+                        local dx, dy = x - ex, y - ey
+                        local d2 = dx * dx + dy * dy
+                        if d2 < AI.SPACE * AI.SPACE and d2 > 1e-6 then
+                            local d = math.sqrt(d2)
+                            local k = (AI.SPACE - d) / AI.SPACE / d
+                            sx, sy = sx + dx * k, sy + dy * k
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return sx, sy
+end
+
 function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_range, projectile_speed, index)
     local self = setmetatable({}, Enemy)
     self.body = love.physics.newBody(world, x, y, "dynamic")
@@ -42,9 +138,6 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.fixture:setGroupIndex(-777) -- negative = enemies never collide with each other
     self.fixture:setDensity(2.0)
     self.fixture:setUserData(index)
-    -- self.body:resetMassData()
-    -- self.body:setLinearDamping(3.0)
-    -- self.body:setAngularDamping(5.0)
 
     self.health = 1
     self.max_health = self.health
@@ -58,107 +151,95 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.t = 0
     self.damage_indicators = {}
     self.damaged = false
-    -- self.visibilityRange = 100
 
-    self:initBehaviourTree()
+    -- Its own ways, from its index (no random numbers): which way it circles,
+    -- how near it likes to be within its weapon's range, how far ahead it aims
+    local a, b = (index * 0.61803) % 1, (index * 0.38197) % 1
+    self.orbit = index % 2 == 0 and 1 or -1
+    self.range = self.weapon.range * (0.85 + a * 0.3)
+    self.lead = 0.3 + b * 0.6
+    self.jitter = a           -- added to its cooldown, drawn again each shot
+    self.thinkIn = (index % 10) * 0.03 -- staggered
+    self.wantX, self.wantY = 0, 0
 
     return self
 end
 
-function Enemy:initBehaviourTree()
-    self.btree = BehaviourTree:new({
-        tree = BehaviourTree.Sequence:new({
-            nodes = {
-                BehaviourTree.Task:new({
-                    name = "check_player_range",
-                    run = function(task, enemy)
-                        if not player or not player.body then
-                            task:fail()
-                            return
-                        end
-                        local ex, ey = enemy.body:getPosition()
-                        local px, py = player.body:getPosition()
-                        local dx = px - ex
-                        local dy = py - ey
-                        local distance = math.sqrt(dx * dx + dy * dy)
-                        if distance <= enemy.detection_range then
-                            enemy.target = { x = px, y = py, distance = distance, dx = dx, dy = dy }
-                            task:success()
-                        else
-                            enemy.target = nil
-                            task:fail()
-                        end
-                    end
-                }),
-                BehaviourTree.Task:new({
-                    name = "fire_at_player",
-                    run = function(task, enemy)
-                        if enemy.t - enemy.last_fire_time >= enemy.fire_cooldown + math.random() then
-                            local a = gun_enemies[enemy.fixture:getUserData() + 2]
-                            if a then
-                                a.setAnimation("shoot")
-                                enemy.shootAnimTimer = 0.5
-                            end
-                            enemy:fireAtPlayer()
-                            enemy.last_fire_time = enemy.t
-                            task:success()
-                        else
-                            task:fail()
-                        end
-                    end
-                }),
-                BehaviourTree.Task:new({
-                    name = "move_toward_player",
-                    run = function(task, enemy)
-                        local ex, ey = enemy.body:getPosition()
-                        local dx = enemy.target.dx
-                        local dy = enemy.target.dy
-                        local distance = enemy.target.distance
-                        local ideal_distance = 100
+--- Decide what to do until next time: where to go, and whether to shoot.
+function Enemy:think(px, py)
+    local ex, ey = self.body:getPosition()
+    local dx, dy = px - ex, py - ey
+    local d = math.max(1e-3, math.sqrt(dx * dx + dy * dy))
+    local ux, uy = dx / d, dy / d
+    local wx, wy, speed = 0, 0, 0
+    self.los = false
+    if d > AI.IDLE then
+        self.thinkIn = AI.THINK_FAR
+    elseif d > AI.FAR then
+        wx, wy, speed = ux, uy, AI.DRIFT
+        self.thinkIn = AI.THINK_FAR
+    else
+        self.los = d < AI.ENGAGE and inSight(ex, ey, px, py)
+        if self.los then
+            -- hold its range, circling you; about turn now and then, or when stuck
+            local radial = math.max(-1, math.min(1, (d - self.range) / (self.range * 0.5)))
+            if self.stuck or math.random() < 0.04 then self.orbit = -self.orbit end
+            wx, wy = ux * radial - uy * self.orbit * 0.8, uy * radial + ux * self.orbit * 0.8
+            speed = AI.STRAFE + math.abs(radial) * 40
+            self.thinkIn = AI.THINK_NEAR
+        else
+            -- the way round what's in the way, where the flow field reaches
+            local f = flowTo(px, py, AI.now)
+            local fx, fy
+            if f:covers(ex, ey) then fx, fy = f:dir(ex, ey) end
+            wx, wy = fx or ux, fy or uy
+            speed = AI.SPEED
+            self.thinkIn = d < AI.ENGAGE * 1.5 and AI.THINK_NEAR or AI.THINK_MID
+        end
+    end
+    if speed > 0 then
+        local sx, sy = separation(self, ex, ey)
+        wx, wy = wx + sx * 1.5, wy + sy * 1.5
+        local n = math.sqrt(wx * wx + wy * wy)
+        if n > 1e-6 then wx, wy = wx / n * speed, wy / n * speed end
+    end
+    -- stuck: it wanted to move, but hardly is
+    local vx, vy = self.body:getLinearVelocity()
+    self.stuck = speed > 50 and vx * vx + vy * vy < 20 * 20
+    self.wantX, self.wantY = wx, wy
 
-                        local a = gun_enemies[enemy.fixture:getUserData() + 2]
-
-                        if distance > ideal_distance + 50 then
-                            local move_force = 500 * math.random(1, 5)
-                            enemy.body:applyForce((dx / distance) * move_force, (dy / distance) * move_force)
-                            if a and not (enemy.shootAnimTimer and enemy.shootAnimTimer > 0) then
-                                a.setAnimation("walk")
-                            end
-                        elseif distance < ideal_distance - 50 then
-                            local move_force = 200 * math.random(1, 5)
-                            enemy.body:applyForce(-dx / distance * move_force, -dy / distance * move_force)
-                            if a and not (enemy.shootAnimTimer and enemy.shootAnimTimer > 0) then
-                                a.setAnimation("run")
-                            end
-                        elseif distance < 10 then
-                            local move_force = 2000 * math.random(1, 5)
-                            enemy.body:applyForce(dx / distance * move_force, dy / distance * move_force)
-                        end
-                        task:success()
-                    end
-                })
-            }
-        })
-    })
-    self.btree:setObject(self)
+    -- Shoot when it can see you, you're within its weapon's reach, and it's ready
+    local w = self.weapon
+    if self.los and d < w.speed * w.lifetime * 0.9 and self.t - self.last_fire_time >= self.fire_cooldown + self.jitter then
+        local a = gun_enemies[self.fixture:getUserData() + 2]
+        if a then
+            a.setAnimation("shoot")
+            self.shootAnimTimer = 0.5
+        end
+        self:fireAtPlayer()
+        self.last_fire_time = self.t
+        self.jitter = math.random()
+    end
 end
 
 -- Pull the trigger: the first round now, a burst weapon's others follow
 -- from Enemy:update.
 function Enemy:fireAtPlayer()
-    if not self.target or self.target.distance == 0 then return end
     self:shoot()
     self.burstLeft = self.weapon.shots - 1
     self.burstTimer = self.weapon.interval or 0
 end
 
--- One round of this enemy's weapon at where the player is now.
+-- One round of this enemy's weapon at where the player will be when it
+-- gets there (as far as it can tell: some lead you more than others).
 function Enemy:shoot()
     if not (player and player.body) then return end
     local w = self.weapon
     local ex, ey = self.body:getPosition()
     local px, py = player.body:getPosition()
-    local dx, dy = px - ex, py - ey
+    local pvx, pvy = player.body:getLinearVelocity()
+    local lead = math.sqrt((px - ex) ^ 2 + (py - ey) ^ 2) / w.speed * self.lead
+    local dx, dy = px + pvx * lead - ex, py + pvy * lead - ey
     local d = math.sqrt(dx * dx + dy * dy)
     if d == 0 then return end
     dx, dy = dx / d, dy / d
@@ -296,19 +377,15 @@ function Enemy:update(dt)
     if self.shootAnimTimer then
         self.shootAnimTimer = math.max(0, self.shootAnimTimer - dt)
     end
-    -- Only run behaviour tree if player is within reasonable range
-    if player and player.body then
-        local ex, ey = self.body:getPosition()
-        local px, py = player.body:getPosition()
-        local dx, dy = px - ex, py - ey
-        local dist_sq = dx * dx + dy * dy
-        -- Skip full BT walk if player is very far (>600px); use simple move-toward
-        if dist_sq < 360000 then  -- 600^2
-            self.btree:run()
-        elseif dist_sq < 16000000 then  -- 4000^2, still apply gentle follow
-            self.body:applyForce(dx * 0.5, dy * 0.5)
-        end
+    if not (player and player.body) then return end
+    self.thinkIn = self.thinkIn - dt
+    if self.thinkIn <= 0 then
+        self:think(player.body:getPosition())
     end
+    -- Steer toward the velocity it wants
+    local vx, vy = self.body:getLinearVelocity()
+    local k = AI.STEER * self.body:getMass()
+    self.body:applyForce((self.wantX - vx) * k, (self.wantY - vy) * k)
     if self.burstLeft > 0 then
         self.burstTimer = self.burstTimer - dt
         if self.burstTimer <= 0 then
@@ -317,9 +394,15 @@ function Enemy:update(dt)
             self.burstTimer = self.weapon.interval or 0
         end
     end
-    if self.target then
-        local x, y = self.body:getPosition()
-        self.body:setPosition(x + (self.target.dx) * dt * 0.3, y + (self.target.dy) * dt * 0.3)
+    -- Walking, running (backing off or circling fast), or still
+    if not (self.shootAnimTimer and self.shootAnimTimer > 0) then
+        local moving = self.wantX * self.wantX + self.wantY * self.wantY
+        local anim = moving > 130 * 130 and "run" or moving > 1 and "walk" or nil
+        if anim and anim ~= self.anim then
+            local a = gun_enemies[self.fixture:getUserData() + 2]
+            if a then a.setAnimation(anim) end
+            self.anim = anim
+        end
     end
     -- for i = #self.damage_indicators, 1, -1 do
     --     local indicator = self.damage_indicators[i]
@@ -384,6 +467,8 @@ local enemy = {
 }
 
 function enemy.load()
+    grid:reset() -- (a new world)
+    field = nil
     -- Staggered spawn: queue all enemies, spawn a few per frame
     enemy.spawnQueue = {}
     enemy.totalToSpawn = var.num_enemies
@@ -422,6 +507,27 @@ end
 
 function enemy.update(dt)
     enemy.t = enemy.t + dt
+    AI.now = enemy.t
+
+    -- Who's where, for keeping clear of each other (Enemy:think)
+    for i = 1, #usedBuckets do
+        local list = buckets[usedBuckets[i]]
+        for j = 1, list.n do list[j] = nil end
+        list.n, usedBuckets[i] = 0, nil
+    end
+    for _, e in ipairs(enemy.enemies) do
+        if not e.dead then
+            local key = bucketKey(e.body:getPosition())
+            local list = buckets[key]
+            if not list then
+                list = { n = 0 }
+                buckets[key] = list
+            end
+            if list.n == 0 then usedBuckets[#usedBuckets + 1] = key end
+            list.n = list.n + 1
+            list[list.n] = e
+        end
+    end
 
     -- Staggered enemy spawning: create a batch per frame to avoid load-time freeze
     if not enemy.spawningComplete and #enemy.spawnQueue > 0 then
@@ -453,7 +559,6 @@ function enemy.update(dt)
             -- stores a fixed index into it that damage/gun_enemies rely on.
             if not e.cleanedUp then
                 e.cleanedUp = true
-                e.btree = nil
                 -- These tables are keyed by the 0-based index (enemy.addEnemy).
                 enemy.last_fire_times[i - 1] = nil
                 enemy.health[i - 1] = nil
@@ -580,13 +685,6 @@ end
 function enemy.fireAtPlayer(enemy_index, enemy_x, enemy_y, player_x, player_y)
     local e = enemy.enemies[enemy_index]
     if e then
-        e.target = {
-            x = player_x,
-            y = player_y,
-            distance = math.sqrt((player_x - enemy_x) ^ 2 + (player_y - enemy_y) ^ 2),
-            dx = player_x - enemy_x,
-            dy = player_y - enemy_y
-        }
         e:fireAtPlayer()
     end
 end

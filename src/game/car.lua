@@ -16,6 +16,7 @@
 local block = require("game.block")
 local skin = require("ui.skin")
 local normalmap = require("lib.graphics.normalmap")
+local nav = require("lib.nav")
 local car = {}
 car.cars = {} -- List to store multiple car instances
 car.scale = 1
@@ -135,10 +136,10 @@ end
 
 --------------------------------------------------------------------------------
 -- Autopilot: the car key calls the car to you. It plans a way on a grid
--- (A*, each cell tested against the world's static fixtures, grown by the
--- car's size, the first time the search reaches it), straightens it where
--- nothing's in the way, and drives it, turning no faster than a car can.
--- It plans again as you move, and when it's held up, after backing off.
+-- (lib/nav.lua: A*, each cell tested against the world's static fixtures,
+-- grown by the car's size, the first time the search reaches it), and
+-- drives it, turning no faster than a car can. It plans again as you move,
+-- and when it's held up, after backing off.
 --------------------------------------------------------------------------------
 
 local CELL = 32           -- px, the planning grid
@@ -152,175 +153,6 @@ local REPLAN = 1.0        -- s between plans while you move about
 local PROGRESS = 0.75     -- s it has to get closer in, or it's held up
 local BACK_OFF = 0.5      -- s it backs off for when it's held up
 local GIVE_UP = 45        -- s
-
--- Whether the segment (x1, y1)-(x2, y2) crosses the box (Liang-Barsky)
-local function segmentInBox(x1, y1, x2, y2, bx0, by0, bx1, by1)
-    local dx, dy = x2 - x1, y2 - y1
-    local t0, t1 = 0, 1
-    local function clip(p, q)
-        if p == 0 then return q >= 0 end
-        local t = q / p
-        if p < 0 then
-            if t > t1 then return false end
-            if t > t0 then t0 = t end
-        else
-            if t < t0 then return false end
-            if t < t1 then t1 = t end
-        end
-        return true
-    end
-    return clip(-dx, x1 - bx0) and clip(dx, bx1 - x1) and clip(-dy, y1 - by0) and clip(dy, by1 - y1)
-end
-
--- Whether static fixture f is within r (a square) of (x, y): its box, or for
--- a chain or edge (a region's fence) each of its edges
-local function blocks(f, x, y, r)
-    local body = f:getBody()
-    if f:isSensor() or body:getType() ~= "static" then return false end
-    local shape = f:getShape()
-    local kind = shape:getType()
-    if kind == "chain" or kind == "edge" then
-        for i = 1, kind == "chain" and shape:getChildCount() or 1 do
-            local edge = kind == "chain" and shape:getChildEdge(i) or shape
-            local x1, y1, x2, y2 = body:getWorldPoints(edge:getPoints())
-            if segmentInBox(x1, y1, x2, y2, x - r, y - r, x + r, y + r) then return true end
-        end
-        return false
-    end
-    local ax, ay, bx, by = f:getBoundingBox()
-    return ax < x + r and bx > x - r and ay < y + r and by > y - r
-end
-
--- Whether the car fits in grid cell (cx, cy); each cell's tested once a summons
-local function free(ap, cx, cy)
-    local key = cx * 100003 + cy
-    local v = ap.free[key]
-    if v == nil then
-        local x, y = (cx + 0.5) * CELL, (cy + 0.5) * CELL
-        v = true
-        world:queryBoundingBox(x - CLEARANCE, y - CLEARANCE, x + CLEARANCE, y + CLEARANCE, function(f)
-            if blocks(f, x, y, CLEARANCE) then
-                v = false
-                return false
-            end
-            return true
-        end)
-        ap.free[key] = v
-    end
-    return v
-end
-
--- Whether the car can go straight from (x1, y1) to (x2, y2): every cell
--- along the way is free
-local function straight(ap, x1, y1, x2, y2)
-    local d = math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
-    local steps = math.ceil(d / (CELL / 2))
-    for i = 1, steps do
-        local t = i / steps
-        if not free(ap, math.floor((x1 + (x2 - x1) * t) / CELL), math.floor((y1 + (y2 - y1) * t) / CELL)) then
-            return false
-        end
-    end
-    return true
-end
-
-local NEIGHBOURS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }
-
--- A way from (x, y) to (tx, ty) as a list of points, or to the cell nearest
--- it the search reached when there's no way there (you're indoors, say);
--- nil when it can't move at all
-local function plan(ap, x, y, tx, ty)
-    local sx, sy = math.floor(x / CELL), math.floor(y / CELL)
-    local gx, gy = math.floor(tx / CELL), math.floor(ty / CELL)
-    local function key(cx, cy) return cx * 100003 + cy end
-    local function guess(cx, cy) -- octile distance to the goal
-        local dx, dy = math.abs(cx - gx), math.abs(cy - gy)
-        return math.max(dx, dy) + 0.4142 * math.min(dx, dy)
-    end
-    -- open list: a binary heap of keys by f
-    local heap, f, g, from, cellOf, closed = {}, {}, {}, {}, {}, {}
-    local function push(k)
-        heap[#heap + 1] = k
-        local i = #heap
-        while i > 1 do
-            local parent = math.floor(i / 2)
-            if f[heap[parent]] <= f[heap[i]] then break end
-            heap[parent], heap[i] = heap[i], heap[parent]
-            i = parent
-        end
-    end
-    local function pop()
-        local top, last = heap[1], table.remove(heap)
-        if #heap > 0 then
-            heap[1] = last
-            local i = 1
-            while true do
-                local l, r, m = i * 2, i * 2 + 1, i
-                if heap[l] and f[heap[l]] < f[heap[m]] then m = l end
-                if heap[r] and f[heap[r]] < f[heap[m]] then m = r end
-                if m == i then break end
-                heap[m], heap[i] = heap[i], heap[m]
-                i = m
-            end
-        end
-        return top
-    end
-
-    local start = key(sx, sy)
-    g[start], f[start], cellOf[start] = 0, guess(sx, sy), { sx, sy }
-    push(start)
-    local best, bestH, searched = start, guess(sx, sy), 0
-    while #heap > 0 and searched < MAX_SEARCH do
-        local k = pop()
-        if not closed[k] then
-            closed[k] = true
-            searched = searched + 1
-            local cx, cy = cellOf[k][1], cellOf[k][2]
-            local h = guess(cx, cy)
-            if h < bestH then best, bestH = k, h end
-            if cx == gx and cy == gy then break end
-            for _, n in ipairs(NEIGHBOURS) do
-                local nx, ny = cx + n[1], cy + n[2]
-                local nk = key(nx, ny)
-                -- diagonally only past two free sides, so it doesn't clip a corner
-                if not closed[nk] and free(ap, nx, ny)
-                    and (n[1] == 0 or n[2] == 0 or (free(ap, cx + n[1], cy) and free(ap, cx, cy + n[2]))) then
-                    local cost = g[k] + ((n[1] == 0 or n[2] == 0) and 1 or 1.4142)
-                    if not g[nk] or cost < g[nk] then
-                        g[nk], f[nk], from[nk], cellOf[nk] = cost, cost + guess(nx, ny), k, { nx, ny }
-                        push(nk)
-                    end
-                end
-            end
-        end
-    end
-    if best == start then
-        if bestH == 0 then return { { tx, ty } } end
-        return searched > 1 and {} or nil -- (none nearer you than where it is)
-    end
-
-    -- Back from the goal (or the nearest it got), then straightened: from
-    -- each point, on to the furthest of the next few it can go straight to
-    local cells = {}
-    local k = best
-    while k do
-        table.insert(cells, 1, cellOf[k])
-        k = from[k]
-    end
-    local points = {}
-    for i, c in ipairs(cells) do points[i] = { (c[1] + 0.5) * CELL, (c[2] + 0.5) * CELL } end
-    if best == key(gx, gy) then points[#points] = { tx, ty } end
-    local path, i = {}, 1
-    local px, py = x, y
-    while i <= #points do
-        local j = math.min(#points, i + 10)
-        while j > i and not straight(ap, px, py, points[j][1], points[j][2]) do j = j - 1 end
-        path[#path + 1] = points[j]
-        px, py = points[j][1], points[j][2]
-        i = j + 1
-    end
-    return path
-end
 
 -- Stop it where it is, with a word about why
 local function park(c, text)
@@ -360,7 +192,7 @@ local function drive(c, dt)
 
     ap.since = ap.since + dt
     if not ap.path or (ap.since > REPLAN and (px - ap.goalX) ^ 2 + (py - ap.goalY) ^ 2 > CELL * CELL) then
-        ap.path, ap.since, ap.goalX, ap.goalY, ap.next = plan(ap, x, y, px, py), 0, px, py, 1
+        ap.path, ap.since, ap.goalX, ap.goalY, ap.next = ap.grid:path(x, y, px, py, MAX_SEARCH), 0, px, py, 1
         if not ap.path then return park(c, "The car can't get out") end
         if #ap.path == 0 then return park(c, "The car got as close as it could") end
     end
@@ -403,7 +235,8 @@ function car.summon()
     local d = math.sqrt((px - x) ^ 2 + (py - y) ^ 2)
     if d > SUMMON_RANGE then return false, "The car's too far away" end
     if d < ARRIVE + 16 then return false, "The car's right here" end
-    c.autopilot = { t = 0, since = 0, free = {}, check = 0, checkD = d, back = 0 }
+    -- (a grid of its own each time: the world may have changed since)
+    c.autopilot = { t = 0, since = 0, grid = nav.new(CELL, CLEARANCE), check = 0, checkD = d, back = 0 }
     return true, "The car's on its way"
 end
 
