@@ -6,8 +6,18 @@
 local skin = {}
 
 -- Largest whole scale that fits a 320 x minHeight unit layout, like
--- Minecraft's "auto" GUI scale (minHeight 240).
+-- Minecraft's "auto" GUI scale (minHeight 240); Settings > GUI Scale
+-- (var.gui_scale) picks a smaller one, never one that doesn't fit.
 function skin.guiScale(minHeight)
+    local w, h = love.graphics.getDimensions()
+    local fits = math.max(1, math.min(math.floor(w / 320), math.floor(h / (minHeight or 240))))
+    local chosen = var.gui_scale or 0
+    return chosen > 0 and math.min(chosen, fits) or fits
+end
+
+--- The largest whole scale a 320 x minHeight layout fits at, whatever
+--- Settings > GUI Scale says.
+function skin.maxGuiScale(minHeight)
     local w, h = love.graphics.getDimensions()
     return math.max(1, math.min(math.floor(w / 320), math.floor(h / (minHeight or 240))))
 end

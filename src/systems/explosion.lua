@@ -189,7 +189,7 @@ end
 -- Call this BEFORE shader.pass() so the GI pass processes the distorted scene.
 function explosion.applyShockwave()
     local shockwave_shader = explosion.SHADERS["shockwave"]
-    if not shockwave_shader then return end
+    if not shockwave_shader or not var.shockwaves then return end -- (Settings > Shockwaves)
 
     -- Every live wave, newest first (each is two full-screen copies)
     local active = {}

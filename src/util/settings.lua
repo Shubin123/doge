@@ -21,6 +21,8 @@ local function isFraction(v) return isNumber(v) and v >= 0 and v <= 1 end
 local function isPositive(v) return isNumber(v) and v > 0 end
 local function isSize(v) return isNumber(v) and v >= 1 and v <= 16384 and v % 1 == 0 end
 local function isQuality(v) return type(v) == "string" and shader.qualityPresets[v] ~= nil end
+local function isWhole(v) return isNumber(v) and v >= 0 and v <= 1000 and v % 1 == 0 end
+local function isLightCount(v) return isWhole(v) and v >= 1 and v <= shadow.MAX_LIGHTS end
 
 -- What's kept: its name in the file, where the game keeps it, and what a
 -- value read back must look like to be used (anything else is skipped and
@@ -47,7 +49,49 @@ local FIELDS = {
     varField("menu_particles", "menu_particles", isBoolean),
     varField("screen_shake", "screen_shake", isBoolean),
     varField("rocket_splash_radius", "rocket_splash_radius", isPositive),
+    varField("fps_cap", "fps_cap", isWhole),
+    varField("gui_scale", "gui_scale", isWhole),
+    varField("max_lights", "max_lights", isLightCount),
+    varField("light_shadows", "light_shadows", isBoolean),
+    varField("normal_maps", "normal_maps", isBoolean),
+    varField("puddles", "puddles", isBoolean),
+    varField("lamp_glows", "lamp_glows", isBoolean),
+    varField("shockwaves", "shockwaves", isBoolean),
 }
+
+-- Settings > Preset: the Graphics tab's choices together, cheapest first.
+-- "high" is the defaults (conf.lua).
+settings.PRESET_ORDER = { "low", "medium", "high" }
+settings.PRESETS = {
+    low = { graphics_high = false, gi_quality = "low", max_lights = 16, light_shadows = false,
+        normal_maps = false, grass = false, puddles = false, lamp_glows = false },
+    medium = { graphics_high = true, gi_quality = "medium", max_lights = 32, light_shadows = true,
+        normal_maps = false, grass = true, puddles = true, lamp_glows = true },
+    high = { graphics_high = true, gi_quality = "high", max_lights = 64, light_shadows = true,
+        normal_maps = true, grass = true, puddles = true, lamp_glows = true },
+}
+
+--- The preset the Graphics tab matches; nil when it's been changed from one.
+function settings.preset()
+    for _, name in ipairs(settings.PRESET_ORDER) do
+        local matches = true
+        for key, value in pairs(settings.PRESETS[name]) do
+            if var[key] ~= value then matches = false break end
+        end
+        if matches then return name end
+    end
+end
+
+--- Set the Graphics tab to preset `name`.
+function settings.applyPreset(name)
+    local gi = var.gi_quality
+    for key, value in pairs(settings.PRESETS[name]) do
+        var[key] = value
+    end
+    if var.gi_quality ~= gi then
+        shader.load() -- the preset sets the GI canvases' size and the shader's loops
+    end
+end
 
 -- Each setting as settings.json last had it (the defaults without one)
 local written = {}

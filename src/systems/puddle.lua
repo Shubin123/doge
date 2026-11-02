@@ -229,7 +229,7 @@ end
 --- Draw every puddle on screen, onto the ground (call under the camera
 --- transform, after the map and before anything that walks through them).
 function puddle.draw()
-    if #puddle.list == 0 then return end
+    if #puddle.list == 0 or not var.puddles then return end -- (Settings > Puddles)
 
     -- Visible world rectangle
     local zoom = camera.zoom

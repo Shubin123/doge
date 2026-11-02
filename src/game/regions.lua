@@ -560,7 +560,7 @@ local function sendSpriteUniforms(r)
     shader:send("zoom", camera.zoom)
     shader:send("groundAlpha", GROUND_ALPHA)
     shader:send("glowMap", r.glowImage)
-    shader:send("normalMap", r.normalImage)
+    shader:send("normalMap", var.normal_maps and r.normalImage or normalmap.flat()) -- (Settings > Normal Maps)
     shader:send("daylight", daynight.daylight())
     shadow.sendLights(shader)
 end
@@ -1435,6 +1435,7 @@ end
 --- Halos round everything that gives off light, over the sorted sprites
 --- (under the camera transform).
 function regions.drawGlows()
+    if not var.lamp_glows then return end -- (Settings > Lamp Glows)
     local x0, y0, x1, y1 = regions.view(0)
     for _, r in ipairs(regions.list) do
         if r.emitters and #r.emitters > 0 and overlaps(r, x0, y0, x1, y1) then
@@ -1470,7 +1471,7 @@ function regions.drawGround()
             love.graphics.setBlendMode("replace", "premultiplied")
             love.graphics.draw(r.flatBatch)
             love.graphics.setBlendMode(mode, alphaMode)
-            if #r.emitters > 0 then
+            if #r.emitters > 0 and var.lamp_glows then
                 drawEmitters(r, drawPool) -- light spilling onto the ground
             end
             love.graphics.setShader(groundShader)

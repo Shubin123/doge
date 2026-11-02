@@ -272,6 +272,8 @@ def parse_args(argv):
     p.add_argument("--checks", action="store_true",
                    help="instead: run the functional checks in tests/gpu/checks/ against the "
                         "working tree alone (no baseline, pixel diff or timing)")
+    p.add_argument("--only", metavar="NAME", action="append",
+                   help="with --checks: run only checks/NAME.lua (repeatable)")
     p.add_argument("--passes", metavar="FRAME",
                    help="also list every render pass of FRAME (a capture name, or 'all') for both "
                         "trees: target, size, draw calls and the line of code that set it")
@@ -304,6 +306,8 @@ def run_checks(love, out, args, say):
     report = {"status": "pass", "checks": [], "failures": []}
     for script in sorted((HERE / "checks").glob("*.lua")):
         name = script.stem
+        if args.only and name not in args.only:
+            continue
         say("checking %s ..." % name)
         r = run_love(love, game, out / ("checks-" + name), "checks-" + name, args,
                      extra_env={"DOGE_GPU_SCENARIO": str(script), "DOGE_GPU_PERF_FRAMES": "0"})

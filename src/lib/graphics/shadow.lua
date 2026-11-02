@@ -439,7 +439,7 @@ end
 -- any of the n lights (nearest the player first), then a row per light
 local function mapReach(n, px, py)
     blocked = false
-    if not reachShader or n == 0 then return end
+    if not reachShader or n == 0 or not var.light_shadows then return end -- (Settings > Shadows)
     local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
     for i = 1, n do
         local l = worldLights[i]
@@ -500,10 +500,11 @@ function lighting.update(dt)
     end
 
     local n = 0
+    local cap = math.min(lighting.MAX_LIGHTS, var.max_lights or lighting.MAX_LIGHTS) -- Settings > Max Lights
     local function cull(list)
         for i = 1, #list do
             local l = list[i]
-            if n < lighting.MAX_LIGHTS and l.range > 0 and not (
+            if n < cap and l.range > 0 and not (
                     l.x + l.range < viewX - halfW or
                     l.x - l.range > viewX + halfW or
                     l.y + l.range < viewY - halfH or
@@ -560,6 +561,7 @@ function lighting.update(dt)
         screenBeamFeet[i], worldBeamFeet[i] = nil, nil
     end
 
+    lighting.shown = n -- lights this frame's draws are lit by
     mapReach(n, viewX, viewY)
 
     -- Object shader (screen space). Always set the count; only unpack a non-empty
@@ -588,7 +590,7 @@ end
 --- nil goes back to lighting them flat.
 function lighting.setNormals(normals, baseY)
     if normals then
-        objectShader:send("normalMap", normals)
+        objectShader:send("normalMap", var.normal_maps and normals or normalmap.flat()) -- (Settings > Normal Maps)
         objectShader:send("baseY", baseY * camera.zoom + camera.y)
         objectShader:send("hasNormals", true)
     else

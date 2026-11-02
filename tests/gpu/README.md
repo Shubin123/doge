@@ -36,6 +36,7 @@ revision, or the game crashed; `report.json` has the log tail).
 ```sh
 python3 tests/gpu/run.py --checks         # or: npm run test:gpu:checks
 DOGE_GPU_SEED=7 python3 tests/gpu/run.py --checks   # another random world
+python3 tests/gpu/run.py --checks --only settings   # just checks/settings.lua
 ```
 
 `--checks` plays each script in `checks/` against the working tree alone,

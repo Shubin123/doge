@@ -92,6 +92,36 @@ var.screen_shake = true
 -- Settings > Particles: the doges falling behind the menu
 var.menu_particles = true
 
+-- Settings > Frame Cap: frames a second at most (0 for no cap; draw.lua)
+var.fps_cap = 0
+
+-- Settings > GUI Scale: the HUD's and menus' scale (0 for the largest that
+-- fits, ui/skin.lua)
+var.gui_scale = 0
+
+-- Settings > Max Lights: point lights shaded at once, nearest the start of
+-- the list first (lib/graphics/shadow.lua, up to its MAX_LIGHTS)
+var.max_lights = 64
+
+-- Settings > Shadows: buildings, walls and props stop light (the reach map
+-- and the flashlight's footprints, lib/graphics/shadow.lua and systems/light.lua)
+var.light_shadows = true
+
+-- Settings > Normal Maps: upright things shaded by which way each texel
+-- faces (lib/graphics/normalmap.lua); off lights them flat
+var.normal_maps = true
+
+-- Settings > Puddles: the water on the ground (systems/puddle.lua)
+var.puddles = true
+
+-- Settings > Lamp Glows: halos and pools of colour round the regions' lamps,
+-- flames and neon (regions.drawGlows)
+var.lamp_glows = true
+
+-- Settings > Shockwaves: explosions bend the picture (explosion.applyShockwave).
+-- Fancy graphics only.
+var.shockwaves = true
+
 var.indoors = false
 
 -- Day and night (systems/daynight.lua): seconds of game time a whole day

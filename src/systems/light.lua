@@ -228,6 +228,10 @@ end
 -- the whole half round in front, as the lights along the beam spill wider
 -- than it
 local function gather(px, py, angle)
+  if not var.light_shadows then -- (Settings > Shadows) nothing's in its way
+    for i = #feet, 1, -1 do feet[i] = nil end
+    return
+  end
   local n = 0
   local dx, dy = math.cos(angle), math.sin(angle)
   local function add(x0, y0, x1, y1)

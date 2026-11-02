@@ -15,6 +15,11 @@ local SPLASHES = { "Much light!", "Such ammo!", "Very tesla!", "Wow!", "So pixel
 local SPLASH_RADII = { 60, 120, 180, 240 } -- Settings > Rocket Splash choices, world px
 local GI_QUALITIES = { "high", "medium", "low" } -- Settings > Lighting (shader.qualityPresets)
 local TRACER_LEVELS = { 1.0, 0.7, 0.45, 0.25, 0 } -- Settings > Tracers, var.tracer_brightness
+local FRAME_CAPS = { 0, 30, 60, 120, 144 } -- Settings > Frame Cap, var.fps_cap (0 none)
+local LIGHT_COUNTS = { 64, 48, 32, 16 } -- Settings > Max Lights, var.max_lights
+-- The Settings screen's tabs: { id, label }
+local TABS = { { "video", "Video" }, { "graphics", "Graphics" }, { "effects", "Effects" } }
+local settingsTab = "video"
 
 local font
 local ps
@@ -178,54 +183,101 @@ local function layout(uw, uh)
 
     elseif menu.currentMenu == "settings" then
         local y = math.floor(uh / 6)
-        local left, right = cx - 155, cx + 5
-        local fancy = var.graphics_high -- the GI and CRT only run on Fancy
-        add(left, y + 24, 150, "Resolution: " .. var.window_width .. "x" .. var.window_height, function()
-            local r = nextIn(RESOLUTIONS, currentResolution())
-            var.window_width, var.window_height = r.width, r.height
-            menu.applyWindow()
-        end)
-        add(right, y + 24, 150, "Fullscreen: " .. onOff(var.screen_flags.fullscreen), function()
-            var.screen_flags.fullscreen = not var.screen_flags.fullscreen
-            menu.applyWindow()
-        end)
-        add(left, y + 48, 150, "V-Sync: " .. onOff(var.screen_flags.vsync), function()
-            var.screen_flags.vsync = not var.screen_flags.vsync
-            menu.applyWindow()
-        end)
-        add(right, y + 48, 150, "Show FPS: " .. onOff(profiler.overlay_visible), function()
-            profiler.overlay_visible = not profiler.overlay_visible
-            profiler.overlay_detail = 1
-        end)
-        add(left, y + 72, 150, "Graphics: " .. (fancy and "Fancy" or "Fast"), function()
-            var.graphics_high = not var.graphics_high
-        end)
-        add(right, y + 72, 150, "Lighting: " .. (var.gi_quality:gsub("^%l", string.upper)), function()
-            var.gi_quality = nextIn(GI_QUALITIES, var.gi_quality)
-            shader.load() -- the preset sets the GI canvases' size and the shader's loops
-        end, fancy)
-        add(left, y + 96, 150, "CRT Filter: " .. onOff(var.crt_filter), function()
-            var.crt_filter = not var.crt_filter
-        end, fancy)
-        add(right, y + 96, 150, "Bloom: " .. onOff(var.crt_bloom), function()
-            crt.setBloom(not var.crt_bloom)
-        end, fancy and var.crt_filter)
-        add(left, y + 120, 150, "Grass: " .. onOff(var.grass), function()
-            var.grass = not var.grass
-        end)
-        local tracers = var.tracer_brightness > 0 and percent(var.tracer_brightness, 1) or "OFF"
-        add(right, y + 120, 150, "Tracers: " .. tracers, function()
-            var.tracer_brightness = nextIn(TRACER_LEVELS, var.tracer_brightness)
-        end)
-        add(left, y + 144, 150, "Particles: " .. onOff(var.menu_particles), function()
-            var.menu_particles = not var.menu_particles
-        end)
-        add(right, y + 144, 150, "Screen Shake: " .. onOff(var.screen_shake), function()
-            var.screen_shake = not var.screen_shake
-        end)
-        add(left, y + 168, 150, "Rocket Splash: " .. var.rocket_splash_radius, function()
-            var.rocket_splash_radius = nextIn(SPLASH_RADII, var.rocket_splash_radius)
-        end)
+        local fancy = var.graphics_high -- the GI, CRT and shockwaves only run on Fancy
+        for i, tab in ipairs(TABS) do -- (the open one greyed out)
+            add(cx - 155 + (i - 1) * 105, y + 24, 100, tab[2], function() settingsTab = tab[1] end,
+                settingsTab ~= tab[1])
+        end
+        -- The tab's settings, two to a row under the tabs
+        local count = 0
+        local function setting(label, onClick, enabled)
+            add(count % 2 == 0 and cx - 155 or cx + 5, y + 52 + math.floor(count / 2) * 24, 150, label,
+                onClick, enabled)
+            count = count + 1
+        end
+
+        if settingsTab == "video" then
+            setting("Resolution: " .. var.window_width .. "x" .. var.window_height, function()
+                local r = nextIn(RESOLUTIONS, currentResolution())
+                var.window_width, var.window_height = r.width, r.height
+                menu.applyWindow()
+            end)
+            setting("Fullscreen: " .. onOff(var.screen_flags.fullscreen), function()
+                var.screen_flags.fullscreen = not var.screen_flags.fullscreen
+                menu.applyWindow()
+            end)
+            setting("V-Sync: " .. onOff(var.screen_flags.vsync), function()
+                var.screen_flags.vsync = not var.screen_flags.vsync
+                menu.applyWindow()
+            end)
+            setting("Frame Cap: " .. (var.fps_cap > 0 and var.fps_cap or "OFF"), function()
+                var.fps_cap = nextIn(FRAME_CAPS, var.fps_cap)
+            end, love.system.getOS() ~= "Web")
+            setting("GUI Scale: " .. (var.gui_scale > 0 and var.gui_scale or "Auto"), function()
+                -- 1 up to the largest the HUD fits, then back to Auto
+                var.gui_scale = var.gui_scale + 1
+                if var.gui_scale > skin.maxGuiScale() then var.gui_scale = 0 end
+            end)
+            setting("Show FPS: " .. onOff(profiler.overlay_visible), function()
+                profiler.overlay_visible = not profiler.overlay_visible
+                profiler.overlay_detail = 1
+            end)
+
+        elseif settingsTab == "graphics" then
+            local preset = settings.preset()
+            setting("Preset: " .. (preset and preset:gsub("^%l", string.upper) or "Custom"), function()
+                settings.applyPreset(nextIn(settings.PRESET_ORDER, preset))
+            end)
+            setting("Graphics: " .. (fancy and "Fancy" or "Fast"), function()
+                var.graphics_high = not var.graphics_high
+            end)
+            setting("Lighting: " .. (var.gi_quality:gsub("^%l", string.upper)), function()
+                var.gi_quality = nextIn(GI_QUALITIES, var.gi_quality)
+                shader.load() -- the preset sets the GI canvases' size and the shader's loops
+            end, fancy)
+            setting("Max Lights: " .. var.max_lights, function()
+                var.max_lights = nextIn(LIGHT_COUNTS, var.max_lights)
+            end)
+            setting("Shadows: " .. onOff(var.light_shadows), function()
+                var.light_shadows = not var.light_shadows
+            end)
+            setting("Normal Maps: " .. onOff(var.normal_maps), function()
+                var.normal_maps = not var.normal_maps
+            end)
+            setting("Grass: " .. onOff(var.grass), function()
+                var.grass = not var.grass
+            end)
+            setting("Puddles: " .. onOff(var.puddles), function()
+                var.puddles = not var.puddles
+            end)
+            setting("Lamp Glows: " .. onOff(var.lamp_glows), function()
+                var.lamp_glows = not var.lamp_glows
+            end)
+
+        else -- effects
+            setting("CRT Filter: " .. onOff(var.crt_filter), function()
+                var.crt_filter = not var.crt_filter
+            end, fancy)
+            setting("Bloom: " .. onOff(var.crt_bloom), function()
+                crt.setBloom(not var.crt_bloom)
+            end, fancy and var.crt_filter)
+            setting("Shockwaves: " .. onOff(var.shockwaves), function()
+                var.shockwaves = not var.shockwaves
+            end, fancy)
+            local tracers = var.tracer_brightness > 0 and percent(var.tracer_brightness, 1) or "OFF"
+            setting("Tracers: " .. tracers, function()
+                var.tracer_brightness = nextIn(TRACER_LEVELS, var.tracer_brightness)
+            end)
+            setting("Screen Shake: " .. onOff(var.screen_shake), function()
+                var.screen_shake = not var.screen_shake
+            end)
+            setting("Particles: " .. onOff(var.menu_particles), function()
+                var.menu_particles = not var.menu_particles
+            end)
+            setting("Rocket Splash: " .. var.rocket_splash_radius, function()
+                var.rocket_splash_radius = nextIn(SPLASH_RADII, var.rocket_splash_radius)
+            end)
+        end
         add(cx - 100, y + 192, 200, "Done", function() menu.currentMenu = "main" end)
 
     elseif menu.currentMenu == "saves" then
@@ -236,6 +288,19 @@ local function layout(uw, uh)
         add(cx + 4, uh - 28, 150, "Back", function() menu.currentMenu = "main" end)
     end
     return buttons
+end
+
+--- The current screen's buttons in screen px ({x, y, w, h, label, enabled}),
+--- for driving the menu from outside it (tests/gpu/checks/settings.lua).
+function menu.buttons()
+    local sw, sh = love.graphics.getDimensions()
+    local u = skin.guiScale(MIN_HEIGHT)
+    local list = {}
+    for _, b in ipairs(layout(sw / u, sh / u)) do
+        list[#list + 1] = { x = b.x * u, y = b.y * u, w = b.w * u, h = (b.h or 20) * u,
+            label = b.label, enabled = b.enabled }
+    end
+    return list
 end
 
 local function slotRows(uw)

@@ -129,7 +129,28 @@ function draw.mydraw()
     profiler.drawOverlay()
     command.draw()  -- Draw console on top
     -- editor.debugDraw()
-    
+
+    draw.limitFrame()
+end
+
+-- Settings > Frame Cap: wait out the rest of the frame's share of a second.
+-- Each frame is due a period after the last was; one that ran late starts the
+-- count again from now rather than hurrying the next few to catch up. (The
+-- browser paces frames itself.)
+local nextFrame = 0
+function draw.limitFrame()
+    local cap = var.fps_cap or 0
+    local now = love.timer.getTime()
+    if cap <= 0 or love.system.getOS() == "Web" then
+        nextFrame = now
+        return
+    end
+    nextFrame = nextFrame + 1 / cap
+    if nextFrame <= now then
+        nextFrame = now
+    else
+        love.timer.sleep(nextFrame - now)
+    end
 end
 
 --

@@ -186,6 +186,20 @@ local function bake(image, quads)
 end
 
 local made = setmetatable({}, { __mode = "k" })
+local flat
+
+--- A normal map that leaves everything lit as a flat face (one empty
+--- texel: faceNormal reads it as facing the viewer), for Settings > Normal
+--- Maps off.
+function normalmap.flat()
+    if not flat then
+        local data = love.image.newImageData(1, 1)
+        data:setPixel(0, 0, 0.5, 0.5, 1, 0)
+        flat = love.graphics.newImage(data)
+        flat:setFilter("nearest", "nearest")
+    end
+    return flat
+end
 
 --- The normal map for `image`, laid out like it: the file `path` names with
 --- _normal before its extension, if there is one (drawn by hand), or else
