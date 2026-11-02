@@ -1,4 +1,5 @@
 local explosion = {}
+local cache = require("util.cache")
 explosion.explosions = {}
 
 -- Explosion types
@@ -29,7 +30,7 @@ function explosion.load()
     explosion.current_time = 0
     
     -- Load explosion spritesheet
-    explosion_image = love.graphics.newImage("gfx/explosions/spritesheet/round_explosion/spritesheet/spritesheet.png")
+    explosion_image = cache.newImage("gfx/explosions/spritesheet/round_explosion/spritesheet/spritesheet.png")
     
     -- Create animations for different explosion types
     rocket_animation = createAnimation(explosion_image, 100, 100, 0.5, 60)

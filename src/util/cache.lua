@@ -31,6 +31,46 @@ function cache.key(...)
     return love.data.encode("string", "hex", love.data.hash("md5", table.concat(parts, "\0")))
 end
 
+--- A file as a part for cache.key: its path, size and when it last changed.
+--- Much quicker than its contents for a big file (hashing the 9 MB sprite
+--- atlas took 25 ms a launch), and any edit, copy or checkout changes it.
+--- Nil when there's no such file.
+function cache.stamp(path)
+    local info = love.filesystem.getInfo(path, "file")
+    return info and (path .. " " .. info.size .. " " .. tostring(info.modtime)) or nil
+end
+
+--- The image file at `path` decoded (an ImageData), from a copy of its
+--- pixels kept LZ4 packed after the first time: decoding a 2048 px PNG takes
+--- about 10 ms, unpacking the copy one. The browser decodes it every time
+--- (like the atlas, characterAnimator.lua) rather than keep a copy.
+function cache.imageData(path)
+    if love.system.getOS() == "Web" then return love.image.newImageData(path) end
+    local name = "image_" .. path:gsub("[^%w%.%-]", "_") .. ".lz4"
+    local key = cache.key(cache.stamp(path))
+    local stored = cache.get(name, key)
+    if stored then
+        -- "<width><height><format>" then the pixels
+        local ok, w, h, format, start = pcall(love.data.unpack, "<I4I4s1", stored)
+        if ok then
+            local unpacked, pixels = pcall(love.data.decompress, "data", "lz4", stored:sub(start))
+            if unpacked then
+                local made, data = pcall(love.image.newImageData, w, h, format, pixels)
+                if made then return data end
+            end
+        end
+    end
+    local data = love.image.newImageData(path)
+    cache.put(name, key, love.data.pack("string", "<I4I4s1", data:getWidth(), data:getHeight(), data:getFormat())
+        .. love.data.compress("string", "lz4", data:getString()))
+    return data
+end
+
+--- love.graphics.newImage(path, settings), its pixels from cache.imageData.
+function cache.newImage(path, settings)
+    return love.graphics.newImage(cache.imageData(path), settings)
+end
+
 --- The string stored as `name` under `key`; nil when there is none, it was
 --- stored under another key, or it was cut short.
 function cache.get(name, key)

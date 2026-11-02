@@ -683,7 +683,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     
     -- Initialize shader uniforms
-    local normalMapTexture = love.graphics.newImage("gfx/3d/princess/normals/walk2.png.wow")
+    local normalMapTexture = cache.newImage("gfx/3d/princess/normals/walk2.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
 
@@ -787,18 +787,17 @@ end
 -- copy in util/cache.lua that unpacks about six times faster. The browser
 -- build inflates it every time rather than keep a copy in IndexedDB.
 local function unpackAtlas(filename)
-    local packed = love.filesystem.read(filename)
     if love.system.getOS() == "Web" then
-        return love.data.decompress("data", "zlib", packed)
+        return love.data.decompress("data", "zlib", love.filesystem.read(filename))
     end
     local name = "atlas_" .. filename:match("[^/]*$") .. ".lz4"
-    local key = cache.key(filename, love.data.hash("md5", packed))
+    local key = cache.key(cache.stamp(filename))
     local stored = cache.get(name, key)
     if stored then
         local ok, dds = pcall(love.data.decompress, "data", "lz4", stored)
         if ok then return dds end
     end
-    local dds = love.data.decompress("data", "zlib", packed)
+    local dds = love.data.decompress("data", "zlib", love.filesystem.read(filename))
     cache.put(name, key, love.data.compress("string", "lz4", dds))
     return dds
 end

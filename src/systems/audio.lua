@@ -14,6 +14,7 @@
 
 local audio = {}
 local music = require("systems.music")
+local cache = require("util.cache")
 
 -- ---------------------------------------------------------------------------
 -- Configuration
@@ -96,13 +97,47 @@ local function toMono(soundData)
     return nil
 end
 
+-- The mono mix of the sound at path, as toMono made it the first time, kept
+-- LZ4 packed in cache/ (cache.lua): decoding the mp3 and mixing it down a
+-- sample at a time was most of loading the sounds. Nil without one (or the
+-- FFI to copy it in with).
+local ok, ffi = pcall(require, "ffi")
+if not ok then ffi = nil end
+local function cachedMono(path)
+    if not ffi or love.system.getOS() == "Web" then return nil end
+    local stored = cache.get("sound_" .. path:gsub("[^%w%.%-]", "_") .. ".lz4", cache.key(cache.stamp(path), "mono"))
+    if not stored then return nil end
+    -- "<frames><rate><bits>" then the samples
+    local okHead, frames, rate, bits, start = pcall(love.data.unpack, "<I4I4I1", stored)
+    if not okHead then return nil end
+    local okPcm, pcm = pcall(love.data.decompress, "data", "lz4", stored:sub(start))
+    if not okPcm or pcm:getSize() ~= frames * bits / 8 then return nil end
+    local mono = love.sound.newSoundData(frames, rate, bits, 1)
+    ffi.copy(mono:getFFIPointer(), pcm:getFFIPointer(), pcm:getSize())
+    return mono
+end
+
+local function cacheMono(path, mono)
+    if not ffi or love.system.getOS() == "Web" then return end
+    cache.put("sound_" .. path:gsub("[^%w%.%-]", "_") .. ".lz4", cache.key(cache.stamp(path), "mono"),
+        love.data.pack("string", "<I4I4I1", mono:getSampleCount(), mono:getSampleRate(), mono:getBitDepth())
+        .. love.data.compress("string", "lz4", mono:getString()))
+end
+
 local function loadOne(soundType, cfg)
     local path = AUDIO_DIR .. cfg.file
+    local cached = cachedMono(path)
+    if cached then
+        sounds[soundType] = { source = love.audio.newSource(cached, "static"), mono = true, category = cfg.category }
+        lastPlayTime[soundType] = 0
+        return
+    end
     -- Decode to SoundData first so we can down-mix to mono for spatialisation.
     local okData, data = pcall(love.sound.newSoundData, path)
     local source, isMono
     if okData and data then
         local mono = toMono(data)
+        if mono then cacheMono(path, mono) end
         if mono then
             source = love.audio.newSource(mono, "static")
             isMono = true

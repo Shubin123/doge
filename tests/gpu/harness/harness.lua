@@ -350,6 +350,11 @@ local function main()
     local t0 = realTime()
     love.load(love.arg.parseGameArguments(arg), arg)
     results.load_s = realTime() - t0
+    -- And again for the play-through, so it doesn't depend on how many
+    -- random numbers loading drew: that changes with what came out of the
+    -- load-time cache (util/cache.lua) rather than being worked out.
+    math.randomseed(cfg.seed)
+    love.math.setRandomSeed(cfg.seed)
     if love.audio then love.audio.setVolume(0) end
 
     local name, version, vendor, device = love.graphics.getRendererInfo()

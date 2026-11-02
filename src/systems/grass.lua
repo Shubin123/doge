@@ -241,11 +241,40 @@ local function unorm8(v)
     return math.floor(math.min(math.max(v, 0), 1) * 255)
 end
 
+-- The vertex map for `count` blades as uint32 data: two triangles per
+-- blade's quad. Every mesh takes the start of one shared list, built once
+-- (and again only for a field bigger than any before), instead of a table of
+-- six numbers a blade each time.
+local sharedIndices, sharedBlades = nil, 0
+local function indexData(count)
+    if count > sharedBlades then
+        local n = math.max(count, var and var.max_grass or 2000)
+        local data = love.data.newByteData(n * 6 * 4)
+        local p = ffi.cast("uint32_t *", data:getFFIPointer())
+        for i = 0, n - 1 do
+            local base, k = i * 4, i * 6
+            p[k], p[k + 1], p[k + 2] = base, base + 1, base + 2
+            p[k + 3], p[k + 4], p[k + 5] = base, base + 2, base + 3
+        end
+        sharedIndices, sharedBlades = data, n
+    end
+    return love.data.newDataView(sharedIndices, 0, count * 6 * 4)
+end
+
 -- accept(x, y), if given, says where blades may grow (each gets a few tries
--- to land somewhere it's true); tint multiplies their colour.
-function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
+-- to land somewhere it's true); tint multiplies their colour. random, if
+-- given, is where every number comes from (a function giving 0 <= n < 1),
+-- for the same blades every time, and then they're kept as vertex data
+-- (self.vertexData, VERTEX_FORMAT) wherever there's the FFI, to be cached.
+function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint, random)
     density = density or 1.0
-    local random = love.math.random
+    local seeded = random ~= nil
+    random = random or love.math.random
+    local realRandom = mymath.realRandom
+    if seeded then
+        realRandom = function(low, high) return random() * (high - low) + low end
+    end
+    self.vertexData = nil
 
     -- Calculate grass count
     local areaGrassCount = math.floor((width * height * density) / 1000)
@@ -269,7 +298,7 @@ function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
 
     -- Every blade's four corners in one mesh: into vertexData (FFI) or vertices
     local vertexData, out, vertices
-    if ffi and jit.status() then
+    if ffi and (jit.status() or seeded) then
         vertexData = love.data.newByteData(areaGrassCount * 4 * ffi.sizeof("grass_vertex"))
         out = ffi.cast("grass_vertex *", vertexData:getFFIPointer())
     else
@@ -290,7 +319,7 @@ function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
         if tint then
             r, g, b = r * tint[1], g * tint[2], b * tint[3]
         end
-        local a = mymath.realRandom(0,0.1) + mymath.realRandom(0,0.2) + mymath.realRandom(0,0.3) - mymath.realRandom(0,0.05)
+        local a = realRandom(0,0.1) + realRandom(0,0.2) + realRandom(0,0.3) - realRandom(0,0.05)
 
         -- Wind properties (per-vertex attributes for the shader)
         local windPhase = random() * math.pi * 2
@@ -326,29 +355,44 @@ function GrassRenderer:setGrassArea(x, y, width, height, density, accept, tint)
         end
     end
 
-    if vertexData then
-        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, areaGrassCount * 4, "triangles", "static")
-        self.grassMesh:setVertices(vertexData)
-    else
-        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, vertices, "triangles", "static")
-    end
+    self:setMesh(x, y, width, height, areaGrassCount, vertexData or vertices)
+    if seeded then self.vertexData = vertexData end
+end
 
-    -- Two triangles per blade's quad
-    local indices = {}
-    for i = 0, areaGrassCount - 1 do
-        local base, k = i * 4 + 1, i * 6
-        indices[k + 1], indices[k + 2], indices[k + 3] = base, base + 1, base + 2
-        indices[k + 4], indices[k + 5], indices[k + 6] = base, base + 2, base + 3
-    end
-
-    self.grassMesh:setVertexMap(indices)
-    self.grassMesh:setTexture(self.grassTexture)
-
+--- The mesh for `count` blades over the rect, from their vertices: vertex
+--- data laid out as VERTEX_FORMAT (as a seeded setGrassArea keeps, or the
+--- cache gives back), or a table per vertex.
+function GrassRenderer:setMesh(x, y, width, height, count, vertices)
     self.x = x
     self.y = y
     self.width = width
     self.height = height
-    self.grassCount = areaGrassCount
+    self.grassCount = count
+    if count == 0 then
+        self.grassMesh = nil
+        return
+    end
+
+    if type(vertices) == "table" then
+        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, vertices, "triangles", "static")
+    else
+        self.grassMesh = love.graphics.newMesh(VERTEX_FORMAT, count * 4, "triangles", "static")
+        self.grassMesh:setVertices(vertices)
+    end
+
+    -- Two triangles per blade's quad
+    if ffi then
+        self.grassMesh:setVertexMap(indexData(count), "uint32")
+    else
+        local indices = {}
+        for i = 0, count - 1 do
+            local base, k = i * 4 + 1, i * 6
+            indices[k + 1], indices[k + 2], indices[k + 3] = base, base + 1, base + 2
+            indices[k + 4], indices[k + 5], indices[k + 6] = base, base + 2, base + 3
+        end
+        self.grassMesh:setVertexMap(indices)
+    end
+    self.grassMesh:setTexture(self.grassTexture)
 end
 
 function GrassRenderer:update(dt)
@@ -491,13 +535,33 @@ function demo.load()
 end
 
 --- A patch of about `count` blades over the rect, growing only where
---- accept(x, y) is true, coloured by tint ({ r, g, b } multipliers).
-function demo.addField(x, y, width, height, count, accept, tint)
+--- accept(x, y) is true, coloured by tint ({ r, g, b } multipliers). With
+--- random (see setGrassArea) the same blades every time, kept in
+--- field.vertexData where the FFI is.
+function demo.addField(x, y, width, height, count, accept, tint, random)
     local field = GrassRenderer.new(count, grass)
-    field:setGrassArea(x, y, width, height, count * 1000 / (width * height), accept, tint)
+    field:setGrassArea(x, y, width, height, count * 1000 / (width * height), accept, tint, random)
     fields[#fields + 1] = field
     return field
 end
+
+--- A patch of `count` blades over the rect from the vertex data a seeded
+--- addField kept (field.vertexData), say from the cache.
+function demo.addFieldFrom(x, y, width, height, count, vertexData)
+    local field = GrassRenderer.new(count, grass)
+    field:setMesh(x, y, width, height, count, vertexData)
+    fields[#fields + 1] = field
+    return field
+end
+
+--- The patches addField and addFieldFrom made, in order.
+function demo.fields()
+    return fields
+end
+
+-- Bytes a vertex takes in vertex data; nil without the FFI (the browser),
+-- where fields keep no vertex data to cache
+demo.VERTEX_SIZE = ffi and ffi.sizeof("grass_vertex")
 
 function demo.update(dt)
     grass:update(dt)

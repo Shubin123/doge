@@ -30,6 +30,7 @@
 local regions = {}
 local normalmap = require("lib.graphics.normalmap")
 local footprint = require("lib.graphics.footprint")
+local cache = require("util.cache")
 local lighting = require("lib.graphics.shadow") -- (the global shadow; this loads first)
 
 local TILE = 128        -- world px each ground texture covers before it repeats
@@ -567,7 +568,7 @@ end
 
 local function loadArt(r)
     local meta = require("gfx.regions." .. r.id)
-    local data = love.image.newImageData(meta.image)
+    local data = cache.imageData(meta.image) -- (decoding the PNG is slow: cache.lua)
     r.image = love.graphics.newImage(data)
     r.image:setFilter("nearest", "nearest")
     r.sprites = {}
@@ -602,7 +603,7 @@ local function loadArt(r)
     r.flatSet = {}
     for _, name in ipairs(r.flat) do r.flatSet[name] = true end
     if meta.glowImage then
-        r.glowImage = love.graphics.newImage(meta.glowImage)
+        r.glowImage = cache.newImage(meta.glowImage)
     else
         -- nothing here gives off light: one black texel says so everywhere
         local none = love.image.newImageData(1, 1)
@@ -713,6 +714,54 @@ end
 local LOT, WALK, ROAD, PLAZA = 1, 2, 3, 4
 -- and how light or dark each is (layout.ground.shade overrides)
 local SHADE = { [LOT] = 1.0, [WALK] = 1.07, [ROAD] = 0.8, [PLAZA] = 1.05 }
+
+-- A region's grass in cache/: how many fields, then each one's rect and
+-- blade count and its vertex data (grass.lua's VERTEX_FORMAT), LZ4 packed
+local GRASS_FIELD = "<ddddI4"
+
+-- The key a region's grass is cached under: everything its layout follows
+-- (this file, grass.lua, the region's sprite sizes, its seed and place). Nil
+-- where fields keep no vertex data (the browser): it's grown every time.
+local function grassKey(r, index)
+    if not grass.public.VERTEX_SIZE then return nil end
+    return cache.key(love.filesystem.read("game/regions.lua"), love.filesystem.read("systems/grass.lua"),
+        love.filesystem.read("gfx/regions/" .. r.id .. ".lua"), r.id, r.seed, index, var.max_grass)
+end
+
+local function packGrass(fields)
+    local parts = { love.data.pack("string", "<I4", #fields) }
+    for _, f in ipairs(fields) do
+        local n = f.vertexData and f.grassCount or 0
+        parts[#parts + 1] = love.data.pack("string", GRASS_FIELD, f.x or 0, f.y or 0, f.width or 0, f.height or 0, n)
+        if n > 0 then parts[#parts + 1] = f.vertexData:getString() end
+    end
+    return love.data.compress("string", "lz4", table.concat(parts))
+end
+
+-- The fields packGrass packed, each straight from its vertex data; false
+-- if it won't unpack (and nothing's added)
+local function unpackGrass(stored)
+    local ok, data = pcall(love.data.decompress, "data", "lz4", stored)
+    if not ok then return false end
+    local size = grass.public.VERTEX_SIZE * 4 -- a blade's
+    local count, pos = love.data.unpack("<I4", data)
+    local fields = {}
+    for i = 1, count do
+        local x, y, w, h, n
+        x, y, w, h, n, pos = love.data.unpack(GRASS_FIELD, data, pos)
+        if pos - 1 + n * size > data:getSize() then return false end
+        fields[i] = { x, y, w, h, n, pos - 1 }
+        pos = pos + n * size
+    end
+    for _, f in ipairs(fields) do
+        if f[5] > 0 then
+            local field = grass.public.addFieldFrom(f[1], f[2], f[3], f[4], f[5],
+                love.data.newDataView(data, f[6], f[5] * size))
+            field.occludes = false
+        end
+    end
+    return true
+end
 
 local function generate(r, index)
     local rng = love.math.newRandomGenerator(r.seed)
@@ -1285,23 +1334,35 @@ local function generate(r, index)
     end
 
     -- Grass in ragged patches on open ground: each its own field, so only the
-    -- ones on screen are drawn
-    local nx, ny = r.seed * 0.37, r.seed * 0.11
-    for _ = 1, r.grass.patches do
-        for _ = 1, 8 do
-            local cx, cy = rand(ox + 80, ox + W - 80), rand(oy + TOP + 80, oy + H - 60)
-            if zoneAt(cx, cy) == LOT and freeAt(r.grid, cx, cy) then
-                local hw, hh = rand(110, 230), rand(70, 140)
-                local field = grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2, math.floor(hw * hh * 4 / 18),
-                    function(x, y)
-                        local d = ((x - cx) / hw) ^ 2 + ((y - cy) / hh) ^ 2
-                        return d < 1 and zoneAt(x, y) == LOT and freeAt(r.grid, x, y)
-                            and love.math.noise(x * 0.02 + nx, y * 0.02 + ny) > 0.3 + 0.55 * d
-                    end, r.grass.tint)
-                field.occludes = false -- ankle high: light passes over it
-                break
+    -- ones on screen are drawn. Laying it out is most of the time a region
+    -- takes to load, so it grows from its own generator, the same blades
+    -- every time, and they're kept in cache/ (cache.lua) for the next launch.
+    local key = grassKey(r, index)
+    local stored = key and cache.get("grass-" .. r.id, key)
+    if not (stored and unpackGrass(stored)) then
+        local blades = love.math.newRandomGenerator(r.seed, 1)
+        local function random() return blades:random() end
+        local grown = {}
+        local nx, ny = r.seed * 0.37, r.seed * 0.11
+        for _ = 1, r.grass.patches do
+            for _ = 1, 8 do
+                local cx, cy = rand(ox + 80, ox + W - 80), rand(oy + TOP + 80, oy + H - 60)
+                if zoneAt(cx, cy) == LOT and freeAt(r.grid, cx, cy) then
+                    local hw, hh = rand(110, 230), rand(70, 140)
+                    local field = grass.public.addField(cx - hw, cy - hh, hw * 2, hh * 2,
+                        math.floor(hw * hh * 4 / 18),
+                        function(x, y)
+                            local d = ((x - cx) / hw) ^ 2 + ((y - cy) / hh) ^ 2
+                            return d < 1 and zoneAt(x, y) == LOT and freeAt(r.grid, x, y)
+                                and love.math.noise(x * 0.02 + nx, y * 0.02 + ny) > 0.3 + 0.55 * d
+                        end, r.grass.tint, random)
+                    field.occludes = false -- ankle high: light passes over it
+                    grown[#grown + 1] = field
+                    break
+                end
             end
         end
+        if key then cache.put("grass-" .. r.id, key, packGrass(grown)) end
     end
 
     -- Physics: every footprint, and a fence just inside the walls

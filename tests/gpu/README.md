@@ -90,7 +90,9 @@ is replaced, by a fixed-timestep driver (`harness/harness.lua`) that pins
 everything that would make two runs differ:
 
 - the RNG is seeded before any game module is required (the grass texture is
-  random at require time);
+  random at require time), and again after `love.load`, so the play-through
+  doesn't depend on how many random numbers loading drew (fewer when the
+  region grass comes out of the load-time cache);
 - `love.timer.getTime` returns simulated time;
 - the mouse and keyboard are stubbed to a fixed aim, with nothing pressed;
 - window events are ignored, and vsync is off.
