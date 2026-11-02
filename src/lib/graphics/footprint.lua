@@ -7,7 +7,10 @@
   falls gently (a wall seen at an angle, its base receding up the screen) and
   stops where it jumps (a tree's canopy over its trunk, a lamp's arm out from
   its post, the opening of an arch), so what overhangs the ground doesn't
-  count. Each stretch is simplified to a few straight segments.
+  count. Each stretch is simplified to a few straight segments, and placed
+  in the world it's closed into a shape that deep (footprint.place): its
+  ends run back that far and a back edge joins them, so light from the side
+  can't pass behind its front.
 ]]
 local footprint = {}
 
@@ -35,10 +38,10 @@ local function simplify(pts, i, j, keep)
     end
 end
 
---- The contact line of the sprite in rect (x, y, w, h) of imageData: a flat
---- list {x0, y0, x1, y1, ...} of segments, in texels from the rect's top
---- left. bottom is its lowest row of art (by default the rect's lowest row
---- with anything opaque in it).
+--- The contact line of the sprite in rect (x, y, w, h) of imageData: a list
+--- of stretches, each a polyline {x0, y0, x1, y1, ...} in texels from the
+--- rect's top left. bottom is its lowest row of art (by default the rect's
+--- lowest row with anything opaque in it).
 function footprint.of(data, x, y, w, h, bottom)
     local function opaque(c, r)
         local _, _, _, a = data:getPixel(x + c, y + r)
@@ -73,7 +76,7 @@ function footprint.of(data, x, y, w, h, bottom)
 
     -- Each stretch of it (over slits up to GAP wide) as a polyline along the
     -- bottom edges of its texels, simplified
-    local segments = {}
+    local stretches = {}
     local c = 0
     while c < w do
         if line[c] then
@@ -93,29 +96,39 @@ function footprint.of(data, x, y, w, h, bottom)
             end
             local keep = { 1 }
             simplify(pts, 1, #pts, keep)
-            for k = 2, #keep do
-                local a, b = pts[keep[k - 1]], pts[keep[k]]
-                segments[#segments + 1] = a[1]
-                segments[#segments + 1] = a[2]
-                segments[#segments + 1] = b[1]
-                segments[#segments + 1] = b[2]
+            local line = {}
+            for _, k in ipairs(keep) do
+                line[#line + 1] = pts[k][1]
+                line[#line + 1] = pts[k][2]
             end
+            stretches[#stretches + 1] = line
             c = last + 1
         else
             c = c + 1
         end
     end
-    return segments
+    return stretches
 end
 
---- The segments of the footprint `feet` (from footprint.of) for the sprite
---- drawn with its top left at world (x, y), `scale` world px per texel,
---- appended to `out` (a flat list, world px).
-function footprint.place(feet, x, y, scale, out)
-    out = out or {}
-    for i = 1, #feet do
-        local v = feet[i] * scale
-        out[#out + 1] = (i % 2 == 1) and x + v or y + v
+--- The footprint `feet` (from footprint.of) of the sprite drawn with its top
+--- left at world (x, y), `scale` world px per texel, as a flat list of
+--- segments {x0, y0, x1, y1, ...} (world px): each stretch's front, and its
+--- ends and back `depth` world px behind it.
+function footprint.place(feet, x, y, scale, depth)
+    local out = {}
+    local function add(x0, y0, x1, y1)
+        out[#out + 1], out[#out + 2], out[#out + 3], out[#out + 4] = x0, y0, x1, y1
+    end
+    for _, line in ipairs(feet) do
+        local n = #line
+        for i = 1, n - 3, 2 do
+            add(x + line[i] * scale, y + line[i + 1] * scale, x + line[i + 2] * scale, y + line[i + 3] * scale)
+        end
+        local fx, fy = x + line[1] * scale, y + line[2] * scale
+        local lx, ly = x + line[n - 1] * scale, y + line[n] * scale
+        add(fx, fy, fx, fy - depth)
+        add(lx, ly, lx, ly - depth)
+        add(fx, fy - depth, lx, ly - depth)
     end
     return out
 end

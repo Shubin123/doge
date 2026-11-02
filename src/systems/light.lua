@@ -169,12 +169,14 @@ local BEAM_COLOR = { 0.55, 0.68, 0.85 }
 -- The beam stops at what stands in its way: where the buildings, walls and
 -- props around meet the ground (their footprints, lib/graphics/footprint.lua;
 -- the ground is where the beam runs), the arch's pillars, the tree's trunk,
--- the house's walls and the parked car. light.update gathers the ones in
--- reach each frame as segments. The pool on the floor and the glow at the gun
+-- the house's walls and the parked car (shadow.eachFoot). light.update
+-- gathers the ones in its reach each frame as segments. The pool on the floor and the glow at the gun
 -- are dark, pixel by pixel, wherever the line from the player crosses one
--- (SHADOW_SHADER), so shadows fit what casts them; the lights strung along
--- the beam fade out against what's in its way, their light landing on that.
-local MAX_FEET = 96     -- segments, nearest first (SHADOW_SHADER's array)
+-- (SHADOW_SHADER), so shadows fit what casts them. The lights strung along
+-- the beam fade out against what's in its way, their light landing on that,
+-- and light nothing it can't see (shadow.setBeam: every lit shader leaves
+-- them out past what's in the way), so none of it bleeds through.
+local MAX_FEET = 64     -- segments, nearest first (SHADOW_SHADER's array, shadow.MAX_BEAM_FEET)
 local SPREAD = math.rad(24) -- each side of the aim: the pool fades out by 22 degrees
 local REACH = BEAM_LENGTH / math.cos(SPREAD) -- px, the furthest the pool gets
 local WALL_GAP = 12     -- px short of what's in the way, a light from the beam lands
@@ -187,7 +189,7 @@ for i, deg in ipairs(RAYS) do
 end
 
 SHADOW_SHADER = [[
-  #define MAX_FEET 96
+  #define MAX_FEET 64
   uniform int  numFeet;
   uniform vec4 feet[MAX_FEET]; // segments in its way, screen px
   uniform vec2 origin;         // where the beam starts, screen px
@@ -222,21 +224,16 @@ local function distance2(px, py, x0, y0, x1, y1)
   return dx * dx + dy * dy
 end
 
--- The footprints in the beam from (px, py) aimed at angle, nearest first,
--- into feet
+-- The footprints ahead of (px, py) aimed at angle, nearest first, into feet:
+-- the whole half round in front, as the lights along the beam spill wider
+-- than it
 local function gather(px, py, angle)
   local n = 0
   local dx, dy = math.cos(angle), math.sin(angle)
-  local sin, cos = math.sin(SPREAD), math.cos(SPREAD)
-  -- which side of each edge of the beam's wedge (x, y) is on: inside, both >= 0
-  local function sides(x, y)
-    local along, across = (x - px) * dx + (y - py) * dy, (y - py) * dx - (x - px) * dy
-    return along * sin - across * cos, along * sin + across * cos
-  end
   local function add(x0, y0, x1, y1)
-    local a0, b0 = sides(x0, y0)
-    local a1, b1 = sides(x1, y1)
-    if (a0 < 0 and a1 < 0) or (b0 < 0 and b1 < 0) then return end -- beside it, or behind
+    if (x0 - px) * dx + (y0 - py) * dy < 0 and (x1 - px) * dx + (y1 - py) * dy < 0 then
+      return -- behind
+    end
     local d2 = distance2(px, py, x0, y0, x1, y1)
     if d2 < REACH * REACH then
       n = n + 1
@@ -245,30 +242,7 @@ local function gather(px, py, angle)
       nearby[n] = f
     end
   end
-  regions.eachFoot(px, py, REACH, add)
-  for _, list in ipairs({ map.archInstances, map.treeInstances, map.houseInstances }) do
-    for _, o in ipairs(list) do
-      local f = o.active and o.feet
-      if f then
-        for i = 1, #f, 4 do add(f[i], f[i + 1], f[i + 2], f[i + 3]) end
-      end
-    end
-  end
-  -- the parked car: round its body
-  for _, c in ipairs(car.cars or {}) do
-    if c.body and not c.inUse then
-      for _, fixture in ipairs(c.body:getFixtures()) do
-        local shape = fixture:getShape()
-        if shape:getType() == "polygon" then
-          local pts = { c.body:getWorldPoints(shape:getPoints()) }
-          for i = 1, #pts, 2 do
-            local j = i + 2 <= #pts and i + 2 or 1
-            add(pts[i], pts[i + 1], pts[j], pts[j + 1])
-          end
-        end
-      end
-    end
-  end
+  shadow.eachFoot(px - REACH, py - REACH, px + REACH, py + REACH, px, py, add)
   for i = #nearby, n + 1, -1 do nearby[i] = nil end
   if n > MAX_FEET then
     table.sort(nearby, function(a, b) return a[1] < b[1] end)
@@ -355,10 +329,14 @@ end
 
 -- Before the lighting upload (shadow.update)
 function light.update(dt)
-  if not player.lightsOn then return end
+  if not player.lightsOn then
+    shadow.setBeam()
+    return
+  end
   local px, py = player.body:getPosition()
   local angle = aim()
   gather(px, py, angle) -- for the draws too
+  shadow.setBeam(px, py, feet)
   local dx, dy = math.cos(angle), math.sin(angle)
   -- how far along the aim its bright middle gets, on average
   local ahead = 0
@@ -374,7 +352,7 @@ function light.update(dt)
       d, k = math.max(0, stop), 1 - (d - stop) / WALL_FADE
     end
     if k > 0 then
-      shadow.addTransientLight(px + dx * d, py + dy * d, b[3] * k, b[2])
+      shadow.addTransientLight(px + dx * d, py + dy * d, b[3] * k, b[2], true)
     end
   end
 end

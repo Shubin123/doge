@@ -933,7 +933,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     })
                     -- where it stands, which stops the flashlight (systems/light.lua)
                     arch.feet = footprint.place(tileFeet(map.tiles3, visual.tileId), visual_x, visual_y,
-                        map_scale * arch.scale)
+                        map_scale * arch.scale, 12 * map_scale * arch.scale)
                     performance.objectsRendered = performance.objectsRendered + 1
                 end
             end
@@ -998,7 +998,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     }
                     -- where its trunk stands, which stops the flashlight (systems/light.lua)
                     tree.feet = footprint.place(tileFeet(map.tiles4, visual.tileId), drawItem.x, drawItem.y,
-                        drawItem.scale_x)
+                        drawItem.scale_x, 8 * drawItem.scale_x)
                     -- print(visual.usewind, wind.shader)
 
                     -- Add wind shader if enabled

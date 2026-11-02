@@ -1,6 +1,7 @@
 -- Manages character animations from sprite sheets with 8-directional support using instanced rendering
 -- WebGL/Emscripten compatible version - supports multiple animation states per character
 local cache = require("util.cache")
+local lighting = require("lib.graphics.shadow") -- (the global shadow; this loads first)
 
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
@@ -469,6 +470,7 @@ function characterAnimator.load()
         varying LOVE_HIGHP_OR_MEDIUMP vec4 VColor;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VaryingUV;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 VFeet; // where it stands (world), for the flashlight's reach
         varying LOVE_HIGHP_OR_MEDIUMP float VFade; // onoff: 0 hidden, (0,1] opacity
 
         #ifdef VERTEX
@@ -501,6 +503,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
 
         vec3 worldPos = instance_matrix * vec3(vertex_position.xy, 1.0);
         pos = worldPos.xy;
+        VFeet = InstanceMatrix4.xy + vec2(0.0, 25.0); // feet ~25 px below the body
 
         return transform_projection * vec4(worldPos.xy, 0, 1.0);
     }
@@ -509,6 +512,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         #endif
 
         #ifdef PIXEL
+        ]] .. lighting.REACH_GLSL .. [[
         // MAX_LIGHTS must match lighting.MAX_LIGHTS (shadow.lua); the Lighting
         // subsystem uploads numLights + lights[] (world space) here each frame.
         #define MAX_LIGHTS 64
@@ -617,6 +621,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             
             // Calculate lighting
             float totalLight = 0.0;
+            float beam = -1.0; // beamReaches(VFeet), once a beam light needs it
             
             for (int i = 0; i < MAX_LIGHTS; i++) {
                 if (i >= numLights) {
@@ -625,7 +630,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                 
                 vec2 lightPos = vec2(lights[i][0], lights[i][1]);
                 float lightIntensity = lights[i][2];
-                float lightRadius = lights[i][3];
+                float lightRadius = lightRange(lights[i]); // (its reach-map row rides in w: shadow.lua)
                 if (lightRadius <= 0.0) continue; // skip empty / zero-range slots (no NaN)
 
                 float distance = length(lightPos - pos);
@@ -633,6 +638,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                 attenuation *= attenuation; // smooth quadratic falloff
 
                 float normalFactor = calculateNormalLighting(normal, lightPos, pos);
+                attenuation *= reaches(i, lights[i], lightRadius, VFeet, beam); // not past what's in the way (shadow.lua)
                 totalLight += attenuation * lightIntensity * normalFactor;
             }
 

@@ -30,6 +30,7 @@
 local regions = {}
 local normalmap = require("lib.graphics.normalmap")
 local footprint = require("lib.graphics.footprint")
+local lighting = require("lib.graphics.shadow") -- (the global shadow; this loads first)
 
 local TILE = 128        -- world px each ground texture covers before it repeats
 local W, H = 2560, 1920 -- region size, inside its walls
@@ -387,7 +388,7 @@ end
 -- (the weights filtered between cells and pushed about by noise); a tiled
 -- one (hard) changes at the cell's edge, which falls on its grout.
 -- Lit like the map, by the same lights (shadow.lua).
-local GROUND_SHADER = [[
+local GROUND_SHADER = lighting.REACH_GLSL .. [[
     #define MAX_LIGHTS 64
     uniform int   numLights;
     uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
@@ -440,14 +441,16 @@ local GROUND_SHADER = [[
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
         float totalLight = 0.0;
+        float beam = -1.0; // beamReaches, once a beam light needs it
         for (int i = 0; i < MAX_LIGHTS; i++) {
             if (i >= numLights) break;
-            float range = lights[i].w;
+            float range = lightRange(lights[i]);
             if (range <= 0.0) continue;
             float dist = distance(lights[i].xy, screen_coords);
             if (dist >= range) continue;
             float att = 1.0 - dist / range;
-            totalLight += att * att * lights[i].z;
+            // not past what's in the way (shadow.lua)
+            totalLight += att * att * lights[i].z * reaches(i, lights[i], range, screen_coords, beam);
         }
         float lit = min(1.0, ambient + totalLight);
         return vec4(c * lit * color.rgb, color.a);
@@ -488,7 +491,7 @@ end
 -- flame, a bulb, a neon tube): they shine at full strength however dark it is,
 -- and being bright in the scene, the GI pass spreads their colour around.
 -- Flags: 1 tall, 2 glass (blended with its own alpha), 4 flat.
-local SPRITE_SHADER = normalmap.GLSL .. [[
+local SPRITE_SHADER = normalmap.GLSL .. lighting.REACH_GLSL .. [[
     #define MAX_LIGHTS 64
     uniform int   numLights;
     uniform vec4  lights[MAX_LIGHTS]; // (x, y, intensity, range) in screen px
@@ -522,9 +525,10 @@ local SPRITE_SHADER = normalmap.GLSL .. [[
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
         if (!isFlat) ambient *= skyShade(n);
         float totalLight = 0.0;
+        float beam = -1.0; // beamReaches(ground), once a beam light needs it
         for (int i = 0; i < MAX_LIGHTS; i++) {
             if (i >= numLights) break;
-            float range = lights[i].w;
+            float range = lightRange(lights[i]);
             if (range <= 0.0) continue;
             vec3 toLight = vec3(lights[i].xy - ground, lightZ - zs);
             float dist = length(toLight);
@@ -532,7 +536,7 @@ local SPRITE_SHADER = normalmap.GLSL .. [[
             float att = 1.0 - dist / range;
             float k = att * att * lights[i].z;
             if (!isFlat) k *= faceShade(n, toLight);
-            totalLight += k;
+            totalLight += k * reaches(i, lights[i], range, ground, beam); // not past what's in the way
         }
         float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
         if (isFlat) contact = 1.0;
@@ -666,7 +670,8 @@ local function place(r, name, x, base, check)
     }
     item.x1, item.y1 = item.x + w, base
     if s.feet and not flat then
-        item.feet = footprint.place(s.feet, item.x, item.y, scale)
+        -- as deep as its collision, or as a prop's would be
+        item.feet = footprint.place(s.feet, item.x, item.y, scale, depth and fh or math.max(10, math.min(h * 0.2, 70)))
     end
     if flat then
         -- underfoot: drawn with the ground, so whoever walks over it is on top
@@ -1492,18 +1497,16 @@ function regions.populate()
     end
 end
 
---- fn(x0, y0, x1, y1) for each segment of where the region sprites stand
---- (their footprints: lib/graphics/footprint.lua) within `radius` of world
---- (x, y), in world px.
-function regions.eachFoot(x, y, radius, fn)
-    local r = regions.at(x, y)
-    if not r.items then return end
-    local x0, y0, x1, y1 = x - radius, y - radius, x + radius, y + radius
-    for _, item in ipairs(r.items) do
-        local feet = item.feet
-        if feet and item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then
-            for i = 1, #feet, 4 do
-                fn(feet[i], feet[i + 1], feet[i + 2], feet[i + 3])
+--- fn(feet) for the footprint of each region sprite in the world rect
+--- x0, y0 - x1, y1: where it stands, a flat list {x0, y0, x1, y1, ...} of
+--- segments in world px (lib/graphics/footprint.lua).
+function regions.eachFoot(x0, y0, x1, y1, fn)
+    for _, r in ipairs(regions.list) do
+        if r.items and overlaps(r, x0, y0, x1, y1) then
+            for _, item in ipairs(r.items) do
+                if item.feet and item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then
+                    fn(item.feet)
+                end
             end
         end
     end

@@ -28,7 +28,7 @@ local RING_LIFE = 1.6  -- s, must match the shader
 -- Who's standing where: body -> { x, y, inside = puddle or nil, wade = px since the last ring }
 local walkers = setmetatable({}, { __mode = "k" })
 
-local shaderSrc = [[
+local shaderSrc = require("lib.graphics.shadow").REACH_GLSL .. [[
 #define MAX_RIPPLES 24
 #define MAX_LIGHTS 64
 
@@ -99,14 +99,15 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     // Light on the water: a sky-blue sheen, slopes facing the light, crests
     // and the wet rim, only as bright as the scene's lights are here
     float lit = (u_ambient > 0.0) ? u_ambient : 0.20;
+    float beam = -1.0; // beamReaches(sc), once a beam light needs it (shadow.lua)
     for (int i = 0; i < MAX_LIGHTS; i++) {
         if (i >= numLights) break;
-        float range = lights[i].w;
+        float range = lightRange(lights[i]);
         if (range <= 0.0) continue;
         float dist = distance(lights[i].xy, sc);
         if (dist >= range) continue;
         float att = 1.0 - dist / range;
-        lit += att * att * lights[i].z;
+        lit += att * att * lights[i].z * reaches(i, lights[i], range, sc, beam); // not past what's in the way
     }
     lit = min(lit, 1.0);
 
