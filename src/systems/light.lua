@@ -1,4 +1,5 @@
 local light = {}
+local SHADOW_SHADER -- (with the beam, below)
 -- light.x,light.y = 0,0
 function light.load()
   blueNeon = moonshine(moonshine.effects.glow).chain(moonshine.effects.fastgaussianblur).chain(moonshine.effects.godsray)
@@ -44,8 +45,7 @@ function light.load()
 
   light.passBreak = love.graphics.newCanvas(1, 1) -- see light.skipChain
   light.beamImage = light.newBeamImage()
-  light.beamMesh = love.graphics.newMesh(light.RAYS + 1, "fan", "stream")
-  light.beamMesh:setTexture(light.beamImage)
+  light.shadowShader = love.graphics.newShader(SHADOW_SHADER)
 end
 
 -- A glow chain given nothing visible to draw adds exactly nothing to
@@ -166,77 +166,156 @@ local BEAM_LENGTH = 320 -- px
 local BEAM_WIDTH = 260  -- px across at the far end
 local BEAM_COLOR = { 0.55, 0.68, 0.85 }
 
--- The beam stops at what stands in its way. It's cast as a fan of rays
--- across its width, each ending where it meets a wall, a building, a prop, a
--- pillar of the arch, the parked car or a tree's trunk: their footprints on
--- the ground, which is where the beam runs. The pool on the floor is drawn
--- out to where each ray ends, the lights strung along the beam stop at the
--- first thing its middle meets (the rest of its light lands on that), and
--- the glow at the gun is cut short there too.
-light.RAYS = 41
+-- The beam stops at what stands in its way: where the buildings, walls and
+-- props around meet the ground (their footprints, lib/graphics/footprint.lua;
+-- the ground is where the beam runs), the arch's pillars, the tree's trunk,
+-- the house's walls and the parked car. light.update gathers the ones in
+-- reach each frame as segments. The pool on the floor and the glow at the gun
+-- are dark, pixel by pixel, wherever the line from the player crosses one
+-- (SHADOW_SHADER), so shadows fit what casts them; the lights strung along
+-- the beam fade out against what's in its way, their light landing on that.
+local MAX_FEET = 96     -- segments, nearest first (SHADOW_SHADER's array)
 local SPREAD = math.rad(24) -- each side of the aim: the pool fades out by 22 degrees
-local CENTER = (light.RAYS + 1) / 2
-local WALL_GAP = 12         -- px short of what it hits, a light from the beam lands
--- what stops it, by the userData type of the fixtures in its way
-local BLOCKS = { region = true, house = true, arch = true }
-
+local REACH = BEAM_LENGTH / math.cos(SPREAD) -- px, the furthest the pool gets
+local WALL_GAP = 12     -- px short of what's in the way, a light from the beam lands
+local WALL_FADE = 80    -- px further, and a light that was past it has gone
+-- How far the beam's bright middle gets: rays this far off the aim (degrees)
+local RAYS = { -12, -8, -4, 0, 4, 8, 12 }
 local rayCos, raySin = {}, {}
-for i = 1, light.RAYS do
-  local a = -SPREAD + 2 * SPREAD * (i - 1) / (light.RAYS - 1)
-  rayCos[i], raySin[i] = math.cos(a), math.sin(a)
+for i, deg in ipairs(RAYS) do
+  rayCos[i], raySin[i] = math.cos(math.rad(deg)), math.sin(math.rad(deg))
 end
 
-local reach = {}          -- px, how far each ray gets
-local castX, castY, castAngle
+SHADOW_SHADER = [[
+  #define MAX_FEET 96
+  uniform int  numFeet;
+  uniform vec4 feet[MAX_FEET]; // segments in its way, screen px
+  uniform vec2 origin;         // where the beam starts, screen px
 
-local function blocks(fixture)
-  if fixture:isSensor() then return false end
-  local data = fixture:getUserData()
-  if type(data) == "table" and BLOCKS[data.type] then return true end
-  local body = fixture:getBody()
-  for _, c in ipairs(car.cars or {}) do
-    if c.body == body then return not c.inUse end
+  vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
+    vec2 d = screen_coords - origin;
+    for (int i = 0; i < MAX_FEET; i++) {
+      if (i >= numFeet) break;
+      vec2 a = feet[i].xy - origin;
+      vec2 e = feet[i].zw - feet[i].xy;
+      float den = d.x * e.y - d.y * e.x;
+      if (abs(den) < 1e-6) continue; // running alongside it
+      float t = (a.x * e.y - a.y * e.x) / den; // how far along the way here it's crossed
+      float u = (a.x * d.y - a.y * d.x) / den; // and where along it
+      if (t > 0.0 && t < 1.0 && u >= 0.0 && u <= 1.0) return vec4(0.0);
+    }
+    return Texel(tex, tc) * color;
+  }
+]]
+
+local feet = {}       -- this frame's, world px: {x0, y0, x1, y1, ...}
+local nearby = {}     -- scratch while gathering: {distance^2, x0, y0, x1, y1}
+local screenFeet = {} -- feet on screen, for SHADOW_SHADER
+local shadowed        -- whether this frame's draws go through it
+
+-- Squared distance from (px, py) to the segment (x0, y0)-(x1, y1)
+local function distance2(px, py, x0, y0, x1, y1)
+  local ex, ey = x1 - x0, y1 - y0
+  local len2 = ex * ex + ey * ey
+  local t = len2 > 0 and math.max(0, math.min(1, ((px - x0) * ex + (py - y0) * ey) / len2)) or 0
+  local dx, dy = x0 + ex * t - px, y0 + ey * t - py
+  return dx * dx + dy * dy
+end
+
+-- The footprints in the beam from (px, py) aimed at angle, nearest first,
+-- into feet
+local function gather(px, py, angle)
+  local n = 0
+  local dx, dy = math.cos(angle), math.sin(angle)
+  local sin, cos = math.sin(SPREAD), math.cos(SPREAD)
+  -- which side of each edge of the beam's wedge (x, y) is on: inside, both >= 0
+  local function sides(x, y)
+    local along, across = (x - px) * dx + (y - py) * dy, (y - py) * dx - (x - px) * dy
+    return along * sin - across * cos, along * sin + across * cos
   end
-  return false
-end
-
-local rayMax, rayHit
-local function onRay(fixture, x, y, xn, yn, fraction)
-  if not blocks(fixture) then return -1 end
-  rayHit = math.min(rayHit, fraction * rayMax)
-  return fraction -- only nearer ones from here
-end
-
--- How far from (x, y) along (dx, dy) the beam gets, up to max
-local function castRay(x, y, dx, dy, max)
-  rayMax, rayHit = max, max
-  world:rayCast(x, y, x + dx * max, y + dy * max, onRay)
-  for _, tree in ipairs(map.treeInstances) do
-    local t = tree.active and tree.trunk
-    if t then
-      local ox, oy = t.x - x, t.y - y
-      local along = ox * dx + oy * dy
-      local off2 = ox * ox + oy * oy - along * along
-      if along > 0 and off2 < t.r * t.r then
-        local enter = along - math.sqrt(t.r * t.r - off2)
-        if enter >= 0 then rayHit = math.min(rayHit, enter) end
+  local function add(x0, y0, x1, y1)
+    local a0, b0 = sides(x0, y0)
+    local a1, b1 = sides(x1, y1)
+    if (a0 < 0 and a1 < 0) or (b0 < 0 and b1 < 0) then return end -- beside it, or behind
+    local d2 = distance2(px, py, x0, y0, x1, y1)
+    if d2 < REACH * REACH then
+      n = n + 1
+      local f = nearby[n] or {}
+      f[1], f[2], f[3], f[4], f[5] = d2, x0, y0, x1, y1
+      nearby[n] = f
+    end
+  end
+  regions.eachFoot(px, py, REACH, add)
+  for _, list in ipairs({ map.archInstances, map.treeInstances, map.houseInstances }) do
+    for _, o in ipairs(list) do
+      local f = o.active and o.feet
+      if f then
+        for i = 1, #f, 4 do add(f[i], f[i + 1], f[i + 2], f[i + 3]) end
       end
     end
   end
-  return rayHit
+  -- the parked car: round its body
+  for _, c in ipairs(car.cars or {}) do
+    if c.body and not c.inUse then
+      for _, fixture in ipairs(c.body:getFixtures()) do
+        local shape = fixture:getShape()
+        if shape:getType() == "polygon" then
+          local pts = { c.body:getWorldPoints(shape:getPoints()) }
+          for i = 1, #pts, 2 do
+            local j = i + 2 <= #pts and i + 2 or 1
+            add(pts[i], pts[i + 1], pts[j], pts[j + 1])
+          end
+        end
+      end
+    end
+  end
+  for i = #nearby, n + 1, -1 do nearby[i] = nil end
+  if n > MAX_FEET then
+    table.sort(nearby, function(a, b) return a[1] < b[1] end)
+  end
+  local k = 0
+  for i = 1, math.min(n, MAX_FEET) do
+    local f = nearby[i]
+    feet[k + 1], feet[k + 2], feet[k + 3], feet[k + 4] = f[2], f[3], f[4], f[5]
+    k = k + 4
+  end
+  for i = #feet, k + 1, -1 do feet[i] = nil end
 end
 
--- Cast the beam's rays from (x, y) aimed at angle, unless that's what was
--- cast last (light.update casts each frame; the two draws reuse it)
-local function castBeam(x, y, angle)
-  if x == castX and y == castY and angle == castAngle then return end
-  castX, castY, castAngle = x, y, angle
-  local dx, dy = math.cos(angle), math.sin(angle)
-  for i = 1, light.RAYS do
-    -- turned by the ray's angle off the aim; unblocked, out to the far end of the pool
-    local rx, ry = dx * rayCos[i] - dy * raySin[i], dy * rayCos[i] + dx * raySin[i]
-    reach[i] = castRay(x, y, rx, ry, BEAM_LENGTH / rayCos[i])
+-- How far from (px, py) along (dx, dy) to the first of feet, up to max
+local function cast(px, py, dx, dy, max)
+  local best = max
+  for i = 1, #feet, 4 do
+    local ax, ay = feet[i] - px, feet[i + 1] - py
+    local ex, ey = feet[i + 2] - feet[i], feet[i + 3] - feet[i + 1]
+    local den = dx * ey - dy * ex
+    if den ~= 0 then
+      local t = (ax * ey - ay * ex) / den
+      local u = (ax * dy - ay * dx) / den
+      if t > 0 and t < best and u >= 0 and u <= 1 then best = t end
+    end
   end
+  return best
+end
+
+-- Hand this frame's feet to SHADOW_SHADER, on screen (under the camera
+-- transform); whether there are any
+local function sendFeet(px, py)
+  local n = #feet / 4
+  shadowed = n > 0
+  if not shadowed then return false end
+  for i = 1, n do
+    local f = screenFeet[i] or {}
+    f[1], f[2] = love.graphics.transformPoint(feet[4 * i - 3], feet[4 * i - 2])
+    f[3], f[4] = love.graphics.transformPoint(feet[4 * i - 1], feet[4 * i])
+    screenFeet[i] = f
+  end
+  for i = #screenFeet, n + 1, -1 do screenFeet[i] = nil end
+  local shader = light.shadowShader
+  shader:send("numFeet", n)
+  shader:send("feet", unpack(screenFeet))
+  shader:send("origin", { love.graphics.transformPoint(px, py) })
+  return true
 end
 
 function light.newBeamImage()
@@ -255,32 +334,20 @@ function light.newBeamImage()
   return love.graphics.newImage(data)
 end
 
-local beamVertices = {}
-
 --- The flashlight's pool on the ground, under the camera transform, over the
---- floor and grass and under the sprites standing in it: a fan out to where
---- each ray ends, textured as the pool would be there.
+--- floor and grass and under the sprites standing in it, dark behind what's
+--- in its way.
 function light.drawBeam()
   if not player.lightsOn then return end
   local px, py = player.body:getPosition()
-  local angle = aim()
-  castBeam(px, py, angle)
-  local dx, dy = math.cos(angle), math.sin(angle)
-  beamVertices[1] = { px, py, 0, 0.5, 1, 1, 1, 1 }
-  for i = 1, light.RAYS do
-    -- along the aim and across it, and where that is in the pool's image
-    local along, across = reach[i] * rayCos[i], reach[i] * raySin[i]
-    beamVertices[i + 1] = { px + along * dx - across * dy, py + along * dy + across * dx,
-      along / BEAM_LENGTH, 0.5 + across / BEAM_WIDTH, 1, 1, 1, 1 }
-  end
-  light.beamMesh:setVertices(beamVertices)
+  local w, h = light.beamImage:getDimensions()
   local shader = love.graphics.getShader()
   local mode, alphaMode = love.graphics.getBlendMode()
-  love.graphics.setShader()
+  love.graphics.setShader(sendFeet(px, py) and light.shadowShader or nil)
   love.graphics.setBlendMode("add", "premultiplied")
   local k = daynight.glow() -- a flashlight hardly shows in daylight
   love.graphics.setColor(BEAM_COLOR[1] * k, BEAM_COLOR[2] * k, BEAM_COLOR[3] * k, 1)
-  love.graphics.draw(light.beamMesh)
+  love.graphics.draw(light.beamImage, px, py, aim(), BEAM_LENGTH / w, BEAM_WIDTH / h, 0, h / 2)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.setBlendMode(mode, alphaMode)
   love.graphics.setShader(shader)
@@ -291,18 +358,23 @@ function light.update(dt)
   if not player.lightsOn then return end
   local px, py = player.body:getPosition()
   local angle = aim()
-  castX = nil -- things move (the car): cast afresh each frame, the draws reuse it
-  castBeam(px, py, angle)
+  gather(px, py, angle) -- for the draws too
   local dx, dy = math.cos(angle), math.sin(angle)
-  local ahead = reach[CENTER]
+  -- how far along the aim its bright middle gets, on average
+  local ahead = 0
+  for i = 1, #RAYS do
+    local rx, ry = dx * rayCos[i] - dy * raySin[i], dy * rayCos[i] + dx * raySin[i]
+    ahead = ahead + cast(px, py, rx, ry, BEAM_LENGTH / rayCos[i]) * rayCos[i]
+  end
+  local stop = ahead / #RAYS - WALL_GAP
   for _, b in ipairs(BEAM) do
-    if b[1] < ahead then
-      shadow.addTransientLight(px + dx * b[1], py + dy * b[1], b[3], b[2])
-    else
-      -- it lights what's in the way, and stops there
-      local d = math.max(0, ahead - WALL_GAP)
-      shadow.addTransientLight(px + dx * d, py + dy * d, b[3], b[2])
-      break
+    local d, k = b[1], 1
+    if d > stop then
+      -- it lands on what's in the way, the less the further past it it was
+      d, k = math.max(0, stop), 1 - (d - stop) / WALL_FADE
+    end
+    if k > 0 then
+      shadow.addTransientLight(px + dx * d, py + dy * d, b[3] * k, b[2])
     end
   end
 end
@@ -344,11 +416,9 @@ function light.renderLights(drawable)
       local tipX = camera.pos.x + (playerX + dirX * lightDistance) * camera.zoom
       local tipY = camera.pos.y + (playerY + dirY * lightDistance) * camera.zoom
 
-      -- Cone dimensions, cut short by whatever the beam meets
-      castBeam(playerX, playerY, angle)
-      local length = math.min(60, reach[CENTER] - lightDistance)
-      local coneLength = length * camera.zoom
-      local coneWidth = (20 + 35 * length / 60) * camera.zoom
+      -- Cone dimensions
+      local coneLength = 60 * camera.zoom
+      local coneWidth = 55 * camera.zoom
 
       -- Calculate perpendicular vector for cone base
       local perpX = -dirY
@@ -370,24 +440,22 @@ function light.renderLights(drawable)
         tipX - perpX * tipWidth / 2, tipY - perpY * tipWidth / 2,
       }
       bounds = light.pointsBounds(cone, 2)
-      if length <= 0 then cone, bounds = nil, nil end -- right up against it
     end
     if flashes then
       local r = bullet.muzzleFlashBounds()
       bounds = light.cover(bounds, camera.screenRect(r[1], r[2], r[3], r[4]))
-    end
-    if not (cone or flashes) then
-      love.graphics.pop()
-      return
     end
 
     love.graphics.reset()
     
     blueNeon(function()
       if cone then
+      -- dark behind what's in the way, like the pool (feet sent by light.drawBeam)
+      if shadowed then love.graphics.setShader(light.shadowShader) end
       love.graphics.setColor(0.17, 0.46, 1, 0.5 * daynight.glow())
       love.graphics.polygon("fill", cone)
       love.graphics.setColor(1, 1, 1, 1)
+      if shadowed then love.graphics.setShader() end
       end
 
       if flashes then

@@ -1,5 +1,6 @@
 local map = {}
 local normalmap = require("lib.graphics.normalmap")
+local footprint = require("lib.graphics.footprint")
 
 -- Configuration
 local MAP_CONFIG = {
@@ -838,15 +839,19 @@ function map.load()
     -- The arches, trees and house stand up, so each sheet has a normal map
     -- (lib/graphics/normalmap.lua)
     -- Load arch tileset
-    local tilesetImage3 = love.graphics.newImage("gfx/TileSet/TX Struct.png")
+    local tilesetData3 = love.image.newImageData("gfx/TileSet/TX Struct.png")
+    local tilesetImage3 = love.graphics.newImage(tilesetData3)
     map.tiles3 = newTiles(tilesetImage3, 98, 128)
+    map.tiles3.data = tilesetData3 -- for where its tiles stand (footprint.lua)
     map.tiles3.normals = normalmap.of(tilesetImage3, map.tiles3.quads, "gfx/TileSet/TX Struct.png")
     map.arches = createMap(map.tiles3, 1, 1) -- Just for tileset storage
     map.arches:setTile(1, 1, 10)             -- Default arch tile
 
     -- Load tree tileset
-    local tilesetImage4 = love.graphics.newImage("gfx/TileSet/TX Plant.png")
+    local tilesetData4 = love.image.newImageData("gfx/TileSet/TX Plant.png")
+    local tilesetImage4 = love.graphics.newImage(tilesetData4)
     map.tiles4 = newTiles(tilesetImage4, 156, 156)
+    map.tiles4.data = tilesetData4
     map.tiles4.normals = normalmap.of(tilesetImage4, map.tiles4.quads, "gfx/TileSet/TX Plant.png")
     map.tree = createMap(map.tiles4, 1, 1) -- Just for tileset storage
     map.tree:setTile(1, 1, 1)              -- Default tree tile
@@ -862,6 +867,35 @@ function map.load()
             map.house:setTile(x, y, math.random(1, 200))
         end
     end
+end
+
+-- Where tile `id` of `tiles` stands on the ground (lib/graphics/footprint.lua),
+-- worked out once
+local function tileFeet(tiles, id)
+    tiles.feet = tiles.feet or {}
+    if not tiles.feet[id] then
+        local x, y, w, h = tiles.quads[id]:getViewport()
+        tiles.feet[id] = footprint.of(tiles.data, x, y, w, h)
+    end
+    return tiles.feet[id]
+end
+
+-- Where a house's walls stand: down the middle of each wall's long side,
+-- the door's gap left open
+local function wallFeet(house)
+    local feet = {}
+    for _, fixture in ipairs(house.fixtures) do
+        local x1, y1, x2, y2, x3, y3, x4, y4 = house.body:getWorldPoints(fixture:getShape():getPoints())
+        if (x2 - x1) ^ 2 + (y2 - y1) ^ 2 < (x3 - x2) ^ 2 + (y3 - y2) ^ 2 then
+            -- 1-2 and 3-4 are the short ends
+            feet[#feet + 1], feet[#feet + 2] = (x1 + x2) / 2, (y1 + y2) / 2
+            feet[#feet + 1], feet[#feet + 2] = (x3 + x4) / 2, (y3 + y4) / 2
+        else
+            feet[#feet + 1], feet[#feet + 2] = (x2 + x3) / 2, (y2 + y3) / 2
+            feet[#feet + 1], feet[#feet + 2] = (x4 + x1) / 2, (y4 + y1) / 2
+        end
+    end
+    return feet
 end
 
 -- Optimized dynamic draw list generation
@@ -897,6 +931,9 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         source_object_type = "arch",
                         object_id = arch.id,
                     })
+                    -- where it stands, which stops the flashlight (systems/light.lua)
+                    arch.feet = footprint.place(tileFeet(map.tiles3, visual.tileId), visual_x, visual_y,
+                        map_scale * arch.scale)
                     performance.objectsRendered = performance.objectsRendered + 1
                 end
             end
@@ -959,11 +996,9 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         source_object_type = "tree",
                         object_id = tree.id,
                     }
-                    -- Where its trunk meets the ground, which stops the
-                    -- flashlight (systems/light.lua): columns 74-84 of the
-                    -- tile, down to row 152
-                    local s = drawItem.scale_x
-                    tree.trunk = { x = drawItem.x + 79 * s, y = drawItem.y + 150 * s, r = 5 * s + 1 }
+                    -- where its trunk stands, which stops the flashlight (systems/light.lua)
+                    tree.feet = footprint.place(tileFeet(map.tiles4, visual.tileId), drawItem.x, drawItem.y,
+                        drawItem.scale_x)
                     -- print(visual.usewind, wind.shader)
 
                     -- Add wind shader if enabled
@@ -1010,6 +1045,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         source_object_type = "house",
                         object_id = house.id,
                     })
+                    house.feet = wallFeet(house) -- its walls stop the flashlight (systems/light.lua)
                     performance.objectsRendered = performance.objectsRendered + 1
                 end
             end

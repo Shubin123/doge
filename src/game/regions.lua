@@ -29,6 +29,7 @@
 ]]
 local regions = {}
 local normalmap = require("lib.graphics.normalmap")
+local footprint = require("lib.graphics.footprint")
 
 local TILE = 128        -- world px each ground texture covers before it repeats
 local W, H = 2560, 1920 -- region size, inside its walls
@@ -562,7 +563,8 @@ end
 
 local function loadArt(r)
     local meta = require("gfx.regions." .. r.id)
-    r.image = love.graphics.newImage(meta.image)
+    local data = love.image.newImageData(meta.image)
+    r.image = love.graphics.newImage(data)
     r.image:setFilter("nearest", "nearest")
     r.sprites = {}
     local iw, ih = r.image:getDimensions()
@@ -571,6 +573,8 @@ local function loadArt(r)
             w = s.w, h = s.h, cat = s.cat, glass = s.glass, glow = s.glow,
             base = s.y + s.h - 2, -- the row its art stands on (2 px of padding below)
             quad = love.graphics.newQuad(s.x, s.y, s.w, s.h, iw, ih),
+            -- where it meets the ground, which stops the flashlight; glass lets it through
+            feet = not s.glass and footprint.of(data, s.x, s.y, s.w, s.h, s.h - 3) or nil,
         }
     end
     -- A typo in a pool would otherwise only show up as a hole in the layout
@@ -661,6 +665,9 @@ local function place(r, name, x, base, check)
         source_object_type = "region",
     }
     item.x1, item.y1 = item.x + w, base
+    if s.feet and not flat then
+        item.feet = footprint.place(s.feet, item.x, item.y, scale)
+    end
     if flat then
         -- underfoot: drawn with the ground, so whoever walks over it is on top
         r.flatBatch:setColor(unpack(color))
@@ -1480,6 +1487,23 @@ function regions.populate()
                 if item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then
                     dynamic_draw_list[#dynamic_draw_list + 1] = item
                 end
+            end
+        end
+    end
+end
+
+--- fn(x0, y0, x1, y1) for each segment of where the region sprites stand
+--- (their footprints: lib/graphics/footprint.lua) within `radius` of world
+--- (x, y), in world px.
+function regions.eachFoot(x, y, radius, fn)
+    local r = regions.at(x, y)
+    if not r.items then return end
+    local x0, y0, x1, y1 = x - radius, y - radius, x + radius, y + radius
+    for _, item in ipairs(r.items) do
+        local feet = item.feet
+        if feet and item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then
+            for i = 1, #feet, 4 do
+                fn(feet[i], feet[i + 1], feet[i + 2], feet[i + 3])
             end
         end
     end
