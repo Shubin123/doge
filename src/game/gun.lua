@@ -113,6 +113,8 @@ function Gun:shoot(mouseX, mouseY)
         return -- early return cause no bullet stuff
     elseif gun.currentWeaponIndex == 7 then
         return -- early return cause no bullet stuff
+    elseif gun.currentWeaponIndex == 9 then
+        soundType = "fire"      -- Black Hole Gun
     end
 
     audio.playSound(soundType, 1 / self.fireRate)
@@ -173,6 +175,13 @@ function Gun:shoot(mouseX, mouseY)
             damage = self.damage,
             radius = self.projectileRadius
         })
+    elseif self.projectileType == "blackhole" then
+        blackholeGun.new({
+            from = vec2.new(playerX, playerY),
+            dir = dir,
+            muzzle = self.ringRadius + 20,
+            range = gun.aimDistance -- opens where you aimed
+        })
     end
 
     -- Reset cooldown
@@ -189,6 +198,7 @@ GunTool.lastAimDirection = {}
 GunTool.currentVel = {}
 GunTool.lastAimDirection.x, GunTool.lastAimDirection.y = 0, 0
 GunTool.currentVel.x, GunTool.currentVel.y = 0, 0
+GunTool.aimDistance = 0 -- world px from the player to the cursor
 GunTool.totalGuns = 0
 GunTool.maxAmmo = 100
 GunTool.ammo = GunTool.maxAmmo -- universal ammo shared by every weapon: the player's light (the HUD's light bar)
@@ -286,6 +296,7 @@ function GunTool:updateAiming()
     end
 
     local dir = vec2.norm(vec2.new(dirX, dirY))
+    GunTool.aimDistance = math.sqrt(dirX * dirX + dirY * dirY)
 
     -- Update aim direction
     -- self.lastAimDirection = dir
@@ -334,13 +345,15 @@ function GunTool.load(world)
     -- Initialize bullet and rocket modules
     bullet.load(world)
     rocket.load(world)
+    blackholeGun.load()
 
-    -- Held models, one per weapon. pistol/smg/shotgun/bow are rendered by
-    -- tools/weapon_models (aimed exactly; default angleOffset).
+    -- Held models, one per weapon. pistol/smg/shotgun/bow/tesla are rendered
+    -- by tools/weapon_models (aimed exactly; default angleOffset).
     local pistolModel = loadModel("gfx/3d/pistol.dds")
     local smgModel = loadModel("gfx/3d/smg.dds")
     local shotgunModel = loadModel("gfx/3d/shotgun.dds")
     local bowModel = loadModel("gfx/3d/bow.dds")
+    local teslaModel = loadModel("gfx/3d/tesla.dds")
     local rifleModel = loadModel("gfx/3d/gun.dds")
     local launcherModel = loadModel("gfx/3d/lauchergun.dds")
     -- The portal gun was modelled facing backwards: turn it half a turn.
@@ -535,10 +548,39 @@ function GunTool.load(world)
         }
     })
     GunTool.guns[6] = teslaCoil
-    teslaCoil.blockInstance = portalModel
+    teslaCoil.blockInstance = teslaModel
     GunTool.guns[7] = arrows
     arrows.blockInstance = bowModel
     GunTool.guns[8] = fireballItem
+
+    GunTool.guns[9] = Gun.new({ -- Black Hole Gun (9): shots open small black holes (blackholeGun.lua)
+        model = portalModel,
+        fireRate = 0.8,
+        projectileType = "blackhole",
+        ringRadius = 28,
+        barrelLength = 8, -- the flash where the shot leaves, just past the muzzle
+        ammoCost = 15,
+        muzzleFlash = {
+            duration = 0.18,
+            coneAngle = math.rad(30),
+            coneLength = 140,
+            brightness = 1.0,
+            color = { 0.55, 0.40, 1.0 }
+        },
+        particles = {
+            count = 14,
+            colors = { { 0.45, 0.22, 1.0 }, { 0.75, 0.85, 1.0 }, { 0.2, 0.1, 0.5 } },
+            lifespan = 0.45,
+            speed = { min = 60, max = 160 },
+            size = { min = 1, max = 3 },
+            spreadAngle = math.rad(50)
+        },
+        knockback = {
+            force = 60,
+            shakeIntensity = 2.5,
+            shakeDuration = 0.15
+        }
+    })
     -- teslaCoil.updateAiming = GunTool.guns[5]:updateAiming()
 
 
@@ -580,9 +622,10 @@ function GunTool.update(dt)
         gun.currentVel.y = gun.currentVel.y / currentSpeed
     end
     GunTool:updateAiming()
-    -- Update bullet and rocket modules
+    -- Update bullet and rocket modules, and the black hole gun's holes
     bullet.update(dt)
     rocket.update(dt)
+    blackholeGun.update(dt)
 end
 
 function GunTool.mousepressed(x, y, button)
@@ -609,6 +652,7 @@ function GunTool.drawWorld()
     -- bullet.draw()
     bullet.populate()
     rocket.populate()
+    blackholeGun.populate()
 end
 
 function GunTool.switchGun(weaponIndex)

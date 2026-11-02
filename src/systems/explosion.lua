@@ -4,7 +4,8 @@ explosion.explosions = {}
 -- Explosion types
 explosion.TYPES = {
     ROCKET = "rocket",
-    DEATH = "death"
+    DEATH = "death",
+    IMPLOSION = "implosion" -- a black hole gun's hole collapsing: the wave alone
 }
 
 -- Blast wave per type: how far it spreads (px) and how long that takes (s).
@@ -12,6 +13,7 @@ explosion.TYPES = {
 local SHOCKWAVES = {
     [explosion.TYPES.ROCKET] = { radius = 350, duration = 0.6 },
     [explosion.TYPES.DEATH] = { radius = 500, duration = 0.9 },
+    [explosion.TYPES.IMPLOSION] = { radius = 220, duration = 0.45 },
 }
 
 explosion.MAX_SHOCKWAVES = 4 -- waves distorted at once; the newest win
@@ -19,6 +21,7 @@ explosion.MAX_SHOCKWAVES = 4 -- waves distorted at once; the newest win
 local explosion_image
 local rocket_animation
 local death_animation
+local NO_SPRITE = { duration = 0, quads = {} }
 
 function explosion.load()
     -- Initialize like portal.lua
@@ -115,6 +118,8 @@ function explosion.create(x, y, explosion_type)
         anim = rocket_animation
     elseif explosion_type == explosion.TYPES.DEATH then
         anim = death_animation
+    elseif explosion_type == explosion.TYPES.IMPLOSION then
+        anim = NO_SPRITE
     else
         anim = rocket_animation -- Default to rocket animation
     end
@@ -158,7 +163,7 @@ end
 
 function explosion.populate()
     for _, e in ipairs(explosion.explosions) do
-        if not e.completed then
+        if not e.completed and #e.animation.quads > 0 then
             -- Add explosion sprite animation
             local frameNum = math.floor(e.currentTime / e.animation.duration * #e.animation.quads) + 1
             if frameNum <= #e.animation.quads then

@@ -142,7 +142,7 @@ repeats that live check every 6 hours and redeploys `main` if it fails. Only
 # Weapon models
 
 The held weapon sprites (`src/gfx/3d/pistol.dds`, `smg.dds`, `shotgun.dds`,
-`bow.dds`) are rendered from low-poly models defined in code, no Blender
+`bow.dds`, `tesla.dds`) are rendered from low-poly models defined in code, no Blender
 needed:
 
 ```sh

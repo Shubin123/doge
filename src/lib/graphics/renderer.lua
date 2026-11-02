@@ -1014,6 +1014,8 @@ function renderer.renderSortedDrawList()
             teslaCoil.renderPixelLine(drawable)
         elseif drawable.draw_type == "bezierArrow" then
             arrows.renderArrows()
+        elseif drawable.draw_type == "blackholeGun" then
+            blackholeGun.drawFallback(drawable)
         -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))

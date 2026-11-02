@@ -21,7 +21,8 @@ local POINTS_PER_LEVEL = 100 -- the XP bar fills once per this many points
 local NAME_SHOW_TIME = 2.0   -- seconds the weapon name stays up after a switch
 local NAME_FADE_TIME = 0.5
 
-local WEAPON_NAMES = { "Pistol", "SMG", "Shotgun", "Assault Rifle", "Rocket Launcher", "Tesla Coil", "Bow", "Fireball" }
+local WEAPON_NAMES = { "Pistol", "SMG", "Shotgun", "Assault Rifle", "Rocket Launcher", "Tesla Coil", "Bow", "Fireball",
+    "Black Hole Gun" }
 
 local PALETTE = {
     k = { 0.08, 0.08, 0.10 }, -- outline
@@ -46,6 +47,10 @@ local PALETTE = {
     p = { 0.84, 0.48, 0.22 }, -- copper
     P = { 0.52, 0.26, 0.10 }, -- dark copper
     e = { 0.35, 0.60, 1.00 }, -- electric blue (tesla glow)
+    n = { 0.16, 0.19, 0.33 }, -- navy (tesla grip)
+    i = { 0.45, 0.22, 1.00 }, -- violet (black hole gun's disk)
+    j = { 0.26, 0.10, 0.55 }, -- dark violet
+    I = { 0.75, 0.85, 1.00 }, -- blue-white (its photon ring)
     W = { 1.00, 1.00, 1.00 }, -- white
     s = { 0.90, 0.90, 0.84 }, -- bow string
     L = { 1.00, 0.95, 0.60 }, -- light rays (dropped from empty icons)
@@ -145,21 +150,21 @@ local ICONS = {
         "................",
     },
     { -- Tesla Coil
-        ".e............e.",
-        "e.e..kkkkkk..e.e",
-        "...ekhhlllmke...",
-        "eeekhllllmmdkeee",
-        "....kmmmmmdk....",
-        ".....kkkkkk.....",
-        ".....kppppk.....",
-        ".....kPPPPk.....",
-        ".....kppppk.....",
-        ".....kPPPPk.....",
-        ".....kppppk.....",
-        ".....kPPPPk.....",
-        "....kmmmmmmk....",
-        "...kddddddddk...",
-        "...kkkkkkkkkk...",
+        "................",
+        "................",
+        ".kkkkkk.........",
+        "kceeeeck......W.",
+        "kWceeeck.....kek",
+        ".kkkkkkkkkkkkkk.",
+        "khhhllkWpPpPpPkW",
+        "kllmmmkWpPpPpPke",
+        "kmmmddkWpPpPpPkW",
+        "kkdcckkkkkkkkkk.",
+        "..kddkk......kek",
+        "..kndk........W.",
+        "..kndk..........",
+        "..kkkk..........",
+        "................",
         "................",
     },
     { -- Bow
@@ -197,6 +202,24 @@ local ICONS = {
         "...kroooooRRk...",
         "....krroRRRk....",
         ".....kkkkkk.....",
+    },
+    { -- Black Hole Gun
+        "................",
+        "...........jj...",
+        "..........jiij..",
+        "..kkkkk..jIkkIj.",
+        ".khhhhhkkiIkkkIi",
+        "khWWhhhhlkkkkkki",
+        "khWhhhhlcmkkkkki",
+        "khhhhhllcmkkkkki",
+        "kkhhllmkkkkkkkIi",
+        ".kkkkdmkk.jIkkIj",
+        "...kdmk....jiij.",
+        "...kdmk.....jj..",
+        "...kddk.........",
+        "...kkkk.........",
+        "................",
+        "................",
     },
 }
 

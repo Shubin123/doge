@@ -39,7 +39,11 @@ local ORANGE = { 1.00, 0.50, 0.08 }
 local STRING = { 0.92, 0.90, 0.82 }
 local RED = { 0.85, 0.15, 0.10 }
 local WHITE = { 0.95, 0.95, 0.95 }
+local COPPER = { 0.84, 0.48, 0.22 }
+local DARK_COPPER = { 0.52, 0.26, 0.10 }
 local GLOW_GREEN = { 0.60, 1.00, 0.15, glow = true } -- unlit accent
+local GLOW_BLUE = { 0.45, 0.75, 1.00, glow = true }  -- tesla's electric blue (teslaCoil glow)
+local GLOW_WHITE = { 0.90, 0.96, 1.00, glow = true }
 
 ---------------------------------------------------------------------------
 -- Geometry
@@ -161,6 +165,37 @@ MODELS.shotgun = function(b)
     b:box(-25, 4, 0, 10, 7, 6.5, WOOD, -0.1)         -- stock wrist
     b:box(-38, 1.5, 0, 20, 12, 7, WOOD, -0.12)       -- stock
     b:box(-48, 0.3, 0, 2, 12.5, 7.4, BLACK, -0.12)   -- butt pad
+end
+
+MODELS.tesla = function(b)
+    -- Arc gun: a copper coil wound on the barrel, a glowing capacitor on
+    -- the back, and a forked emitter the bolts leave from.
+    b:box(-12, 6, 0, 26, 11, 10, METAL)              -- receiver
+    b:box(-12, 11.8, 0, 22, 1.2, 5, LIGHT)           -- top plate
+    b:box(-12, 6, 5.1, 20, 2, 0.4, GLOW_BLUE)        -- charge strips
+    b:box(-12, 6, -5.1, 20, 2, 0.4, GLOW_BLUE)
+    b:cylinder(-30, -26, 15, 0, 4.6, 4.6, DARK)      -- capacitor: caps and glass
+    b:cylinder(-26, -10, 15, 0, 4, 4, GLOW_BLUE)
+    b:cylinder(-10, -7, 15, 0, 4.6, 4.6, DARK)
+    b:cylinder(1, 4, 7, 0, 6.5, 6.5, WHITE)          -- insulator
+    b:cylinder(4, 30, 7, 0, 3, 3, DARK)              -- core
+    for i = 0, 7 do                                  -- coil windings
+        local x = 5 + i * 3
+        b:cylinder(x, x + 2, 7, 0, 5.4, 5.4, i % 2 == 0 and COPPER or DARK_COPPER)
+    end
+    b:cylinder(30, 33, 7, 0, 6, 6, WHITE)            -- insulator
+    b:box(38, 7, 5, 12, 2, 2, METAL, 0, -0.25)       -- emitter prongs
+    b:box(38, 7, -5, 12, 2, 2, METAL, 0, 0.25)
+    b:box(44, 7, 6.8, 2.4, 2.4, 2.4, GLOW_WHITE)     -- prong tips
+    b:box(44, 7, -6.8, 2.4, 2.4, 2.4, GLOW_WHITE)
+    b:cylinder(33, 37, 7, 0, 1.5, 3.2, DARK)         -- emitter ball on its stalk
+    b:cylinder(37, 40, 7, 0, 3.2, 3.2, GLOW_BLUE)
+    b:cylinder(40, 42, 7, 0, 3.2, 0, GLOW_WHITE)
+    b:box(-20, -6, 0, 8, 17, 7, DARK, -0.25)         -- grip
+    b:box(-20.2, -6, 0, 5, 14, 7.5, NAVY, -0.25)     -- grip panel
+    b:box(-9, -1.5, 0, 8, 1.5, 2, DARK)              -- trigger guard
+    b:box(-5, 0.5, 0, 1.5, 4, 2, DARK)
+    b:box(-9.5, 0, 0, 1.2, 3, 1.5, BLACK)            -- trigger
 end
 
 MODELS.bow = function(b)
@@ -341,7 +376,7 @@ function love.load(args)
     local outDir = assert(args[1], "usage: love tools/weapon_models <out-dir> [model ...]")
     local names = {}
     for i = 2, #args do names[#names + 1] = args[i] end
-    if #names == 0 then names = { "pistol", "smg", "shotgun", "bow" } end
+    if #names == 0 then names = { "pistol", "smg", "shotgun", "bow", "tesla" } end
 
     local msaa = math.min(8, love.graphics.getSystemLimits().canvasmsaa)
     local msaaCanvas = love.graphics.newCanvas(FRAME, FRAME, { msaa = msaa })

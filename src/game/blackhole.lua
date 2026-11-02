@@ -17,7 +17,9 @@
       before GI): the scene bends round it, the shadow is black, and a hot,
       turning accretion disk and photon ring glow round it. They're drawn
       opaque, so GI spreads their light like any other bright wall. While
-      time is slow the whole frame turns colder and greyer.
+      time is slow the whole frame turns colder and greyer. The black hole
+      gun's small holes (blackholeGun.lua) are drawn by the same shader in
+      colder colours (blackhole.applySmallLensing).
 
   It sits at a fixed spot east of the home map; the console's
   `blackhole [x] [y]` moves it (to just ahead of you without coordinates).
@@ -47,8 +49,22 @@ local hostScale = 1 -- multiplayer client: the shared world's pace, from the hos
 -- physics step, so walls still stop it.
 local driftX, driftY = 0, 0
 
-local lensShader, tempCanvas
+local lensShader, smallLensShader, tempCanvas
 local t = 0
+
+-- Disk and ring colours, prepended to LENS_SHADER as macros (constants, so
+-- the hole's own shader compiles to exactly what it always did)
+local HOT_PALETTE = [[
+#define DISK_HOT vec3(1.0, 0.92, 0.70)
+#define DISK_WARM vec3(0.95, 0.35, 0.08)
+#define RING_COLOR vec3(1.0, 0.85, 0.65)
+]]
+-- The black hole gun's (blackholeGun.lua): blue-white through violet, like the portal gun's glow
+local COLD_PALETTE = [[
+#define DISK_HOT vec3(0.85, 0.93, 1.0)
+#define DISK_WARM vec3(0.45, 0.22, 1.0)
+#define RING_COLOR vec3(0.75, 0.85, 1.0)
+]]
 
 local LENS_SHADER = [[
 uniform vec2  center;   // screen px
@@ -60,7 +76,7 @@ const float LENS = 10.0;
 
 vec3 diskColor(float k) {
     // white-hot at the inner edge, through orange to a dim red rim
-    return mix(vec3(1.0, 0.92, 0.70), vec3(0.95, 0.35, 0.08), smoothstep(0.0, 0.6, k))
+    return mix(DISK_HOT, DISK_WARM, smoothstep(0.0, 0.6, k))
          * (1.0 - 0.55 * smoothstep(0.5, 1.0, k));
 }
 
@@ -111,7 +127,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
     // Photon ring, thin and bright right at the shadow's edge
     float ring = exp(-pow((r - 1.12 * rs) / (0.07 * rs), 2.0));
-    glow += vec3(1.0, 0.85, 0.65) * ring * (0.6 + 0.2 * sin(atan(d.y, d.x) * 3.0 + time * 5.0));
+    glow += RING_COLOR * ring * (0.6 + 0.2 * sin(atan(d.y, d.x) * 3.0 + time * 5.0));
 
     // Only the hottest part counts as a wall for GI, which spreads its colour
     // round (all of it made the whole neighbourhood glare white)
@@ -130,7 +146,8 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 ]]
 
 function blackhole.load()
-    lensShader = love.graphics.newShader(LENS_SHADER)
+    lensShader = love.graphics.newShader(HOT_PALETTE .. LENS_SHADER)
+    smallLensShader = love.graphics.newShader(COLD_PALETTE .. LENS_SHADER)
     blackhole.timeScale, hostScale, t = 1, 1, 0
     driftX, driftY = 0, 0
 end
@@ -256,6 +273,36 @@ function blackhole.applyNetworkData(data)
     end
 end
 
+-- Bend scene_canvas round a hole at screen (cx, cy) through `shader`, via
+-- tempCanvas. With `clip` (a screen rect {x, y, w, h}) only that is touched.
+local function lens(shader, cx, cy, horizon, slow, clip)
+    local sw, sh = scene_canvas:getDimensions()
+    if not tempCanvas or tempCanvas:getWidth() ~= sw or tempCanvas:getHeight() ~= sh then
+        tempCanvas = love.graphics.newCanvas(sw, sh, { format = "rgba8" })
+    end
+    shader:send("center", { cx, cy })
+    shader:send("horizon", horizon)
+    shader:send("time", t)
+    shader:send("slow", slow)
+
+    -- Exact copies both ways (see explosion.applyShockwave)
+    local r, g, b, a = love.graphics.getColor()
+    local mode, alphaMode = love.graphics.getBlendMode()
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setBlendMode("replace", "premultiplied")
+    love.graphics.setCanvas(tempCanvas)
+    if clip then love.graphics.setScissor(clip[1], clip[2], clip[3], clip[4]) end
+    love.graphics.setShader(shader)
+    love.graphics.draw(scene_canvas)
+    love.graphics.setShader()
+    love.graphics.setCanvas(scene_canvas)
+    if clip then love.graphics.setScissor(clip[1], clip[2], clip[3], clip[4]) end
+    love.graphics.draw(tempCanvas)
+    if clip then love.graphics.setScissor() end
+    love.graphics.setBlendMode(mode, alphaMode)
+    love.graphics.setColor(r, g, b, a)
+end
+
 --- Screen-space pass over scene_canvas, before GI (draw.lua): bends the
 --- scene round the hole, draws its shadow, disk and ring, and turns the
 --- frame cold while time is slow. Skipped when there's nothing to show.
@@ -269,28 +316,24 @@ function blackhole.applyLensing()
     if not onScreen and slow < 0.01 then
         return
     end
+    lens(lensShader, cx, cy, HORIZON * zoom, slow)
+end
 
-    if not tempCanvas or tempCanvas:getWidth() ~= sw or tempCanvas:getHeight() ~= sh then
-        tempCanvas = love.graphics.newCanvas(sw, sh, { format = "rgba8" })
+--- The same pass for a small hole at world (x, y) whose shadow is `horizon`
+--- px in radius, in the black hole gun's colder colours (blackholeGun.lua). Time
+--- doesn't slow for it, so only the square round it that it bends is
+--- touched, and nothing when that's off screen.
+function blackhole.applySmallLensing(x, y, horizon)
+    local zoom = camera.zoom
+    local cx, cy = camera.pos.x + x * zoom, camera.pos.y + y * zoom
+    local reach = LENS_RADIUS * horizon * zoom
+    local sw, sh = scene_canvas:getDimensions()
+    local x0, y0 = math.max(0, math.floor(cx - reach)), math.max(0, math.floor(cy - reach))
+    local x1, y1 = math.min(sw, math.ceil(cx + reach)), math.min(sh, math.ceil(cy + reach))
+    if x1 <= x0 or y1 <= y0 then
+        return
     end
-    lensShader:send("center", { cx, cy })
-    lensShader:send("horizon", HORIZON * zoom)
-    lensShader:send("time", t)
-    lensShader:send("slow", slow)
-
-    -- Exact copies both ways (see explosion.applyShockwave)
-    local r, g, b, a = love.graphics.getColor()
-    local mode, alphaMode = love.graphics.getBlendMode()
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setBlendMode("replace", "premultiplied")
-    love.graphics.setCanvas(tempCanvas)
-    love.graphics.setShader(lensShader)
-    love.graphics.draw(scene_canvas)
-    love.graphics.setShader()
-    love.graphics.setCanvas(scene_canvas)
-    love.graphics.draw(tempCanvas)
-    love.graphics.setBlendMode(mode, alphaMode)
-    love.graphics.setColor(r, g, b, a)
+    lens(smallLensShader, cx, cy, horizon * zoom, 0, { x0, y0, x1 - x0, y1 - y0 })
 end
 
 return blackhole
