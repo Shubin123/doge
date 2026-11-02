@@ -197,7 +197,13 @@ GunTool.mousePressed = false -- track mouse state for full auto
 GunTool.lastAimDirection = {}
 GunTool.currentVel = {}
 GunTool.lastAimDirection.x, GunTool.lastAimDirection.y = 0, 0
-GunTool.currentVel.x, GunTool.currentVel.y = 0, 0
+GunTool.currentVel.x, GunTool.currentVel.y = 1, 0 -- the flashlight's way, turning toward heading
+-- The way you're going, or last went: the flashlight points along it
+-- (systems/light.lua), and keeps to it when you stop. (lastAimDirection is
+-- the cursor's, for the weapons.)
+GunTool.heading = { x = 1, y = 0 }
+local HEADING_SPEED = 50 -- px/s: moving slower than this, you've stopped
+local HEADING_TURN = 6.3 -- how quickly the flashlight turns to a new heading (1/s)
 GunTool.aimDistance = 0 -- world px from the player to the cursor
 GunTool.totalGuns = 0
 GunTool.maxAmmo = 100
@@ -604,23 +610,22 @@ function GunTool.update(dt)
     end
 
 
+    -- The heading follows you while you move and stays put once you stop
+    -- (slowing down keeps your direction). It used to be written into
+    -- lastAimDirection, which updateAiming then set to the cursor's, so the
+    -- flashlight swung round to the cursor whenever you stopped.
     local playerVX, playerVY = player.body:getLinearVelocity()
     local playerSpeed = math.sqrt(playerVX * playerVX + playerVY * playerVY)
-
-    if playerSpeed > 50 then -- Adjust threshold as needed
-        -- Normalize player velocity
-        gun.lastAimDirection.x, gun.lastAimDirection.y = playerVX / playerSpeed, playerVY / playerSpeed
+    if playerSpeed > HEADING_SPEED then
+        GunTool.heading.x, GunTool.heading.y = playerVX / playerSpeed, playerVY / playerSpeed
     end
 
-    gun.currentVel.x, gun.currentVel.y = mymath.lerpVec2({ gun.currentVel.x, gun.currentVel.y },
-        { gun.lastAimDirection.x, gun.lastAimDirection.y }, 0.1)
-
-    -- Normalize gun.currentVel to keep it as a unit vector
-    local currentSpeed = math.sqrt(gun.currentVel.x * gun.currentVel.x + gun.currentVel.y * gun.currentVel.y)
-    if currentSpeed > 0 then
-        gun.currentVel.x = gun.currentVel.x / currentSpeed
-        gun.currentVel.y = gun.currentVel.y / currentSpeed
-    end
+    -- The flashlight turns toward it by its angle, so doubling back turns
+    -- it round (easing between unit vectors stuck at exactly 180 degrees)
+    local have = math.atan2(GunTool.currentVel.y, GunTool.currentVel.x)
+    local turn = (math.atan2(GunTool.heading.y, GunTool.heading.x) - have + math.pi) % (2 * math.pi) - math.pi
+    have = have + turn * (1 - math.exp(-HEADING_TURN * dt))
+    GunTool.currentVel.x, GunTool.currentVel.y = math.cos(have), math.sin(have)
     GunTool:updateAiming()
     -- Update bullet and rocket modules, and the black hole gun's holes
     bullet.update(dt)

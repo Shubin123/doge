@@ -137,7 +137,8 @@ function light.draw()
   end, { x - r - 2, y - r - 2, x + r + 2, y + r + 2 })
 end
 
--- The flashlight's heading: the gun's current velocity, else to the right.
+-- The flashlight's heading: the way you're going, or last went
+-- (gun.currentVel, turning toward gun.heading in gun.update).
 local function aim()
   local velX, velY = gun.currentVel.x, gun.currentVel.y
   if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
