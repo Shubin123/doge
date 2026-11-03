@@ -478,6 +478,7 @@ function Enemy:damageEnemy(damage)
             -- sprite fades out (enemy.update) and the enemy is then released.
             suckLight.spawn(self.body:getPosition())
             inventory.enemyDrop(self.body:getPosition()) -- now and then it leaves something
+            trinkets.onKill(self.body:getPosition()) -- (the Leech Fang feeds)
             self.sprite = spriteOf(self)
             self.fadeT = 0
             -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)

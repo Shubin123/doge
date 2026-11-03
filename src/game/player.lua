@@ -348,6 +348,8 @@ end
 -- physics callback: it only sets the velocity, never creates or destroys.
 function player.hurt(amount, dir)
     if player.god or not player.body or player.isSafe() then return end
+    amount = trinkets.onHurt(amount) -- what you wear may answer it (game/trinkets.lua)
+    if amount <= 0 then return end
     player.health = math.max(0, player.health - amount)
     player.hurtAt = love.timer.getTime()
     if dir then

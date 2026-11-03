@@ -12,7 +12,9 @@
 
   What's sold costs XP (var.player_score, the globs you've picked up) and
   goes in your bag (game/inventory.lua) to use when you need it, but for
-  fireballs, which go straight onto the hotbar.
+  fireballs, which go straight onto the hotbar. Two trinkets you haven't
+  got are on the shelf after them (game/trinkets.lua), worn as you buy one,
+  restocked each morning.
 ]]
 local skin = require("ui.skin")
 local normalmap = require("lib.graphics.normalmap")
@@ -30,7 +32,7 @@ local function bagged(id, price)
         buy = function() inventory.add(id, 1) end }
 end
 
-shop.ITEMS = {
+local STOCK = {
     bagged("bandage", 40),
     bagged("medkit", 120),
     bagged("light_cell", 50),
@@ -42,6 +44,14 @@ shop.ITEMS = {
             end
         end },
 }
+shop.ITEMS = STOCK
+
+-- What's for sale now: the stock, then the trinkets on the shelf
+local function restock()
+    shop.ITEMS = {}
+    for _, item in ipairs(STOCK) do shop.ITEMS[#shop.ITEMS + 1] = item end
+    for _, item in ipairs(trinkets.shopItems()) do shop.ITEMS[#shop.ITEMS + 1] = item end
+end
 
 shop.open = false
 local selected = 1
@@ -221,6 +231,10 @@ local function buy(i)
         var.player_score = var.player_score - item.price
         item.buy()
         say("Bought " .. item.name)
+        if item.trinket then
+            restock() -- (off the shelf)
+            selected = math.min(selected, #shop.ITEMS)
+        end
         local px, py = player.body:getPosition()
         audio.playSoundAt("coin", px, py, 0.4)
     end
@@ -320,6 +334,7 @@ function shop.keypressed(key)
     end
     if key == "e" and inReach() then
         if daynight.isOpen() then
+            restock()
             shop.open, selected = true, 1
         else
             say("Zzz... Open at " .. string.format("%02d:00", daynight.opensAt()))

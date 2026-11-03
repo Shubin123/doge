@@ -12,6 +12,10 @@
       what enemies leave behind now and then. Walk near one and it slides
       into the bag, if there's room.
     * The shop (game/shop.lua) sells into the bag.
+    * Trinkets (game/trinkets.lua) are worn in the panel's Worn row: one
+      picked up is worn if there's a free slot; using one in the bag puts it
+      on, using a worn one takes it off (Q drops it). Now and then an enemy
+      leaves one you haven't got.
 
   Saves keep the bag and what's on the ground (serial.lua). In multiplayer
   only the host (and single player) has items on the ground; everyone has
@@ -32,6 +36,7 @@ local DROP_LOCKOUT = 1.2 -- s a dropped item won't come straight back
 local MESSAGE_TIME = 2   -- s a message shows
 -- What a dead enemy leaves behind: the chance of each, rolled in order, one at most
 local ENEMY_DROPS = { { "bandage", 0.05 }, { "light_cell", 0.04 }, { "medkit", 0.01 } }
+local TRINKET_DROP = 0.006 -- and else, the chance of a trinket you haven't got
 
 local PALETTE = {
     k = { 0.08, 0.08, 0.10 }, -- outline
@@ -46,6 +51,11 @@ local PALETTE = {
     Y = { 0.70, 0.50, 0.10 }, -- dark yellow
     m = { 0.42, 0.44, 0.50 }, -- metal
     l = { 0.64, 0.66, 0.73 }, -- light metal
+    c = { 0.35, 0.85, 1.00 }, -- cyan
+    C = { 0.10, 0.45, 0.70 }, -- dark cyan
+    o = { 1.00, 0.50, 0.10 }, -- orange
+    p = { 0.62, 0.48, 0.92 }, -- violet
+    P = { 0.36, 0.24, 0.62 }, -- dark violet
 }
 
 -- What there is to carry. use() does what it does and returns true, or
@@ -180,6 +190,7 @@ local function icon(id)
     icons[id] = icons[id] or makeImage(inventory.ITEMS[id].icon)
     return icons[id]
 end
+inventory.icon = icon -- (the HUD shows the worn trinkets')
 
 local function hosting()
     return not var.multiplayer or var.multiplayer == 1
@@ -281,8 +292,10 @@ function inventory.remove(id, count)
     return removed
 end
 
---- Use what's in slot i. True if it did something.
+--- Use what's in slot i (past the bag's: take off that worn trinket). True
+--- if it did something.
 function inventory.use(i)
+    if i > inventory.SIZE then return trinkets.unwear(i - inventory.SIZE) end
     local s = inventory.slots[i]
     if not s then return false end
     local item = inventory.ITEMS[s.id]
@@ -338,9 +351,11 @@ function inventory.place(id, count, x, y, lockout)
     return g
 end
 
---- Drop one from slot i a little ahead of you. True if it went.
+--- Drop one from slot i a little ahead of you (past the bag's: that worn
+--- trinket). True if it went.
 function inventory.drop(i)
-    local s = inventory.slots[i]
+    local worn = i > inventory.SIZE and trinkets.worn[i - inventory.SIZE]
+    local s = worn and { id = worn, count = 1 } or inventory.slots[i]
     if not (s and player.body) then return false end
     if not hosting() then
         say("Only the host can drop things")
@@ -351,19 +366,29 @@ function inventory.drop(i)
     local n = math.sqrt(hx * hx + hy * hy)
     if n < 1e-6 then hx, hy, n = 1, 0, 1 end
     inventory.place(s.id, 1, px + hx / n * DROP_AHEAD, py + hy / n * DROP_AHEAD, DROP_LOCKOUT)
+    if worn then
+        trinkets.worn[i - inventory.SIZE] = nil
+        say("Dropped the " .. inventory.ITEMS[s.id].name)
+        return true
+    end
     say("Dropped a " .. inventory.ITEMS[s.id].name)
     s.count = s.count - 1
     if s.count == 0 then inventory.slots[i] = nil end
     return true
 end
 
---- A dead enemy at (x, y) may leave something behind (ENEMY_DROPS).
+--- A dead enemy at (x, y) may leave something behind (ENEMY_DROPS), or
+--- else, rarely, a trinket you haven't got.
 function inventory.enemyDrop(x, y)
     for _, d in ipairs(ENEMY_DROPS) do
         if drops:random() < d[2] then
             inventory.place(d[1], 1, x, y)
             return
         end
+    end
+    if drops:random() < TRINKET_DROP then
+        local id = trinkets.unowned(drops)
+        if id then inventory.place(id, 1, x, y) end
     end
 end
 
@@ -377,16 +402,21 @@ function inventory.update(dt)
         g.lockout = math.max(0, (g.lockout or 0) - dt)
         local dx, dy = px - g.x, py - g.y
         local d2 = dx * dx + dy * dy
-        if g.lockout <= 0 and d2 < MAGNET_RANGE * MAGNET_RANGE and inventory.room(g.id) > 0 then
+        local item = inventory.ITEMS[g.id]
+        if g.lockout <= 0 and d2 < MAGNET_RANGE * MAGNET_RANGE and (inventory.room(g.id) > 0 or item.pickup) then
             local d = math.sqrt(d2)
-            if d < PICKUP_RANGE then
+            if d < PICKUP_RANGE and item.pickup and item.pickup() then
+                -- straight on (a trinket, with a free slot)
+                audio.playSoundAt("coin", g.x, g.y, 0.3)
+                g.count = g.count - 1
+                if g.count <= 0 then table.remove(inventory.ground, i) end
+            elseif d < PICKUP_RANGE and inventory.room(g.id) > 0 then
                 local added = inventory.add(g.id, g.count)
                 g.count = g.count - added
-                local item = inventory.ITEMS[g.id]
                 say("+" .. added .. " " .. item.name)
                 audio.playSoundAt("coin", g.x, g.y, 0.3)
                 if g.count <= 0 then table.remove(inventory.ground, i) end
-            elseif d > 0 then
+            elseif d >= PICKUP_RANGE then
                 local step = math.min(d, MAGNET_SPEED * dt)
                 g.x, g.y = g.x + dx / d * step, g.y + dy / d * step
             end
@@ -449,17 +479,38 @@ end
 -- The panel
 --------------------------------------------------------------------------------
 
--- The panel and its slots in GUI units
+-- The panel and its slots in GUI units: the bag's, then the Worn row's
+-- (cells SIZE + 1 on)
 local function layout(uw, uh)
     local w = inventory.COLS * 20 + 2 + 12
-    local h = 22 + inventory.ROWS * 20 + 2 + 30
+    local h = 22 + inventory.ROWS * 20 + 2 + 24 + 30
     local x, y = math.floor((uw - w) / 2), math.floor(uh / 2 - h / 2 - 20)
     local cells = {}
     for i = 1, inventory.SIZE do
         local col, row = (i - 1) % inventory.COLS, math.floor((i - 1) / inventory.COLS)
         cells[i] = { x = x + 7 + col * 20, y = y + 21 + row * 20, w = 20, h = 20 }
     end
-    return { x = x, y = y, w = w, h = h }, cells
+    local wornY = y + 21 + inventory.ROWS * 20 + 4
+    for j = 1, trinkets.SLOTS do
+        cells[inventory.SIZE + j] = { x = x + 7 + (j - 1) * 20, y = wornY, w = 20, h = 20 }
+    end
+    return { x = x, y = y, w = w, h = h, wornY = wornY }, cells
+end
+
+-- Move the selection: across every cell, or up and down the rows (the Worn
+-- row has only its first few columns)
+local function step(dx, dy)
+    local total = inventory.SIZE + trinkets.SLOTS
+    if dx ~= 0 then
+        selected = (selected - 1 + dx) % total + 1
+        return
+    end
+    local cols, rows = inventory.COLS, inventory.ROWS + 1
+    local col, row = (selected - 1) % cols, math.floor((selected - 1) / cols)
+    repeat
+        row = (row + dy) % rows
+    until row < inventory.ROWS or col < trinkets.SLOTS
+    selected = row * cols + col + 1
 end
 
 local function toggle()
@@ -487,17 +538,16 @@ function inventory.keypressed(key)
         return true
     end
     if not inventory.open then return false end
-    local cols = inventory.COLS
     if key == "escape" then
         inventory.open = false
     elseif key == "left" then
-        selected = (selected - 2) % inventory.SIZE + 1
+        step(-1, 0)
     elseif key == "right" then
-        selected = selected % inventory.SIZE + 1
+        step(1, 0)
     elseif key == "up" then
-        selected = (selected - 1 - cols) % inventory.SIZE + 1
+        step(0, -1)
     elseif key == "down" then
-        selected = (selected - 1 + cols) % inventory.SIZE + 1
+        step(0, 1)
     elseif key == "return" or key == "kpenter" then
         inventory.use(selected)
     elseif key == "q" then
@@ -581,12 +631,22 @@ function inventory.drawUI()
 
         local mx, my = crt.mouse()
         local hovered
+        local function slot(i)
+            if i <= inventory.SIZE then return inventory.slots[i] end
+            local id = trinkets.worn[i - inventory.SIZE]
+            return id and { id = id, count = 1 }
+        end
         for i, cell in ipairs(cells) do
             local over = skin.contains(cell, mx / u, my / u)
             if over then hovered = i end
-            drawCell(cell, inventory.slots[i], ts, over or i == selected)
+            drawCell(cell, slot(i), ts, over or i == selected)
         end
-        local s = inventory.slots[hovered or selected]
+        local last = cells[inventory.SIZE + trinkets.SLOTS]
+        love.graphics.setColor(skin.GRAY)
+        love.graphics.print("Worn: trinkets pay in light", last.x + last.w + 5,
+            panel.wornY + 10 - font:getBaseline() * ts / 2 - 2, 0, ts, ts)
+        local i = hovered or selected
+        local s = slot(i)
         local footY = panel.y + panel.h - 26
         if s then
             local item = inventory.ITEMS[s.id]
@@ -594,7 +654,10 @@ function inventory.drawUI()
         else
             skin.printCentered("Empty", panel.x + panel.w / 2, footY, ts, skin.GRAY)
         end
-        skin.printCentered("Enter use   Q drop   I close", panel.x + panel.w / 2, footY + 12, ts, skin.GRAY)
+        local help = i > inventory.SIZE and "Enter take off   Q drop   I close"
+            or (s and inventory.ITEMS[s.id].trinket and "Enter wear   Q drop   I close")
+            or "Enter use   Q drop   I close"
+        skin.printCentered(help, panel.x + panel.w / 2, footY + 12, ts, skin.GRAY)
     end
 
     local age = love.timer.getTime() - messageAt

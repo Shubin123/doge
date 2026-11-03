@@ -42,6 +42,7 @@ blackhole = require("game.blackhole")
 daynight = require("systems.daynight")
 shop = require("game.shop")
 inventory = require("game.inventory") -- the bag, and items lying about
+trinkets = require("game.trinkets") -- what you wear, paying for what it does in light
 collision = require("util.collision")
 explosion = require("systems.explosion")
 suckLight = require("systems.suckLight")
@@ -248,6 +249,7 @@ function love.load()
     daynight.load()
     shop.load()
     inventory.load()
+    trinkets.load()
     collision.init()
     audio.loadSounds()
 
@@ -364,6 +366,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     gun.update(dt)
     xp.update(dt)
     inventory.update(dt) -- items on the ground sliding into the bag
+    trinkets.update(dt) -- before the lighting upload: the moth, rings of fire
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     blackhole.addLights() -- its disk's glow on the ground

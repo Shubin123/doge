@@ -650,6 +650,7 @@ function hud.draw()
     drawXP(x, y - 7, width, ts)
     drawHearts(x, y - 17)
     drawLightBar(x + width, y - 17)
+    trinkets.drawHUD(x + width, y - 33) -- what you wear, over the light it spends
     drawWeaponName(x + width / 2, y - 17 - 4 - font:getHeight() * ts, ts)
 
     love.graphics.pop()
