@@ -876,6 +876,7 @@ local function generate(r, index)
     r.portal = { x = math.floor(ox + W / 2 - 17), y = oy + H - 330 }
     r.spawn = { x = r.portal.x + 17, y = r.portal.y + 100 }
     local plaza = { x = r.portal.x - 230, y = r.portal.y - 140, w = 495, h = 330 }
+    r.plaza = plaza -- (game/shop.lua's stalls stand on the squares)
 
     -- Avenues: two cross every street, lined up; the main one runs from the
     -- portal's square up to the middle street, where a landmark ends it
@@ -944,6 +945,7 @@ local function generate(r, index)
         square = { x = cx - 3 * ZONE, y = top, w = 6 * ZONE, h = 4 * ZONE }
         setZone(PLAZA, square.x, square.y, square.w, square.h)
     end
+    r.square = square
 
     -- Which floor each cell gets: one texel per cell, the weight of floor
     -- layers 1-3 in r, g, b (layer 0 lies under everything)

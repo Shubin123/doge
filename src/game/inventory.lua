@@ -12,8 +12,8 @@
       what enemies leave behind now and then. Walk near one and it slides
       into the bag, if there's room.
     * The shop (game/shop.lua) sells into the bag.
-    * Food heals, over time for bread, or fills the light bar, or (a chili)
-      makes you quick for a while.
+    * Food heals, over time for bread and honey cake, or fills the light
+      bar, or (a chili) makes you quick for a while.
     * Trinkets (game/trinkets.lua) take slots like the rest, and work while
       they're in the bag and equipped (framed in gold): using one equips or
       unequips it. Now and then an enemy leaves one you haven't got.
@@ -37,8 +37,8 @@ local DROP_LOCKOUT = 1.2 -- s a dropped item won't come straight back
 local MESSAGE_TIME = 2   -- s a message shows
 -- What a dead enemy leaves behind: the chance of each, rolled in order, one at most
 local ENEMY_DROPS = {
-    { "apple", 0.05 }, { "bandage", 0.04 }, { "light_cell", 0.03 }, { "glowberries", 0.03 },
-    { "bread", 0.02 }, { "drumstick", 0.01 }, { "chili", 0.01 }, { "medkit", 0.01 },
+    { "apple", 0.04 }, { "bandage", 0.035 }, { "light_cell", 0.025 }, { "glowberries", 0.025 },
+    { "bread", 0.015 }, { "drumstick", 0.01 }, { "chili", 0.01 }, { "medkit", 0.01 },
 }
 local TRINKET_DROP = 0.006 -- and else, the chance of a trinket you haven't got
 
@@ -208,7 +208,7 @@ inventory.ITEMS = {
         use = function()
             if player.health >= player.maxHealth then return false, "Hearts are full" end
             effects.regen = effects.regen + 300
-            effects.regenRate = effects.regen / 6
+            effects.regenRate = math.max(effects.regenRate, 50) -- (three hearts over six seconds)
             return true
         end,
         icon = {
@@ -273,6 +273,62 @@ inventory.ITEMS = {
             "....kyyykkyyyk..",
             "....kYYykkYYyk..",
             ".....kkk..kkk...",
+            "................",
+            "................",
+            "................",
+        },
+    },
+    noodles = {
+        name = "Noodles", desc = "+2 hearts, +20 light", stack = 8, food = true,
+        use = function()
+            if player.health >= player.maxHealth and gun.ammo >= gun.maxAmmo then
+                return false, "Hearts and light are full"
+            end
+            player.health = math.min(player.maxHealth, player.health + 200)
+            gun.addAmmo(20)
+            return true
+        end,
+        icon = {
+            "................",
+            ".....W...W......",
+            "......W...W.....",
+            ".....W...W......",
+            "................",
+            "..kkkkkkkkkkkk..",
+            ".kyyyYyyyYyyyyk.",
+            ".kyYyyyYyyyYyyk.",
+            ".krrrrrrrrrrrrk.",
+            "..krrrrrrrrrrk..",
+            "..kRrrrrrrrrRk..",
+            "...kRRrrrrRRk...",
+            "....kkkkkkkk....",
+            "................",
+            "................",
+            "................",
+        },
+    },
+    honey_cake = {
+        name = "Honey cake", desc = "+5 hearts over 10 s", stack = 8, food = true,
+        use = function()
+            if player.health >= player.maxHealth then return false, "Hearts are full" end
+            effects.regen = effects.regen + 500
+            effects.regenRate = math.max(effects.regenRate, 50)
+            return true
+        end,
+        icon = {
+            "................",
+            "................",
+            "......kkkk......",
+            "....kkyyyykk....",
+            "..kkyyyyyyyykk..",
+            ".kyyyyyyyyyyyyk.",
+            ".kYyyYyyyyYyyYk.",
+            ".ktYttYttYttYtk.",
+            ".kttttttttttttk.",
+            ".kTTTTTTTTTTTTk.",
+            ".kttttttttttttk.",
+            ".kTttttttttttTk.",
+            ".kkkkkkkkkkkkkk.",
             "................",
             "................",
             "................",

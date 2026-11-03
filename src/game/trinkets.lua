@@ -19,10 +19,10 @@
   They take bag slots like everything else (game/inventory.lua), one to a
   slot, and work while they're there and equipped: picked up or bought,
   one's equipped; using it (Enter) unequips it, or equips it again, so you
-  can keep one without paying for it. The shop keeps two on its shelf,
-  ones you haven't got, restocked each morning; now and then an enemy drops
-  one. What they do to enemies happens where the world runs (host, single
-  player). Saves keep the shelf (the bag keeps what's equipped).
+  can keep one without paying for it. Shops sell them (game/shops.lua says
+  which, and puts out a few you haven't got each morning); now and then an
+  enemy drops one. What they do to enemies happens where the world runs
+  (host, single player). The bag's save keeps what's equipped.
 
   var.equip_all_trinkets (conf.lua, for play-testing) puts every one in the
   bag, equipped, at every start and load.
@@ -30,8 +30,6 @@
 local inventory = require("game.inventory")
 
 local trinkets = {}
-
-trinkets.shelf = {}  -- the shop's: ids
 
 local WARD_RADIUS = 52     -- px: a shot this close to you meets the Mirror Ward
 local EMBER_RADIUS = 110   -- px: the Ember Heart's ring of fire...
@@ -45,7 +43,6 @@ local PHOENIX_SAFE = 1.5   -- s nothing hurts you after
 local PHOENIX_RADIUS = 150 -- px of blaze
 local PHOENIX_REST = 90    -- s before it can again
 local SOLES_RADIUS = 85    -- px: the shock at the end of a roll
-local SHELF = 2            -- trinkets on the shop's shelf
 
 -- The trinkets, in the order the shop and drops know them
 trinkets.LIST = { "mirror_ward", "ember_heart", "leech_fang", "lantern_moth", "phoenix_feather", "static_soles" }
@@ -194,10 +191,9 @@ end
 local usedAt, failedAt = {}, {} -- id -> when it last paid, and last couldn't
 local emberReady, phoenixReady, safeUntil = 0, 0, -math.huge
 local mothAngle, mothTimer = 0, 0
-local wasDodging, wasOpen = false, nil
+local wasDodging = false
 local tried = setmetatable({}, { __mode = "k" }) -- shots the ward has met (bullet -> its birth)
 local effects = {} -- rings, zaps, heals and the ward's flashes, drawn in trinkets.draw
-local rng
 
 local function hosting()
     return not var.multiplayer or var.multiplayer == 1
@@ -243,7 +239,6 @@ function trinkets.equipAll()
         local s = inventory.slots[i]
         if s and trinkets.DEFS[s.id] then s.on = nil end
     end
-    trinkets.restock()
 end
 
 --- A trinket you haven't got, picked with `r` (a love RandomGenerator), or nil.
@@ -256,44 +251,25 @@ function trinkets.unowned(r, except)
     return list[math.floor(r:random() * #list) + 1]
 end
 
---- Fill the shop's shelf again (each morning) with ones you haven't got.
-function trinkets.restock()
-    trinkets.shelf = {}
-    local taken = {}
-    for _ = 1, SHELF do
-        local id = trinkets.unowned(rng, taken)
-        if not id then break end
-        taken[id] = true
-        trinkets.shelf[#trinkets.shelf + 1] = id
-    end
-end
-
---- What's on the shelf for the shop to sell (game/shop.lua's rows).
-function trinkets.shopItems()
-    local rows = {}
-    for _, id in ipairs(trinkets.shelf) do
-        local d = trinkets.DEFS[id]
-        rows[#rows + 1] = { name = d.name, desc = d.desc .. ", " .. d.cost .. " light", price = d.price, trinket = id,
-            can = function()
-                if trinkets.owns(id) then return false, "You have it" end
-                return inventory.room(id) > 0, "Bag is full"
-            end,
-            buy = function()
-                inventory.add(id, 1) -- (equipped)
-                for i, s in ipairs(trinkets.shelf) do
-                    if s == id then table.remove(trinkets.shelf, i) break end
-                end
-            end }
-    end
-    return rows
+--- A shop's row selling `id` for `price` XP (game/shop.lua); `bought` is
+--- told when it's sold.
+function trinkets.offer(id, price, bought)
+    local d = trinkets.DEFS[id]
+    return { name = d.name, desc = d.desc .. ", " .. d.cost .. " light", price = price, trinket = id,
+        can = function()
+            if trinkets.owns(id) then return false, "You have it" end
+            return inventory.room(id) > 0, "Bag is full"
+        end,
+        buy = function()
+            inventory.add(id, 1) -- (equipped)
+            if bought then bought(id) end
+        end }
 end
 
 function trinkets.load()
-    rng = love.math.newRandomGenerator(love.math.random(0, 2 ^ 31 - 1))
     usedAt, failedAt, effects = {}, {}, {}
     emberReady, phoenixReady, safeUntil = 0, 0, -math.huge
-    mothAngle, mothTimer, wasDodging, wasOpen = 0, 0, false, nil
-    trinkets.restock()
+    mothAngle, mothTimer, wasDodging = 0, 0, false
     if var.equip_all_trinkets then trinkets.equipAll() end
 end
 
@@ -440,11 +416,8 @@ end
 
 --- Every frame, before the lighting upload (main.lua, after the bag): the
 --- ward meets shots, the moth flies, a roll's end shocks, the fire and blaze
---- of a moment ago go off, the shelf restocks in the morning.
+--- of a moment ago go off.
 function trinkets.update(dt)
-    local open = daynight.isOpen()
-    if wasOpen == false and open then trinkets.restock() end -- a new day's stock
-    wasOpen = open
     if not player.body then return end
     local px, py = player.body:getPosition()
 
@@ -601,22 +574,16 @@ function trinkets.drawHUD(right, y)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- The shelf and the feather's rest, for a save (the bag keeps the rest).
+--- The feather's rest, for a save (the bag keeps the rest).
 function trinkets.getSaveData()
-    return { shelf = trinkets.shelf, phoenix = math.max(0, phoenixReady - now()) }
+    return { phoenix = math.max(0, phoenixReady - now()) }
 end
 
 --- Put back what getSaveData gave (after the bag: inventory.restore).
 function trinkets.restore(data)
     phoenixReady, safeUntil = 0, -math.huge
-    trinkets.shelf = {}
     if type(data) == "table" then
-        for _, id in ipairs(data.shelf or {}) do
-            if trinkets.DEFS[id] and not trinkets.owns(id) then trinkets.shelf[#trinkets.shelf + 1] = id end
-        end
         phoenixReady = now() + (tonumber(data.phoenix) or 0)
-    else
-        trinkets.restock()
     end
     if var.equip_all_trinkets then trinkets.equipAll() end
 end

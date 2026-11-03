@@ -127,7 +127,8 @@ function serial.create()
         cars = captureCars(),
         command_blocks = command.getCommandBlocks(),
         bag = inventory.getSaveData(), -- the bag and items on the ground
-        trinkets = trinkets.getSaveData(), -- what you wear, and the shop's shelf
+        trinkets = trinkets.getSaveData(), -- the Phoenix Feather's rest
+        shops = shop.getSaveData(), -- the trinkets on every shop's shelf
         structures = destruction.getSaveData(), -- what's been knocked down in the regions
     }
 end
@@ -151,7 +152,8 @@ function serial.apply(state)
     if state.cars then restoreCars(state.cars) end
     if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
     inventory.restore(state.bag) -- (empty for a save from before the bag)
-    trinkets.restore(state.trinkets) -- (none worn for a save from before them)
+    trinkets.restore(state.trinkets)
+    shop.restore(state.shops) -- (after the bag: nothing you have is on a shelf)
     destruction.restore(state.structures) -- (all standing for a save from before they could fall)
 
     local p = state.player

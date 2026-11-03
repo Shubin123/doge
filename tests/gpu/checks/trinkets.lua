@@ -18,8 +18,8 @@
      slot, equipped, and a full bag leaves it on the ground; using it
      unequips it (it does nothing then, and costs nothing), and again
      equips it; saves keep one unequipped;
-  8. the shop's shelf has two you haven't got, and buying one puts it in
-     the bag, equipped;
+  8. the home shop's shelf has two you haven't got, and buying one puts it
+     in the bag, equipped;
   9. the play-testing loadout (var.equip_all_trinkets) has every one in
      the bag, equipped.
 
@@ -202,19 +202,21 @@ return function(h)
     inventory.open = false
     enemy.restore({ slots = {} })
 
-    -- 8. The shop's shelf
+    -- 8. The home shop's shelf (game/shops.lua: two)
     wearOnly("mirror_ward")
-    trinkets.restock()
-    local shelf = trinkets.shopItems()
-    local fine = #shelf == 2
-    for _, row in ipairs(shelf) do
-        if trinkets.owns(row.trinket) then fine = false end
+    shop.restock()
+    local home = shop.byId.home
+    local fine = #home.shelf == 2
+    for _, id in ipairs(home.shelf) do
+        if trinkets.owns(id) then fine = false end
     end
-    local first = shelf[1] and shelf[1].trinket
-    if shelf[1] and shelf[1].can() then shelf[1].buy() end
+    local rows = shop.rows(home)
+    local row = rows[#rows] -- (the shelf comes last)
+    local first = row and row.trinket
+    if row and row.can() then row.buy() end
     h.check("the shop shelves two you haven't got; one bought goes in the bag, equipped", fine and first ~= nil
-        and trinkets.wears(first) and #trinkets.shopItems() == 1,
-        string.format("%d on the shelf; bought %s", #shelf, tostring(first)))
+        and trinkets.wears(first) and #home.shelf == 1,
+        string.format("%d on the shelf; bought %s", #shop.rows(home) - #home.def.stock + 1, tostring(first)))
 
     -- 9. The play-testing loadout
     inventory.reset()
