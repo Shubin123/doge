@@ -466,17 +466,36 @@ local enemy = {
     totalToSpawn = 0,
 }
 
+-- What each enemy looks like, by its index
+local ENEMY_TYPES = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
+
+-- An enemy slot's sprite (gun_enemies[index + 2]) is hidden until an enemy
+-- takes the slot (enemy.addEnemy) and again once it has gone: characterAnimator
+-- makes every instance a visible princess somewhere round the home map, and
+-- any not following an enemy would stand there like a villager.
+local function hideSprite(sprite)
+    sprite.on = false
+    sprite.opacity = nil
+    sprite.currentSpriteIndex = nil -- out of the instanced draw entirely
+end
+
+local function hideAllSprites()
+    for i = 2, var.num_enemies + 1 do
+        if gun_enemies and gun_enemies[i] then hideSprite(gun_enemies[i]) end
+    end
+end
+
 function enemy.load()
     grid:reset() -- (a new world)
     field = nil
+    hideAllSprites()
     -- Staggered spawn: queue all enemies, spawn a few per frame
     enemy.spawnQueue = {}
     enemy.totalToSpawn = var.num_enemies
-    local enemyTypes = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
     for i = 1, var.num_enemies do
         local x = math.random(100, var.screen_width)
         local y = math.random(100, var.screen_height)
-        local charType = enemyTypes[((i - 1) % #enemyTypes) + 1]
+        local charType = ENEMY_TYPES[((i - 1) % #ENEMY_TYPES) + 1]
         table.insert(enemy.spawnQueue, {x = x, y = y, charType = charType, index = i - 1})
     end
     enemy.spawningComplete = false
@@ -497,11 +516,7 @@ local function releaseEnemy(i)
     -- (An enemy removed rather than killed never recorded its sprite; slot i
     -- was index i - 1, whose sprite is gun_enemies[(i - 1) + 2].)
     local sprite = enemy.enemies[i].sprite or gun_enemies[i + 1]
-    if sprite then
-        sprite.on = false
-        sprite.opacity = nil
-        sprite.currentSpriteIndex = nil -- out of the instanced draw entirely
-    end
+    if sprite then hideSprite(sprite) end
     enemy.enemies[i] = RELEASED
 end
 
@@ -536,13 +551,6 @@ function enemy.update(dt)
             local spawn = table.remove(enemy.spawnQueue)
             if spawn then
                 enemy.addEnemy(spawn.x, spawn.y)
-                -- Assign character type to the gun_enemies instance
-                if gun_enemies[spawn.index + 2] then
-                    -- dot-call, not a method: characterAnimator instances expose
-                    -- plain closures (`function instance.setCharacterType(t)`), so a
-                    -- colon call would pass the instance itself as the type.
-                    gun_enemies[spawn.index + 2].setCharacterType(spawn.charType)
-                end
             end
         end
     elseif not enemy.spawningComplete and #enemy.spawnQueue == 0 then
@@ -598,11 +606,21 @@ function enemy.killEnemy(enemy_index)
     end
 end
 
-function enemy.addEnemy(x, y)
+-- A new enemy in the next slot, shown as `charType` (by default its index's)
+function enemy.addEnemy(x, y, charType)
     local index = #enemy.enemies
     local e = Enemy.new(world, x, y, enemy.max_health, enemy.scale, enemy.fire_cooldown,
         enemy.detection_range, enemy.projectile_speed, index)
     table.insert(enemy.enemies, e)
+
+    local sprite = gun_enemies and gun_enemies[index + 2]
+    if sprite then
+        sprite.on, sprite.opacity = true, nil
+        sprite.x, sprite.y = x, y
+        -- dot-call, not a method: characterAnimator instances expose plain
+        -- closures (`function instance.setCharacterType(t)`)
+        sprite.setCharacterType(charType or ENEMY_TYPES[index % #ENEMY_TYPES + 1])
+    end
 
     enemy.last_fire_times[index] = enemy.t - enemy.fire_cooldown
     enemy.health[index] = e.health
@@ -644,9 +662,9 @@ function enemy.getSaveData()
     return { slots = slots, spawn_queue = queue }
 end
 
--- Replace every enemy with the ones in a getSaveData() snapshot. Current
--- enemies are removed quietly: no death light, no fade.
-function enemy.restore(data)
+--- Remove every enemy quietly (no death light, no fade) and hide every
+--- enemy sprite, the dead ones' included.
+function enemy.clear()
     for i, e in ipairs(enemy.enemies) do
         if not e.released then
             if not e.dead then
@@ -655,26 +673,26 @@ function enemy.restore(data)
             releaseEnemy(i)
         end
     end
+    hideAllSprites()
     enemy.enemies = {}
     enemy.health = {}
     enemy.enemy_damaged = {}
     enemy.last_fire_times = {}
+end
 
+-- Replace every enemy with the ones in a getSaveData() snapshot. A dead
+-- slot keeps its sprite hidden.
+function enemy.restore(data)
+    enemy.clear()
     for i, slot in ipairs(data.slots or {}) do
-        local sprite = gun_enemies[i + 1]
         if slot.dead then
             enemy.enemies[i] = RELEASED
         else
-            local index = enemy.addEnemy(slot.x, slot.y)
+            local index = enemy.addEnemy(slot.x, slot.y, slot.character)
             local e = enemy.enemies[index + 1]
             e.body:setLinearVelocity(slot.vx or 0, slot.vy or 0)
             e.health = slot.health or e.health
             enemy.health[index] = e.health
-            if sprite then
-                sprite.on = true
-                sprite.opacity = nil
-                sprite.setCharacterType(slot.character or sprite.getCharacterType() or "watchman")
-            end
         end
     end
 

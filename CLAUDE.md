@@ -111,6 +111,7 @@ When modifying gameplay, ensure integration.lua is updated to maintain system co
 
 ### Enemies
 - `game/enemy.lua`: each enemy thinks a few times a second (`Enemy:think`, staggered by index; 0.2 s fighting, 0.4 s coming, 1 s far) and between thoughts steers toward the velocity it chose with a force (`AI.STEER`), so knockback impulses still land. With you in sight (one raycast a thought) inside `AI.ENGAGE` it holds its weapon's `range`, circling you (`orbit`, flipped now and then or when stuck), and only then shoots, leading you (`lead`). Out of sight it follows one shared flow field to you (`lib/nav.lua`'s `grid:flow`, rebuilt at most every 0.5 s once you change cell); far off it drifts, further still it waits. A spatial hash built each frame in `enemy.update` keeps them apart. Each enemy's traits come from its index, not the RNG.
+- An enemy slot's sprite (`gun_enemies[index + 2]`) shows only while an enemy holds the slot: `enemy.addEnemy` shows it (typed by index, or as saved), death releases it, `enemy.clear` hides them all. characterAnimator makes every instance a visible princess, so a sprite left out of this stands about like a villager; the only character outside of you and the enemies is the shopkeeper, in the house.
 - `lib/nav.lua`: grids over the physics world (cells tested lazily against static fixtures, grown by a clearance), A* paths (`nav:path`, the car's autopilot) and flow fields (`nav:flow`, the enemies).
 
 ### Inventory

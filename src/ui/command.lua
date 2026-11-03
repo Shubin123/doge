@@ -413,14 +413,12 @@ end
 
 local function spawnCommand(tokens)
     if tokens[2] == "enemies" then
-        local count = tonumber(tokens[3]) or 10
-        local old = var.num_enemies
-        var.num_enemies = count
-        -- Despawn existing and re-create
-        for _, e in ipairs(enemy.enemies) do
-            if e.fixture then e:killEnemy() end
-        end
-        enemy.enemies = {}
+        -- (no more than there are enemy sprites: the ones after are other players')
+        local count = math.min(tonumber(tokens[3]) or 10, var.num_enemies)
+        local old = #enemy.enemies
+        -- Despawn existing (their sprites hidden too) and re-create
+        enemy.clear()
+        enemy.spawnQueue = {}
         for _ = 1, count do
             enemy.addEnemy(math.random(100, var.screen_width), math.random(100, var.screen_height))
         end
