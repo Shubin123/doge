@@ -20,6 +20,11 @@
       time is slow the whole frame turns colder and greyer. The black hole
       gun's small holes (blackholeGun.lua) are drawn by the same shader in
       colder colours (blackhole.applySmallLensing).
+    * Low graphics, with no screen-space passes: a stand-in in the sorted
+      draw list (blackhole.populate, blackhole.drawFallback), the disk
+      tilted towards you round the shadow, its far half behind it, the
+      photon ring and the arc lensed over the top, its bands turning; and
+      while time is slow a cold tint over the frame (blackhole.drawSlowTint).
 
   It sits at a fixed spot east of the home map; the console's
   `blackhole [x] [y]` moves it (to just ahead of you without coordinates).
@@ -301,6 +306,149 @@ local function lens(shader, cx, cy, horizon, slow, clip)
     if clip then love.graphics.setScissor() end
     love.graphics.setBlendMode(mode, alphaMode)
     love.graphics.setColor(r, g, b, a)
+end
+
+--------------------------------------------------------------------------------
+-- Low graphics
+--------------------------------------------------------------------------------
+
+-- The disk's colours, as LENS_SHADER has them (HOT_PALETTE)
+local DISK_HOT, DISK_WARM, RING = { 1.0, 0.92, 0.70 }, { 0.95, 0.35, 0.08 }, { 1.0, 0.85, 0.65 }
+local function smoothstep(a, b, x)
+    local k = math.max(0, math.min(1, (x - a) / (b - a)))
+    return k * k * (3 - 2 * k)
+end
+-- white-hot at the inner edge, through orange to a dim red rim
+local function diskColor(k)
+    local m, dim = smoothstep(0, 0.6, k), 1 - 0.55 * smoothstep(0.5, 1, k)
+    return (DISK_HOT[1] + (DISK_WARM[1] - DISK_HOT[1]) * m) * dim,
+        (DISK_HOT[2] + (DISK_WARM[2] - DISK_HOT[2]) * m) * dim,
+        (DISK_HOT[3] + (DISK_WARM[3] - DISK_HOT[3]) * m) * dim
+end
+local function bands(a, rd)
+    return 0.62 + 0.22 * math.sin(a * 5 - t * 2.6 + rd * 0.11) + 0.16 * math.sin(a * 11 + t * 4.1 - rd * 0.23)
+end
+
+local SEGMENTS = 40 -- round each half of the disk
+local TILT = 0.3    -- the disk's height on screen over its width
+local diskMesh, diskVerts = {}, {}
+
+-- Half the disk (`far`: the top half, behind the shadow) as a mesh of
+-- quads, each corner its band's colour and brightness
+local function diskHalf(far)
+    local verts = diskVerts[far]
+    if not verts then
+        verts = {}
+        for i = 1, SEGMENTS * 6 do verts[i] = { 0, 0, 0, 0, 0, 0, 0, 0 } end
+        diskVerts[far] = verts
+        diskMesh[far] = love.graphics.newMesh(#verts, "triangles", "stream")
+    end
+    local inner, outer = 1.45 * HORIZON, 3.6 * HORIZON
+    local a0 = far and math.pi or 0
+    local function corner(v, a, rd)
+        local k = (rd - 1.45 * HORIZON) / (2.4 * HORIZON)
+        local glow = 1.4 * bands(a, rd) * (1 + 0.55 * math.cos(a + 0.6)) -- brighter spinning towards you
+        local r, g, b = diskColor(k)
+        v[1], v[2] = math.cos(a) * rd, math.sin(a) * rd * TILT
+        v[5], v[6], v[7] = math.min(1, r * glow), math.min(1, g * glow), math.min(1, b * glow)
+        v[8] = math.min(1, glow) * (1 - smoothstep(0.75, 1, k)) * smoothstep(-0.08, 0.04, k)
+    end
+    for i = 0, SEGMENTS - 1 do
+        local a1 = a0 + math.pi * i / SEGMENTS
+        local a2 = a0 + math.pi * (i + 1) / SEGMENTS
+        local base = i * 6
+        corner(verts[base + 1], a1, inner)
+        corner(verts[base + 2], a1, outer)
+        corner(verts[base + 3], a2, outer)
+        corner(verts[base + 4], a1, inner)
+        corner(verts[base + 5], a2, outer)
+        corner(verts[base + 6], a2, inner)
+    end
+    diskMesh[far]:setVertices(verts)
+    return diskMesh[far]
+end
+
+--- Low graphics: the stand-in for the lensing pass, in the sorted draw list
+--- (renderer.lua's "blackhole" draw_type, blackhole.drawFallback).
+function blackhole.populate()
+    if var.graphics_high then return end
+    table.insert(dynamic_draw_list, {
+        draw_type = "blackhole",
+        sort_y = blackhole.y + 140,
+        x = blackhole.x,
+        y = blackhole.y,
+        color = { 1, 1, 1, 1 },
+    })
+end
+
+function blackhole.drawFallback(d)
+    local shader = love.graphics.getShader()
+    local mode, alphaMode = love.graphics.getBlendMode()
+    love.graphics.setShader()
+    love.graphics.push()
+    love.graphics.translate(d.x, d.y)
+
+    -- a warm haze round it
+    love.graphics.setBlendMode("add")
+    love.graphics.setColor(DISK_WARM[1], DISK_WARM[2], DISK_WARM[3], 0.04)
+    love.graphics.circle("fill", 0, 0, HORIZON * 3.4)
+    love.graphics.setColor(DISK_WARM[1], DISK_WARM[2], DISK_WARM[3], 0.06)
+    love.graphics.circle("fill", 0, 0, HORIZON * 2)
+    -- the far half of the disk, behind it
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(diskHalf(true))
+    -- the shadow
+    love.graphics.setBlendMode("alpha")
+    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.circle("fill", 0, 0, HORIZON)
+    love.graphics.setBlendMode("add")
+    -- the disk lensed up over the top of it as an arc
+    local r, g, b = diskColor(0.15)
+    love.graphics.setLineWidth(HORIZON * 0.3)
+    for i = 0, 15 do
+        local a1, a2 = math.pi + math.pi * i / 16, math.pi + math.pi * (i + 1) / 16
+        local k = 0.7 * bands(a1, HORIZON * 1.6)
+        love.graphics.setColor(r * k, g * k, b * k, 0.6)
+        love.graphics.arc("line", "open", 0, 0, HORIZON * 1.6, a1, a2, 2)
+    end
+    -- the photon ring, thin and bright right at its edge
+    love.graphics.setLineWidth(2)
+    love.graphics.setColor(RING[1], RING[2], RING[3], 0.9)
+    love.graphics.circle("line", 0, 0, HORIZON * 1.12)
+    -- and the near half of the disk crossing in front
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(diskHalf(false))
+
+    love.graphics.pop()
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setBlendMode(mode, alphaMode)
+    love.graphics.setShader(shader)
+end
+
+--- Low graphics, in screen space after the world: while time is slow, the
+--- frame turns colder and darker at the edges, as the lensing pass turns it.
+function blackhole.drawSlowTint()
+    local slow = math.max(0, math.min(1, (1 - blackhole.timeScale) / (1 - MIN_SCALE)))
+    if slow < 0.01 then return end
+    local w, h = love.graphics.getDimensions()
+    local mode, alphaMode = love.graphics.getBlendMode()
+    love.graphics.setBlendMode("multiply", "premultiplied")
+    love.graphics.setColor(1 - 0.35 * slow, 1 - 0.22 * slow, 1 - 0.05 * slow, 1)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+    love.graphics.setBlendMode("alpha")
+    -- darker at the edges
+    local edge = math.min(w, h) * 0.12
+    for i = 0, 3 do
+        love.graphics.setColor(0, 0, 0.04, 0.09 * slow)
+        local inset = i * edge * 0.5
+        love.graphics.rectangle("fill", 0, 0, w, edge - inset)
+        love.graphics.rectangle("fill", 0, h - edge + inset, w, edge - inset)
+        love.graphics.rectangle("fill", 0, 0, edge - inset, h)
+        love.graphics.rectangle("fill", w - edge + inset, 0, edge - inset, h)
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setBlendMode(mode, alphaMode)
 end
 
 --- Screen-space pass over scene_canvas, before GI (draw.lua): bends the

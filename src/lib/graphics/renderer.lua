@@ -1029,6 +1029,8 @@ function renderer.renderSortedDrawList()
             arrows.renderArrows()
         elseif drawable.draw_type == "blackholeGun" then
             blackholeGun.drawFallback(drawable)
+        elseif drawable.draw_type == "blackhole" then
+            blackhole.drawFallback(drawable)
         -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))

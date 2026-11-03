@@ -67,6 +67,7 @@ function draw.mydraw()
     car.populate()
     destruction.populate() -- shards falling off what's been shot
     inventory.populate() -- items on the ground
+    blackhole.populate() -- low graphics: a stand-in for its lensing pass
     princess.x, princess.y = player.body:getX(), player.body:getY()
     characterAnimator.draw() -- uploads instances + death light; sprites draw in the sorted pass below
     
@@ -114,6 +115,8 @@ function draw.mydraw()
         love.graphics.setColor(1, 1, 1, 1 - daynight.daylight())
         love.graphics.draw(scene_canvas)
         love.graphics.setColor(1, 1, 1, 1)
+    else
+        blackhole.drawSlowTint() -- slow time, without the lensing pass
     end
     -- sampleScreen.pass() samples gi_canvas into a 1x1 canvas that nothing
     -- reads back yet (see sampleScreen.lua). Run per frame it only cost a
