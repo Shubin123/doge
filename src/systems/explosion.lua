@@ -6,7 +6,8 @@ explosion.explosions = {}
 explosion.TYPES = {
     ROCKET = "rocket",
     DEATH = "death",
-    IMPLOSION = "implosion" -- a black hole gun's hole collapsing: the wave alone
+    IMPLOSION = "implosion", -- a black hole gun's hole collapsing: the wave alone
+    BLAST = "blast" -- an enemy's rocket: the fireball alone (they go off often, and each wave is two full-screen copies)
 }
 
 -- Blast wave per type: how far it spreads (px) and how long that takes (s).
@@ -15,6 +16,7 @@ local SHOCKWAVES = {
     [explosion.TYPES.ROCKET] = { radius = 350, duration = 0.6 },
     [explosion.TYPES.DEATH] = { radius = 500, duration = 0.9 },
     [explosion.TYPES.IMPLOSION] = { radius = 220, duration = 0.45 },
+    [explosion.TYPES.BLAST] = { radius = 0, duration = -1 }, -- (never live)
 }
 
 explosion.MAX_SHOCKWAVES = 4 -- waves distorted at once; the newest win
@@ -121,6 +123,8 @@ function explosion.create(x, y, explosion_type)
         anim = death_animation
     elseif explosion_type == explosion.TYPES.IMPLOSION then
         anim = NO_SPRITE
+    elseif explosion_type == explosion.TYPES.BLAST then
+        anim = rocket_animation
     else
         anim = rocket_animation -- Default to rocket animation
     end

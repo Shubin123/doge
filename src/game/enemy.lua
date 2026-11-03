@@ -1,39 +1,10 @@
 Enemy = {}
 Enemy.__index = Enemy
 
--- What enemies shoot: each picks one when it spawns (by weight). Every round
--- is a hostile bullet (bullet.new { hostile = true }), a neon tracer in the
--- weapon's colours that hurts the player (collision.lua) and stops at walls.
--- Damage is in player HP: player.maxHealth is 1000, ten hearts of 100.
---   shots, interval: rounds per trigger pull and the seconds between them
---   pellets, spread: bullets per round and the cone (radians) they scatter in
---   cooldown:        seconds between trigger pulls (plus up to 1 s of jitter)
---   range:           how far off it likes to fight from (px)
-local WEAPONS = {
-    { name = "tracer", weight = 4, range = 280, shots = 1, pellets = 1, spread = math.rad(4),
-      speed = 560, damage = 20, radius = 3, lifetime = 1.4, cooldown = 2.2,
-      neon = { core = { 1.0, 0.2, 0.12 }, halo = { 1.0, 0.0, 0.08 }, radius = 10 } },
-    { name = "burst", weight = 3, range = 230, shots = 3, interval = 0.1, pellets = 1, spread = math.rad(7),
-      speed = 500, damage = 12, radius = 3, lifetime = 1.4, cooldown = 2.8,
-      neon = { core = { 1.0, 0.85, 0.25 }, halo = { 1.0, 0.2, 0.0 }, radius = 9 } },
-    { name = "spread", weight = 2, range = 150, shots = 1, pellets = 5, spread = math.rad(30),
-      speed = 430, damage = 8, radius = 2, lifetime = 0.8, cooldown = 3.0,
-      neon = { core = { 1.0, 0.4, 0.6 }, halo = { 0.9, 0.0, 0.35 }, radius = 8 } },
-    { name = "orb", weight = 1, range = 320, shots = 1, pellets = 1, spread = 0,
-      speed = 220, damage = 45, radius = 7, lifetime = 2.6, cooldown = 3.6,
-      neon = { core = { 1.0, 0.65, 1.0 }, halo = { 0.6, 0.0, 1.0 }, radius = 22 } },
-}
-local WEAPON_WEIGHT = 0
-for _, w in ipairs(WEAPONS) do WEAPON_WEIGHT = WEAPON_WEIGHT + w.weight end
-
-local function pickWeapon()
-    local r = math.random() * WEAPON_WEIGHT
-    for _, w in ipairs(WEAPONS) do
-        r = r - w.weight
-        if r <= 0 then return w end
-    end
-    return WEAPONS[1]
-end
+-- What enemies shoot, by look and index: one of each of your weapons, and
+-- attacks of their own (lasers, the multi-laser, black holes): all in
+-- game/enemyWeapons.lua
+local enemyWeapons = require("game.enemyWeapons")
 
 --[[
   How each look shoots: the animation an attack plays once through, timed by
@@ -64,6 +35,18 @@ local MOVES = {
         rest = { from = 1, count = 12, fps = 8 } },
     gun = { aim = true, hits = {} },
 }
+
+-- The moves its special comes on (enemyWeapons.LOADOUT): a laser charges
+-- from the move's start and burns from its hit
+local CASTS = {
+    -- raises its hand (2-6), the spell leaving it (7)
+    watchman = { anim = "cast", frames = 15, from = 1, count = 15, fps = 12, hits = { 7 } },
+    -- both guns up together, out at once (14)
+    mech = { anim = "shoot", frames = 15, from = 10, count = 15, fps = 10, hits = { 14 } },
+    animated_special = MOVES.animated_special,
+    -- holds its aim on you while the beam charges
+    gun = { aim = true, hits = {}, charge = 0.7 },
+}
 --[[
   Up close, the watchmen and mechs fight hand to hand: a move of the same
   kind, each hit a blow that lands if you're still within `reach` of it with
@@ -92,11 +75,12 @@ local function prepare(m)
         m.hitTimes[#m.hitTimes + 1] = ((f - m.from) % m.frames) / m.fps
     end
     table.sort(m.hitTimes)
-    if m.aim then m.hitTimes[1] = 0 end
-    m.time = m.aim and 0.25 or m.count / m.fps
+    if m.aim then m.hitTimes[1] = m.charge or 0 end
+    m.time = m.aim and (m.charge or 0) + 0.25 or m.count / m.fps
 end
 for _, m in pairs(MOVES) do prepare(m) end
 for _, m in pairs(MELEE) do prepare(m) end
+for _, m in pairs(CASTS) do if not m.hitTimes then prepare(m) end end
 
 --[[
   How enemies think. Each thinks a few times a second rather than every
@@ -205,8 +189,6 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.health = 1
     self.max_health = self.health
     self.scale = scale or 0.6
-    self.weapon = pickWeapon()
-    self.fire_cooldown = self.weapon.cooldown
     self.burstLeft = 0   -- rounds of the current trigger pull still to fire
     self.burstTimer = 0
     self.detection_range = detection_range or 300
@@ -226,6 +208,7 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.wantX, self.wantY = 0, 0
     self.index = index
     self.meleeReady = 0 -- self.t it can swing again
+    self.specialReady = 2 + b * 4 -- self.t it can use its special
     self:setLook(ENEMY_TYPES[index % #ENEMY_TYPES + 1])
 
     return self
@@ -236,6 +219,8 @@ end
 function Enemy:setLook(look)
     self.look = look
     self.move = MOVES[look] or MOVES.watchman
+    self.cast = CASTS[look]
+    self.weapon, self.special = enemyWeapons.pick(look, self.index)
     self.melee = MELEE[look]
     self.brawler = self.melee ~= nil and math.floor(self.index / 7) % 2 == 1
     -- where it holds: a brawler within reach, the rest its weapon's range
@@ -251,15 +236,19 @@ local function spriteOf(self)
     return self.index < var.num_enemies and gun_enemies and gun_enemies[self.index + 2] or nil
 end
 
---- Start a move, its shooting one unless another's given: Enemy:update
---- plays it through, its weapon firing (or a blow landing) on each hit.
-function Enemy:startAttack(m)
-    m = m or self.move
-    self.attack = { t = 0, hit = 1, move = m }
+--- Start a move, its shooting one with its weapon unless others are given:
+--- Enemy:update plays it through, the weapon firing (or a blow landing) on
+--- each hit.
+function Enemy:startAttack(m, w)
+    m, w = m or self.move, w or self.weapon
+    self.attack = { t = 0, hit = 1, move = m, weapon = w }
     local sprite = spriteOf(self)
     if sprite and m.anim then
         sprite.setAnimation(m.anim)
         sprite.setFrame(m.from)
+    end
+    if w.kind == "laser" or w.kind == "blackhole" then
+        enemyWeapons.charge(self, w, m.hitTimes[1]) -- showing where it'll burn
     end
 end
 
@@ -276,10 +265,8 @@ function Enemy:strike(m)
     if not player.god and not player.isSafe() then
         player.applyKnockback(dir, m.damage * 1.5 * (m.knock - 1)) -- on top of hurt's
     end
-    bullet.createParticleEffect(vec2.new(px - dir.x * 10, py - dir.y * 10), dir, {
-        count = 10, colors = { { 1, 0.95, 0.8 }, { 1, 0.6, 0.3 } }, lifespan = 0.18,
-        speed = { min = 90, max = 220 }, spreadAngle = math.rad(60),
-    })
+    enemyWeapons.sparks(px - dir.x * 10, py - dir.y * 10, dir.x, dir.y, 10, math.rad(60),
+        { { 1, 0.95, 0.8 }, { 1, 0.6, 0.3 } }, 220, 0.18)
     local src = audio.playSoundAt("explosion", px, py, 0.05)
     if src then src:setPitch(2.2) end -- a short thud
     return true
@@ -329,13 +316,19 @@ function Enemy:think(px, py)
     self.stuck = speed > 50 and vx * vx + vy * vy < 20 * 20
     self.wantX, self.wantY = wx, wy
 
-    -- Within reach, hit you if it can; or else shoot when it can see you,
-    -- you're within its weapon's reach and it's ready (not a brawler)
-    local w, mm = self.weapon, self.melee
+    -- Within reach, hit you if it can; or else (not a brawler) use its
+    -- special when it's ready, or shoot, when it can see you and you're
+    -- within the weapon's reach
+    local w, mm, sp = self.weapon, self.melee, self.special
     if mm and self.los and not self.attack and d < mm.reach * 0.9 and self.t >= self.meleeReady then
         self:startAttack(mm)
         self.meleeReady = self.t + mm.time + 0.3
-    elseif self.los and not self.attack and not self.brawler and d < w.speed * w.lifetime * 0.9
+    elseif sp and self.cast and self.los and not self.attack and not self.brawler and d < sp.reach
+            and self.t >= self.specialReady and enemyWeapons.ready(sp) then
+        self:startAttack(self.cast, sp)
+        self.specialReady = self.t + sp.cooldown + self.jitter * 3
+        self.last_fire_time = self.t -- (not straight into a shot after)
+    elseif self.los and not self.attack and not self.brawler and d < w.reach
             and self.t - self.last_fire_time >= self.fire_cooldown + self.jitter then
         self:startAttack()
         self.last_fire_time = self.t
@@ -343,19 +336,25 @@ function Enemy:think(px, py)
     end
 end
 
--- Pull the trigger: the first round now, a burst weapon's others follow
--- from Enemy:update.
+-- Pull the trigger of the weapon its move fires (its own between moves): a
+-- bullet weapon's first round now, a burst weapon's others following from
+-- Enemy:update; anything else is enemyWeapons'.
 function Enemy:fireAtPlayer()
+    local w = self.attack and self.attack.weapon or self.weapon
+    if w.kind ~= "bullet" then
+        return enemyWeapons.fire(self, w)
+    end
+    self.firing = w
     self:shoot()
-    self.burstLeft = self.weapon.shots - 1
-    self.burstTimer = self.weapon.interval or 0
+    self.burstLeft = w.shots - 1
+    self.burstTimer = w.interval or 0
 end
 
--- One round of this enemy's weapon at where the player will be when it
+-- One round of the weapon it's firing at where the player will be when it
 -- gets there (as far as it can tell: some lead you more than others).
 function Enemy:shoot()
     if not (player and player.body) then return end
-    local w = self.weapon
+    local w = self.firing or self.weapon
     local ex, ey = self.body:getPosition()
     local px, py = player.body:getPosition()
     local pvx, pvy = player.body:getLinearVelocity()
@@ -378,6 +377,7 @@ function Enemy:shoot()
             lifetime = w.lifetime,
             neon = w.neon,
             hostile = true,
+            burst = w.burst, -- a rocket's or a fireball's, where it lands
         })
     end
     bullet.createMuzzleFlash(muzzle, vec2.new(dx, dy), {
@@ -517,8 +517,10 @@ function Enemy:update(dt)
             if m.reach then
                 self:strike(m)
             else
+                -- (bullets only at you in sight; a beam, bolt or black hole
+                -- is stopped by what's between)
                 local ex, ey = self.body:getPosition()
-                if inSight(ex, ey, player.body:getPosition()) then
+                if a.weapon.kind ~= "bullet" or inSight(ex, ey, player.body:getPosition()) then
                     self:fireAtPlayer()
                 end
             end
@@ -549,7 +551,7 @@ function Enemy:update(dt)
         if self.burstTimer <= 0 then
             self:shoot()
             self.burstLeft = self.burstLeft - 1
-            self.burstTimer = self.weapon.interval or 0
+            self.burstTimer = (self.firing or self.weapon).interval or 0
         end
     end
 
@@ -656,6 +658,7 @@ end
 function enemy.load()
     grid:reset() -- (a new world)
     field = nil
+    enemyWeapons.load()
     hideAllSprites()
     -- Staggered spawn: queue all enemies, spawn a few per frame
     enemy.spawnQueue = {}
@@ -753,6 +756,7 @@ function enemy.update(dt)
             e:update(dt)
         end
     end
+    enemyWeapons.update(dt) -- their beams, bolts and bursts
 end
 
 function enemy.damageEnemy(enemy_index, damage)

@@ -468,10 +468,11 @@ function blackhole.applyLensing()
 end
 
 --- The same pass for a small hole at world (x, y) whose shadow is `horizon`
---- px in radius, in the black hole gun's colder colours (blackholeGun.lua). Time
---- doesn't slow for it, so only the square round it that it bends is
---- touched, and nothing when that's off screen.
-function blackhole.applySmallLensing(x, y, horizon)
+--- px in radius, in the black hole gun's colder colours (blackholeGun.lua),
+--- or `hot`, in the black hole's own (an enemy's). Time doesn't slow for it,
+--- so only the square round it that it bends is touched, and nothing when
+--- that's off screen.
+function blackhole.applySmallLensing(x, y, horizon, hot)
     local zoom = camera.zoom
     local cx, cy = camera.pos.x + x * zoom, camera.pos.y + y * zoom
     local reach = LENS_RADIUS * horizon * zoom
@@ -481,7 +482,7 @@ function blackhole.applySmallLensing(x, y, horizon)
     if x1 <= x0 or y1 <= y0 then
         return
     end
-    lens(smallLensShader, cx, cy, horizon * zoom, 0, { x0, y0, x1 - x0, y1 - y0 })
+    lens(hot and lensShader or smallLensShader, cx, cy, horizon * zoom, 0, { x0, y0, x1 - x0, y1 - y0 })
 end
 
 return blackhole

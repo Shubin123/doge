@@ -88,6 +88,7 @@ function draw.mydraw()
     destruction.drawEffects() -- dust from what's hit and what falls
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
+    enemyWeapons.draw() -- enemies' laser beams and tesla bolts
     xp.drawGlow() -- XP globs shining in the dark
     inventory.drawGlow() -- and items on the ground
     suckLight.draw() -- dead enemies' light streaming into the player

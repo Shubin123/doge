@@ -14,6 +14,10 @@
       disk and ring stand in for it (blackholeGun.populate).
     * It pulls and swallows only where the world is run (host, single
       player); a client sees its own shots and nothing more.
+    * Enemies throw them too (game/enemyWeapons.lua: `hostile`): one of
+      theirs flies through enemies and opens on you, pulls you in rather
+      than them, hurts you at its heart, and burns red and orange like the
+      big black hole rather than blue.
 ]]
 local blackholeGun = {}
 blackholeGun.holes = {}
@@ -33,6 +37,12 @@ local DRAG = 3                 -- 1/s: inside, enemies lose their own way, so th
 local SWALLOW = HORIZON + 10   -- px: an enemy's centre this close is gone
 local BULLET_PULL = 4          -- enemies' bullets bend round it (as blackhole.lua's)
 local HIT_ENEMY = 24           -- px: in flight it stops on an enemy this close
+local HIT_PLAYER = 30          -- px: an enemy's stops on you this close
+local PLAYER_PULL = 7.0e4      -- an enemy's pulls you at PLAYER_PULL / d px/s^2 (up to MAX_PULL)...
+local PLAYER_DRAG = 2.5        -- 1/s: ...your fall settling at that over PLAYER_DRAG px/s...
+local MAX_DRIFT = 28           -- ...up to this a frame (you keep your speed, less friction: about
+                               -- 160 px/s standing, under your 200 walking out)
+local HURT_PER_SECOND = 220    -- HP at an enemy's heart (player.maxHealth is 1000)
 
 local passGroups -- fixtures a shot flies through (blackholeGun.load)
 
@@ -54,12 +64,14 @@ local function horizonOf(h)
 end
 
 -- Where the line from (x1, y1) to (x2, y2) first meets a wall, a prop or an
--- enemy (nil when nothing's in the way).
-local function firstHit(x1, y1, x2, y2)
+-- enemy (nil when nothing's in the way); a `hostile` one flies through
+-- enemies.
+local function firstHit(x1, y1, x2, y2, hostile)
     if (x1 - x2) ^ 2 + (y1 - y2) ^ 2 < 1e-6 then return nil end
     local hx, hy
     world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
-        if fixture:isSensor() or passGroups[fixture:getGroupIndex()] then
+        local group = fixture:getGroupIndex()
+        if fixture:isSensor() or passGroups[group] or (hostile and group == collision.groups.enemy) then
             return -1
         end
         hx, hy = x, y
@@ -85,7 +97,7 @@ local function open(h)
     h.age = 0
     local holes = {}
     for _, other in ipairs(blackholeGun.holes) do
-        if not other.flying then holes[#holes + 1] = other end
+        if not other.flying and not other.hostile == not h.hostile then holes[#holes + 1] = other end
     end
     -- The list is oldest first
     for i = 1, #holes - MAX_HOLES do
@@ -97,7 +109,7 @@ end
 local function advance(h, step)
     step = math.min(step, h.left)
     local nx, ny = h.x + h.dx * step, h.y + h.dy * step
-    local hx, hy = firstHit(h.x, h.y, nx, ny)
+    local hx, hy = firstHit(h.x, h.y, nx, ny, h.hostile)
     if hx then
         -- Just this side of what it hit
         h.x, h.y = hx - h.dx * FLIGHT_HORIZON, hy - h.dy * FLIGHT_HORIZON
@@ -105,13 +117,21 @@ local function advance(h, step)
         return
     end
     h.x, h.y, h.left = nx, ny, h.left - step
-    if h.left <= 0 or enemyNear(h.x, h.y, HIT_ENEMY) then
+    local stop
+    if h.hostile then
+        local px, py = player.body:getPosition()
+        stop = (px - h.x) ^ 2 + (py - h.y) ^ 2 < HIT_PLAYER * HIT_PLAYER
+    else
+        stop = enemyNear(h.x, h.y, HIT_ENEMY)
+    end
+    if h.left <= 0 or stop then
         open(h)
     end
 end
 
 --- Fire one. params = { from = vec2 (the player), dir = vec2 (unit),
---- muzzle = px from `from` it leaves at, range = px from `from` it opens at }
+--- muzzle = px from `from` it leaves at, range = px from `from` it opens at,
+--- hostile = an enemy's }
 function blackholeGun.new(params)
     local h = {
         x = params.from.x, y = params.from.y,
@@ -119,6 +139,8 @@ function blackholeGun.new(params)
         left = params.muzzle + math.max(MIN_RANGE, math.min(MAX_RANGE, (params.range or MAX_RANGE) - params.muzzle)),
         flying = true,
         age = 0,
+        hostile = params.hostile or nil,
+        driftX = 0, driftY = 0, -- an enemy's: your fall towards it, px/s
     }
     table.insert(blackholeGun.holes, h)
     advance(h, params.muzzle) -- out of the barrel, unless a wall is right there
@@ -163,6 +185,36 @@ local function pull(h, dt)
     end
 end
 
+-- An enemy's: pull you in (a drift kept here and added to your velocity, as
+-- blackhole.lua does: player.update's friction eats a small pull added to
+-- it), and hurt you at its heart.
+local function pullPlayer(h, dt)
+    local k = horizonOf(h) / HORIZON
+    local px, py = player.body:getPosition()
+    local dx, dy = h.x - px, h.y - py
+    local d = math.sqrt(dx * dx + dy * dy)
+    local keep = math.max(0, 1 - PLAYER_DRAG * dt)
+    h.driftX, h.driftY = h.driftX * keep, h.driftY * keep
+    if d > 0.5 and d < PULL_RADIUS then
+        local a = math.min(MAX_PULL, PLAYER_PULL / d) * k * dt
+        h.driftX, h.driftY = h.driftX + dx / d * a, h.driftY + dy / d * a
+    end
+    -- no faster than you can walk out, and easing off at its heart (or you'd
+    -- be flung through and out the far side)
+    local cap = MAX_DRIFT * math.min(1, d / 40)
+    local s = math.sqrt(h.driftX * h.driftX + h.driftY * h.driftY)
+    if s > cap then
+        h.driftX, h.driftY = h.driftX / s * cap, h.driftY / s * cap
+    end
+    if h.driftX * h.driftX + h.driftY * h.driftY > 0.01 then
+        local vx, vy = player.body:getLinearVelocity()
+        player.body:setLinearVelocity(vx + h.driftX, vy + h.driftY)
+    end
+    if d < SWALLOW * k then
+        player.hurt(HURT_PER_SECOND * dt)
+    end
+end
+
 local function collapse(h)
     explosion.create(h.x, h.y, explosion.TYPES.IMPLOSION)
     local src = audio.playSoundAt("explosion", h.x, h.y, 0.05, 0.4)
@@ -185,7 +237,7 @@ function blackholeGun.update(dt)
             table.remove(blackholeGun.holes, i)
         else
             if not h.flying and runsWorld then
-                pull(h, dt)
+                if h.hostile then pullPlayer(h, dt) else pull(h, dt) end
             end
             local k = horizonOf(h) / HORIZON
             shadow.addTransientLight(h.x, h.y + 10, 0.45 * k, 60 + 100 * k)
@@ -199,7 +251,7 @@ function blackholeGun.applyLensing()
     for _, h in ipairs(blackholeGun.holes) do
         local horizon = horizonOf(h)
         if horizon > 0.5 then
-            blackhole.applySmallLensing(h.x, h.y, horizon)
+            blackhole.applySmallLensing(h.x, h.y, horizon, h.hostile)
         end
     end
 end
@@ -215,6 +267,7 @@ function blackholeGun.populate()
             x = h.x,
             y = h.y,
             radius = horizonOf(h),
+            hostile = h.hostile,
             color = { 1, 1, 1, 1 },
         })
     end
@@ -223,11 +276,19 @@ end
 function blackholeGun.drawFallback(d)
     local shader = love.graphics.getShader()
     love.graphics.setShader()
-    love.graphics.setColor(0.45, 0.22, 1.0, 0.45)
+    if d.hostile then
+        love.graphics.setColor(0.95, 0.35, 0.08, 0.45) -- an enemy's: hot
+    else
+        love.graphics.setColor(0.45, 0.22, 1.0, 0.45)
+    end
     love.graphics.circle("fill", d.x, d.y, d.radius * 2.4)
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.circle("fill", d.x, d.y, d.radius)
-    love.graphics.setColor(0.75, 0.85, 1.0, 1)
+    if d.hostile then
+        love.graphics.setColor(1.0, 0.85, 0.65, 1)
+    else
+        love.graphics.setColor(0.75, 0.85, 1.0, 1)
+    end
     love.graphics.setLineWidth(1.5)
     love.graphics.circle("line", d.x, d.y, d.radius * 1.12)
     love.graphics.setLineWidth(1)

@@ -19,14 +19,18 @@ return function(h)
     player.god = true
     h.advance(10)
 
-    -- The frames each look's shots leave on (its animation, and where in it
-    -- the art reaches furthest from the body)
+    -- The frames each look's shots leave on, by animation (where in it the
+    -- art reaches furthest from the body): its shooting move's, and its
+    -- special's (a watchman's spell leaves its hand at 7)
     local EXPECT = {
-        watchman = { anim = "shoot", hits = { [1] = true, [12] = true }, per = 2 },
-        mech = { anim = "shoot", hits = { [14] = true, [2] = true }, per = 2 },
-        steve = { anim = "walk", hits = { [13] = true }, per = 1 },
-        animated_special = { anim = "default", hits = { [48] = true }, per = 1 },
+        watchman = { shoot = { [1] = true, [12] = true }, cast = { [7] = true } },
+        mech = { shoot = { [14] = true, [2] = true } },
+        steve = { walk = { [13] = true } },
+        animated_special = { default = { [48] = true } },
     }
+    local function onFrame(want, p)
+        return want[p.anim] and want[p.anim][p.shown]
+    end
 
     -- No enemies, and the next one in the first slot again (with a sprite:
     -- killed slots aren't reused)
@@ -107,7 +111,7 @@ return function(h)
         local want = EXPECT[l]
         if want then
             byLook[l] = (byLook[l] or 0) + 1
-            if not (p.anim == want.anim and want.hits[p.shown]) then
+            if not onFrame(want, p) then
                 off[#off + 1] = string.format("%s %s:%s", l, tostring(p.anim), tostring(p.shown))
             end
         end
@@ -120,11 +124,16 @@ return function(h)
 
     -- 2: each attack fires once per shooting frame
     local short = {}
-    local starts = {}
+    local starts = {} -- by enemy: hits its moves have had, and the last one's
     local start = Enemy.startAttack
-    Enemy.startAttack = function(self)
-        starts[self] = (starts[self] or 0) + 1
-        return start(self)
+    Enemy.startAttack = function(self, m, w)
+        local r = start(self, m, w)
+        local hits = #self.attack.move.hitTimes
+        if self.attack.move.reach then hits = 0 end -- (a melee move's are blows)
+        local s = starts[self] or { hits = 0, last = 0 }
+        s.hits, s.last = s.hits + hits, hits
+        starts[self] = s
+        return r
     end
     local shotsBy = {}
     pulls = {}
@@ -140,10 +149,10 @@ return function(h)
                 played = played + 1
                 -- (the last may still be playing)
                 local got = shotsBy[e] or 0
-                if got >= (n - 1) * want.per and got <= n * want.per then
+                if got >= n.hits - n.last and got <= n.hits then
                     matched = matched + 1
                 else
-                    short[#short + 1] = string.format("%s %d plays %d shots", look(e), n, got)
+                    short[#short + 1] = string.format("%s %d hits %d shots", look(e), n.hits, got)
                 end
             end
         end
@@ -185,7 +194,7 @@ return function(h)
         local want = EXPECT[p.look]
         if want then
             n = n + 1
-            if not (p.anim == want.anim and want.hits[p.shown]) then
+            if not onFrame(want, p) then
                 off[#off + 1] = string.format("%s %s:%s", p.look, tostring(p.anim), tostring(p.shown))
             end
         end

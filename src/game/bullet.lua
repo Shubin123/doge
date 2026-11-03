@@ -101,7 +101,9 @@ end
 
 -- Factory: create a new bullet (with pooling)
 -- params = { pos = vec2, dir = vec2, speed = number, damage = number, radius = number, lifetime = number,
---            neon = {core, halo, radius}, hostile = bool }
+--            neon = {core, halo, radius}, hostile = bool, burst = table }
+-- `burst` (an enemy's rocket or fireball: game/enemyWeapons.lua) goes off
+-- where it lands, or where it runs out.
 -- A hostile bullet is an enemy's: a sensor in its own collision group, so it
 -- passes through enemies, coins and other bullets without pushing them, and
 -- only the player (who it hurts) and the map (which stops it) react to it.
@@ -141,6 +143,7 @@ function bullet.new(params)
         instance.trail = {}
         instance.neon = neon
         instance.spent = false
+        instance.burst = params.burst
     else
         -- Create new instance
         local body = love.physics.newBody(bullet.world, pos.x, pos.y, "dynamic")
@@ -163,6 +166,7 @@ function bullet.new(params)
             neon      = neon,
             hostile   = hostile,
             spent     = false, -- a hostile bullet that has already hit
+            burst     = params.burst,
         }
         
         -- allow collision callback to recover instance
@@ -282,6 +286,7 @@ function bullet.update(dt)
         -- check lifetime expiration
         local age = bullet.t - inst.birthTime
         if age > inst.lifetime then
+            if inst.burst then enemyWeapons.burst(inst, x, y) end -- a rocket goes off at the end of its flight
             bullet.returnToPool(inst, i)
         end
     end

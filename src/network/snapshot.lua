@@ -73,6 +73,7 @@ function snapshot.create()
         end
         
         full_game_state.enemies = enemy.getNetworkData()
+        full_game_state.enemyFx = enemyWeapons.getNetworkData() -- their beams and bolts
         
         -- Collect boss data
         if boss then
@@ -376,6 +377,7 @@ function snapshot.apply(game_state)
         if last_full_game_state.enemies then
             enemy.applyNetworkData(last_full_game_state.enemies)
         end
+        enemyWeapons.applyNetworkData(last_full_game_state.enemyFx)
 
         blackhole.applyNetworkData(last_full_game_state.blackhole)
         destruction.applyNetworkData(last_full_game_state.structures)

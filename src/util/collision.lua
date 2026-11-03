@@ -455,6 +455,7 @@ function collision.init()
         table.insert(bullet.toReturn, inst)
         if fixtureB:getBody() == player.body then
             player.hurt(inst.damage, inst.dir)
+            enemyWeapons.burst(inst, inst.body:getPosition()) -- (a rocket's, a fireball's)
         end
     end)
 
@@ -465,6 +466,7 @@ function collision.init()
         inst.spent = true
         table.insert(bullet.toReturn, inst)
         shotStructure(fixtureB, fixtureA, contact, true)
+        enemyWeapons.burst(inst, inst.body:getPosition())
     end
     collision.registerResponse("enemyBullet", "map", enemyBulletStopped)
     collision.registerResponse("enemyBullet", "arch", enemyBulletStopped)
