@@ -36,6 +36,7 @@ function draw.mydraw()
     end)
     love.graphics.setColor(1, 1, 1, 0.4)
     regions.drawGround()
+    destruction.drawRubble() -- what's been knocked down, lying with the ground
 
     love.graphics.setColor(1, 1, 1, 1)
     puddle.draw() -- on the ground, under everything that wades through
@@ -64,6 +65,7 @@ function draw.mydraw()
     teslaCoil.populate()
     arrows.populate()
     car.populate()
+    destruction.populate() -- shards falling off what's been shot
     inventory.populate() -- items on the ground
     princess.x, princess.y = player.body:getX(), player.body:getY()
     characterAnimator.draw() -- uploads instances + death light; sprites draw in the sorted pass below
@@ -82,6 +84,7 @@ function draw.mydraw()
     
     love.graphics.setShader(shadow.getShader(true))
     renderer.renderSortedDrawList()
+    destruction.drawEffects() -- dust from what's hit and what falls
 
     bullet.draw() -- instanced neon tracers, glowing over the sorted sprites
     xp.drawGlow() -- XP globs shining in the dark

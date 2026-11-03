@@ -8,7 +8,8 @@
   Systems with more than a handful of fields own their snapshot format
   (map.createSaveData / map.restore, enemy.getSaveData / enemy.restore,
   boss.getSaveData / boss.restore, command.getCommandBlocks /
-  command.setCommandBlocks); this module gathers them and applies them.
+  command.setCommandBlocks, destruction.getSaveData / destruction.restore);
+  this module gathers them and applies them.
 
   A save is only ever game state: the Settings screen's choices live in
   settings.json (util/settings.lua) and load-time caches in cache/
@@ -126,6 +127,7 @@ function serial.create()
         cars = captureCars(),
         command_blocks = command.getCommandBlocks(),
         bag = inventory.getSaveData(), -- the bag and items on the ground
+        structures = destruction.getSaveData(), -- what's been knocked down in the regions
     }
 end
 
@@ -148,6 +150,7 @@ function serial.apply(state)
     if state.cars then restoreCars(state.cars) end
     if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
     inventory.restore(state.bag) -- (empty for a save from before the bag)
+    destruction.restore(state.structures) -- (all standing for a save from before they could fall)
 
     local p = state.player
     if p then

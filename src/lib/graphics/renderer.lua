@@ -980,12 +980,24 @@ function renderer.renderSortedDrawList()
         elseif drawable.source_object_type == "region" then
             -- lit by its height above the ground (game/regions.lua)
             love.graphics.setShader(regions.spriteShader)
-            love.graphics.draw(drawable.image_or_particles, drawable.quad, drawable.x, drawable.y, 0,
-                drawable.scale_x, drawable.scale_y)
+            if drawable.fmesh then
+                -- what's left of it once shards have come away (game/destruction.lua)
+                love.graphics.draw(drawable.fmesh, drawable.x, drawable.y, 0, drawable.scale_x, drawable.scale_y)
+            else
+                love.graphics.draw(drawable.image_or_particles, drawable.quad, drawable.x, drawable.y, 0,
+                    drawable.scale_x, drawable.scale_y)
+            end
+            if drawable.decals then destruction.drawMarks(drawable) end -- bullet holes, scorches, cracks
             love.graphics.setShader(current_shader)
+        elseif drawable.source_object_type == "debris" then
+            destruction.drawGroup(drawable.group) -- shards falling
         elseif drawable.image_or_particles then      --default draw
             if drawable.normal_map then setNormals(drawable) end
-            if drawable.quad then
+            local structure = drawable.structure -- (the arch: game/destruction.lua)
+            if structure and structure.fmesh then
+                love.graphics.draw(structure.fmesh, drawable.x, drawable.y, drawable.rotation or 0,
+                    drawable.scale_x or 1, drawable.scale_y or 1)
+            elseif drawable.quad then
                 love.graphics.draw(
                     drawable.image_or_particles,
                     drawable.quad,
@@ -1010,6 +1022,7 @@ function renderer.renderSortedDrawList()
                 )
             end
             if drawable.normal_map then shadow.setNormals(nil) end
+            if structure and structure.decals then destruction.drawMarks(structure) end
         elseif drawable.draw_type == "teslaCoil" then
             teslaCoil.renderPixelLine(drawable)
         elseif drawable.draw_type == "bezierArrow" then

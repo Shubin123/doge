@@ -26,11 +26,14 @@
   dark, light the scene around them and glow (see the emitters below).
   The same seed gives the same layout, so every client in a multiplayer game
   agrees on it without sending anything.
+  Everything with collision is a structure (game/destruction.lua): shot, it
+  takes marks and cracks, sheds shards, and at last comes down.
 ]]
 local regions = {}
 local normalmap = require("lib.graphics.normalmap")
 local footprint = require("lib.graphics.footprint")
 local cache = require("util.cache")
+local destruction = require("game.destruction")
 local lighting = require("lib.graphics.shadow") -- (the global shadow; this loads first)
 
 local TILE = 128        -- world px each ground texture covers before it repeats
@@ -554,6 +557,8 @@ local SPRITE_SHADER = normalmap.GLSL .. lighting.REACH_GLSL .. [[
         return vec4(rgb * groundAlpha / mix(groundAlpha, 1.0, daylight), groundAlpha);
     }
 ]]
+-- r: a region, or anything drawn from a sheet like one (image, scale,
+-- glowImage, normalImage: the arch's shards, game/destruction.lua)
 local function sendSpriteUniforms(r)
     local shader = regions.spriteShader
     shader:send("atlasHeight", r.image:getHeight())
@@ -569,6 +574,7 @@ end
 local function loadArt(r)
     local meta = require("gfx.regions." .. r.id)
     local data = cache.imageData(meta.image) -- (decoding the PNG is slow: cache.lua)
+    r.data = data -- (what's opaque: game/destruction.lua's marks and shards)
     r.image = love.graphics.newImage(data)
     r.image:setFilter("nearest", "nearest")
     r.sprites = {}
@@ -635,6 +641,38 @@ end
 -- footprint, a wall's thickness. Decor never blocks.
 local DEPTH = { facade = 0.3, wall = 0.18, tower = 0.25, barrier = 0.2, prop = 0.2, light = 0.15, landmark = 0.3 }
 
+-- A footprint's fixture, on the region's body: s = { x, y, w, h, item }
+local function solidFixture(r, s)
+    local fixture = love.physics.newFixture(r.body,
+        love.physics.newRectangleShape(s[1] + s[3] / 2, s[2] + s[4] / 2, s[3], s[4]))
+    fixture:setGroupIndex(collision.groups.map)
+    fixture:setUserData({ type = "region", region = r.id, item = s.item })
+    return fixture
+end
+
+-- A structure knocked down (game/destruction.lua): out of the world, its
+-- light out
+local function takeDown(item)
+    if item.fixture and not item.fixture:isDestroyed() then item.fixture:destroy() end
+    item.fixture = nil
+    local items = item.region.items
+    for i = #items, 1, -1 do
+        if items[i] == item then
+            table.remove(items, i)
+            break
+        end
+    end
+    if item.emitter then item.emitter.dead = true end
+end
+
+-- and back up (a save from before it fell)
+local function putBack(item)
+    if not item.fixture then item.fixture = solidFixture(item.region, item.solid) end
+    local items = item.region.items
+    items[#items + 1] = item
+    if item.emitter then item.emitter.dead = nil end
+end
+
 -- Put sprite `name` with its left edge at x and its base on `base`. Returns
 -- its width and the item, or nil if `check` is set and something's in the way.
 local function place(r, name, x, base, check)
@@ -682,8 +720,22 @@ local function place(r, name, x, base, check)
         r.items[#r.items + 1] = item
     end
     if depth then
-        r.solids[#r.solids + 1] = { fx, base - fh, fw, fh }
+        local solid = { fx, base - fh, fw, fh }
+        r.solids[#r.solids + 1] = solid
         mark(r.grid, fx, base - fh, fw, fh)
+        if not flat then
+            -- it can be shot to pieces and brought down (game/destruction.lua);
+            -- its key is its place in the layout, the same every time
+            r.structures[#r.structures + 1] = item
+            item.key = r.id .. ":" .. #r.structures
+            item.look, item.region, item.solid = r, r, solid
+            item.qx, item.qy, item.qw, item.qh = s.quad:getViewport()
+            item.scale, item.base, item.depth, item.glass = scale, base, fh, s.glass
+            item.foot = { fx, base - fh, fx + fw, base }
+            item.takeDown, item.putBack = takeDown, putBack
+            solid.item = item
+            destruction.register(item)
+        end
     else
         mark(r.grid, x + w * 0.2, base - 6, w * 0.6, 6)
     end
@@ -705,6 +757,7 @@ local function place(r, name, x, base, check)
             lamp = lamp,
             phase = #r.emitters * 1.37,
         }
+        item.emitter = r.emitters[#r.emitters] -- (out when it's knocked down)
     end
     return w, item
 end
@@ -775,7 +828,7 @@ local function generate(r, index)
     local ox, oy = r.ox, r.oy
     local x0, y0 = ox - MARGIN, oy - MARGIN
     r.grid = newGrid(r)
-    r.items, r.solids, r.emitters = {}, {}, {}
+    r.items, r.solids, r.emitters, r.structures = {}, {}, {}, {}
     r.flatBatch = love.graphics.newSpriteBatch(r.image, 256, "static")
     r.ground = groundMesh(r)
 
@@ -1368,10 +1421,8 @@ local function generate(r, index)
     -- Physics: every footprint, and a fence just inside the walls
     r.body = love.physics.newBody(world, 0, 0, "static")
     for _, s in ipairs(r.solids) do
-        local fixture = love.physics.newFixture(r.body,
-            love.physics.newRectangleShape(s[1] + s[3] / 2, s[2] + s[4] / 2, s[3], s[4]))
-        fixture:setGroupIndex(collision.groups.map)
-        fixture:setUserData({ type = "region", region = r.id })
+        local fixture = solidFixture(r, s)
+        if s.item then s.item.fixture = fixture end
     end
     local fence = love.physics.newFixture(r.body, love.physics.newChainShape(true,
         ox + 24, oy + TOP - 8, ox + W - 24, oy + TOP - 8,
@@ -1454,7 +1505,7 @@ function regions.update(dt)
     if here.emitters then
         local x0, y0, x1, y1 = regions.view(280)
         for _, e in ipairs(here.emitters) do
-            if e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
+            if not e.dead and e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
                 e.now = e.flicker and 0.8 + 0.2 * love.math.noise(regions.time * 7, e.phase) or 1
                 shadow.addTransientLight(e.x, e.base + 8, e.intensity * e.now, e.range)
             end
@@ -1469,7 +1520,7 @@ local function drawEmitters(r, fn)
     love.graphics.setShader()
     love.graphics.setBlendMode("add", "premultiplied")
     for _, e in ipairs(r.emitters) do
-        if e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
+        if not e.dead and e.x > x0 and e.x < x1 and e.base > y0 and e.y < y1 then
             fn(e, e.intensity * (e.now or 1) * daynight.glow())
         end
     end
@@ -1541,6 +1592,13 @@ function regions.drawGround()
     if prev then
         love.graphics.setShader(prev)
     end
+end
+
+--- Bind the sprite shader for things drawn from `look`'s sheet (a region,
+--- or another with its fields: see sendSpriteUniforms).
+function regions.useLook(look)
+    sendSpriteUniforms(look)
+    love.graphics.setShader(regions.spriteShader)
 end
 
 --- Add the region sprites on screen to the dynamic draw list (the renderer

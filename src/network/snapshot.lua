@@ -91,6 +91,7 @@ function snapshot.create()
         full_game_state.coins = xp.getNetworkData()
         full_game_state.blackhole = blackhole.getNetworkData()
         full_game_state.hour = daynight.hour
+        full_game_state.structures = destruction.getNetworkData() -- what's shot and what's down
         
         -- Add host's fire effects
         local host_fires = fire.getNetworkData()
@@ -377,6 +378,7 @@ function snapshot.apply(game_state)
         end
 
         blackhole.applyNetworkData(last_full_game_state.blackhole)
+        destruction.applyNetworkData(last_full_game_state.structures)
         if last_full_game_state.hour then
             daynight.setHour(last_full_game_state.hour) -- everyone shares the host's clock
         end

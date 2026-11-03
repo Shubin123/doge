@@ -21,6 +21,7 @@ enemy = require("game.enemy")
 boss = require("game.boss")
 portal = require("game.portal")
 regions = require("game.regions")
+destruction = require("game.destruction") -- structures shot to pieces and knocked down
 crt = require("systems.crt")
 puddle = require("systems.puddle")
 renderer = require("lib.graphics.renderer")
@@ -234,6 +235,7 @@ function love.load()
     puddle.load()
     -- smoke.load()
     portal.load()
+    destruction.load()
     regions.load() -- after the world, grass and puddles it lays out into
     crt.load()
     blur.load()
@@ -344,6 +346,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     portal.update(dt)
     regions.update(dt) -- before the lighting upload: its lamps add lights
+    destruction.update(dt) -- after the physics step: what was knocked down in it comes down
     -- blur.update(dt)
     explosion.update(dt)
     command.update(dt)

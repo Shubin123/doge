@@ -109,6 +109,8 @@ local function rocketSplash(userData, x, y)
             end
         end
     end
+    -- and what stands nearby (game/destruction.lua)
+    destruction.blast(x, y, splashRadius, destruction.BLAST)
     if hits > 1 and enemy.damage_indicators then
         table.insert(enemy.damage_indicators, {
             x = x,
@@ -124,6 +126,38 @@ local function rocketSplash(userData, x, y)
             nearby_count = 0,
             is_splash_indicator = true
         })
+    end
+end
+
+-- Where a contact touches, or for a sensor's (it has no points) where its body is
+local function contactPoint(contact, body)
+    local x, y = contact:getPositions()
+    if x then return x, y end
+    return body:getPosition()
+end
+
+-- A shot hit a wall: if it's a structure's (a region's building, the arch)
+-- it takes the hit (game/destruction.lua). A bullet, an enemy's (hostile),
+-- or a fireball.
+local function shotStructure(wall, shot, contact, hostile)
+    local inst = shot:getUserData()
+    local body = shot:getBody()
+    local x, y = contactPoint(contact, body)
+    local dx, dy
+    if type(inst) == "table" and inst.dir then
+        dx, dy = inst.dir.x, inst.dir.y
+    else
+        dx, dy = body:getLinearVelocity()
+        local len = math.sqrt(dx * dx + dy * dy)
+        if len > 0 then dx, dy = dx / len, dy / len else dx, dy = 0, -1 end
+    end
+    if type(inst) == "table" and inst[1] == "fireball" then
+        destruction.hitFixture(wall, x, y, dx, dy, destruction.FIRE, "fire")
+    elseif hostile then
+        destruction.hitFixture(wall, x, y, dx, dy, destruction.HOSTILE)
+    else
+        local damage = type(inst) == "table" and inst.damage or 1
+        destruction.hitFixture(wall, x, y, dx, dy, damage * destruction.BULLET)
     end
 end
 
@@ -424,28 +458,36 @@ function collision.init()
         end
     end)
 
-    -- Enemy bullet vs Map: walls and houses stop it
-    collision.registerResponse("enemyBullet", "map", function(fixtureA, fixtureB, contact)
+    -- Enemy bullet vs Map: walls and houses stop it (and the arch)
+    local function enemyBulletStopped(fixtureA, fixtureB, contact)
         local inst = fixtureA:getUserData()
         if not inst or inst.spent then return end
         inst.spent = true
         table.insert(bullet.toReturn, inst)
-    end)
+        shotStructure(fixtureB, fixtureA, contact, true)
+    end
+    collision.registerResponse("enemyBullet", "map", enemyBulletStopped)
+    collision.registerResponse("enemyBullet", "arch", enemyBulletStopped)
 
     -- Map vs Projectile: Apply impulse and destroy projectile (specific to bullets)
-    collision.registerResponse("map", "projectile", function(fixtureA, fixtureB, contact)
+    local function projectileStopped(fixtureA, fixtureB, contact)
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local hit = { x = nx * 200, y = ny * 200 }
         otherBody:applyLinearImpulse(hit.x, hit.y)
         local userData = fixtureB:getUserData()
+        if userData and userData.spent then return end -- (touching two walls at once: one hit)
         if userData and bullet and bullet.toReturn and userData.speed and not userData.topSpeed then
+            userData.spent = true
             table.insert(bullet.toReturn, userData)
         end
-    end)
+        shotStructure(fixtureA, fixtureB, contact, false)
+    end
+    collision.registerResponse("map", "projectile", projectileStopped)
+    collision.registerResponse("arch", "projectile", projectileStopped)
 
     -- Map vs Rocket: Apply impulse, trigger explosion, and destroy rocket
-    collision.registerResponse("map", "rocket", function(fixtureA, fixtureB, contact)
+    local function rocketStopped(fixtureA, fixtureB, contact)
         local otherBody = fixtureB:getBody()
         local nx, ny = contact:getNormal()
         local x, y = contact:getPositions()
@@ -485,7 +527,9 @@ function collision.init()
             --     end
             -- end
         end
-    end)
+    end
+    collision.registerResponse("map", "rocket", rocketStopped)
+    collision.registerResponse("arch", "rocket", rocketStopped)
 
     -- Map vs Enemy: Apply impulse
     collision.registerResponse("map", "enemy", function(fixtureA, fixtureB, contact)

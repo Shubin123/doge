@@ -92,6 +92,12 @@ local function checkArrowCollision(world, arrow)
         arrow.x = x
         arrow.y = y
         arrow.stuck = true
+        -- a building or wall it sticks in takes the hit (game/destruction.lua; the host's say)
+        if not var.multiplayer or var.multiplayer == 1 then
+            local dx, dy = x - arrow.prev_x, y - arrow.prev_y
+            local len = math.sqrt(dx * dx + dy * dy)
+            if len > 0 then destruction.hitFixture(fixture, x, y, dx / len, dy / len, destruction.ARROW) end
+        end
         return 0
     end)
     

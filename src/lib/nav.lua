@@ -7,7 +7,8 @@
   `clearance` px from its middle to its edge fits in: each cell is tested
   against the world's static fixtures (house walls, region buildings and
   fences, the arches, the tree) the first time it's asked about, and
-  remembered. Make a new grid, or :reset() one, when the world changes.
+  remembered. Make a new grid, or :reset() one, when the world changes;
+  nav.forget(rect) when something's built or knocked down there.
 
     grid:path(x, y, tx, ty)  a way there (A*), straightened
     grid:flow(tx, ty, r)     which way leads to (tx, ty) from every cell
@@ -19,15 +20,32 @@ nav.__index = nav
 
 local KEY = 100003 -- cells' keys: cx * KEY + cy
 
+local grids = setmetatable({}, { __mode = "k" }) -- every grid there is, for nav.forget
+
 --- A grid of `cell` px cells for something `clearance` px from its middle
 --- to its edge.
 function nav.new(cell, clearance)
-    return setmetatable({ cell = cell, clearance = clearance, cells = {} }, nav)
+    local grid = setmetatable({ cell = cell, clearance = clearance, cells = {} }, nav)
+    grids[grid] = true
+    return grid
 end
 
 --- Forget what's been tested (the world changed).
 function nav:reset()
     self.cells = {}
+end
+
+--- Every grid forgets what it tested near the world rect x0, y0 - x1, y1
+--- (something there was knocked down: game/destruction.lua).
+function nav.forget(x0, y0, x1, y1)
+    for grid in pairs(grids) do
+        local pad = grid.clearance + grid.cell
+        local c0, r0 = grid:cellAt(x0 - pad, y0 - pad)
+        local c1, r1 = grid:cellAt(x1 + pad, y1 + pad)
+        for cx = c0, c1 do
+            for cy = r0, r1 do grid.cells[cx * KEY + cy] = nil end
+        end
+    end
 end
 
 -- Whether the segment (x1, y1)-(x2, y2) crosses the box (Liang-Barsky)

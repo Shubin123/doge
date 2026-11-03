@@ -914,7 +914,7 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                     local visual_x = arch.pivot_x + visual.offset_x
                     local visual_y = arch.pivot_y + visual.offset_y
 
-                    table.insert(drawItems, {
+                    local item = {
                         sort_y = base_sort_y + visual_y,
                         image_or_particles = map.tiles3.tilesetImage,
                         quad = map.tiles3.quads[visual.tileId],
@@ -930,7 +930,10 @@ function map.addMapToDynamicDrawList(mapData, map_x, map_y, map_scale, base_sort
                         normal_map = map.tiles3.normals,
                         source_object_type = "arch",
                         object_id = arch.id,
-                    })
+                    }
+                    -- it can be shot to pieces and knocked down (game/destruction.lua)
+                    item.structure = destruction.forArch(arch, item)
+                    table.insert(drawItems, item)
                     -- where it stands, which stops the flashlight (systems/light.lua)
                     arch.feet = footprint.place(tileFeet(map.tiles3, visual.tileId), visual_x, visual_y,
                         map_scale * arch.scale, 12 * map_scale * arch.scale)
