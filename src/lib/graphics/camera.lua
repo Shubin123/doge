@@ -1,13 +1,20 @@
 -- Camera module
 local camera = {}
 
--- Camera state
+-- Camera state. The camera follows a world point, the one at the middle of
+-- the screen (cx, cy), and zooming scales the view round it, so a zoom never
+-- moves it. camera.x, camera.y (camera.pos: the screen offset everything is
+-- drawn with, screen = world * zoom + offset) are worked out from it and the
+-- zoom every update, in whole pixels, so they always agree with the zoom and
+-- with what camera.apply() draws. (They used to be eased on their own, in
+-- screen px, which a zoom knocked out of step with the zoom by the player's
+-- distance from the world's origin times its change: tens of px out in the
+-- regions, 20000 px east.)
 camera.x = 0
 camera.y = 0
 camera.pos = require("lib.math.vec2").new(0,0)
+camera.cx, camera.cy = nil, nil -- (until the first update or snap)
 
-camera.target_x = 0
-camera.target_y = 0
 camera.zoom = 1.0
 camera.target_zoom = 1.0
 camera.lerp_speed = 2 -- Adjust this value (1 = slow, 10 = fast)
@@ -21,13 +28,22 @@ camera.shake_offset_x = 0
 camera.shake_offset_y = 0
 
 function camera.apply()
-    -- Apply zoom and translation together
+    -- Apply zoom and translation together, the translation in whole screen
+    -- pixels, shake included (flooring it in world units snapped it by up to
+    -- `zoom` px, by a different amount every frame of a zoom)
     love.graphics.scale(camera.zoom,camera.zoom)
-    -- Floor the camera position to prevent jitter and add shake offset
     love.graphics.translate(
-        math.floor((camera.x + camera.shake_offset_x) / camera.zoom), 
-        math.floor((camera.y + camera.shake_offset_y) / camera.zoom)
+        math.floor(camera.x + camera.shake_offset_x) / camera.zoom,
+        math.floor(camera.y + camera.shake_offset_y) / camera.zoom
     )
+end
+
+-- camera.x, camera.y from the point it follows and the zoom
+local function place()
+    camera.x = math.floor(love.graphics.getWidth() / 2 - camera.cx * camera.zoom)
+    camera.y = math.floor(love.graphics.getHeight() / 2 - camera.cy * camera.zoom)
+    camera.pos.x = camera.x
+    camera.pos.y = camera.y
 end
 
 function camera.setSpeed(speed)
@@ -54,7 +70,6 @@ function camera.shake(intensity, duration)
     camera.shake_timer = camera.shake_duration
 end
 
--- Fixed implementation with aggressive zoom compensation
 function camera.update(dt, player)
     
     -- Update screen shake
@@ -74,76 +89,32 @@ function camera.update(dt, player)
         camera.shake_offset_y = 0
     end
     
-    -- Store previous zoom for compensation
-    local prev_zoom = camera.zoom
-    
-    -- Update zoom first
+    -- Zoom, frame-rate independent, settling on the target at the end
     local zoom_lerp_amount = 1.0 - math.exp(-camera.zoom_lerp_speed * dt)
     camera.zoom = camera.zoom + (camera.target_zoom - camera.zoom) * zoom_lerp_amount
-    
-        local target_screen_x = love.graphics.getWidth() / 2
-        local target_screen_y = love.graphics.getHeight() / 2
-
-    -- Aggressive compensation for zoom change to keep character locked in center
-    if math.abs(prev_zoom - camera.zoom) > 0.0001 then
-        
-
-        
-        -- Force camera position to keep player exactly at target screen position
-        camera.x = target_screen_x - player.body:getX() * camera.zoom
-        camera.y = target_screen_y - player.body:getY() * camera.zoom
-        
-        -- Also update targets to prevent lerping away from this position
-        camera.target_x = camera.x
-        camera.target_y = camera.y
-    else
-        -- Normal target calculation when zoom is stable
-        -- local screen_center_x = love.graphics.getWidth() / 2 - 3000*camera.zoom 
-        local screen_center_y = love.graphics.getHeight() / 2 - 100
-        
-        camera.target_x = -player.body:getX() * camera.zoom + target_screen_x
-        camera.target_y = -player.body:getY() * camera.zoom + target_screen_y
-        
-        -- Frame-rate independent lerping for position only when not compensating zoom
-        local lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
-        
-        camera.x = camera.x + (camera.target_x - camera.x) * lerp_amount
-        camera.y = camera.y + (camera.target_y - camera.y) * lerp_amount
-    end
-    
-    camera.pos.x = camera.x 
-    camera.pos.y = camera.y
-    
-    -- print(math.abs(camera.target_zoom - camera.zoom))
-    
     if math.abs(camera.target_zoom - camera.zoom) < 0.001 then
         camera.zoom = camera.target_zoom
-        -- if blur.is_enabled() then
-        
-        -- blur.disable()
-        -- blur.set_radius(3)
-        -- end
-
-    else
-        -- shader.sample = 4
-        -- shader.distance = 10
-        -- if not blur.is_enabled() then
-        -- blur.enable()
-        -- blur.set_radius(5*math.abs(camera.target_zoom - camera.zoom))
-        -- end
-        
     end
+
+    -- Follow the player, frame-rate independent, in the world, so it carries
+    -- on just the same through a zoom
+    local px, py = player.body:getPosition()
+    if not camera.cx then
+        -- (where the screen offset had it)
+        camera.cx = (love.graphics.getWidth() / 2 - camera.x) / camera.zoom
+        camera.cy = (love.graphics.getHeight() / 2 - camera.y) / camera.zoom
+    end
+    local lerp_amount = 1.0 - math.exp(-camera.lerp_speed * dt)
+    camera.cx = camera.cx + (px - camera.cx) * lerp_amount
+    camera.cy = camera.cy + (py - camera.cy) * lerp_amount
+    place()
 end
 
 
 -- Jump straight onto the player (after a teleport) instead of gliding there
 function camera.snap(player)
-    camera.x = love.graphics.getWidth() / 2 - player.body:getX() * camera.zoom
-    camera.y = love.graphics.getHeight() / 2 - player.body:getY() * camera.zoom
-    camera.target_x = camera.x
-    camera.target_y = camera.y
-    camera.pos.x = camera.x
-    camera.pos.y = camera.y
+    camera.cx, camera.cy = player.body:getPosition()
+    place()
 end
 
 function camera.screenToWorld(x, y)

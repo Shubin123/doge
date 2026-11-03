@@ -13,7 +13,8 @@ local config = {
     collision_radius = 15, -- Radius for endpoint collision detection
     lock_range = 400, -- Bolts attach to enemies up to this far from the coil...
     lock_angle = 60, -- ...and up to this many degrees either side of the aim
-    damage_per_second = 4, -- per bolt on an enemy (enemies have 1 health)
+    damage_per_second = 12, -- per bolt on an enemy (enemies have 3 health: game/enemy.lua)
+    scorch_every = 0.3, -- seconds of a bolt on an enemy for each scorch it leaves
     colors = {
         spark = { 1, 1, 1 },
         glow = { 0.35, 0.6, 1.0 } -- electric blue around the white core
@@ -354,13 +355,23 @@ function teslaCoil.fireAt(x, y, world)
 end
 
 -- Every bolt that lands on an enemy this frame burns it for
--- damage_per_second; several bolts on one enemy stack.
+-- damage_per_second; several bolts on one enemy stack. Now and then it
+-- scorches it somewhere about its middle.
+local burning = setmetatable({}, { __mode = "k" }) -- body -> seconds of bolts on it since its last scorch
 local function shockTargets(dt)
     for _, body in ipairs(state.encapsulated_objects) do
         if not body:isDestroyed() then
             local fixture = body:getFixtures()[1]
             if fixture and fixture:getGroupIndex() == collision.groups.enemy then
-                enemy.damageEnemy(fixture:getUserData(), config.damage_per_second * dt)
+                local t = (burning[body] or config.scorch_every) + dt
+                local x, y
+                if t >= config.scorch_every then
+                    t = 0
+                    x, y = body:getPosition()
+                    x, y = x + love.math.random(-12, 12), y + love.math.random(-10, 10)
+                end
+                burning[body] = t
+                enemy.damageEnemy(fixture:getUserData(), config.damage_per_second * dt, x, y, "scorch")
             end
         end
     end

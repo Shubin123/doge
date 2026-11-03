@@ -21,6 +21,15 @@ local characterDefinitions = {} -- Character types with their animation states
 local spriteCount = 0
 local instances = {} -- Store all instances for populate
 local quadHalf = 0 -- the sprite quad's half size, before an instance's scale
+local marksData, marksImage, marksDirty -- the instances' damage marks (characterAnimator.mark)
+
+-- The marks texture: a row per instance (characterAnimator.mark, below)
+local function newMarks()
+    marksData = love.image.newImageData(characterAnimator.MAX_MARKS, math.max(1, characterAnimator.instanceCount))
+    marksImage = love.graphics.newImage(marksData)
+    marksImage:setFilter("nearest", "nearest")
+    marksDirty = false
+end
 local fadeBounds -- world rect every fading (death-lit) instance covers, or nil
 local spriteLocationMap = {} -- Maps global sprite index to {u, v, uSize, vSize} coordinates
 
@@ -334,6 +343,9 @@ local function createInstance()
     instance.scale = 1
     instance.rotation = 0
     instance.on = true
+    instance.health = nil -- how much it has left, 0..1, once it's hurt (characterAnimator.hurt)
+    instance.hitAt = nil  -- when it was last hit (fire.t), for the flash
+    instance.marks = 0    -- damage marks on it (characterAnimator.mark)
 
     function instance.update(dt)
         if not instance.currentSpriteIndex or instance.progressPinned then
@@ -490,10 +502,13 @@ function characterAnimator.load()
         varying LOVE_HIGHP_OR_MEDIUMP vec2 pos;
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VFeet; // where it stands (world), for the flashlight's reach
         varying LOVE_HIGHP_OR_MEDIUMP float VFade; // onoff: 0 hidden, (0,1] opacity
+        varying LOVE_HIGHP_OR_MEDIUMP vec4 VDamage; // health left (0..1), a hit's flash, its marks' row, how many
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 VLocal;  // where in its quad (0..1, y down)
 
         #ifdef VERTEX
 attribute vec4 InstanceUVData; 
 attribute vec4 color;
+attribute vec4 InstanceDamage;
 attribute vec3 InstanceMatrix1; 
 attribute vec3 InstanceMatrix2; 
 attribute vec3 InstanceMatrix4;
@@ -508,6 +523,8 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         vec2 localUV = VaryingTexCoord.xy;
         VColor = vec4(color);
         VFade = onoff;
+        VDamage = InstanceDamage;
+        VLocal = localUV;
         VaryingUV = vec2(
             InstanceUVData.x + localUV.x * InstanceUVData.z,
             InstanceUVData.y + localUV.y * InstanceUVData.w
@@ -542,6 +559,54 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         // Outline uniforms
         uniform float outlineWidth;
         uniform vec3 outlineColor;
+
+        // Damage (characterAnimator.hurt, .mark): a row per instance in
+        // `marks`, a mark per texel: where in its quad (r, g), its kind (b:
+        // 1 a hole, 2 a scorch) and a seed (a)
+        #define MAX_MARKS 8
+        uniform Image marks;
+        uniform vec2 marksSize; // marks per row, rows
+        const float SPRITE_TEXELS = 128.0; // across its quad, at full resolution
+        const float GAUGE_WIDTH = 1.0;     // the outline of something hurt (as color.w)
+
+        float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        // How much of the light the marks on it leave texel p (in its quad)
+        float marked(vec2 p, float row, float count) {
+            p = (floor(p * SPRITE_TEXELS) + 0.5) / SPRITE_TEXELS; // whole texels, as the art is
+            float k = 1.0;
+            for (int i = 0; i < MAX_MARKS; i++) {
+                if (float(i) >= count) break;
+                vec4 m = Texel(marks, vec2((float(i) + 0.5) / marksSize.x, (row + 0.5) / marksSize.y));
+                float d = length(p - m.xy) * SPRITE_TEXELS; // texels
+                float kind = floor(m.b * 255.0 + 0.5);
+                float rough = hash(floor(p * SPRITE_TEXELS) + m.a * 97.0); // ragged edges
+                if (kind < 1.5) {
+                    // a hole: a dark core, burnt round it
+                    k *= mix(0.12, 1.0, step(1.2 + rough * 0.8, d));
+                    k *= mix(0.7, 1.0, smoothstep(2.0, 3.5 + rough, d));
+                } else {
+                    // a scorch: a soft dark blotch
+                    k *= mix(0.4, 1.0, smoothstep(3.0, 7.0, d + rough * 2.5));
+                }
+            }
+            return k;
+        }
+
+        // The outline of something hurt is a gauge round it: lit from the
+        // top, clockwise, as far round as it has health left (green, through
+        // yellow, to red), dark the rest of the way; white as it's hit
+        vec4 gauge(vec2 p, float health, float flash) {
+            vec2 d = p - vec2(0.5);
+            float around = fract(atan(d.x, -d.y) / 6.28318531 + 1.0);
+            vec3 c = health > 0.5
+                ? mix(vec3(1.0, 0.85, 0.1), vec3(0.2, 0.95, 0.3), health * 2.0 - 1.0)
+                : mix(vec3(0.95, 0.15, 0.1), vec3(1.0, 0.85, 0.1), health * 2.0);
+            vec4 col = around < health ? vec4(c, 1.0) : vec4(0.12, 0.1, 0.1, 0.85);
+            return mix(col, vec4(1.0), flash);
+        }
         
         // Normal map uniforms
         uniform Image NormalTex;
@@ -665,12 +730,18 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             vec3 litColor = texColor.rgb * lit;
             
             vec4 finalColor = vec4(litColor, texColor.a);
+            if (texColor.a >= 0.1) {
+                if (VDamage.w > 0.0) finalColor.rgb *= marked(VLocal, VDamage.z, VDamage.w);
+                finalColor.rgb = mix(finalColor.rgb, vec3(1.0), VDamage.y * 0.35); // a hit's flash
+            }
 
-            // Outline detection
-            if (VColor.w > 0.0) {
+            // Outline detection: its own colour, or once it's hurt its health
+            bool hurt = VDamage.x < 1.0;
+            float width = hurt ? GAUGE_WIDTH : VColor.w;
+            if (width > 0.0) {
                 if (texColor.a < 0.1) {
                     float outline = 0.0;
-                    float pixelOffset = VColor.w * 0.0001;
+                    float pixelOffset = width * 0.0001;
 
                     for (int x = -1; x <= 1; x++) {
                         for (int y = -1; y <= 1; y++) {
@@ -688,7 +759,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                     }
 
                     if (outline > 0.0) {
-                        finalColor = VColor;
+                        finalColor = hurt ? gauge(VLocal, VDamage.x, VDamage.y) : VColor;
                     }
                 }
             }
@@ -701,6 +772,9 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     
     
     -- Initialize shader uniforms
+    newMarks()
+    characterAnimator.shader:send("marks", marksImage)
+    characterAnimator.shader:send("marksSize", { characterAnimator.MAX_MARKS, marksData:getHeight() })
     local normalMapTexture = cache.newImage("gfx/3d/princess/normals/walk2.png.wow")
     characterAnimator.shader:send("NormalTex", normalMapTexture)
     characterAnimator.shader:send("useNormalMap", true)
@@ -902,7 +976,8 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     -- Instance format for 3x3 matrix
     local instanceFormat = {{"InstanceUVData", "float", 4}, {"color", "float", 4}, {"InstanceMatrix1", "float", 3},
                             {"InstanceMatrix2", "float", 3}, {"InstanceMatrix4", "float", 3}, {"onoff", "float", 1}, -- bit repr for each instance
-                            {"InstanceOrder", "float", 1}
+                            {"InstanceOrder", "float", 1},
+                            {"InstanceDamage", "float", 4} -- health left, a hit's flash, marks' row, how many
     }
 
     local emptyInstanceData = {}
@@ -918,6 +993,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     mesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
     mesh:attachAttribute("onoff", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceOrder", instanceMesh, "perinstance")
+    mesh:attachAttribute("InstanceDamage", instanceMesh, "perinstance")
 
     litmesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
     litmesh:attachAttribute("color", instanceMesh, "perinstance")
@@ -926,6 +1002,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     litmesh:attachAttribute("InstanceMatrix4", instanceMesh, "perinstance")
     litmesh:attachAttribute("onoff", instanceMesh, "perinstance")
     litmesh:attachAttribute("InstanceOrder", instanceMesh, "perinstance")
+    litmesh:attachAttribute("InstanceDamage", instanceMesh, "perinstance")
 
     -- Create instances with character types
     instances = {}
@@ -933,6 +1010,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     for i = 1, characterAnimator.instanceCount do
         local instance = createInstance()
+        instance.row = i - 1 -- its marks' row (characterAnimator.mark)
         instance.x = love.math.random(0, love.graphics.getWidth() * 2)
         instance.y = love.math.random(0, love.graphics.getHeight() * 2)
 
@@ -1030,6 +1108,54 @@ local function getUV(instance)
     end
 end
 
+--------------------------------------------------------------------------------
+-- Damage: what an instance shows of being hurt. Its outline becomes a gauge
+-- of the health it has left, it flashes as it's hit, and the hits leave
+-- marks on it, bullet holes and scorches, in a small texture with a row per
+-- instance (MAX_MARKS to a row, the oldest replaced): where in its quad (as
+-- it's drawn, so a mark stays where it landed as it animates), the kind and
+-- a seed for its ragged edge. Only on its opaque texels.
+--------------------------------------------------------------------------------
+
+characterAnimator.MAX_MARKS = 8
+characterAnimator.FLASH = 0.15 -- seconds a hit's flash lasts
+characterAnimator.MARK_KINDS = { hole = 1, scorch = 2 }
+
+-- A hit's flash, 1 as it lands to 0
+local function flash(instance)
+    if not instance.hitAt then return 0 end
+    return math.max(0, 1 - (fire.t - instance.hitAt) / characterAnimator.FLASH)
+end
+
+--- Show `instance` with `health` (0..1) left; flashing if `hit`
+function characterAnimator.hurt(instance, health, hit)
+    instance.health = math.max(0, math.min(1, health))
+    if hit then instance.hitAt = fire.t end
+end
+
+--- A mark (kind: "hole" or "scorch") on `instance` where world point
+--- (x, y) lands on it as drawn
+function characterAnimator.mark(instance, x, y, kind)
+    if not (marksData and instance.row) then return end
+    local size = 2 * quadHalf * math.abs(instance.scale or 1)
+    if size <= 0 then return end
+    local u = (x - instance.x) / size + 0.5
+    local v = (y - instance.y) / size + 0.5
+    if u < 0 or u > 1 or v < 0 or v > 1 then return end
+    local n = instance.nextMark or 0
+    instance.nextMark = (n + 1) % characterAnimator.MAX_MARKS
+    instance.marks = math.min(characterAnimator.MAX_MARKS, instance.marks + 1)
+    local seed = (instance.row * 7 + n * 31 + math.floor(x * 3 + y * 5)) % 255 + 1
+    marksData:setPixel(n, instance.row, u, v, (characterAnimator.MARK_KINDS[kind] or 1) / 255, seed / 255)
+    marksDirty = true
+end
+
+--- Healed and unmarked: as new (a slot taken by another enemy)
+function characterAnimator.clearMarks(instance)
+    instance.health, instance.hitAt = nil, nil
+    instance.marks, instance.nextMark = 0, 0
+end
+
 function characterAnimator.populate()
     local sortedIndices = {}
     local activeInstanceCount = 0
@@ -1080,7 +1206,8 @@ function characterAnimator.populate()
             -sin_r * scale, cos_r * scale, 0,       -- InstanceMatrix2
             instance.x, instance.y, 1,               -- InstanceMatrix4
             instance.on and (instance.opacity or 1) or 0, -- onoff: visibility and opacity
-            i - 1}                                   -- InstanceOrder
+            i - 1,                                   -- InstanceOrder
+            instance.health or 1, flash(instance), instance.row or 0, instance.marks} -- InstanceDamage
         else
             -- Disabled padding entry (onoff=0 means shader skips it)
             instanceData[i] = {defaultUV[1], defaultUV[2], defaultUV[3], defaultUV[4],
@@ -1089,11 +1216,16 @@ function characterAnimator.populate()
             0, 1, 0,
             -10000, -10000, 1,
             0,
-            i - 1}
+            i - 1,
+            1, 0, 0, 0}
         end
     end
 
     instanceMesh:setVertices(instanceData)
+    if marksDirty then
+        marksImage:replacePixels(marksData)
+        marksDirty = false
+    end
     sortKeyCount = activeInstanceCount
     sortedDrawn = 0
 end

@@ -9,6 +9,7 @@ local config = {
     spread_angle = 45, -- Degrees of spread for multiple arrows
     arrow_lifetime = 2, -- Seconds before arrow disappears
     collision_radius = 8,
+    damage = 1.5, -- to an enemy it sticks in (enemies have 3 health: game/enemy.lua)
     colors = {
         arrow = { 1, 0.9, 0.7 },
         trail = { 1, 0.7, 0.4, 0.5 }
@@ -77,6 +78,7 @@ local function checkArrowCollision(world, arrow)
     
     local hit = false
     local hit_object = nil
+    local struck -- an enemy it stuck in: {index, x, y}, hurt once the ray's done (a kill destroys its body)
     
     world:rayCast(arrow.prev_x, arrow.prev_y, arrow.x, arrow.y, function(fixture, x, y, xn, yn, fraction)
         local body = fixture:getBody()
@@ -92,14 +94,22 @@ local function checkArrowCollision(world, arrow)
         arrow.x = x
         arrow.y = y
         arrow.stuck = true
-        -- a building or wall it sticks in takes the hit (game/destruction.lua; the host's say)
+        -- a building or wall it sticks in takes the hit (game/destruction.lua),
+        -- and so does an enemy (the host's say)
         if not var.multiplayer or var.multiplayer == 1 then
             local dx, dy = x - arrow.prev_x, y - arrow.prev_y
             local len = math.sqrt(dx * dx + dy * dy)
-            if len > 0 then destruction.hitFixture(fixture, x, y, dx / len, dy / len, destruction.ARROW) end
+            if fixture:getGroupIndex() == collision.groups.enemy then
+                struck = { fixture:getUserData(), x, y }
+            elseif len > 0 then
+                destruction.hitFixture(fixture, x, y, dx / len, dy / len, destruction.ARROW)
+            end
         end
         return 0
     end)
+    if struck then
+        enemy.damageEnemy(struck[1], config.damage, struck[2], struck[3], "hole")
+    end
     
     return hit, hit_object
 end

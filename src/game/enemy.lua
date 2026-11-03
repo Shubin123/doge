@@ -68,6 +68,9 @@ local MELEE = {
 -- What each enemy looks like, by its index
 local ENEMY_TYPES = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
 
+-- How far up a hit's mark is from the body's middle, on its sprite (world px)
+local MARK_CHEST = -8
+
 local function prepare(m)
     -- seconds into the move each hit comes, in order
     m.hitTimes = {}
@@ -186,7 +189,7 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.fixture:setDensity(2.0)
     self.fixture:setUserData(index)
 
-    self.health = 1
+    self.health = max_health or 1
     self.max_health = self.health
     self.scale = scale or 0.6
     self.burstLeft = 0   -- rounds of the current trigger pull still to fire
@@ -437,8 +440,25 @@ function Enemy:getDirectionToPlayer(n)
     return direction
 end
 
-function Enemy:damageEnemy(damage)
+--- Hurt it by `damage`, struck at world point (x, y) if it's known, which
+--- leaves a mark of `kind` there ("hole" by default, or "scorch"): its sprite
+--- shows what it has left in its outline (characterAnimator.hurt, .mark)
+function Enemy:damageEnemy(damage, x, y, kind)
+    if self.dead then return end
     self.health = self.health - damage
+    local sprite = spriteOf(self)
+    if sprite then
+        characterAnimator.hurt(sprite, self.health / self.max_health, true)
+        if x and self.body then
+            -- where on the body it struck, onto the sprite as it's drawn:
+            -- across its middle, at about chest height, the near side lower
+            local bx, by = self.body:getPosition()
+            local dx, dy = x - bx, y - by
+            characterAnimator.mark(sprite, sprite.x + dx * 0.6,
+                sprite.y + MARK_CHEST + dy * 0.35 + ((self.marked or 0) % 5 - 2) * 3, kind or "hole")
+            self.marked = (self.marked or 0) + 1
+        end
+    end
     -- self.damaged = true
 
     -- local ex, ey = self.body:getPosition()
@@ -628,7 +648,7 @@ local enemy = {
     fire_cooldown = 1,
     detection_range = 300,
     projectile_speed = 400,
-    max_health = 20,
+    max_health = 3, -- a pistol shot's 1 (bullets do their weapon's damage: game/gun.lua)
     health = {},
     damage_indicators = {},
     enemy_damaged = {},
@@ -760,13 +780,11 @@ function enemy.update(dt)
     enemyWeapons.update(dt) -- their beams, bolts and bursts
 end
 
-function enemy.damageEnemy(enemy_index, damage)
-    -- print(enemy_index,"getting damaged")
-
+--- Enemy:damageEnemy by its index
+function enemy.damageEnemy(enemy_index, damage, x, y, kind)
     local e = enemy.enemies[enemy_index + 1]
-    -- print(enemy.enemies[enemy_index])
     if e then
-        e:damageEnemy(damage)
+        e:damageEnemy(damage, x, y, kind)
         enemy.health[enemy_index] = e.health
         enemy.enemy_damaged[enemy_index] = e.damaged
     end
@@ -790,6 +808,7 @@ function enemy.addEnemy(x, y, charType)
     local sprite = spriteOf(e)
     if sprite then
         sprite.on, sprite.opacity = true, nil
+        characterAnimator.clearMarks(sprite) -- (as new, whoever had the slot before)
         sprite.x, sprite.y = x, y
         -- dot-call, not a method: characterAnimator instances expose plain
         -- closures (`function instance.setCharacterType(t)`)
@@ -825,6 +844,7 @@ function enemy.getSaveData()
             slots[i] = {
                 x = x, y = y, vx = vx, vy = vy,
                 health = e.health,
+                max_health = e.max_health,
                 character = sprite and sprite.getCharacterType(),
             }
         end
@@ -865,7 +885,14 @@ function enemy.restore(data)
             local index = enemy.addEnemy(slot.x, slot.y, slot.character)
             local e = enemy.enemies[index + 1]
             e.body:setLinearVelocity(slot.vx or 0, slot.vy or 0)
-            e.health = slot.health or e.health
+            -- (a save from before enemies had more than one hit's health
+            -- kept 1 for unhurt)
+            if slot.max_health and slot.health then
+                e.health = e.max_health * math.min(1, slot.health / slot.max_health)
+                if e.health < e.max_health and spriteOf(e) then
+                    characterAnimator.hurt(spriteOf(e), e.health / e.max_health)
+                end
+            end
             enemy.health[index] = e.health
         end
     end
@@ -1084,6 +1111,7 @@ function enemy.getNetworkData()
                     f = sprite.progressPinned and sprite.currentFrame or nil, -- a frame the game times
                     d = sprite.currentDirection,
                     o = sprite.opacity,
+                    h = sprite.health and math.floor(sprite.health * 100 + 0.5) / 100, -- once it's hurt
                 }
             end
         end
@@ -1118,6 +1146,13 @@ function enemy.applyNetworkData(list)
             end
             sprite.setDirection(n.d or 1)
             sprite.opacity = n.o
+            if n.h ~= sprite.health then
+                if n.h then
+                    characterAnimator.hurt(sprite, n.h, sprite.health == nil or n.h < sprite.health)
+                else
+                    characterAnimator.clearMarks(sprite)
+                end
+            end
             netTargets[n.i + 1] = n
         end
     end

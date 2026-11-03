@@ -104,7 +104,10 @@ local function rocketSplash(userData, x, y)
                     force = force * 1.5
                 end
                 e.body:applyLinearImpulse(direction.x * force, direction.y * force)
-                enemy.damageEnemy(e.fixture:getUserData(), actualDamage)
+                -- (scorched on the side toward the blast)
+                local r = e.fixture:getShape():getRadius()
+                enemy.damageEnemy(e.fixture:getUserData(), actualDamage,
+                    ex - direction.x * r, ey - direction.y * r, "scorch")
                 hits = hits + 1
             end
         end
@@ -324,12 +327,13 @@ function collision.init()
         -- Apply effects
         local enemyBody = enemyFixture:getBody()
 
-        -- Use constant damage instead of expensive canvas sampling
-        local brightness = 128  -- mid-brightness as default; was sampling screen pixel every hit
-        if (projectileFixture:getUserData()[1] ~= "fireball") then
-            enemy.damageEnemy(enemyIndex, brightness)
+        -- A bullet does its weapon's damage (game/gun.lua) and leaves a hole
+        -- where it struck; a fireball its own, and a scorch
+        local x, y = contactPoint(contact, projectileFixture:getBody())
+        if bulletData[1] ~= "fireball" then
+            enemy.damageEnemy(enemyIndex, bulletData.damage or 1, x, y, "hole")
         else
-            enemy.damageEnemy(enemyIndex, brightness * projectileFixture:getUserData()[2])
+            enemy.damageEnemy(enemyIndex, bulletData[2] or 10, x, y, "scorch")
         end
         -- Knockback (optional)
         if bulletData.dir then
