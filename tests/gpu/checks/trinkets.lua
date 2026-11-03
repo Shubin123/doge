@@ -1,6 +1,7 @@
 --[[
-  Trinkets (game/trinkets.lua): worn, they work on their own, each paying in
-  light when it does something, and doing nothing without the light:
+  Trinkets (game/trinkets.lua): in the bag and equipped, they work on their
+  own, each paying in light when it does something, and doing nothing
+  without the light:
 
       python3 tests/gpu/run.py --checks --only trinkets
 
@@ -13,10 +14,14 @@
   5. the Phoenix Feather saves you from a killing blow once (80 light),
      then rests: the next one kills you;
   6. the Static Soles shock what's round you as a roll ends (6 light);
-  7. one picked up is worn, a fourth goes in the bag; using it there with
-     the slots full says so; taking one off puts it in the bag;
-  8. the shop's shelf has two you haven't got, and buying one wears it;
-  9. saves keep what you wear.
+  7. they take bag slots like everything else: one picked up goes in a
+     slot, equipped, and a full bag leaves it on the ground; using it
+     unequips it (it does nothing then, and costs nothing), and again
+     equips it; saves keep one unequipped;
+  8. the shop's shelf has two you haven't got, and buying one puts it in
+     the bag, equipped;
+  9. the play-testing loadout (var.equip_all_trinkets) has every one in
+     the bag, equipped.
 
   Leaves frames of the ward, the moth and the bag in
   dist/gpu-test/checks-trinkets/.
@@ -53,8 +58,10 @@ return function(h)
             h.advance(1)
         end
     end
+    -- Only these in the bag, equipped
     local function wearOnly(...)
-        trinkets.worn = { ... }
+        inventory.reset()
+        for _, id in ipairs({ ... }) do inventory.add(id, 1) end
     end
     local function fresh(light)
         player.god = false
@@ -157,54 +164,68 @@ return function(h)
     enemy.restore({ slots = {} })
     player.god = true
 
-    -- 7. Picking up, the bag, taking off
+    -- 7. Bag slots like everything else
     inventory.reset()
-    wearOnly()
     stand(cx, cy)
-    local order = { "ember_heart", "leech_fang", "lantern_moth", "static_soles" }
-    for i, id in ipairs(order) do
-        inventory.place(id, 1, cx + 10 + i, cy)
-        hold(4)
-    end
-    local worn = #trinkets.worn
-    h.check("one picked up is worn, a fourth goes in the bag", worn == 3 and inventory.count("static_soles") == 1,
-        string.format("%d worn, %d in the bag", worn, inventory.count("static_soles")))
+    inventory.place("lantern_moth", 1, cx + 12, cy)
+    hold(4)
     local slot
     for i = 1, inventory.SIZE do
-        if inventory.slots[i] and inventory.slots[i].id == "static_soles" then slot = i end
+        if inventory.slots[i] and inventory.slots[i].id == "lantern_moth" then slot = i end
     end
-    local ok = slot and inventory.use(slot)
-    h.check("using it with the slots full doesn't", not ok and inventory.count("static_soles") == 1)
-    trinkets.unwear(2)
-    ok = slot and inventory.use(slot)
-    h.check("taking one off puts it in the bag, and then it goes on", ok and trinkets.wears("static_soles")
-        and inventory.count("leech_fang") == 1, table.concat({ tostring(trinkets.worn[1]), tostring(trinkets.worn[2]),
-            tostring(trinkets.worn[3]) }, ", "))
+    h.check("one picked up goes in a bag slot, equipped", slot ~= nil and trinkets.wears("lantern_moth"))
+    for i = 1, inventory.SIZE do
+        if not inventory.slots[i] then inventory.slots[i] = { id = "bandage", count = 16 } end
+    end
+    inventory.place("ember_heart", 1, cx + 12, cy)
+    hold(10)
+    h.check("a full bag leaves one on the ground", not trinkets.owns("ember_heart") and #inventory.ground > 0)
+    inventory.reset()
+    inventory.add("lantern_moth", 1)
+    inventory.use(1)
+    gun.ammo = gun.maxAmmo
+    local idle = only({ { cx + 100, cy } })
+    hold(60)
+    h.check("using it unequips it: it does nothing, and costs nothing", not trinkets.wears("lantern_moth")
+        and not idle[1].dead and gun.ammo == gun.maxAmmo and inventory.count("lantern_moth") == 1)
+    local data = inventory.getSaveData()
+    inventory.restore(data)
+    h.check("saves keep it unequipped", inventory.count("lantern_moth") == 1 and not trinkets.wears("lantern_moth"))
+    inventory.use(1)
+    hold(60)
+    h.check("using it again equips it", trinkets.wears("lantern_moth") and idle[1].dead)
+    inventory.add("mirror_ward", 1)
+    inventory.add("apple", 5)
+    inventory.slots[2].on = false
     inventory.open = true
     h.capture("bag")
     inventory.open = false
+    enemy.restore({ slots = {} })
 
     -- 8. The shop's shelf
     wearOnly("mirror_ward")
-    inventory.reset()
     trinkets.restock()
     local shelf = trinkets.shopItems()
     local fine = #shelf == 2
     for _, row in ipairs(shelf) do
         if trinkets.owns(row.trinket) then fine = false end
     end
-    var.player_score = 1000
     local first = shelf[1] and shelf[1].trinket
     if shelf[1] and shelf[1].can() then shelf[1].buy() end
-    h.check("the shop shelves two you haven't got, and buying one wears it", fine and first ~= nil
+    h.check("the shop shelves two you haven't got; one bought goes in the bag, equipped", fine and first ~= nil
         and trinkets.wears(first) and #trinkets.shopItems() == 1,
         string.format("%d on the shelf; bought %s", #shelf, tostring(first)))
 
-    -- 9. Saves
-    local data = trinkets.getSaveData()
-    wearOnly()
-    trinkets.restore(data)
-    h.check("saves keep what you wear", trinkets.wears("mirror_ward") and trinkets.wears(first))
+    -- 9. The play-testing loadout
+    inventory.reset()
+    trinkets.equipAll()
+    local all = 0
+    for _, id in ipairs(trinkets.LIST) do
+        if trinkets.wears(id) then all = all + 1 end
+    end
+    h.check("the play-testing loadout has every one in the bag, equipped", all == #trinkets.LIST,
+        string.format("%d of %d", all, #trinkets.LIST))
+    h.capture("everything_equipped")
 
     wearOnly()
     inventory.reset()

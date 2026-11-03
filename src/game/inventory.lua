@@ -12,10 +12,11 @@
       what enemies leave behind now and then. Walk near one and it slides
       into the bag, if there's room.
     * The shop (game/shop.lua) sells into the bag.
-    * Trinkets (game/trinkets.lua) are worn in the panel's Worn row: one
-      picked up is worn if there's a free slot; using one in the bag puts it
-      on, using a worn one takes it off (Q drops it). Now and then an enemy
-      leaves one you haven't got.
+    * Food heals, over time for bread, or fills the light bar, or (a chili)
+      makes you quick for a while.
+    * Trinkets (game/trinkets.lua) take slots like the rest, and work while
+      they're in the bag and equipped (framed in gold): using one equips or
+      unequips it. Now and then an enemy leaves one you haven't got.
 
   Saves keep the bag and what's on the ground (serial.lua). In multiplayer
   only the host (and single player) has items on the ground; everyone has
@@ -35,7 +36,10 @@ local DROP_AHEAD = 30    -- px in front of you a dropped item lands
 local DROP_LOCKOUT = 1.2 -- s a dropped item won't come straight back
 local MESSAGE_TIME = 2   -- s a message shows
 -- What a dead enemy leaves behind: the chance of each, rolled in order, one at most
-local ENEMY_DROPS = { { "bandage", 0.05 }, { "light_cell", 0.04 }, { "medkit", 0.01 } }
+local ENEMY_DROPS = {
+    { "apple", 0.05 }, { "bandage", 0.04 }, { "light_cell", 0.03 }, { "glowberries", 0.03 },
+    { "bread", 0.02 }, { "drumstick", 0.01 }, { "chili", 0.01 }, { "medkit", 0.01 },
+}
 local TRINKET_DROP = 0.006 -- and else, the chance of a trinket you haven't got
 
 local PALETTE = {
@@ -56,7 +60,23 @@ local PALETTE = {
     o = { 1.00, 0.50, 0.10 }, -- orange
     p = { 0.62, 0.48, 0.92 }, -- violet
     P = { 0.36, 0.24, 0.62 }, -- dark violet
+    g = { 0.40, 0.75, 0.25 }, -- leaf
+    G = { 0.18, 0.45, 0.12 }, -- dark leaf
+    n = { 0.66, 0.36, 0.16 }, -- roast
+    N = { 0.42, 0.20, 0.08 }, -- dark roast
 }
+
+local CHILI_SPEED, CHILI_TIME = 1.4, 15 -- how much quicker a chili makes you, for how long (s)
+local effects = { regen = 0, regenRate = 0, quick = 0 } -- what you've eaten still doing its work
+
+-- Food that heals `hp` at once
+local function heals(hp)
+    return function()
+        if player.health >= player.maxHealth then return false, "Hearts are full" end
+        player.health = math.min(player.maxHealth, player.health + hp)
+        return true
+    end
+end
 
 -- What there is to carry. use() does what it does and returns true, or
 -- false and why not (the item's kept); keep: using it doesn't use it up.
@@ -161,6 +181,129 @@ inventory.ITEMS = {
             "................",
         },
     },
+    apple = {
+        name = "Apple", desc = "+1 heart", stack = 16, food = true,
+        use = heals(100),
+        icon = {
+            "................",
+            "........kk.kk...",
+            "........kNkggk..",
+            "....kkkkkNkkk...",
+            "...krrrrrkrrrk..",
+            "..krWrrrrrrrrrk.",
+            "..krWrrrrrrrrRk.",
+            "..krrrrrrrrrrRk.",
+            "..krrrrrrrrrrRk.",
+            "..krrrrrrrrrRRk.",
+            "...krrrrrrrRRk..",
+            "...krrrrrrRRRk..",
+            "....krrRkkRRk...",
+            ".....kkk..kkk...",
+            "................",
+            "................",
+        },
+    },
+    bread = {
+        name = "Bread", desc = "+3 hearts over 6 s", stack = 8, food = true,
+        use = function()
+            if player.health >= player.maxHealth then return false, "Hearts are full" end
+            effects.regen = effects.regen + 300
+            effects.regenRate = effects.regen / 6
+            return true
+        end,
+        icon = {
+            "................",
+            "................",
+            "................",
+            "....kkkkkkkk....",
+            "..kktttttttTkk..",
+            ".ktTttTttTttTTk.",
+            ".kttTttTttTttTk.",
+            "kttttttttttttTTk",
+            "kttttttttttttTTk",
+            "kTttttttttttTTTk",
+            "kTTTTTTTTTTTTTTk",
+            ".kkkkkkkkkkkkkk.",
+            "................",
+            "................",
+            "................",
+            "................",
+        },
+    },
+    drumstick = {
+        name = "Drumstick", desc = "+4 hearts", stack = 8, food = true,
+        use = heals(400),
+        icon = {
+            "................",
+            "...kkkkk........",
+            "..knnnnnk.......",
+            ".knWnnnnnk......",
+            ".knnnnnnnk......",
+            ".knnnnnnNk......",
+            ".kNnnnnNNk......",
+            "..kNNNNNk.......",
+            "...kkkkksk......",
+            "........kssk....",
+            ".........kssk...",
+            "..........ksskk.",
+            "..........ksssk.",
+            "...........ksk..",
+            "............k...",
+            "................",
+        },
+    },
+    glowberries = {
+        name = "Glowberries", desc = "+35 light", stack = 16, food = true,
+        use = function()
+            if gun.ammo >= gun.maxAmmo then return false, "Light is full" end
+            gun.addAmmo(35)
+            return true
+        end,
+        icon = {
+            "................",
+            ".......kk.......",
+            "......kGgk......",
+            ".....kgGk.......",
+            "...kkkkkkkk.....",
+            "..kyyWkkyyWk....",
+            "..kyyykkyyyk....",
+            "..kYyykkYyyk....",
+            "...kkkkkkkkkk...",
+            "....kyyWkkyWyk..",
+            "....kyyykkyyyk..",
+            "....kYYykkYYyk..",
+            ".....kkk..kkk...",
+            "................",
+            "................",
+            "................",
+        },
+    },
+    chili = {
+        name = "Chili pepper", desc = "Quick for " .. CHILI_TIME .. " s", stack = 8, food = true,
+        use = function()
+            effects.quick = CHILI_TIME
+            player.speedBoost = CHILI_SPEED
+            return true, "Hot! You're quick for " .. CHILI_TIME .. " s"
+        end,
+        icon = {
+            "................",
+            "...........kk...",
+            "..........kgk...",
+            "........kkgGk...",
+            ".......kGGGkk...",
+            "......krrrrk....",
+            ".....krWrrrk....",
+            "....krWrrrRk....",
+            "...krrrrrRk.....",
+            "..krrrrrRRk.....",
+            ".krrrrRRRk......",
+            ".krrRRRkk.......",
+            "..kkkkk.........",
+            "................",
+            "................",
+            "................",
+        },
+    },
 }
 
 inventory.slots = {}  -- [1..SIZE]: { id =, count = } or nil
@@ -219,6 +362,8 @@ end
 function inventory.reset()
     inventory.slots, inventory.ground = {}, {}
     inventory.open, selected = false, 1
+    effects.regen, effects.regenRate, effects.quick = 0, 0, 0
+    if player then player.speedBoost = nil end
 end
 
 function inventory.load()
@@ -292,14 +437,12 @@ function inventory.remove(id, count)
     return removed
 end
 
---- Use what's in slot i (past the bag's: take off that worn trinket). True
---- if it did something.
+--- Use what's in slot i. True if it did something.
 function inventory.use(i)
-    if i > inventory.SIZE then return trinkets.unwear(i - inventory.SIZE) end
     local s = inventory.slots[i]
     if not s then return false end
     local item = inventory.ITEMS[s.id]
-    local ok, why = item.use()
+    local ok, why = item.use(s)
     if not ok then
         say(why or ("Can't use the " .. item.name))
         return false
@@ -323,7 +466,7 @@ function inventory.useFirst(ids)
             local s = inventory.slots[i]
             if s and s.id == id then
                 local item = inventory.ITEMS[id]
-                local ok, reason = item.use()
+                local ok, reason = item.use(s)
                 if ok then
                     if not item.keep then
                         s.count = s.count - 1
@@ -351,11 +494,9 @@ function inventory.place(id, count, x, y, lockout)
     return g
 end
 
---- Drop one from slot i a little ahead of you (past the bag's: that worn
---- trinket). True if it went.
+--- Drop one from slot i a little ahead of you. True if it went.
 function inventory.drop(i)
-    local worn = i > inventory.SIZE and trinkets.worn[i - inventory.SIZE]
-    local s = worn and { id = worn, count = 1 } or inventory.slots[i]
+    local s = inventory.slots[i]
     if not (s and player.body) then return false end
     if not hosting() then
         say("Only the host can drop things")
@@ -366,11 +507,6 @@ function inventory.drop(i)
     local n = math.sqrt(hx * hx + hy * hy)
     if n < 1e-6 then hx, hy, n = 1, 0, 1 end
     inventory.place(s.id, 1, px + hx / n * DROP_AHEAD, py + hy / n * DROP_AHEAD, DROP_LOCKOUT)
-    if worn then
-        trinkets.worn[i - inventory.SIZE] = nil
-        say("Dropped the " .. inventory.ITEMS[s.id].name)
-        return true
-    end
     say("Dropped a " .. inventory.ITEMS[s.id].name)
     s.count = s.count - 1
     if s.count == 0 then inventory.slots[i] = nil end
@@ -392,9 +528,19 @@ function inventory.enemyDrop(x, y)
     end
 end
 
--- Each frame: what's on the ground slides to you once you're near, and goes
--- in the bag when it reaches you (if there's room)
+-- Each frame: what you've eaten works on; what's on the ground slides to you
+-- once you're near, and goes in the bag when it reaches you (if there's room)
 function inventory.update(dt)
+    if effects.regen > 0 then
+        local hp = math.min(effects.regen, effects.regenRate * dt)
+        effects.regen = effects.regen - hp
+        player.health = math.min(player.maxHealth, player.health + hp)
+        if player.health >= player.maxHealth then effects.regen = 0 end
+    end
+    if effects.quick > 0 then
+        effects.quick = effects.quick - dt
+        if effects.quick <= 0 then player.speedBoost = nil end
+    end
     if not (player.body and hosting()) then return end
     local px, py = player.body:getPosition()
     for i = #inventory.ground, 1, -1 do
@@ -403,20 +549,15 @@ function inventory.update(dt)
         local dx, dy = px - g.x, py - g.y
         local d2 = dx * dx + dy * dy
         local item = inventory.ITEMS[g.id]
-        if g.lockout <= 0 and d2 < MAGNET_RANGE * MAGNET_RANGE and (inventory.room(g.id) > 0 or item.pickup) then
+        if g.lockout <= 0 and d2 < MAGNET_RANGE * MAGNET_RANGE and inventory.room(g.id) > 0 then
             local d = math.sqrt(d2)
-            if d < PICKUP_RANGE and item.pickup and item.pickup() then
-                -- straight on (a trinket, with a free slot)
-                audio.playSoundAt("coin", g.x, g.y, 0.3)
-                g.count = g.count - 1
-                if g.count <= 0 then table.remove(inventory.ground, i) end
-            elseif d < PICKUP_RANGE and inventory.room(g.id) > 0 then
+            if d < PICKUP_RANGE then
                 local added = inventory.add(g.id, g.count)
                 g.count = g.count - added
                 say("+" .. added .. " " .. item.name)
                 audio.playSoundAt("coin", g.x, g.y, 0.3)
                 if g.count <= 0 then table.remove(inventory.ground, i) end
-            elseif d >= PICKUP_RANGE then
+            elseif d > 0 then
                 local step = math.min(d, MAGNET_SPEED * dt)
                 g.x, g.y = g.x + dx / d * step, g.y + dy / d * step
             end
@@ -479,38 +620,17 @@ end
 -- The panel
 --------------------------------------------------------------------------------
 
--- The panel and its slots in GUI units: the bag's, then the Worn row's
--- (cells SIZE + 1 on)
+-- The panel and its slots in GUI units
 local function layout(uw, uh)
     local w = inventory.COLS * 20 + 2 + 12
-    local h = 22 + inventory.ROWS * 20 + 2 + 24 + 30
+    local h = 22 + inventory.ROWS * 20 + 2 + 30
     local x, y = math.floor((uw - w) / 2), math.floor(uh / 2 - h / 2 - 20)
     local cells = {}
     for i = 1, inventory.SIZE do
         local col, row = (i - 1) % inventory.COLS, math.floor((i - 1) / inventory.COLS)
         cells[i] = { x = x + 7 + col * 20, y = y + 21 + row * 20, w = 20, h = 20 }
     end
-    local wornY = y + 21 + inventory.ROWS * 20 + 4
-    for j = 1, trinkets.SLOTS do
-        cells[inventory.SIZE + j] = { x = x + 7 + (j - 1) * 20, y = wornY, w = 20, h = 20 }
-    end
-    return { x = x, y = y, w = w, h = h, wornY = wornY }, cells
-end
-
--- Move the selection: across every cell, or up and down the rows (the Worn
--- row has only its first few columns)
-local function step(dx, dy)
-    local total = inventory.SIZE + trinkets.SLOTS
-    if dx ~= 0 then
-        selected = (selected - 1 + dx) % total + 1
-        return
-    end
-    local cols, rows = inventory.COLS, inventory.ROWS + 1
-    local col, row = (selected - 1) % cols, math.floor((selected - 1) / cols)
-    repeat
-        row = (row + dy) % rows
-    until row < inventory.ROWS or col < trinkets.SLOTS
-    selected = row * cols + col + 1
+    return { x = x, y = y, w = w, h = h }, cells
 end
 
 local function toggle()
@@ -526,7 +646,7 @@ function inventory.keypressed(key)
         return true
     end
     if key == "h" then
-        inventory.useFirst({ "bandage", "medkit" })
+        inventory.useFirst({ "bandage", "apple", "bread", "drumstick", "medkit" })
         return true
     end
     if key == "k" then
@@ -538,16 +658,17 @@ function inventory.keypressed(key)
         return true
     end
     if not inventory.open then return false end
+    local cols = inventory.COLS
     if key == "escape" then
         inventory.open = false
     elseif key == "left" then
-        step(-1, 0)
+        selected = (selected - 2) % inventory.SIZE + 1
     elseif key == "right" then
-        step(1, 0)
+        selected = selected % inventory.SIZE + 1
     elseif key == "up" then
-        step(0, -1)
+        selected = (selected - 1 - cols) % inventory.SIZE + 1
     elseif key == "down" then
-        step(0, 1)
+        selected = (selected - 1 + cols) % inventory.SIZE + 1
     elseif key == "return" or key == "kpenter" then
         inventory.use(selected)
     elseif key == "q" then
@@ -591,8 +712,14 @@ local function drawCell(cell, s, ts, highlighted)
         love.graphics.setColor(0.12, 0.12, 0.13, 0.55)
     end
     love.graphics.rectangle("fill", cell.x + 1, cell.y + 1, cell.w - 2, cell.h - 2)
+    local item = s and inventory.ITEMS[s.id]
+    if item and item.trinket and s.on ~= false then
+        -- an equipped trinket, framed in gold
+        love.graphics.setColor(1.00, 0.84, 0.30, 0.9)
+        love.graphics.rectangle("line", cell.x + 1.5, cell.y + 1.5, cell.w - 3, cell.h - 3)
+    end
     if s then
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(1, 1, 1, item.trinket and s.on == false and 0.4 or 1)
         love.graphics.draw(icon(s.id), cell.x + 2, cell.y + 2)
         if s.count > 1 then
             local text = tostring(s.count)
@@ -631,33 +758,23 @@ function inventory.drawUI()
 
         local mx, my = crt.mouse()
         local hovered
-        local function slot(i)
-            if i <= inventory.SIZE then return inventory.slots[i] end
-            local id = trinkets.worn[i - inventory.SIZE]
-            return id and { id = id, count = 1 }
-        end
         for i, cell in ipairs(cells) do
             local over = skin.contains(cell, mx / u, my / u)
             if over then hovered = i end
-            drawCell(cell, slot(i), ts, over or i == selected)
+            drawCell(cell, inventory.slots[i], ts, over or i == selected)
         end
-        local last = cells[inventory.SIZE + trinkets.SLOTS]
-        love.graphics.setColor(skin.GRAY)
-        love.graphics.print("Worn: trinkets pay in light", last.x + last.w + 5,
-            panel.wornY + 10 - font:getBaseline() * ts / 2 - 2, 0, ts, ts)
-        local i = hovered or selected
-        local s = slot(i)
+        local s = inventory.slots[hovered or selected]
+        local item = s and inventory.ITEMS[s.id]
         local footY = panel.y + panel.h - 26
         if s then
-            local item = inventory.ITEMS[s.id]
-            skin.printCentered(item.name .. ": " .. item.desc, panel.x + panel.w / 2, footY, ts, skin.YELLOW)
+            local state = item.trinket and (s.on == false and " - off" or " - equipped") or ""
+            skin.printCentered(item.name .. ": " .. item.desc .. state, panel.x + panel.w / 2, footY, ts, skin.YELLOW)
         else
             skin.printCentered("Empty", panel.x + panel.w / 2, footY, ts, skin.GRAY)
         end
-        local help = i > inventory.SIZE and "Enter take off   Q drop   I close"
-            or (s and inventory.ITEMS[s.id].trinket and "Enter wear   Q drop   I close")
-            or "Enter use   Q drop   I close"
-        skin.printCentered(help, panel.x + panel.w / 2, footY + 12, ts, skin.GRAY)
+        local help = item and item.trinket and (s.on == false and "Enter equip" or "Enter unequip")
+            or item and item.food and "Enter eat" or "Enter use"
+        skin.printCentered(help .. "   Q drop   I close", panel.x + panel.w / 2, footY + 12, ts, skin.GRAY)
     end
 
     local age = love.timer.getTime() - messageAt
@@ -680,7 +797,7 @@ function inventory.getSaveData()
     local slots, ground = {}, {}
     for i = 1, inventory.SIZE do
         local s = inventory.slots[i]
-        if s then slots[#slots + 1] = { slot = i, id = s.id, count = s.count } end
+        if s then slots[#slots + 1] = { slot = i, id = s.id, count = s.count, on = s.on } end
     end
     for _, g in ipairs(inventory.ground) do
         ground[#ground + 1] = { id = g.id, count = g.count, x = g.x, y = g.y }
@@ -698,6 +815,7 @@ function inventory.restore(data)
         if item and type(s.slot) == "number" and s.slot >= 1 and s.slot <= inventory.SIZE
             and not inventory.slots[s.slot] then
             inventory.slots[s.slot] = { id = s.id, count = math.max(1, math.min(item.stack, s.count or 1)) }
+            if s.on == false then inventory.slots[s.slot].on = false end -- (a trinket unequipped)
         end
     end
     for _, g in ipairs(data.ground or {}) do

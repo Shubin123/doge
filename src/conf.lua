@@ -128,6 +128,9 @@ var.indoors = false
 -- takes, and the hour a new game starts at
 var.day_length = 480
 var.day_start = 8
+-- Play-testing: every trinket in the bag and equipped, at every start and
+-- load (game/trinkets.lua). Set false to find, buy and equip them as you go.
+var.equip_all_trinkets = true
 
 function love.conf(t)
     -- Save directory name. Without it LOVE names the folder after however the

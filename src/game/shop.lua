@@ -36,6 +36,9 @@ local STOCK = {
     bagged("bandage", 40),
     bagged("medkit", 120),
     bagged("light_cell", 50),
+    bagged("apple", 15),
+    bagged("bread", 30),
+    bagged("glowberries", 35),
     { name = "Fireballs", desc = "+3 fireballs", price = 45,
         can = function() return fire.getAvailableCount() < fire.max_fireballs, "Fireballs are full" end,
         buy = function()
@@ -300,15 +303,18 @@ function shop.populate()
 end
 
 -- The panel's layout in GUI units
+local ROW = 18 -- GUI units a row takes (enough of them fit the screen)
+
 local function layout(sw, sh)
-    local w = 200
+    local w = 220
+    local h = 34 + #shop.ITEMS * ROW + 22
     local x = math.floor((sw - w) / 2)
-    local y = math.floor(sh / 2 - 80)
+    local y = math.max(4, math.floor((sh - h) / 2 - 10))
     local rows = {}
     for i, item in ipairs(shop.ITEMS) do
-        rows[i] = { x = x + 8, y = y + 34 + (i - 1) * 24, w = w - 16, h = 20, index = i, item = item }
+        rows[i] = { x = x + 8, y = y + 34 + (i - 1) * ROW, w = w - 16, h = ROW - 2, index = i, item = item }
     end
-    return { x = x, y = y, w = w, h = 34 + #shop.ITEMS * 24 + 26 }, rows
+    return { x = x, y = y, w = w, h = h }, rows
 end
 
 --- Returns true when the shop took the key: E at the counter, and every
@@ -406,7 +412,7 @@ function shop.drawUI()
             row.label = string.format("%d  %s (%s) - %d XP", i, item.name, item.desc, item.price)
             skin.button(row, ts, i == selected or skin.contains(row, mx / u, my / u))
         end
-        skin.printCentered("Enter buy   Esc close", panel.x + panel.w / 2, panel.y + panel.h - 14, ts, skin.GRAY)
+        skin.printCentered("Enter buy   Esc close", panel.x + panel.w / 2, panel.y + panel.h - 13, ts, skin.GRAY)
     end
 
     local age = love.timer.getTime() - messageAt

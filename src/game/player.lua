@@ -186,9 +186,10 @@ function player.update(dt)
         inputY = inputY / length
     end
     
-    -- Apply player.acceleration in the input direction
-    local targetVX = inputX * player.maxSpeed
-    local targetVY = inputY * player.maxSpeed
+    -- Apply player.acceleration in the input direction (quicker for a while
+    -- after a chili: inventory.lua's speedBoost)
+    local targetVX = inputX * player.maxSpeed * (player.speedBoost or 1)
+    local targetVY = inputY * player.maxSpeed * (player.speedBoost or 1)
     
     -- Smoothly interpolate toward target velocity
     local newVX, newVY

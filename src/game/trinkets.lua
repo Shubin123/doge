@@ -16,19 +16,21 @@
                      it smoulders 90 s before it can again)
     Static Soles     each dodge roll ends in a shock round you (6 light)
 
-  You wear up to trinkets.SLOTS. One you pick up is worn if there's a free
-  slot, else it goes in the bag (game/inventory.lua, where using it puts it
-  on and using a worn one takes it off). The shop keeps two on its shelf,
+  They take bag slots like everything else (game/inventory.lua), one to a
+  slot, and work while they're there and equipped: picked up or bought,
+  one's equipped; using it (Enter) unequips it, or equips it again, so you
+  can keep one without paying for it. The shop keeps two on its shelf,
   ones you haven't got, restocked each morning; now and then an enemy drops
   one. What they do to enemies happens where the world runs (host, single
-  player). Saves keep what you wear and the shelf.
+  player). Saves keep the shelf (the bag keeps what's equipped).
+
+  var.equip_all_trinkets (conf.lua, for play-testing) puts every one in the
+  bag, equipped, at every start and load.
 ]]
 local inventory = require("game.inventory")
 
 local trinkets = {}
 
-trinkets.SLOTS = 3
-trinkets.worn = {}   -- [1..SLOTS]: id or nil
 trinkets.shelf = {}  -- the shop's: ids
 
 local WARD_RADIUS = 52     -- px: a shot this close to you meets the Mirror Ward
@@ -177,14 +179,15 @@ trinkets.DEFS = {
     },
 }
 
--- Each is one of the bag's items too (a stack of one): using it puts it on
+-- Each is one of the bag's items (a stack of one): using it equips or
+-- unequips it, and keeps it
 for _, id in ipairs(trinkets.LIST) do
     local d = trinkets.DEFS[id]
     d.id = id
     inventory.ITEMS[id] = {
-        name = d.name, desc = d.desc .. " (" .. d.cost .. " light)", stack = 1, trinket = true, icon = d.icon,
-        use = function() return trinkets.wear(id) end,
-        pickup = function() return trinkets.wear(id, true) end, -- straight on, if there's a free slot
+        name = d.name, desc = d.desc .. " (" .. d.cost .. " light)", stack = 1, trinket = true, keep = true,
+        icon = d.icon,
+        use = function(slot) return trinkets.toggle(slot) end,
     }
 end
 
@@ -204,53 +207,43 @@ local function now()
     return love.timer.getTime()
 end
 
---- Whether you're wearing `id`.
+--- Whether `id` is at work: in the bag and equipped.
 function trinkets.wears(id)
-    for i = 1, trinkets.SLOTS do
-        if trinkets.worn[i] == id then return true end
+    for i = 1, inventory.SIZE do
+        local s = inventory.slots[i]
+        if s and s.id == id and s.on ~= false then return true end
     end
     return false
 end
 
---- Whether you have `id` at all: worn or in the bag.
+--- Whether you have `id` at all, equipped or not.
 function trinkets.owns(id)
-    return trinkets.wears(id) or inventory.count(id) > 0
+    return inventory.count(id) > 0
 end
 
---- Put on `id` (from the bag, or `fromGround`). True if it's on; false and
---- why not.
-function trinkets.wear(id, fromGround)
-    if trinkets.wears(id) then return false, "Already wearing the " .. trinkets.DEFS[id].name end
-    for i = 1, trinkets.SLOTS do
-        if not trinkets.worn[i] then
-            trinkets.worn[i] = id
-            inventory.notify("Wearing the " .. trinkets.DEFS[id].name)
-            return true, "Wearing the " .. trinkets.DEFS[id].name
-        end
+--- Equip or unequip the trinket in bag slot `s` (inventory.use). True, and
+--- which it is now.
+function trinkets.toggle(s)
+    if not s then return false end
+    local name = trinkets.DEFS[s.id].name
+    if s.on == false then
+        s.on = nil
+        return true, "Equipped the " .. name
     end
-    if fromGround then return false end -- (into the bag instead)
-    return false, "Trinket slots full: take one off first"
+    s.on = false
+    return true, "Unequipped the " .. name
 end
 
---- Take off the one in slot i, into the bag. True if it went.
-function trinkets.unwear(i)
-    local id = trinkets.worn[i]
-    if not id then return false end
-    if inventory.room(id) <= 0 then
-        inventory.notify("Bag is full")
-        return false
+--- Play-testing (var.equip_all_trinkets): every trinket in the bag, equipped.
+function trinkets.equipAll()
+    for _, id in ipairs(trinkets.LIST) do
+        if not trinkets.owns(id) then inventory.add(id, 1) end
     end
-    trinkets.worn[i] = nil
-    inventory.add(id, 1)
-    inventory.notify("Took off the " .. trinkets.DEFS[id].name)
-    return true
-end
-
---- Give `id` (the shop): worn if there's room, else in the bag. False when
---- neither has room.
-function trinkets.give(id)
-    if trinkets.wear(id, true) then return true end
-    return inventory.add(id, 1) > 0
+    for i = 1, inventory.SIZE do
+        local s = inventory.slots[i]
+        if s and trinkets.DEFS[s.id] then s.on = nil end
+    end
+    trinkets.restock()
 end
 
 --- A trinket you haven't got, picked with `r` (a love RandomGenerator), or nil.
@@ -283,13 +276,10 @@ function trinkets.shopItems()
         rows[#rows + 1] = { name = d.name, desc = d.desc .. ", " .. d.cost .. " light", price = d.price, trinket = id,
             can = function()
                 if trinkets.owns(id) then return false, "You have it" end
-                for i = 1, trinkets.SLOTS do
-                    if not trinkets.worn[i] then return true end
-                end
                 return inventory.room(id) > 0, "Bag is full"
             end,
             buy = function()
-                trinkets.give(id)
+                inventory.add(id, 1) -- (equipped)
                 for i, s in ipairs(trinkets.shelf) do
                     if s == id then table.remove(trinkets.shelf, i) break end
                 end
@@ -300,11 +290,11 @@ end
 
 function trinkets.load()
     rng = love.math.newRandomGenerator(love.math.random(0, 2 ^ 31 - 1))
-    trinkets.worn = {}
     usedAt, failedAt, effects = {}, {}, {}
     emberReady, phoenixReady, safeUntil = 0, 0, -math.huge
     mothAngle, mothTimer, wasDodging, wasOpen = 0, 0, false, nil
     trinkets.restock()
+    if var.equip_all_trinkets then trinkets.equipAll() end
 end
 
 -- Pay `id`'s light. True when it did (and it shows on the HUD either way).
@@ -570,72 +560,65 @@ function trinkets.draw()
     love.graphics.setShader(shader)
 end
 
---- On the HUD (GUI units), right-aligned to `right` at `y`: what you wear,
---- each flashing when it pays, red when it couldn't, dim without the light
---- for it; the Phoenix Feather greyed while it smoulders.
+local PER_ROW = 3 -- HUD icons in a row, rows stacking up
+
+--- On the HUD (GUI units), right-aligned to `right`, the bottom row at `y`:
+--- what's equipped, each flashing when it pays, red when it couldn't, dim
+--- without the light for it; the Phoenix Feather greyed while it smoulders.
 function trinkets.drawHUD(right, y)
     local t = now()
-    local n = 0
-    for i = 1, trinkets.SLOTS do
-        if trinkets.worn[i] then n = n + 1 end
+    local list = {}
+    for i = 1, inventory.SIZE do
+        local s = inventory.slots[i]
+        if s and trinkets.DEFS[s.id] and s.on ~= false then list[#list + 1] = s.id end
     end
-    if n == 0 then return end
-    local x = right - n * 13 + 1
-    for i = 1, trinkets.SLOTS do
-        local id = trinkets.worn[i]
-        if id then
-            local d = trinkets.DEFS[id]
-            local resting = id == "phoenix_feather" and t < phoenixReady
-            local lit = gun.ammo >= d.cost and not resting
-            love.graphics.setColor(0.08, 0.08, 0.10, 0.7)
-            love.graphics.rectangle("fill", x - 1, y - 1, 14, 14)
-            love.graphics.setColor(1, 1, 1, lit and 1 or 0.4)
-            love.graphics.draw(inventory.icon(id), x, y, 0, 0.75, 0.75)
-            local used = t - (usedAt[id] or -math.huge)
-            local failed = t - (failedAt[id] or -math.huge)
-            if used < 0.35 then
-                love.graphics.setColor(1, 1, 1, 0.6 * (1 - used / 0.35))
-                love.graphics.rectangle("fill", x - 1, y - 1, 14, 14)
-            elseif failed < 0.45 then
-                love.graphics.setColor(0.86, 0.14, 0.10, 0.5)
-                love.graphics.rectangle("fill", x - 1, y - 1, 14, 14)
-            end
-            if resting then
-                -- how long it has left to smoulder, draining from the top
-                local k = (phoenixReady - t) / PHOENIX_REST
-                love.graphics.setColor(0, 0, 0, 0.55)
-                love.graphics.rectangle("fill", x - 1, y - 1, 14, 14 * k)
-            end
-            x = x + 13
+    for n, id in ipairs(list) do
+        local col, row = (n - 1) % PER_ROW, math.floor((n - 1) / PER_ROW)
+        local x, iy = right - (PER_ROW - col) * 13 + 1, y - row * 15
+        local d = trinkets.DEFS[id]
+        local resting = id == "phoenix_feather" and t < phoenixReady
+        local lit = gun.ammo >= d.cost and not resting
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.7)
+        love.graphics.rectangle("fill", x - 1, iy - 1, 14, 14)
+        love.graphics.setColor(1, 1, 1, lit and 1 or 0.4)
+        love.graphics.draw(inventory.icon(id), x, iy, 0, 0.75, 0.75)
+        local used = t - (usedAt[id] or -math.huge)
+        local failed = t - (failedAt[id] or -math.huge)
+        if used < 0.35 then
+            love.graphics.setColor(1, 1, 1, 0.6 * (1 - used / 0.35))
+            love.graphics.rectangle("fill", x - 1, iy - 1, 14, 14)
+        elseif failed < 0.45 then
+            love.graphics.setColor(0.86, 0.14, 0.10, 0.5)
+            love.graphics.rectangle("fill", x - 1, iy - 1, 14, 14)
+        end
+        if resting then
+            -- how long it has left to smoulder, draining from the top
+            local left = (phoenixReady - t) / PHOENIX_REST
+            love.graphics.setColor(0, 0, 0, 0.55)
+            love.graphics.rectangle("fill", x - 1, iy - 1, 14, 14 * left)
         end
     end
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- What you wear, the shelf and the feather's rest, for a save.
+--- The shelf and the feather's rest, for a save (the bag keeps the rest).
 function trinkets.getSaveData()
-    local worn = {}
-    for i = 1, trinkets.SLOTS do worn[i] = trinkets.worn[i] or false end
-    return { worn = worn, shelf = trinkets.shelf, phoenix = math.max(0, phoenixReady - now()) }
+    return { shelf = trinkets.shelf, phoenix = math.max(0, phoenixReady - now()) }
 end
 
---- Put back what getSaveData gave; nil (a save from before them) takes them all off.
+--- Put back what getSaveData gave (after the bag: inventory.restore).
 function trinkets.restore(data)
-    trinkets.worn = {}
     phoenixReady, safeUntil = 0, -math.huge
-    if type(data) ~= "table" then
-        trinkets.restock()
-        return
-    end
-    for i = 1, trinkets.SLOTS do
-        local id = data.worn and data.worn[i]
-        if id and trinkets.DEFS[id] and not trinkets.wears(id) then trinkets.worn[i] = id end
-    end
     trinkets.shelf = {}
-    for _, id in ipairs(data.shelf or {}) do
-        if trinkets.DEFS[id] and not trinkets.owns(id) then trinkets.shelf[#trinkets.shelf + 1] = id end
+    if type(data) == "table" then
+        for _, id in ipairs(data.shelf or {}) do
+            if trinkets.DEFS[id] and not trinkets.owns(id) then trinkets.shelf[#trinkets.shelf + 1] = id end
+        end
+        phoenixReady = now() + (tonumber(data.phoenix) or 0)
+    else
+        trinkets.restock()
     end
-    phoenixReady = now() + (tonumber(data.phoenix) or 0)
+    if var.equip_all_trinkets then trinkets.equipAll() end
 end
 
 return trinkets

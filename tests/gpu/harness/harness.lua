@@ -346,6 +346,9 @@ local function main()
     var.screen_width, var.screen_height = cfg.width, cfg.height
     var.ScreenInfo.screen_width, var.ScreenInfo.screen_height = cfg.width, cfg.height
     var.screen_flags = { resizable = false, vsync = 0, highdpi = false }
+    -- The play-testing loadout (every trinket equipped) would answer every
+    -- shot and kill; runs start with an empty bag, as they always have
+    var.equip_all_trinkets = false
 
     local t0 = realTime()
     love.load(love.arg.parseGameArguments(arg), arg)
