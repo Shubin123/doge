@@ -137,8 +137,8 @@ function light.draw()
   end, { x - r - 2, y - r - 2, x + r + 2, y + r + 2 })
 end
 
--- The flashlight's heading: the way you're going, or last went
--- (gun.currentVel, turning toward gun.heading in gun.update).
+-- The flashlight's heading: the way you're going, or at the cursor while you
+-- stand still (gun.currentVel, turning toward gun.heading in gun.update).
 local function aim()
   local velX, velY = gun.currentVel.x, gun.currentVel.y
   if math.abs(velX) > 0.1 or math.abs(velY) > 0.1 then
@@ -146,6 +146,14 @@ local function aim()
   end
   return 0
 end
+
+-- The flashlight is held in your hand, at your middle: on screen where you
+-- are (the body; the gun and the glow are drawn there), this far over your
+-- feet (where characterAnimator's shader stands you). Its ground is under
+-- it, at your feet, so the pool on the floor and the lights along it run out
+-- from there, below the glow, and those lights strike what stands from the
+-- hand's height (shadow.setBeam), not from the floor.
+light.HEIGHT = 25 -- world px
 
 -- The beam on the ground: lights strung out ahead of the player, each further
 -- one wider and dimmer, so the floor (and puddles, grass, anyone standing in
@@ -172,8 +180,9 @@ local BEAM_COLOR = { 0.55, 0.68, 0.85 }
 -- the ground is where the beam runs), the arch's pillars, the tree's trunk,
 -- the house's walls and the parked car (shadow.eachFoot). light.update
 -- gathers the ones in its reach each frame as segments. The pool on the floor and the glow at the gun
--- are dark, pixel by pixel, wherever the line from the player crosses one
--- (SHADOW_SHADER), so shadows fit what casts them. The lights strung along
+-- are dark, pixel by pixel, wherever the line from its ground (under the
+-- glow, the ground below it) crosses one (SHADOW_SHADER), so shadows fit
+-- what casts them. The lights strung along
 -- the beam fade out against what's in its way, their light landing on that,
 -- and light nothing it can't see (shadow.setBeam: every lit shader leaves
 -- them out past what's in the way), so none of it bleeds through.
@@ -191,12 +200,13 @@ end
 
 SHADOW_SHADER = [[
   #define MAX_FEET 64
-  uniform int  numFeet;
-  uniform vec4 feet[MAX_FEET]; // segments in its way, screen px
-  uniform vec2 origin;         // where the beam starts, screen px
+  uniform int   numFeet;
+  uniform vec4  feet[MAX_FEET]; // segments in its way, screen px
+  uniform vec2  origin;         // where the beam starts on the ground, screen px
+  uniform float lift;           // how far over the ground what's drawn is, screen px
 
   vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
-    vec2 d = screen_coords - origin;
+    vec2 d = screen_coords + vec2(0.0, lift) - origin;
     for (int i = 0; i < MAX_FEET; i++) {
       if (i >= numFeet) break;
       vec2 a = feet[i].xy - origin;
@@ -213,8 +223,10 @@ SHADOW_SHADER = [[
 
 local feet = {}       -- this frame's, world px: {x0, y0, x1, y1, ...}
 local nearby = {}     -- scratch while gathering: {distance^2, x0, y0, x1, y1}
+local inFront = {}    -- and those of them ahead of it
 local screenFeet = {} -- feet on screen, for SHADOW_SHADER
 local shadowed        -- whether this frame's draws go through it
+local groundX, groundY -- where it shines from on the ground this frame (light.update)
 
 -- Squared distance from (px, py) to the segment (x0, y0)-(x1, y1)
 local function distance2(px, py, x0, y0, x1, y1)
@@ -225,56 +237,80 @@ local function distance2(px, py, x0, y0, x1, y1)
   return dx * dx + dy * dy
 end
 
--- The footprints ahead of (px, py) aimed at angle, nearest first, into feet:
--- the whole half round in front, as the lights along the beam spill wider
--- than it
+-- How far from (px, py) along (dx, dy) the segment (x0, y0)-(x1, y1) is
+-- crossed, or nil if it isn't
+local function crossing(px, py, dx, dy, x0, y0, x1, y1)
+  local ax, ay = x0 - px, y0 - py
+  local ex, ey = x1 - x0, y1 - y0
+  local den = dx * ey - dy * ex
+  if den == 0 then return nil end
+  local t = (ax * ey - ay * ex) / den
+  local u = (ax * dy - ay * dx) / den
+  if t > 0 and u >= 0 and u <= 1 then return t end
+end
+
+-- The flashlight in your hand at (px, py): where its ground is, at your
+-- feet, or short of what's between them and you (close behind a wall your
+-- feet are in its footprint, and it would shine out of that), returned; and
+-- the footprints ahead of that aimed at angle, nearest first, into feet: the
+-- whole half round in front, as the lights along the beam spill wider than it
 local function gather(px, py, angle)
+  local gy = py + light.HEIGHT
   if not var.light_shadows then -- (Settings > Shadows) nothing's in its way
     for i = #feet, 1, -1 do feet[i] = nil end
-    return
+    return px, gy
   end
   local n = 0
-  local dx, dy = math.cos(angle), math.sin(angle)
   local function add(x0, y0, x1, y1)
-    if (x0 - px) * dx + (y0 - py) * dy < 0 and (x1 - px) * dx + (y1 - py) * dy < 0 then
-      return -- behind
-    end
-    local d2 = distance2(px, py, x0, y0, x1, y1)
-    if d2 < REACH * REACH then
-      n = n + 1
-      local f = nearby[n] or {}
-      f[1], f[2], f[3], f[4], f[5] = d2, x0, y0, x1, y1
-      nearby[n] = f
+    local t = crossing(px, py, 0, 1, x0, y0, x1, y1)
+    if t and py + t - 1 < gy then gy = py + math.max(0, t - 1) end
+    n = n + 1
+    local f = nearby[n] or {}
+    f[2], f[3], f[4], f[5] = x0, y0, x1, y1
+    nearby[n] = f
+  end
+  local reach = REACH + light.HEIGHT
+  shadow.eachFoot(px - reach, py - reach, px + reach, py + reach, px, py, add)
+  local dx, dy = math.cos(angle), math.sin(angle)
+  local m = 0
+  for i = 1, n do
+    local f = nearby[i]
+    if (f[2] - px) * dx + (f[3] - gy) * dy >= 0 or (f[4] - px) * dx + (f[5] - gy) * dy >= 0 then -- (not behind)
+      local d2 = distance2(px, gy, f[2], f[3], f[4], f[5])
+      if d2 < REACH * REACH then
+        f[1] = d2
+        m = m + 1
+        inFront[m] = f
+      end
     end
   end
-  shadow.eachFoot(px - REACH, py - REACH, px + REACH, py + REACH, px, py, add)
-  for i = #nearby, n + 1, -1 do nearby[i] = nil end
-  if n > MAX_FEET then
-    table.sort(nearby, function(a, b) return a[1] < b[1] end)
+  for i = #inFront, m + 1, -1 do inFront[i] = nil end
+  if m > MAX_FEET then
+    table.sort(inFront, function(a, b) return a[1] < b[1] end)
   end
   local k = 0
-  for i = 1, math.min(n, MAX_FEET) do
-    local f = nearby[i]
+  for i = 1, math.min(m, MAX_FEET) do
+    local f = inFront[i]
     feet[k + 1], feet[k + 2], feet[k + 3], feet[k + 4] = f[2], f[3], f[4], f[5]
     k = k + 4
   end
   for i = #feet, k + 1, -1 do feet[i] = nil end
+  return px, gy
 end
 
 -- How far from (px, py) along (dx, dy) to the first of feet, up to max
 local function cast(px, py, dx, dy, max)
   local best = max
   for i = 1, #feet, 4 do
-    local ax, ay = feet[i] - px, feet[i + 1] - py
-    local ex, ey = feet[i + 2] - feet[i], feet[i + 3] - feet[i + 1]
-    local den = dx * ey - dy * ex
-    if den ~= 0 then
-      local t = (ax * ey - ay * ex) / den
-      local u = (ax * dy - ay * dx) / den
-      if t > 0 and t < best and u >= 0 and u <= 1 then best = t end
-    end
+    local t = crossing(px, py, dx, dy, feet[i], feet[i + 1], feet[i + 2], feet[i + 3])
+    if t and t < best then best = t end
   end
   return best
+end
+
+-- Where the flashlight's ground is this frame, for you at (px, py)
+local function ground(px, py)
+  return groundX or px, groundY or py + light.HEIGHT
 end
 
 -- Hand this frame's feet to SHADOW_SHADER, on screen (under the camera
@@ -294,6 +330,7 @@ local function sendFeet(px, py)
   shader:send("numFeet", n)
   shader:send("feet", unpack(screenFeet))
   shader:send("origin", { love.graphics.transformPoint(px, py) })
+  shader:send("lift", 0)
   return true
 end
 
@@ -318,7 +355,7 @@ end
 --- in its way.
 function light.drawBeam()
   if not player.lightsOn then return end
-  local px, py = player.body:getPosition()
+  local px, py = ground(player.body:getPosition())
   local w, h = light.beamImage:getDimensions()
   local shader = love.graphics.getShader()
   local mode, alphaMode = love.graphics.getBlendMode()
@@ -338,10 +375,11 @@ function light.update(dt)
     shadow.setBeam()
     return
   end
-  local px, py = player.body:getPosition()
+  local hx, hy = player.body:getPosition()
   local angle = aim()
-  gather(px, py, angle) -- for the draws too
-  shadow.setBeam(px, py, feet)
+  groundX, groundY = gather(hx, hy, angle) -- for the draws too
+  local px, py = groundX, groundY
+  shadow.setBeam(px, py, feet, py - hy) -- (held in your hand, over its ground)
   local dx, dy = math.cos(angle), math.sin(angle)
   -- how far along the aim its bright middle gets, on average
   local ahead = 0
@@ -433,8 +471,14 @@ function light.renderLights(drawable)
     
     blueNeon(function()
       if cone then
-      -- dark behind what's in the way, like the pool (feet sent by light.drawBeam)
-      if shadowed then love.graphics.setShader(light.shadowShader) end
+      -- dark behind what's in the way, like the pool (feet sent by
+      -- light.drawBeam), the ground under it being its hand's height below
+      if shadowed then
+        local hx, hy = player.body:getPosition()
+        local _, gy = ground(hx, hy)
+        light.shadowShader:send("lift", (gy - hy) * camera.zoom)
+        love.graphics.setShader(light.shadowShader)
+      end
       love.graphics.setColor(0.17, 0.46, 1, 0.5 * daynight.glow())
       love.graphics.polygon("fill", cone)
       love.graphics.setColor(1, 1, 1, 1)

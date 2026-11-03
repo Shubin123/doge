@@ -20,18 +20,21 @@
   Lighting with them (normalmap.GLSL, in regions' sprite shader and the
   object shader in shadow.lua): an upright face stands on its ground line
   facing the viewer, so a light's direction in that frame is (across, up,
-  out) = (dx, its height over the texel, |dy|). A light behind a face lights
-  it as one in front would, as faces always have been. A normal only changes
-  a light's share compared with a flat face: flat stays as bright as it was,
-  what faces the light gets more, what faces away less. The ambient light
-  comes from the sky, above, in front and a little to the left, so relief
-  shows in the dark and by day too.
+  out) = (dx, its height over the texel, dy). A normal changes a light's
+  share compared with a flat face: flat stays as bright as it was, what
+  faces the light gets more, what faces away less, and once the light is
+  round behind what a texel faces it gets none (fading out as the light
+  passes edge-on), so a light behind a face, or in line with its foot, only
+  catches what's turned toward it. The ambient light comes from the sky,
+  above, in front and a little to the left, so relief shows in the dark and
+  by day too.
 ]]
 local normalmap = {}
 
 normalmap.GLSL = [[
     const float NORMAL_STRENGTH = 1.6;
     const float SKY_STRENGTH = 1.0;
+    const float FACING = 0.1; // a light fades out this far either side of edge-on (cosine)
     const vec3 SKY = vec3(-0.30, 0.55, 0.78); // where the ambient light comes from
 
     // The texel's normal (lib/graphics/normalmap.lua); flat where there's no art
@@ -42,13 +45,16 @@ normalmap.GLSL = [[
 
     // How much of a light the texel gets, compared with a flat face: toLight
     // runs from it to the light, (across, along the ground toward the
-    // viewer, up). 1 for a flat face, wherever the light is.
+    // viewer, up). 1 for a flat face with the light well in front of it;
+    // nothing once the light is round behind what the texel faces.
     float faceShade(vec3 n, vec3 toLight) {
-        vec3 d = vec3(toLight.x, toLight.z, abs(toLight.y));
+        vec3 d = vec3(toLight.x, toLight.z, toLight.y);
         float len = length(d);
         if (len <= 0.0) return 1.0;
         d /= len;
-        return max(0.0, 1.0 + NORMAL_STRENGTH * (dot(n, d) - d.z));
+        float facing = dot(n, d);
+        return smoothstep(-FACING, FACING, facing)
+             * max(0.0, 1.0 + NORMAL_STRENGTH * (facing - max(d.z, 0.0)));
     }
 
     // The same for the sky's ambient light

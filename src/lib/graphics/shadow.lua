@@ -129,11 +129,18 @@ end
 -- ground, or for an upright thing the ground under it, a character's feet).
 -- A light's row rides in its range: w = range + row * LIGHT_SLOT.
 --
+-- An upright thing's foot is on its own footprint's front, so a light in
+-- line with that foot would only graze it there, lit or not by a hair and
+-- flickering as it moved. Its texels are tested a little way out from the
+-- foot instead, the way each faces (faceGround): lit from in front, not
+-- from behind, and an edge turned aside from that side.
+--
 -- The flashlight's lights go by where the flashlight is, not where they
 -- are: it hands over its origin and the footprints in its beam
 -- (lighting.setBeam, systems/light.lua), and its lights are left out of
 -- whatever the line from there crosses one to (beamReaches), so none of it
--- lands past a wall or in a pillar's shadow.
+-- lands past a wall or in a pillar's shadow. They shine from its height
+-- (lightHeightOf), the rest from LIGHT_HEIGHT.
 --==========================================================================--
 
 lighting.MAX_BEAM_FEET = 64
@@ -146,13 +153,15 @@ lighting.REACH_GLSL = [[
     const float LIGHT_SLOT = 8192.0;
     const float REACH_BINS = 512.0;
     const float REACH_BIAS = 3.0;         // px: a wall is lit where it stands
+    const float FACE_GAP = 6.0;           // world px out from an upright thing's foot it's lit through
 
     uniform Image lightReach;             // a row per light: how far it gets each way, of its range
     uniform float lightRows;              // rows in lightReach
     uniform bool  lightsBlocked;          // anything in the way this frame
 
     uniform vec2 beamLights;              // lights[x] to lights[x + y - 1] are the flashlight's
-    uniform vec2 beamOrigin;              // where it shines from
+    uniform vec2 beamOrigin;              // where it shines from, on the ground
+    uniform float beamHeight;             // and how high over it
     uniform int  numBeamFeet;
     uniform vec4 beamFeet[MAX_BEAM_FEET]; // what's in its way: segments where things stand
 
@@ -184,6 +193,20 @@ lighting.REACH_GLSL = [[
     bool isBeamLight(int i) {
         float k = float(i);
         return k >= beamLights.x && k < beamLights.x + beamLights.y;
+    }
+
+    // How high lights[i] is over the ground: the flashlight's at its own
+    // height, the rest at `height`
+    float lightHeightOf(int i, float height) {
+        return isBeamLight(i) ? beamHeight : height;
+    }
+
+    // The ground point an upright texel standing over g and facing n
+    // (lib/graphics/normalmap.lua) is lit through: `gap` out from its
+    // foot, the way it faces along the ground
+    vec2 faceGround(vec2 g, vec3 n, float gap) {
+        vec2 o = vec2(n.x, max(n.z, 0.3));
+        return g + o / length(o) * gap;
     }
 
     // 1 if the flashlight reaches ground point p, 0 if something's in the
@@ -253,13 +276,14 @@ local REACH_SHADER = [[
     }
 ]]
 
-local beamX, beamY, beamWorldFeet -- this frame's, from lighting.setBeam
+local beamX, beamY, beamWorldFeet, beamZ -- this frame's, from lighting.setBeam
 
---- Where the flashlight shines from this frame (world px) and what's in its
---- way: a flat list {x0, y0, x1, y1, ...} of segments (world px, nearest
---- first). Before lighting.update; nothing (nil) while it's off.
-function lighting.setBeam(x, y, feet)
-    beamX, beamY, beamWorldFeet = x, y, feet
+--- Where the flashlight shines from this frame (world px, on the ground),
+--- what's in its way: a flat list {x0, y0, x1, y1, ...} of segments (world
+--- px, nearest first), and how high over the ground it's held (world px).
+--- Before lighting.update; nothing (nil) while it's off.
+function lighting.setBeam(x, y, feet, height)
+    beamX, beamY, beamWorldFeet, beamZ = x, y, feet, height
 end
 
 -- Whether (px, py) is inside the closed footprint `feet` (an odd number of
@@ -326,9 +350,11 @@ end
 -- The one true forward-lighting model, shared (in spirit) with the character
 -- shader. Lights and the fragment are expressed in the SAME space by the caller
 -- (screen space here), so the math is space-agnostic.
--- An upright thing with a normal map (lighting.setNormals) is shaded by it
--- too: each texel stands over the point on its ground line below it, and
--- faces each light, and the sky, or not (lib/graphics/normalmap.lua).
+-- An upright thing with a normal map (lighting.setNormals) is lit as
+-- regions' sprites are: each texel stands over the point on its ground line
+-- below it, a light's falloff runs from where it is over the ground up to
+-- the texel, and the texel faces each light, and the sky, or not
+-- (lib/graphics/normalmap.lua).
 local OBJECT_SHADER_SRC = normalmap.GLSL .. lighting.REACH_GLSL .. [[
     #define MAX_LIGHTS 64
 
@@ -340,6 +366,7 @@ local OBJECT_SHADER_SRC = normalmap.GLSL .. lighting.REACH_GLSL .. [[
     uniform Image normalMap;
     uniform float baseY;       // its ground line, screen px
     uniform float lightHeight; // the lights' height, screen px
+    uniform float zoom;
 
     vec4 effect(vec4 color, Image tex, vec2 tc, vec2 screen_coords) {
         vec4 texColor = Texel(tex, tc);
@@ -348,13 +375,15 @@ local OBJECT_SHADER_SRC = normalmap.GLSL .. lighting.REACH_GLSL .. [[
         vec3 n = vec3(0.0, 0.0, 1.0);
         float zs = 0.0; // the texel's height over its ground line
         vec2 ground = screen_coords; // the point on the ground under it
+        vec2 through = screen_coords; // and where it's lit through (faceGround)
         if (hasNormals) {
             n = faceNormal(normalMap, tc);
             zs = max(0.0, baseY - screen_coords.y);
             ambient *= skyShade(n);
             ground.y = baseY;
+            through = faceGround(ground, n, FACE_GAP * zoom);
         }
-        float beam = -1.0; // beamReaches(ground), once a beam light needs it
+        float beam = -1.0; // beamReaches(through), once a beam light needs it
 
         float totalLight = 0.0;
         for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -363,16 +392,16 @@ local OBJECT_SHADER_SRC = normalmap.GLSL .. lighting.REACH_GLSL .. [[
             float range = lightRange(lights[i]);
             if (range <= 0.0) continue;              // skip empty / zero-range slots
 
-            float dist = distance(lights[i].xy, screen_coords);
+            vec3 toLight = hasNormals
+                ? vec3(lights[i].xy - ground, lightHeightOf(i, lightHeight) - zs)
+                : vec3(lights[i].xy - screen_coords, 0.0);
+            float dist = length(toLight);
             if (dist >= range) continue;             // outside this light's reach
 
             float att = 1.0 - dist / range;          // smooth quadratic falloff
             att *= att;
-            if (hasNormals) {
-                att *= faceShade(n, vec3(lights[i].x - screen_coords.x,
-                    lights[i].y - baseY, lightHeight - zs));
-            }
-            att *= reaches(i, lights[i], range, ground, beam); // not past what's in the way
+            if (hasNormals) att *= faceShade(n, toLight);
+            att *= reaches(i, lights[i], range, through, beam); // not past what's in the way
             totalLight += att * lights[i].z;
         }
 
@@ -418,12 +447,14 @@ local worldLights  = {}
 local lightIsBeam  = {} -- whether each is the flashlight's
 local beamRange    = { 0, 0 } -- where the flashlight's lights are: first (from 0), count
 local screenBeamOrigin, worldBeamOrigin = { 0, 0 }, { 0, 0 }
+local screenBeamHeight, worldBeamHeight = 0, 0
 local screenBeamFeet, worldBeamFeet = {}, {}
 local occluders, nearby = {}, {} -- the reach map's segments; scratch while gathering
 local blocked = false           -- whether the reach map has anything in it
 
--- What stands in the way (REACH_GLSL), lights[range] being the flashlight's
-local function sendReach(shader, origin, feet, range)
+-- What stands in the way (REACH_GLSL), lights[range] being the flashlight's,
+-- held `height` over the ground
+local function sendReach(shader, origin, feet, range, height)
     shader:send("lightsBlocked", blocked)
     if blocked then
         shader:send("lightReach", reachMap)
@@ -433,6 +464,8 @@ local function sendReach(shader, origin, feet, range)
     shader:send("beamOrigin", origin)
     shader:send("numBeamFeet", #feet)
     if #feet > 0 then shader:send("beamFeet", unpack(feet)) end
+    -- (only what lights upright things by height has it)
+    if shader:hasUniform("beamHeight") then shader:send("beamHeight", height) end
 end
 
 -- Each light's reach round it, into reachMap: the footprints near enough to
@@ -547,6 +580,8 @@ function lighting.update(dt)
     if count > 0 and beamX then
         screenBeamOrigin[1], screenBeamOrigin[2] = beamX * zoom + camX, beamY * zoom + camY
         worldBeamOrigin[1], worldBeamOrigin[2] = beamX, beamY
+        worldBeamHeight = beamZ or lighting.LIGHT_HEIGHT
+        screenBeamHeight = worldBeamHeight * zoom
         local f = beamWorldFeet
         m = math.min(#f / 4, lighting.MAX_BEAM_FEET)
         for i = 1, m do
@@ -569,10 +604,11 @@ function lighting.update(dt)
     objectShader:send("numLights", n)
     objectShader:send("u_ambient", lighting.ambient)
     objectShader:send("lightHeight", lighting.LIGHT_HEIGHT * zoom)
+    objectShader:send("zoom", zoom)
     if n > 0 then
         objectShader:send("lights", unpack(screenLights))
     end
-    sendReach(objectShader, screenBeamOrigin, screenBeamFeet, beamRange)
+    sendReach(objectShader, screenBeamOrigin, screenBeamFeet, beamRange, screenBeamHeight)
 
     -- Instanced character shader (world space).
     if characterAnimator and characterAnimator.shader then
@@ -581,7 +617,7 @@ function lighting.update(dt)
         if n > 0 then
             characterAnimator.shader:send("lights", unpack(worldLights))
         end
-        sendReach(characterAnimator.shader, worldBeamOrigin, worldBeamFeet, beamRange)
+        sendReach(characterAnimator.shader, worldBeamOrigin, worldBeamFeet, beamRange, worldBeamHeight)
     end
 end
 
@@ -609,7 +645,7 @@ function lighting.sendLights(shader)
         shader:send("lights", unpack(screenLights))
     end
     if shader:hasUniform("beamLights") then
-        sendReach(shader, screenBeamOrigin, screenBeamFeet, beamRange)
+        sendReach(shader, screenBeamOrigin, screenBeamFeet, beamRange, screenBeamHeight)
     end
 end
 

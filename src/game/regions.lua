@@ -481,7 +481,7 @@ end
 -- into the vertex colour's red and green bytes; blue holds flags), so
 --   - a light's falloff runs from the point on the ground under the texel up
 --     to it: a building's roof isn't lit by a lamp merely above it on screen,
---     and a light lights it the same whichever side of it the light is,
+--     and a light behind a face doesn't light it (normalmap.lua's faceShade),
 --   - the foot of anything upright sits in a little contact shadow.
 -- The alpha it writes decides what the GI pass makes of it (> 0.5: a wall
 -- that blocks light and gives off its colour). Tall things do; low props
@@ -525,25 +525,28 @@ local SPRITE_SHADER = normalmap.GLSL .. lighting.REACH_GLSL .. [[
         float base = floor(color.r * 255.0 + 0.5) * 256.0 + floor(color.g * 255.0 + 0.5);
         float zs = isFlat ? 0.0 : max(0.0, base - tc.y * atlasHeight) * spriteScale * zoom;
         vec2 ground = screen_coords + vec2(0.0, zs);
-        float lightZ = isFlat ? 0.0 : LIGHT_HEIGHT * zoom;
         // things underfoot are part of the ground, which is flat
         vec3 n = isFlat ? vec3(0.0, 0.0, 1.0) : faceNormal(normalMap, tc);
+        // and what stands is lit through a point out in front of its foot
+        // (shadow.lua's faceGround), not on its own footprint
+        vec2 through = isFlat ? ground : faceGround(ground, n, FACE_GAP * zoom);
 
         float ambient = (u_ambient > 0.0) ? u_ambient : 0.20;
         if (!isFlat) ambient *= skyShade(n);
         float totalLight = 0.0;
-        float beam = -1.0; // beamReaches(ground), once a beam light needs it
+        float beam = -1.0; // beamReaches(through), once a beam light needs it
         for (int i = 0; i < MAX_LIGHTS; i++) {
             if (i >= numLights) break;
             float range = lightRange(lights[i]);
             if (range <= 0.0) continue;
+            float lightZ = isFlat ? 0.0 : lightHeightOf(i, LIGHT_HEIGHT * zoom);
             vec3 toLight = vec3(lights[i].xy - ground, lightZ - zs);
             float dist = length(toLight);
             if (dist >= range) continue;
             float att = 1.0 - dist / range;
             float k = att * att * lights[i].z;
             if (!isFlat) k *= faceShade(n, toLight);
-            totalLight += k * reaches(i, lights[i], range, ground, beam); // not past what's in the way
+            totalLight += k * reaches(i, lights[i], range, through, beam); // not past what's in the way
         }
         float contact = mix(0.65, 1.0, smoothstep(0.0, 18.0 * zoom, zs));
         if (isFlat) contact = 1.0;

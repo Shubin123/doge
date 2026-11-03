@@ -198,9 +198,9 @@ GunTool.lastAimDirection = {}
 GunTool.currentVel = {}
 GunTool.lastAimDirection.x, GunTool.lastAimDirection.y = 0, 0
 GunTool.currentVel.x, GunTool.currentVel.y = 1, 0 -- the flashlight's way, turning toward heading
--- The way you're going, or last went: the flashlight points along it
--- (systems/light.lua), and keeps to it when you stop. (lastAimDirection is
--- the cursor's, for the weapons.)
+-- The way you're going, or the cursor's while you stand still: the
+-- flashlight points along it (systems/light.lua). (lastAimDirection is the
+-- cursor's, for the weapons.)
 GunTool.heading = { x = 1, y = 0 }
 local HEADING_SPEED = 50 -- px/s: moving slower than this, you've stopped
 local HEADING_TURN = 6.3 -- how quickly the flashlight turns to a new heading (1/s)
@@ -610,14 +610,15 @@ function GunTool.update(dt)
     end
 
 
-    -- The heading follows you while you move and stays put once you stop
-    -- (slowing down keeps your direction). It used to be written into
-    -- lastAimDirection, which updateAiming then set to the cursor's, so the
-    -- flashlight swung round to the cursor whenever you stopped.
+    -- The heading follows you while you move, and the cursor while you
+    -- stand still
     local playerVX, playerVY = player.body:getLinearVelocity()
     local playerSpeed = math.sqrt(playerVX * playerVX + playerVY * playerVY)
+    local cursor = GunTool.lastAimDirection
     if playerSpeed > HEADING_SPEED then
         GunTool.heading.x, GunTool.heading.y = playerVX / playerSpeed, playerVY / playerSpeed
+    elseif cursor.x ~= 0 or cursor.y ~= 0 then
+        GunTool.heading.x, GunTool.heading.y = cursor.x, cursor.y
     end
 
     -- The flashlight turns toward it by its angle, so doubling back turns

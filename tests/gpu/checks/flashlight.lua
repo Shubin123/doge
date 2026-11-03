@@ -5,10 +5,10 @@
       python3 tests/gpu/run.py --checks --only flashlight
 
   1. it follows the way you go;
-  2. when you stop it stays on your last heading, wherever the cursor is
-     (it used to swing round to the cursor);
-  3. doubling back turns it round;
-  4. the weapons still aim at the cursor.
+  2. doubling back turns it round;
+  3. when you stop it turns to the cursor;
+  4. moving again, it follows the way you go, not the cursor;
+  5. the weapons still aim at the cursor.
 ]]
 return function(h)
     player.god = true
@@ -43,24 +43,23 @@ return function(h)
         h.advance(frames)
     end
 
+    local function cursor()
+        return math.deg(math.atan2(gun.lastAimDirection.y, gun.lastAimDirection.x))
+    end
+
     move(300, 0, 60)
     h.check("it follows the way you go", near(beam(), 0), string.format("%.0f degrees", beam()))
+    move(-300, 0, 60)
+    h.check("doubling back turns it round", near(beam(), 180), string.format("%.0f degrees", beam()))
     rest(180)
     local vx, vy = player.body:getLinearVelocity()
     h.check("you've stopped", vx * vx + vy * vy < 1)
-    h.check("and it stays on your last heading, not the cursor's", near(beam(), 0),
-        string.format("%.0f degrees; the cursor's at %.0f", beam(),
-            math.deg(math.atan2(gun.lastAimDirection.y, gun.lastAimDirection.x))))
+    h.check("and it turns to the cursor", near(beam(), cursor()),
+        string.format("%.0f degrees; the cursor's at %.0f", beam(), cursor()))
 
     move(0, 300, 60)
-    h.check("a new heading turns it", near(beam(), 90), string.format("%.0f degrees", beam()))
-    rest(180)
-    h.check("and it stays there", near(beam(), 90), string.format("%.0f degrees", beam()))
-
-    move(0, -300, 60)
-    h.check("doubling back turns it round", near(beam(), -90), string.format("%.0f degrees", beam()))
-    rest(120)
-    h.check("and it stays round", near(beam(), -90), string.format("%.0f degrees", beam()))
+    h.check("moving again, it follows the way you go", near(beam(), 90),
+        string.format("%.0f degrees; the cursor's at %.0f", beam(), cursor()))
 
     local ax, ay = gun.lastAimDirection.x, gun.lastAimDirection.y
     h.check("the weapons still aim at the cursor", ax < 0 and ay < 0,
