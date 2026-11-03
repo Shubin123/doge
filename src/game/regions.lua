@@ -491,6 +491,9 @@ end
 -- as bright as a tall thing beside it.
 -- Upright things have normal maps too (lib/graphics/normalmap.lua): each
 -- light, and the sky's ambient light, shades a texel by which way it faces.
+-- The buildings' own relief (brickwork, windows, trim) is baked deeper than
+-- the props', by category:
+local RELIEF = { facade = 1.6, wall = 1.4, tower = 1.4, landmark = 1.4 }
 -- Texels marked in the region's glow map are light sources themselves (a
 -- flame, a bulb, a neon tube): they shine at full strength however dark it is,
 -- and being bright in the scene, the GI pass spreads their colour around.
@@ -617,12 +620,17 @@ local function loadArt(r)
         r.glowImage = love.graphics.newImage(none)
     end
     r.glowImage:setFilter("nearest", "nearest")
-    -- (in name order, so it bakes the same every time)
-    local names, quads = {}, {}
+    -- (in name order, so it bakes the same every time), facades and the
+    -- rest of the buildings with their brickwork, windows and trim deepest
+    local names, quads, detail = {}, {}, {}
     for name in pairs(r.sprites) do names[#names + 1] = name end
     table.sort(names)
-    for i, name in ipairs(names) do quads[i] = r.sprites[name].quad end
-    r.normalImage = normalmap.of(r.image, quads, meta.image)
+    for i, name in ipairs(names) do
+        local s = r.sprites[name]
+        quads[i] = s.quad
+        detail[s.quad] = RELIEF[s.cat] or 1
+    end
+    r.normalImage = normalmap.of(r.image, quads, meta.image, detail)
 
     if meta.floorImage then
         r.floorImage = love.graphics.newImage(meta.floorImage)

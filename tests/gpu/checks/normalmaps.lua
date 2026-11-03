@@ -5,7 +5,8 @@
 
   1. every region sprite that stands up (facades, walls, towers, lamps,
      props, landmarks: all but the flat ones underfoot) has relief in its
-     region's normal map;
+     region's normal map, and the facades have it inside their outline
+     (brickwork, windows, trim), not just as a bevel round it;
   2. so do the home map's arches, tree and house, and the car;
   3. and it shows: the same Neon City street lit with normal maps and
      without differs across its facades (Settings > Normal Maps).
@@ -52,6 +53,49 @@ return function(h)
     h.check("every standing region sprite has a normal map with relief", #missing == 0 and sprites > 0,
         string.format("%d sprites (and %d flat ones underfoot); least relief %.0f%% (%s)%s", sprites, flatOnes,
             worst * 100, tostring(worstName), #missing > 0 and ("; none on " .. table.concat(missing, ", ")) or ""))
+
+    -- 1b. Facades have relief inside their outline (brickwork, windows,
+    -- trim), not just the bevel round it: texels with art all round them
+    -- for 3 px, and what share of those lean
+    local function interior(art, nm, x, y, w, ht)
+        local n, lean = 0, 0
+        for py = y + 3, y + ht - 4 do
+            for px = x + 3, x + w - 4 do
+                local inside = true
+                for oy = -3, 3, 3 do
+                    for ox = -3, 3, 3 do
+                        local _, _, _, a = art:getPixel(px + ox, py + oy)
+                        if a <= 0 then inside = false end
+                    end
+                end
+                if inside then
+                    n = n + 1
+                    local r, g = nm:getPixel(px, py)
+                    if math.abs(r - 0.5) + math.abs(g - 0.5) > 0.06 then lean = lean + 1 end
+                end
+            end
+        end
+        return n > 0 and lean / n or nil
+    end
+    local facades, flattest, flattestName = 0, 1, nil
+    for _, r in ipairs(regions.list) do
+        if r.sprites then
+            local art = love.image.newImageData("gfx/regions/" .. r.id .. ".png")
+            local nm = r.normalImage:newImageData()
+            for name, s in pairs(r.sprites) do
+                if s.cat == "facade" then
+                    local share = interior(art, nm, s.quad:getViewport())
+                    if share then
+                        facades = facades + 1
+                        if share < flattest then flattest, flattestName = share, r.id .. "/" .. name end
+                    end
+                end
+            end
+        end
+    end
+    h.check("facades have relief inside their outline, not just a bevel", facades > 0 and flattest >= 0.5,
+        string.format("%d facades; the flattest leans across %.0f%% of its inside (%s)", facades,
+            flattest * 100, tostring(flattestName)))
 
     -- 2. Home
     local function sheet(label, image, quads)
