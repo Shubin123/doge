@@ -64,10 +64,28 @@ local MOVES = {
         rest = { from = 1, count = 12, fps = 8 } },
     gun = { aim = true, hits = {} },
 }
+--[[
+  Up close, the watchmen and mechs fight hand to hand: a move of the same
+  kind, each hit a blow that lands if you're still within `reach` of it with
+  nothing between (dodge out as it swings and it misses).
+    damage: HP a blow (player.maxHealth is 1000)
+    knock:  how hard it throws you, compared with a shot of that damage
+  Half of each (by index, Enemy:setLook) are brawlers: they close in to
+  fight this way rather than holding their weapon's range, and don't shoot.
+]]
+local MELEE = {
+    -- a left (5), then a right (10)
+    watchman = { anim = "punch", frames = 16, from = 1, count = 16, fps = 16, hits = { 5, 10 },
+        reach = 70, damage = 35, knock = 1.2 },
+    -- winds up, then spins, its blades out three times (19, 27, 45)
+    mech = { anim = "attack", frames = 60, from = 12, count = 49, fps = 24, hits = { 19, 27, 45 },
+        reach = 95, damage = 40, knock = 1.8 },
+}
+
 -- What each enemy looks like, by its index
 local ENEMY_TYPES = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
 
-for _, m in pairs(MOVES) do
+local function prepare(m)
     -- seconds into the move each hit comes, in order
     m.hitTimes = {}
     for _, f in ipairs(m.hits) do
@@ -77,6 +95,8 @@ for _, m in pairs(MOVES) do
     if m.aim then m.hitTimes[1] = 0 end
     m.time = m.aim and 0.25 or m.count / m.fps
 end
+for _, m in pairs(MOVES) do prepare(m) end
+for _, m in pairs(MELEE) do prepare(m) end
 
 --[[
   How enemies think. Each thinks a few times a second rather than every
@@ -199,21 +219,27 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     -- how near it likes to be within its weapon's range, how far ahead it aims
     local a, b = (index * 0.61803) % 1, (index * 0.38197) % 1
     self.orbit = index % 2 == 0 and 1 or -1
-    self.range = self.weapon.range * (0.85 + a * 0.3)
+    self.rangeK = 0.85 + a * 0.3 -- of its weapon's range, where it holds (Enemy:setLook)
     self.lead = 0.3 + b * 0.6
     self.jitter = a           -- added to its cooldown, drawn again each shot
     self.thinkIn = (index % 10) * 0.03 -- staggered
     self.wantX, self.wantY = 0, 0
     self.index = index
+    self.meleeReady = 0 -- self.t it can swing again
     self:setLook(ENEMY_TYPES[index % #ENEMY_TYPES + 1])
 
     return self
 end
 
---- How it looks (a characterAnimator type), and so how it shoots (MOVES).
+--- How it looks (a characterAnimator type), and so how it shoots (MOVES)
+--- and fights up close (MELEE).
 function Enemy:setLook(look)
     self.look = look
     self.move = MOVES[look] or MOVES.watchman
+    self.melee = MELEE[look]
+    self.brawler = self.melee ~= nil and math.floor(self.index / 7) % 2 == 1
+    -- where it holds: a brawler within reach, the rest its weapon's range
+    self.range = self.brawler and self.melee.reach * 0.6 or self.weapon.range * self.rangeK
     -- As often as its weapon fired before, a shot a hit, and never quicker
     -- than its move plays
     self.fire_cooldown = math.max(self.weapon.cooldown * #self.move.hitTimes, self.move.time + 0.4)
@@ -225,15 +251,38 @@ local function spriteOf(self)
     return self.index < var.num_enemies and gun_enemies and gun_enemies[self.index + 2] or nil
 end
 
---- Start its move: Enemy:update plays it through, its weapon firing on
---- each hit.
-function Enemy:startAttack()
-    self.attack = { t = 0, hit = 1 }
-    local m, sprite = self.move, spriteOf(self)
+--- Start a move, its shooting one unless another's given: Enemy:update
+--- plays it through, its weapon firing (or a blow landing) on each hit.
+function Enemy:startAttack(m)
+    m = m or self.move
+    self.attack = { t = 0, hit = 1, move = m }
+    local sprite = spriteOf(self)
     if sprite and m.anim then
         sprite.setAnimation(m.anim)
         sprite.setFrame(m.from)
     end
+end
+
+--- A blow of melee move `m`: it lands if you're still within its reach,
+--- with nothing between. Whether it did.
+function Enemy:strike(m)
+    local ex, ey = self.body:getPosition()
+    local px, py = player.body:getPosition()
+    local dx, dy = px - ex, py - ey
+    local d = math.sqrt(dx * dx + dy * dy)
+    if d > m.reach or not inSight(ex, ey, px, py) then return false end
+    local dir = d > 1e-3 and vec2.new(dx / d, dy / d) or vec2.new(1, 0)
+    player.hurt(m.damage, dir)
+    if not player.god and not player.isSafe() then
+        player.applyKnockback(dir, m.damage * 1.5 * (m.knock - 1)) -- on top of hurt's
+    end
+    bullet.createParticleEffect(vec2.new(px - dir.x * 10, py - dir.y * 10), dir, {
+        count = 10, colors = { { 1, 0.95, 0.8 }, { 1, 0.6, 0.3 } }, lifespan = 0.18,
+        speed = { min = 90, max = 220 }, spreadAngle = math.rad(60),
+    })
+    local src = audio.playSoundAt("explosion", px, py, 0.05)
+    if src then src:setPitch(2.2) end -- a short thud
+    return true
 end
 
 --- Decide what to do until next time: where to go, and whether to shoot.
@@ -255,7 +304,8 @@ function Enemy:think(px, py)
             -- hold its range, circling you; about turn now and then, or when stuck
             local radial = math.max(-1, math.min(1, (d - self.range) / (self.range * 0.5)))
             if self.stuck or math.random() < 0.04 then self.orbit = -self.orbit end
-            wx, wy = ux * radial - uy * self.orbit * 0.8, uy * radial + ux * self.orbit * 0.8
+            local around = self.brawler and 0.3 or 0.8 -- a brawler comes straight on
+            wx, wy = ux * radial - uy * self.orbit * around, uy * radial + ux * self.orbit * around
             speed = AI.STRAFE + math.abs(radial) * 40
             self.thinkIn = AI.THINK_NEAR
         else
@@ -279,9 +329,13 @@ function Enemy:think(px, py)
     self.stuck = speed > 50 and vx * vx + vy * vy < 20 * 20
     self.wantX, self.wantY = wx, wy
 
-    -- Shoot when it can see you, you're within its weapon's reach, and it's ready
-    local w = self.weapon
-    if self.los and not self.attack and d < w.speed * w.lifetime * 0.9
+    -- Within reach, hit you if it can; or else shoot when it can see you,
+    -- you're within its weapon's reach and it's ready (not a brawler)
+    local w, mm = self.weapon, self.melee
+    if mm and self.los and not self.attack and d < mm.reach * 0.9 and self.t >= self.meleeReady then
+        self:startAttack(mm)
+        self.meleeReady = self.t + mm.time + 0.3
+    elseif self.los and not self.attack and not self.brawler and d < w.speed * w.lifetime * 0.9
             and self.t - self.last_fire_time >= self.fire_cooldown + self.jitter then
         self:startAttack()
         self.last_fire_time = self.t
@@ -450,27 +504,43 @@ function Enemy:update(dt)
     if self.thinkIn <= 0 then
         self:think(player.body:getPosition())
     end
-    -- Its move: a shot on each hit, while it can still see you
-    local m, a = self.move, self.attack
+    -- Its move: a shot on each hit while it can still see you, or a blow
+    local a = self.attack
+    local m = a and a.move or self.move
     local shown -- seconds into its move the frame shown is from
     if a then
         a.t = a.t + dt
         shown = a.t
         while m.hitTimes[a.hit] and a.t >= m.hitTimes[a.hit] do
-            shown = m.hitTimes[a.hit] -- the shot's own frame, however late this frame comes
+            shown = m.hitTimes[a.hit] -- the hit's own frame, however late this frame comes
             a.hit = a.hit + 1
-            local ex, ey = self.body:getPosition()
-            if inSight(ex, ey, player.body:getPosition()) then
-                self:fireAtPlayer()
+            if m.reach then
+                self:strike(m)
+            else
+                local ex, ey = self.body:getPosition()
+                if inSight(ex, ey, player.body:getPosition()) then
+                    self:fireAtPlayer()
+                end
             end
         end
         if a.t >= m.time then
             self.attack, self.anim = nil, nil -- back to walking (below)
+            m = self.move
         end
     end
-    -- Steer toward the velocity it wants: slowly while it shoots
+    -- Steer toward the velocity it wants: slowly while it shoots, pressing
+    -- in on you while it swings
     local wx, wy = self.wantX, self.wantY
-    if self.attack then wx, wy = wx * 0.35, wy * 0.35 end
+    if self.attack and m.reach then
+        local ex, ey = self.body:getPosition()
+        local px, py = player.body:getPosition()
+        local dx, dy = px - ex, py - ey
+        local d = math.sqrt(dx * dx + dy * dy)
+        local press = d > m.reach * 0.55 and 90 / d or 0
+        wx, wy = dx * press, dy * press
+    elseif self.attack then
+        wx, wy = wx * 0.35, wy * 0.35
+    end
     local vx, vy = self.body:getLinearVelocity()
     local k = AI.STEER * self.body:getMass()
     self.body:applyForce((wx - vx) * k, (wy - vy) * k)
