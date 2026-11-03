@@ -452,6 +452,24 @@ local function createInstance()
         instance.progressPinned = true
     end
 
+    -- Pin the current animation to one of its frames (1 to frameCount()), as
+    -- setProgress does: for frames the game times itself (an enemy's attack,
+    -- a turret turning to face you).
+    function instance.setFrame(frame)
+        local stateData = instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex]
+        if not stateData then
+            return
+        end
+        instance.currentFrame = math.max(1, math.min(stateData.framesPerDirection, math.floor(frame)))
+        instance.progressPinned = true
+    end
+
+    -- Frames the current animation has, per direction
+    function instance.frameCount()
+        local stateData = instance.currentSpriteIndex and spriteTypes[instance.currentSpriteIndex]
+        return stateData and stateData.framesPerDirection or 0
+    end
+
     function instance.getCharacterType()
         return instance.characterType
     end

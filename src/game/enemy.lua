@@ -36,6 +36,49 @@ local function pickWeapon()
 end
 
 --[[
+  How each look shoots: the animation an attack plays once through, timed by
+  the game rather than the animator's own clock, so every shot leaves on a
+  frame of it and every time it plays it shoots.
+    anim:   the animation (gfx/atlas/atlas_metadata3.lua)
+    frames: frames it has, per direction
+    from, count: the frames played, from `from` on, wrapping past the last
+    fps:    how fast
+    hits:   the frames its shots leave on: where the arm or guns are out, the
+            art reaching furthest from the body (averaged over the eight
+            directions)
+  Its weapon fires once on each hit: a burst's rounds follow from there.
+  `rest` is a loop it holds between attacks instead of its animation
+  (animated_special's one animation is the whole attack, start to finish).
+  `aim` (gun, a turntable of one weapon): no animation; its frame turns it
+  to face you, and each shot kicks it back.
+]]
+local MOVES = {
+    -- arm up (13-16), shot (1), down and up again, shot (12)
+    watchman = { anim = "shoot", frames = 16, from = 13, count = 16, fps = 14, hits = { 1, 12 } },
+    -- guns up (10-13), out (14), back, out again (2)
+    mech = { anim = "shoot", frames = 15, from = 10, count = 15, fps = 14, hits = { 14, 2 } },
+    -- no shooting animation: the stride with its arm out, held as a throw
+    steve = { anim = "walk", frames = 25, from = 9, count = 6, fps = 12, hits = { 13 } },
+    -- rears up, unfolds and strikes out (48), folds back
+    animated_special = { anim = "default", frames = 93, from = 13, count = 81, fps = 32, hits = { 48 },
+        rest = { from = 1, count = 12, fps = 8 } },
+    gun = { aim = true, hits = {} },
+}
+-- What each enemy looks like, by its index
+local ENEMY_TYPES = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
+
+for _, m in pairs(MOVES) do
+    -- seconds into the move each hit comes, in order
+    m.hitTimes = {}
+    for _, f in ipairs(m.hits) do
+        m.hitTimes[#m.hitTimes + 1] = ((f - m.from) % m.frames) / m.fps
+    end
+    table.sort(m.hitTimes)
+    if m.aim then m.hitTimes[1] = 0 end
+    m.time = m.aim and 0.25 or m.count / m.fps
+end
+
+--[[
   How enemies think. Each thinks a few times a second rather than every
   frame (Enemy:think), staggered so they don't all think on the same frame,
   and between times steers toward the velocity it last decided on
@@ -161,8 +204,36 @@ function Enemy.new(world, x, y, max_health, scale, fire_cooldown, detection_rang
     self.jitter = a           -- added to its cooldown, drawn again each shot
     self.thinkIn = (index % 10) * 0.03 -- staggered
     self.wantX, self.wantY = 0, 0
+    self.index = index
+    self:setLook(ENEMY_TYPES[index % #ENEMY_TYPES + 1])
 
     return self
+end
+
+--- How it looks (a characterAnimator type), and so how it shoots (MOVES).
+function Enemy:setLook(look)
+    self.look = look
+    self.move = MOVES[look] or MOVES.watchman
+    -- As often as its weapon fired before, a shot a hit, and never quicker
+    -- than its move plays
+    self.fire_cooldown = math.max(self.weapon.cooldown * #self.move.hitTimes, self.move.time + 0.4)
+end
+
+-- Its slot's sprite (gun_enemies[index + 2]); none past the enemy slots,
+-- where the other players' are
+local function spriteOf(self)
+    return self.index < var.num_enemies and gun_enemies and gun_enemies[self.index + 2] or nil
+end
+
+--- Start its move: Enemy:update plays it through, its weapon firing on
+--- each hit.
+function Enemy:startAttack()
+    self.attack = { t = 0, hit = 1 }
+    local m, sprite = self.move, spriteOf(self)
+    if sprite and m.anim then
+        sprite.setAnimation(m.anim)
+        sprite.setFrame(m.from)
+    end
 end
 
 --- Decide what to do until next time: where to go, and whether to shoot.
@@ -210,13 +281,9 @@ function Enemy:think(px, py)
 
     -- Shoot when it can see you, you're within its weapon's reach, and it's ready
     local w = self.weapon
-    if self.los and d < w.speed * w.lifetime * 0.9 and self.t - self.last_fire_time >= self.fire_cooldown + self.jitter then
-        local a = gun_enemies[self.fixture:getUserData() + 2]
-        if a then
-            a.setAnimation("shoot")
-            self.shootAnimTimer = 0.5
-        end
-        self:fireAtPlayer()
+    if self.los and not self.attack and d < w.speed * w.lifetime * 0.9
+            and self.t - self.last_fire_time >= self.fire_cooldown + self.jitter then
+        self:startAttack()
         self.last_fire_time = self.t
         self.jitter = math.random()
     end
@@ -263,6 +330,11 @@ function Enemy:shoot()
         duration = 0.06, coneAngle = math.rad(25), coneLength = 70, intensity = 0.5, color = w.neon.core
     })
     audio.playSoundAt("enemyGun", ex, ey, 0.08)
+    if self.move.aim then
+        -- a floating gun kicks back with each shot
+        local kick = self.body:getMass() * 90
+        self.body:applyLinearImpulse(-dx * kick, -dy * kick)
+    end
 end
 
 function Enemy:getDirectionToPlayer(n)
@@ -352,8 +424,7 @@ function Enemy:damageEnemy(damage)
             -- sprite fades out (enemy.update) and the enemy is then released.
             suckLight.spawn(self.body:getPosition())
             inventory.enemyDrop(self.body:getPosition()) -- now and then it leaves something
-            -- print(self.fixture:getUserData())
-            self.sprite = gun_enemies[self.fixture:getUserData() + 2]
+            self.sprite = spriteOf(self)
             self.fadeT = 0
             -- table.remove(enemy.enemies, self.fixture:getUserData() + 1)
             self:killEnemy()
@@ -374,18 +445,35 @@ end
 function Enemy:update(dt)
     if self.dead then return end
     self.t = self.t + dt
-    if self.shootAnimTimer then
-        self.shootAnimTimer = math.max(0, self.shootAnimTimer - dt)
-    end
     if not (player and player.body) then return end
     self.thinkIn = self.thinkIn - dt
     if self.thinkIn <= 0 then
         self:think(player.body:getPosition())
     end
-    -- Steer toward the velocity it wants
+    -- Its move: a shot on each hit, while it can still see you
+    local m, a = self.move, self.attack
+    local shown -- seconds into its move the frame shown is from
+    if a then
+        a.t = a.t + dt
+        shown = a.t
+        while m.hitTimes[a.hit] and a.t >= m.hitTimes[a.hit] do
+            shown = m.hitTimes[a.hit] -- the shot's own frame, however late this frame comes
+            a.hit = a.hit + 1
+            local ex, ey = self.body:getPosition()
+            if inSight(ex, ey, player.body:getPosition()) then
+                self:fireAtPlayer()
+            end
+        end
+        if a.t >= m.time then
+            self.attack, self.anim = nil, nil -- back to walking (below)
+        end
+    end
+    -- Steer toward the velocity it wants: slowly while it shoots
+    local wx, wy = self.wantX, self.wantY
+    if self.attack then wx, wy = wx * 0.35, wy * 0.35 end
     local vx, vy = self.body:getLinearVelocity()
     local k = AI.STEER * self.body:getMass()
-    self.body:applyForce((self.wantX - vx) * k, (self.wantY - vy) * k)
+    self.body:applyForce((wx - vx) * k, (wy - vy) * k)
     if self.burstLeft > 0 then
         self.burstTimer = self.burstTimer - dt
         if self.burstTimer <= 0 then
@@ -394,13 +482,26 @@ function Enemy:update(dt)
             self.burstTimer = self.weapon.interval or 0
         end
     end
-    -- Walking, running (backing off or circling fast), or still
-    if not (self.shootAnimTimer and self.shootAnimTimer > 0) then
+
+    local sprite = spriteOf(self)
+    if not sprite then return end
+    if self.attack and m.anim then
+        -- the move's frame now
+        sprite.setFrame((m.from - 1 + math.min(m.count - 1, math.floor(shown * m.fps + 1e-6))) % m.frames + 1)
+    elseif m.aim then
+        -- turned to face you
+        local ex, ey = self.body:getPosition()
+        local px, py = player.body:getPosition()
+        sprite.setFrame(mymath.heading(px - ex, py - ey, sprite.frameCount()))
+    elseif m.rest then
+        sprite.setFrame(m.rest.from + math.floor(self.t * m.rest.fps) % m.rest.count)
+    else
+        -- Walking, running (backing off or circling fast), or still
         local moving = self.wantX * self.wantX + self.wantY * self.wantY
-        local anim = moving > 130 * 130 and "run" or moving > 1 and "walk" or nil
-        if anim and anim ~= self.anim then
-            local a = gun_enemies[self.fixture:getUserData() + 2]
-            if a then a.setAnimation(anim) end
+        local anim = moving > 130 * 130 and "run" or moving > 1 and "walk" or "idle"
+        if anim ~= self.anim then
+            -- (not every look has them all: walk does for any)
+            if not sprite.setAnimation(anim) then sprite.setAnimation("walk") end
             self.anim = anim
         end
     end
@@ -466,9 +567,6 @@ local enemy = {
     totalToSpawn = 0,
 }
 
--- What each enemy looks like, by its index
-local ENEMY_TYPES = {"watchman", "mech", "steve", "watchman", "mech", "animated_special", "gun"}
-
 -- An enemy slot's sprite (gun_enemies[index + 2]) is hidden until an enemy
 -- takes the slot (enemy.addEnemy) and again once it has gone: characterAnimator
 -- makes every instance a visible princess somewhere round the home map, and
@@ -515,7 +613,7 @@ local RELEASED = setmetatable({ dead = true, cleanedUp = true, released = true,
 local function releaseEnemy(i)
     -- (An enemy removed rather than killed never recorded its sprite; slot i
     -- was index i - 1, whose sprite is gun_enemies[(i - 1) + 2].)
-    local sprite = enemy.enemies[i].sprite or gun_enemies[i + 1]
+    local sprite = enemy.enemies[i].sprite or (i <= var.num_enemies and gun_enemies[i + 1])
     if sprite then hideSprite(sprite) end
     enemy.enemies[i] = RELEASED
 end
@@ -613,13 +711,14 @@ function enemy.addEnemy(x, y, charType)
         enemy.detection_range, enemy.projectile_speed, index)
     table.insert(enemy.enemies, e)
 
-    local sprite = gun_enemies and gun_enemies[index + 2]
+    local look = charType or ENEMY_TYPES[index % #ENEMY_TYPES + 1]
+    local sprite = spriteOf(e)
     if sprite then
         sprite.on, sprite.opacity = true, nil
         sprite.x, sprite.y = x, y
         -- dot-call, not a method: characterAnimator instances expose plain
         -- closures (`function instance.setCharacterType(t)`)
-        sprite.setCharacterType(charType or ENEMY_TYPES[index % #ENEMY_TYPES + 1])
+        if sprite.setCharacterType(look) then e:setLook(look) end
     end
 
     enemy.last_fire_times[index] = enemy.t - enemy.fire_cooldown
@@ -892,7 +991,8 @@ end
 
 --- Host: every enemy still on screen anywhere (alive, or fading out), with
 --- what a client needs to draw it: its slot, position, character, facing,
---- animation and, while it fades, opacity.
+--- animation (and its frame, when the game times it) and, while it fades,
+--- opacity.
 function enemy.getNetworkData()
     local list = {}
     for i, e in ipairs(enemy.enemies) do
@@ -906,6 +1006,7 @@ function enemy.getNetworkData()
                     y = round(y),
                     c = sprite.getCharacterType(),
                     a = sprite.getCurrentAnimation(),
+                    f = sprite.progressPinned and sprite.currentFrame or nil, -- a frame the game times
                     d = sprite.currentDirection,
                     o = sprite.opacity,
                 }
@@ -934,6 +1035,11 @@ function enemy.applyNetworkData(list)
             end
             if n.a and sprite.getCurrentAnimation() ~= n.a then
                 sprite.setAnimation(n.a)
+            end
+            if n.f then
+                sprite.setFrame(n.f) -- (its attack, or a gun turning to you)
+            elseif sprite.progressPinned then
+                sprite.setAnimation(sprite.getCurrentAnimation()) -- the animator's clock again
             end
             sprite.setDirection(n.d or 1)
             sprite.opacity = n.o
@@ -998,7 +1104,7 @@ function enemy.populate()
     for _, e in ipairs(enemy.enemies) do
         if e.fixture and e.fixture:getUserData() then
             local enemy_index = e.fixture:getUserData()
-            if enemy_index and enemy_index >= 0 and enemy_index < #gun_enemies then
+            if enemy_index and enemy_index >= 0 and enemy_index < var.num_enemies then
                 local ex, ey = e.body:getPosition()
                 -- Lua arrays start at 1 (+ player is all stuffed into one array rn)
                 local enemyInstance = gun_enemies[enemy_index + 2]
