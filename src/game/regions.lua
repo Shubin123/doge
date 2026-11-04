@@ -780,6 +780,13 @@ end
 local LOT, WALK, ROAD, PLAZA = 1, 2, 3, 4
 -- and how light or dark each is (layout.ground.shade overrides)
 local SHADE = { [LOT] = 1.0, [WALK] = 1.07, [ROAD] = 0.8, [PLAZA] = 1.05 }
+-- and its colour on the minimap (ui/minimap.lua)
+local PLAN = {
+    [LOT] = { 0.12, 0.14, 0.11, 1 },
+    [WALK] = { 0.31, 0.31, 0.33, 1 },
+    [ROAD] = { 0.20, 0.20, 0.23, 1 },
+    [PLAZA] = { 0.38, 0.34, 0.27, 1 },
+}
 
 -- A region's grass in cache/: how many fields, then each one's rect and
 -- blade count and its vertex data (grass.lua's VERTEX_FORMAT), LZ4 packed
@@ -985,6 +992,11 @@ local function generate(r, index)
     r.zones = love.graphics.newImage(zdata)
     r.zones:setFilter(g.hard and "nearest" or "linear", g.hard and "nearest" or "linear")
     r.zoneSize = { zcols, zrows }
+    -- the street plan again for the minimap, a texel per cell from (x0, y0)
+    local pdata = love.image.newImageData(zcols, zrows)
+    pdata:mapPixel(function(col, row) return unpack(PLAN[zone[row * zcols + col]]) end)
+    r.plan = { image = love.graphics.newImage(pdata), x = x0, y = y0, cell = ZONE }
+    r.plan.image:setFilter("nearest", "nearest")
     r.hardGround = g.hard and 1 or 0
     r.rough = g.rough or 0.8
 

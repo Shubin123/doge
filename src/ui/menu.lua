@@ -222,6 +222,9 @@ local function layout(uw, uh)
                 profiler.overlay_visible = not profiler.overlay_visible
                 profiler.overlay_detail = 1
             end)
+            setting("Minimap: " .. onOff(var.minimap), function()
+                var.minimap = not var.minimap
+            end)
 
         elseif settingsTab == "graphics" then
             local preset = settings.preset()

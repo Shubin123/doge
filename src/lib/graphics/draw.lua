@@ -1,5 +1,6 @@
 draw = {}
 oldhand = love.graphics.newImage("gfx/menu/old_hand.png")
+local minimap = require("ui.minimap")
 
 -- Render graph (high graphics):
 --   prepass (clear scene_canvas)
@@ -17,6 +18,10 @@ function draw.mydraw()
     if scene_canvas and (scene_canvas:getWidth() ~= sw or scene_canvas:getHeight() ~= sh) then
         love.resize(sw, sh)
     end
+
+    -- The HUD's minimap into its own canvas first, before the frame's other
+    -- targets have anything on them to store
+    minimap.render()
 
     if var.graphics_high then
         shader.prepass()

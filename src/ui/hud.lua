@@ -3,9 +3,11 @@
 -- screen with pixel-art icons, hearts for health, a light bar for the universal
 -- ammo every weapon spends (where Minecraft has hunger), and points on an XP bar.
 -- Everything is laid out in GUI units (one icon pixel) and scaled up by a whole
--- number so the pixel art stays crisp.
+-- number so the pixel art stays crisp. A minimap (ui/minimap.lua) in the top
+-- left, the clock in the top right.
 
 local skin = require("ui.skin")
+local minimap = require("ui.minimap")
 
 local hud = {}
 
@@ -294,6 +296,7 @@ function hud.load()
     heartLostHalf = love.graphics.newQuad(4, 0, 5, #HEART, heart:getDimensions())
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
+    minimap.load()
 end
 
 local function box(x, y, w, h)
@@ -611,6 +614,18 @@ local function drawClock(cx, cy, ts)
     outlinedText(text, tx, cy + R + 2.5, ts, { 1, 1, 1, 1 }, { 0, 0, 0, 1 })
 end
 
+-- The minimap (ui/minimap.lua) with its top left at (x, y), framed like the
+-- hotbar.
+local function drawMinimap(x, y)
+    if not minimap.shown() then return end
+    local size = minimap.SIZE
+    love.graphics.setColor(0.05, 0.05, 0.05, 0.85)
+    border(x - 2, y - 2, size + 4, size + 4, 1)
+    love.graphics.setColor(0.45, 0.45, 0.47, 0.9)
+    border(x - 1, y - 1, size + 2, size + 2, 1)
+    minimap.draw(x, y)
+end
+
 -- Red light creeping in from the screen's edges, fading after a hit.
 local function drawHurtFlash(screenW, screenH)
     local age = love.timer.getTime() - (player.hurtAt or -math.huge)
@@ -646,6 +661,7 @@ function hud.draw()
     love.graphics.scale(u)
 
     drawClock(math.floor(screenW / u) - 26, 26, ts) -- clear of the CRT bulge round the edges
+    drawMinimap(14, 14) -- and the minimap as far in from the other corner
     bosses.drawHUD(screenW / u, font, ts) -- the nearest boss's health, across the top
     drawHotbar(x, y, slots, ts)
     drawXP(x, y - 7, width, ts)

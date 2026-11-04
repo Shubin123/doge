@@ -352,6 +352,9 @@ local function main()
     -- and without bosses: the gate open, every stall up, no boss in the
     -- neon street's frame (game/bosses.lua)
     var.region_bosses = false
+    -- and without the minimap (ui/minimap.lua), which the baseline frames
+    -- were taken before
+    var.minimap = false
 
     local t0 = realTime()
     love.load(love.arg.parseGameArguments(arg), arg)

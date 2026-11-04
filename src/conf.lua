@@ -122,6 +122,10 @@ var.lamp_glows = true
 -- Fancy graphics only.
 var.shockwaves = true
 
+-- Settings > Minimap: the map of what stands round you in the top left
+-- (ui/minimap.lua).
+var.minimap = true
+
 var.indoors = false
 
 -- Day and night (systems/daynight.lua): seconds of game time a whole day
