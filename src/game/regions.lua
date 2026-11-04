@@ -148,6 +148,7 @@ regions.list = {
         posts = { "round_tower", "round_tower_b", "banner_pillar" },
         flat = { "coins", "rune_carpet" },
         portalLights = { "brazier_b", "brazier_b" },
+        boss = "bear", -- guarding its lair (game/bosses.lua)
         layout = {
             facades = { "blue_window", "cell_wall", "gothic_wall", "gate_wall", "great_gate", "dungeon_wall_a",
                 "dungeon_wall_b", "ruin_windows", "ruin_wall" },
@@ -190,6 +191,7 @@ regions.list = {
         posts = { "lamp_a", "lamp_b", "terminal_b" },
         flat = { "grate_a", "grate_b", "manhole", "rail" },
         portalLights = { "lamp_a", "lamp_b" },
+        boss = "arm", -- bolted down at its lair (game/robotArm.lua)
         layout = {
             facades = { "tower_ramen", "tower_tech", "block_cyber", "block_glass" },
             corners = {},
@@ -888,6 +890,10 @@ local function generate(r, index)
         { x = snapX(ox + W * rand(0.73, 0.8)), top = oy + TOP, bottom = oy + H * 0.84 },
         { x = snapX(ox + W / 2) - ZONE, top = streets[2].roadBottom, bottom = plaza.y + 60, main = true },
     }
+    -- A boss's lair (game/bosses.lua): the junction where the main avenue
+    -- meets the middle street, in front of the landmark that ends it
+    local main = avenues[3]
+    r.lair = { x = main.x + ZONE, y = streets[2].kerb + ZONE }
     for _, a in ipairs(avenues) do
         a.w = 2 * ZONE
         for _, s in ipairs(streets) do

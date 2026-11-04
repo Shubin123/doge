@@ -646,6 +646,7 @@ function hud.draw()
     love.graphics.scale(u)
 
     drawClock(math.floor(screenW / u) - 26, 26, ts) -- clear of the CRT bulge round the edges
+    bosses.drawHUD(screenW / u, font, ts) -- the nearest boss's health, across the top
     drawHotbar(x, y, slots, ts)
     drawXP(x, y - 7, width, ts)
     drawHearts(x, y - 17)

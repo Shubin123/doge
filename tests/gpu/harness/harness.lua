@@ -349,6 +349,9 @@ local function main()
     -- The play-testing loadout (every trinket equipped) would answer every
     -- shot and kill; runs start with an empty bag, as they always have
     var.equip_all_trinkets = false
+    -- and without bosses: the gate open, every stall up, no boss in the
+    -- neon street's frame (game/bosses.lua)
+    var.region_bosses = false
 
     local t0 = realTime()
     love.load(love.arg.parseGameArguments(arg), arg)

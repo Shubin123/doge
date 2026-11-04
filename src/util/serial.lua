@@ -124,6 +124,7 @@ function serial.create()
         coins = captureCoins(),
         enemies = enemy.getSaveData(),
         bosses = boss.getSaveData(),
+        lairs = bosses.getSaveData(), -- the gate, and which regions' bosses are beaten
         cars = captureCars(),
         command_blocks = command.getCommandBlocks(),
         bag = inventory.getSaveData(), -- the bag and items on the ground
@@ -149,6 +150,7 @@ function serial.apply(state)
     if state.coins then restoreCoins(state.coins) end
     if state.enemies then enemy.restore(state.enemies) end
     if state.bosses then boss.restore(state.bosses) end
+    bosses.restore(state.lairs) -- (sealed, none beaten, for a save from before the gate)
     if state.cars then restoreCars(state.cars) end
     if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
     inventory.restore(state.bag) -- (empty for a save from before the bag)

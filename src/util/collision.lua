@@ -112,8 +112,9 @@ local function rocketSplash(userData, x, y)
             end
         end
     end
-    -- and what stands nearby (game/destruction.lua)
+    -- and what stands nearby (game/destruction.lua), and any boss it reaches
     destruction.blast(x, y, splashRadius, destruction.BLAST)
+    bosses.blast(x, y, splashRadius, 45)
     if hits > 1 and enemy.damage_indicators then
         table.insert(enemy.damage_indicators, {
             x = x,
@@ -350,6 +351,36 @@ function collision.init()
         end
     end)
 
+
+    -- Projectile vs Boss (game/bosses.lua): a bullet does its weapon's
+    -- damage and is spent, a fireball its own
+    collision.registerResponse("projectile", "boss", function(fixtureA, fixtureB, contact)
+        local data = fixtureA:getUserData()
+        local part = fixtureB:getUserData()
+        if type(data) ~= "table" or data.spent then return end
+        local x, y = contactPoint(contact, fixtureA:getBody())
+        if data[1] == "fireball" then
+            bosses.hit(part, data[2] or 10, x, y, "scorch")
+        else
+            bosses.hit(part, data.damage or 1, x, y, "hole")
+            if bullet and bullet.toReturn and data.speed and not data.topSpeed then
+                data.spent = true
+                table.insert(bullet.toReturn, data)
+            end
+        end
+    end)
+
+    -- Rocket vs Boss: it goes off there (the splash hurts the boss)
+    collision.registerResponse("rocket", "boss", function(fixtureA, fixtureB, contact)
+        local userData = fixtureA:getUserData()
+        if userData and not userData.destroyed then
+            userData.destroyed = true
+            local x, y = fixtureA:getBody():getPosition()
+            audio.playSoundAt("explosion", x, y, 0.1, 0.5)
+            explosion.create(x, y, explosion.TYPES.ROCKET)
+            rocketSplash(userData, x, y)
+        end
+    end)
 
     -- Rocket vs Enemy: Area damage with explosion and destroy rocket
     collision.registerResponse("rocket", "enemy", function(fixtureA, fixtureB, contact)

@@ -3,11 +3,14 @@ local portal = {}
 local skin = require("ui.skin")
 
 -- Stepping into a portal opens a selector of every region (game/regions.lua);
--- picking one teleports the player in front of that region's portal.
+-- picking one teleports the player in front of that region's portal. The
+-- home portal starts sealed: stepping into it offers to summon its guardian
+-- instead (game/bosses.lua), and once that's beaten it opens for good.
 local W, H = 35, 50     -- the portal's rect, from its top left
 local FLASH_TIME = 0.45 -- seconds the screen glows after a jump
 
 portal.selecting = false -- the selector is open
+portal.sealed = false    -- the sealed gate's prompt is open
 portal.from = nil        -- the region whose portal the player is standing in
 local armed = true       -- false after Esc, until the player steps out
 local choice = 1         -- highlighted destination, an index into regions.list
@@ -120,7 +123,15 @@ vec4 effect( vec4 colour, Image texture, vec2 texture_coords, vec2 screen_coords
 
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
-    portal.selecting, portal.from, armed, flash = false, nil, true, 0
+    -- the sealed gate's colours, dull and bloody
+    portal.sealedParams = {
+        time = 0, spin_time = 0,
+        colour_1 = { 0.35, 0.08, 0.10, 1.0 },
+        colour_2 = { 0.12, 0.12, 0.14, 1.0 },
+        colour_3 = { 0.25, 0.22, 0.26, 1.0 },
+        contrast = 2.0, spin_amount = 0.2
+    }
+    portal.selecting, portal.sealed, portal.from, armed, flash = false, false, nil, true, 0
     
     -- print("Available shaders:")
     -- for name, shader in pairs(portal.SHADERS) do
@@ -139,6 +150,8 @@ function portal.update(dt)
     -- Optional: Add some parameter animation
     portal.params.contrast = 2.0 + math.sin(portal.current_time * 0.3) * 0.5
     portal.params.spin_amount = 0.5 + math.sin(portal.current_time * 0.2) * 0.3
+    portal.sealedParams.time = portal.current_time * 0.25
+    portal.sealedParams.spin_time = portal.spin_time * 0.25
 
     flash = math.max(0, flash - dt)
     if var.State == "menu" or not (player and player.body) then return end
@@ -153,9 +166,12 @@ function portal.update(dt)
         end
     end
     if not inside then
-        portal.selecting, portal.from, armed = false, nil, true
+        portal.selecting, portal.sealed, portal.from, armed = false, false, nil, true
+    elseif inside == regions.list[1] and not bosses.isGateOpen() then
+        portal.selecting, portal.from = false, inside
+        portal.sealed = armed
     elseif armed and not portal.selecting then
-        portal.selecting, portal.from = true, inside
+        portal.selecting, portal.sealed, portal.from = true, false, inside
         choice = inside == regions.list[1] and 2 or 1
     end
 
@@ -176,10 +192,11 @@ function portal.populate()
     for _, r in ipairs(regions.list) do
         local p = r.portal
         if p and p.x < x1 and p.x + W > x0 and p.y < y1 and p.y + H > y0 then
+            local sealed = r == regions.list[1] and not bosses.isGateOpen()
             table.insert(dynamic_draw_list, {
                 sort_y = p.y + 165, -- with a character standing just behind it
                 shader = portal.SHADERS["portal"],
-                shader_params = portal.params,
+                shader_params = sealed and portal.sealedParams or portal.params,
                 x = p.x,
                 y = p.y,
                 width = W,
@@ -190,6 +207,13 @@ function portal.populate()
             })
         end
     end
+end
+
+--- The gate's guardian is beaten (game/bosses.lua): it opens, with a flash
+function portal.opened()
+    flash = FLASH_TIME * 2
+    camera.shake(5, 0.4)
+    inventory.notify("The gate is open: step in to travel")
 end
 
 --- Teleport to regions.list[i] (not the one the player is standing in).
@@ -233,6 +257,22 @@ end
 --- straight there, Esc to close it until the player steps out and back in.
 --- Returns true when it used the key.
 function portal.keypressed(key)
+    if portal.sealed and var.State ~= "menu" and not command.isOpen() then
+        -- the sealed gate: E or Enter summons its guardian, Esc closes
+        if key == "escape" then
+            portal.sealed, armed = false, false
+        elseif key == "return" or key == "kpenter" or key == "e" then
+            if bosses.gateFight() then return true end
+            if not (not var.multiplayer or var.multiplayer == 1) then
+                inventory.notify("Only the host can summon the guardian")
+            elseif bosses.summon() then
+                portal.sealed, armed = false, false
+            end
+        else
+            return false
+        end
+        return true
+    end
     if not portal.selecting or var.State == "menu" or command.isOpen() then
         return false
     end
@@ -282,7 +322,25 @@ function portal.drawUI()
         love.graphics.setColor(0.75, 0.55, 1.0, (flash / FLASH_TIME) ^ 2 * 0.85)
         love.graphics.rectangle("fill", 0, 0, sw, sh)
     end
-    if portal.selecting then
+    if portal.sealed then
+        local u = skin.guiScale()
+        local ts = skin.textScale(u)
+        local sw, sh = love.graphics.getDimensions()
+        love.graphics.setFont(font)
+        love.graphics.scale(u)
+        local w, h = 190, 58
+        local x, y = math.floor((sw / u - w) / 2), math.floor((sh / u - h) / 2)
+        love.graphics.setColor(0.06, 0.06, 0.06, 0.75)
+        love.graphics.rectangle("fill", x, y, w, h)
+        skin.printCentered("The gate is sealed", x + w / 2, y + 6, ts, skin.WHITE)
+        if bosses.gateFight() then
+            skin.printCentered("Beat its guardian to open it", x + w / 2, y + 24, ts, skin.YELLOW)
+            skin.printCentered("Esc", x + w / 2, y + 42, ts, skin.GRAY)
+        else
+            skin.printCentered("[E] Summon its guardian", x + w / 2, y + 24, ts, skin.YELLOW)
+            skin.printCentered("E/Enter  Esc", x + w / 2, y + 42, ts, skin.GRAY)
+        end
+    elseif portal.selecting then
         local buttons, u, top = layout()
         local ts = skin.textScale(u)
         love.graphics.setFont(font)

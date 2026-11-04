@@ -13,6 +13,8 @@
     * A stall stands out in the open, on the square round a region's portal
       or its market square: a striped awning on two posts, the keeper under
       it and a counter in front with a lantern on it. Nothing's safe there.
+      It's only there once its region's boss is beaten (bosses.cleared:
+      game/bosses.lua); until then its counter's body is switched off.
     * Besides its stock a shop can put out a few trinkets you haven't got
       (its shelf), new each morning.
 
@@ -22,6 +24,7 @@
 ]]
 local skin = require("ui.skin")
 local normalmap = require("lib.graphics.normalmap")
+local nav = require("lib.nav")
 local inventory = require("game.inventory")
 local SHOPS = require("game.shops")
 
@@ -446,14 +449,21 @@ local function house()
     return map.houseInstances and map.houseInstances[1]
 end
 
+-- Whether shop s is there: the house's always, a stall once its region's
+-- boss is beaten
+local function standing(s)
+    return s.house or bosses.cleared(s.def.region)
+end
+
 -- Where shop s's keeper stands (the back of the house's room, or behind
--- the stall's counter)
+-- the stall's counter); nil while it isn't there
 local function keeperPosition(s)
     if s.house then
         local h = house()
         if not h then return nil end
         return h.x, h.y - 34
     end
+    if not standing(s) then return nil end
     return s.x, s.y
 end
 
@@ -511,6 +521,14 @@ function shop.update(dt)
     local hour = daynight.hour
     if lastHour and lastHour < DAWN and hour >= DAWN then shop.restock() end
     lastHour = hour
+
+    -- a stall's counter only stops you once the stall's there
+    for _, s in ipairs(shop.list) do
+        if s.body and s.body:isActive() ~= standing(s) then
+            s.body:setActive(standing(s))
+            nav.forget(s.x - STALL_W, s.y, s.x + STALL_W, s.y + 32)
+        end
+    end
 
     if shop.open then
         local s = shop.current

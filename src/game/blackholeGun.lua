@@ -35,6 +35,7 @@ local PULL = 1.6e5             -- acceleration is PULL / d px/s^2...
 local MAX_PULL = 3200          -- ...up to this
 local DRAG = 3                 -- 1/s: inside, enemies lose their own way, so they fall in rather than orbit
 local SWALLOW = HORIZON + 10   -- px: an enemy's centre this close is gone
+local BOSS_DPS = 35            -- what it does to a boss within 2.5 x that a second
 local BULLET_PULL = 4          -- enemies' bullets bend round it (as blackhole.lua's)
 local HIT_ENEMY = 24           -- px: in flight it stops on an enemy this close
 local HIT_PLAYER = 30          -- px: an enemy's stops on you this close
@@ -122,7 +123,7 @@ local function advance(h, step)
         local px, py = player.body:getPosition()
         stop = (px - h.x) ^ 2 + (py - h.y) ^ 2 < HIT_PLAYER * HIT_PLAYER
     else
-        stop = enemyNear(h.x, h.y, HIT_ENEMY)
+        stop = enemyNear(h.x, h.y, HIT_ENEMY) or bosses.near(h.x, h.y, HIT_ENEMY) ~= nil
     end
     if h.left <= 0 or stop then
         open(h)
@@ -166,6 +167,9 @@ local function pull(h, dt)
             end
         end
     end
+
+    -- a boss is too much to swallow: it gnaws at it (game/bosses.lua)
+    bosses.drain(h.x, h.y, SWALLOW * k * 2.5, BOSS_DPS, dt)
 
     for i = #bullet.instances, 1, -1 do
         local inst = bullet.instances[i]

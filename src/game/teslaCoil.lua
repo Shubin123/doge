@@ -310,6 +310,18 @@ local function findTargets(sx, sy, aim_x, aim_y)
             end
         end
     end
+    -- and the bosses' parts (game/bosses.lua)
+    for _, p in ipairs(bosses.parts) do
+        if p.body and not p.body:isDestroyed() then
+            local ex, ey = p.body:getPosition()
+            local dx, dy = ex - sx, ey - sy
+            local d = math.max(0, math.sqrt(dx * dx + dy * dy) - (p.radius or 0))
+            if d <= config.lock_range and (aim_len < 1e-6 or d < 1e-6
+                    or (dx * aim_x + dy * aim_y) / (math.sqrt(dx * dx + dy * dy) * aim_len) >= min_cos) then
+                targets[#targets + 1] = { body = p.body, x = ex, y = ey, d = d }
+            end
+        end
+    end
     table.sort(targets, function(a, b) return a.d < b.d end)
     return targets
 end
@@ -372,6 +384,8 @@ local function shockTargets(dt)
                 end
                 burning[body] = t
                 enemy.damageEnemy(fixture:getUserData(), config.damage_per_second * dt, x, y, "scorch")
+            elseif fixture and bosses.part(fixture) then
+                bosses.hit(fixture:getUserData(), config.damage_per_second * dt, body:getX(), body:getY(), "scorch")
             end
         end
     end

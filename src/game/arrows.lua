@@ -101,13 +101,17 @@ local function checkArrowCollision(world, arrow)
             local len = math.sqrt(dx * dx + dy * dy)
             if fixture:getGroupIndex() == collision.groups.enemy then
                 struck = { fixture:getUserData(), x, y }
+            elseif bosses.part(fixture) then
+                struck = { fixture:getUserData(), x, y, boss = true } -- (game/bosses.lua)
             elseif len > 0 then
                 destruction.hitFixture(fixture, x, y, dx / len, dy / len, destruction.ARROW)
             end
         end
         return 0
     end)
-    if struck then
+    if struck and struck.boss then
+        bosses.hit(struck[1], config.damage, struck[2], struck[3], "hole")
+    elseif struck then
         enemy.damageEnemy(struck[1], config.damage, struck[2], struck[3], "hole")
     end
     

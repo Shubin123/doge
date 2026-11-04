@@ -9,8 +9,9 @@ boss.t = 0
 boss.bosses = {} -- All boss instances
 boss.boss_bodies = {} -- Physics bodies for bosses
 
--- Health system
-boss.max_health = 500
+-- Health system (your weapons reach it through game/bosses.lua: a pistol
+-- shot is 1, a rocket up to 45)
+boss.max_health = 200
 boss.damage_flash_duration = 0.15
 
 -- Movement configuration  
@@ -24,7 +25,7 @@ boss.ground_pound_damage = 50
 -- Laser configuration
 boss.laser_charge_time = 2.0
 boss.laser_duration = 1.5
-boss.laser_damage = 25
+boss.laser_damage = 150 -- per second in the beam (player HP: ten hearts of 100)
 boss.laser_width = 5  -- Reduced from 30
 boss.laser_cooldown = 4.0
 
@@ -135,7 +136,8 @@ function boss.getPendingSpawnRequest()
     return request
 end
 
-function boss.spawn(x, y)
+-- `lair`: the region whose lair it came out of (game/bosses.lua), or nil
+function boss.spawn(x, y, lair)
     -- Generate unique ID
     local boss_id = 1
     while boss.bosses[boss_id] do
@@ -236,27 +238,47 @@ function boss.spawn(x, y)
     new_boss.particle_emitters.shockwave:setSizes(1, 2, 0.5)
     new_boss.particle_emitters.shockwave:setLinearDamping(3)
     
+    new_boss.lair = lair
+    -- what your weapons hit (game/bosses.lua)
+    new_boss.part = { type = "boss", boss = new_boss, body = body, radius = 30, hit = boss.hitInstance }
+    fixture:setUserData(new_boss.part)
+    bosses.register(new_boss.part)
+
     boss.bosses[boss_id] = new_boss
     boss.boss_bodies[boss_id] = body
-    
+
     return boss_id
 end
 
 function boss.despawn(boss_id)
     local boss_instance = boss.bosses[boss_id]
     if boss_instance then
+        bosses.unregister(boss_instance.part)
         -- Destroy physics body
         if boss_instance.body then
             boss_instance.body:destroy()
         end
-        
+
         -- Clean up
         boss.bosses[boss_id] = nil
         boss.boss_bodies[boss_id] = nil
-        
+
         return true
     end
     return false
+end
+
+-- For game/bosses.lua's lairs
+function boss.spawnAt(x, y, lair)
+    return boss.bosses[boss.spawn(x, y, lair)]
+end
+
+function boss.alive(inst)
+    return boss.bosses[inst.id] == inst
+end
+
+function boss.despawnInst(inst)
+    if boss.alive(inst) then boss.despawn(inst.id) end
 end
 
 function boss.despawnAll()
@@ -266,11 +288,14 @@ function boss.despawnAll()
 end
 
 -- Plain-data snapshot of the live bosses for save files (util/serial.lua).
+-- A lair's isn't kept: it comes back out of its lair (game/bosses.lua).
 function boss.getSaveData()
     local saved = {}
     for _, b in pairs(boss.bosses) do
-        local x, y = b.body:getPosition()
-        table.insert(saved, { x = x, y = y, health = b.health })
+        if not b.lair then
+            local x, y = b.body:getPosition()
+            table.insert(saved, { x = x, y = y, health = b.health })
+        end
     end
     return saved
 end
@@ -295,6 +320,12 @@ function boss.update(dt)
 end
 
 function boss.updateBoss(boss_instance, dt)
+    -- Killed in the physics step (boss.hitInstance): it goes now
+    if boss_instance.health <= 0 then
+        boss.kill(boss_instance.id)
+        return
+    end
+
     -- Update timers
     boss_instance.state_timer = boss_instance.state_timer + dt
     boss_instance.damage_flash_timer = math.max(0, boss_instance.damage_flash_timer - dt)
@@ -346,7 +377,8 @@ function boss.updateBoss(boss_instance, dt)
             boss_instance.hop_target_y = target_y
             boss_instance.hop_start_x = bx
             boss_instance.hop_start_y = by
-        elseif time_since_laser > effective_laser_cooldown and target_x then
+        elseif time_since_laser > effective_laser_cooldown and target_x and not boss_instance.is_headless then
+            -- (no head, no eyes: a headless bear only hops)
             -- Start laser sequence
             boss_instance.state = boss.STATES.CHARGING_LASER
             boss_instance.state_timer = 0
@@ -445,7 +477,7 @@ function boss.updateBoss(boss_instance, dt)
         boss_instance.particle_emitters.laser_beam:setEmissionRate(200)
         
         -- Check for laser hits
-        boss.checkLaserHits(boss_instance)
+        boss.checkLaserHits(boss_instance, dt)
         
         if boss_instance.state_timer >= boss.laser_duration then
             boss_instance.state = boss.STATES.IDLE
@@ -504,7 +536,7 @@ function boss.createLandingImpact(boss_instance)
     
     -- Screen shake effect (if implemented in your game)
     if camera and camera.shake then
-        camera.shake(0.3, 10)
+        camera.shake(6, 0.3)
     end
 end
 
@@ -514,8 +546,8 @@ function boss.applyAreaDamage(x, y, radius, damage)
     if player and player.body then
         local px, py = player.body:getPosition()
         local dist = math.sqrt((px - x)^2 + (py - y)^2)
-        if dist <= radius and not player.isSafe() then
-            player.health = player.health - damage
+        if dist <= radius then
+            player.hurt(damage, vec2.new((px - x) / (dist + 0.1), (py - y) / (dist + 0.1)))
         end
     end
     
@@ -533,8 +565,11 @@ function boss.applyAreaDamage(x, y, radius, damage)
     end
 end
 
-function boss.checkLaserHits(boss_instance)
+-- The beams burn what they cross for laser_damage a second (`dt` of it);
+-- you're hurt in ticks, so the shake stays small
+function boss.checkLaserHits(boss_instance, dt)
     local bx, by = boss_instance.body:getPosition()
+    local burn = boss_instance.laser_damage * dt
     
     -- Two lasers from eyes
     local eye_offsets = {{x = 10, y = -15}, {x = -10, y = -15}}
@@ -557,15 +592,19 @@ function boss.checkLaserHits(boss_instance)
                 local hit_y = start_y + (end_y - start_y) * fraction
                 
                 -- Apply laser damage
-                if player and player.body and fixture:getBody() == player.body and not player.isSafe() then
-                    player.health = player.health - boss_instance.laser_damage
+                if player and player.body and fixture:getBody() == player.body then
+                    boss_instance.laser_tick = (boss_instance.laser_tick or 0) + burn
+                    if boss_instance.laser_tick >= 20 then
+                        player.hurt(boss_instance.laser_tick)
+                        boss_instance.laser_tick = 0
+                    end
                 end
-                
+
                 -- Check online players
                 if player.online and player.online.bodies then
                     for k, body in pairs(player.online.bodies) do
                         if body == fixture:getBody() then
-                            player.online.health[k] = player.online.health[k] - boss_instance.laser_damage
+                            player.online.health[k] = player.online.health[k] - burn
                         end
                     end
                 end
@@ -586,42 +625,32 @@ end
 
 function boss.damage(boss_id, damage)
     local boss_instance = boss.bosses[boss_id]
-    if not boss_instance then return end
-    
+    if boss_instance then boss.hitInstance(boss_instance, damage) end
+end
+
+-- A hit (game/bosses.lua's part.hit). At no health it dies in its update,
+-- out of the physics step.
+function boss.hitInstance(boss_instance, damage)
+    if boss_instance.health <= 0 then return end
     boss_instance.health = math.max(0, boss_instance.health - damage)
     boss_instance.damage_flash_timer = boss.damage_flash_duration
-    
-    -- Create damage indicator
-    if enemy and enemy.damage_indicators then
-        local bx, by = boss_instance.body:getPosition()
-        table.insert(enemy.damage_indicators, {
-            x = bx + math.random(-30, 30),
-            y = by - 60,
-            damage = damage,
-            time = 0,
-            duration = 1.0,
-            velocity_y = -100,
-            velocity_x = math.random(-20, 20),
-            alpha = 1,
-            scale = 1.5,
-            bounce_factor = 0.95,
-            nearby_count = 0
-        })
-    end
-    
-    -- Check if boss becomes headless or dies
-    if boss_instance.health <= 0 then
-        boss.kill(boss_id)
-    elseif boss_instance.health <= boss.max_health * 0.2 and not boss_instance.is_headless then
-        -- Transition to headless state at 20% health
+
+    -- Headless at 20% health: it fights on, hopping (boss.updateBoss)
+    if boss_instance.health > 0 and boss_instance.health <= boss_instance.max_health * 0.2
+            and not boss_instance.is_headless then
         boss_instance.is_headless = true
-        boss_instance.state = boss.STATES.HEADLESS
     end
 end
 
 function boss.kill(boss_id)
-    -- Create death effects here if needed
+    local boss_instance = boss.bosses[boss_id]
+    if not boss_instance then return end
+    local x, y = boss_instance.body:getPosition()
+    explosion.create(x, y, explosion.TYPES.DEATH)
+    audio.playSoundAt("explosion", x, y, 0.1, 0.6)
+    if camera and camera.shake then camera.shake(8, 0.4) end
     boss.despawn(boss_id)
+    bosses.defeated(boss_instance.lair, x, y)
 end
 
 -- Rendering
@@ -858,40 +887,6 @@ end
 function boss.applyNetworkData(data)
     -- This would be used for client-side rendering of bosses
     -- For now, bosses are only managed by the host
-end
-
--- Collision handling
-function boss.collision(fixture_a, fixture_b, contact)
-    local boss_fixture = nil
-    local other_fixture = nil
-    
-    -- Check if one fixture is a boss
-    if fixture_a:getGroupIndex() == -888 then
-        boss_fixture = fixture_a
-        other_fixture = fixture_b
-    elseif fixture_b:getGroupIndex() == -888 then
-        boss_fixture = fixture_b
-        other_fixture = fixture_a
-    end
-    
-    if boss_fixture then
-        -- Find which boss this is
-        local boss_id = nil
-        for id, boss_instance in pairs(boss.bosses) do
-            if boss_instance.fixture == boss_fixture then
-                boss_id = id
-                break
-            end
-        end
-        
-        if boss_id then
-            -- Check if hit by player projectile
-            if other_fixture:getGroupIndex() == -2 then -- Player fire group
-                -- Apply damage from player fire
-                boss.damage(boss_id, 10) -- Base fire damage
-            end
-        end
-    end
 end
 
 return boss

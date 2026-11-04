@@ -18,7 +18,9 @@ camera = require("lib.graphics.camera")
 vec2 = require("lib.math.vec2")
 vec4 = require("lib.math.vec4")
 enemy = require("game.enemy")
-boss = require("game.boss")
+boss = require("game.boss") -- the bear: the gate's guardian, and the Castle's
+robotArm = require("game.robotArm") -- Neon City's boss
+bosses = require("game.bosses") -- the gate, the lairs, and how weapons reach bosses
 portal = require("game.portal")
 regions = require("game.regions")
 destruction = require("game.destruction") -- structures shot to pieces and knocked down
@@ -192,6 +194,7 @@ function love.load()
     player.load(world)
     enemy.load()
     boss.load()
+    robotArm.load()
 
     gun.load(world)
     bullet.load(world)
@@ -359,9 +362,11 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     if var.multiplayer == 1 or not var.multiplayer then
         enemy.update(dt)
         boss.update(dt)
+        bosses.update(dt) -- out of their lairs while you're in their region
     else
         enemy.updateNetworked(dt) -- the host runs them; draw where it says
     end
+    robotArm.update(dt) -- (the host's think; everyone's solve, and light the street)
 
     gun.update(dt)
     xp.update(dt)

@@ -328,9 +328,34 @@ local function bossCommand(tokens)
         else
             command.addOutput("Boss spawned with ID: " .. tostring(result), outputColor)
         end
+    elseif sub == "arm" then
+        -- Neon City's robot arm (game/robotArm.lua), bolted down ahead of you
+        if var.multiplayer and var.multiplayer ~= 1 then
+            command.addOutput("{red}Error:{/red} Only the host can spawn the arm", errorColor)
+            return
+        end
+        local x = tonumber(tokens[3]) or (player and player.body and player.body:getX() or 0)
+        local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() - 200 or 0)
+        robotArm.spawnAt(x, y)
+        command.addOutput(string.format("Robot arm spawned at %d, %d", x, y), outputColor)
+    elseif sub == "gate" then
+        bosses.gateOpen = true
+        command.addOutput("The gate is open", outputColor)
+    elseif sub == "beat" then
+        -- a region's boss as good as beaten: its stalls go up (game/bosses.lua)
+        local found = false
+        for _, r in ipairs(regions.list) do
+            if r.boss and (tokens[3] == nil or tokens[3] == "all" or tokens[3] == r.id) then
+                bosses.beaten[r.id] = true
+                found = true
+                command.addOutput(r.name .. "'s boss beaten", outputColor)
+            end
+        end
+        if not found then command.addOutput("{red}Error:{/red} No boss in " .. tostring(tokens[3]), errorColor) end
     elseif sub == "despawn" then
         if tokens[3] == "all" then
             boss.despawnAll()
+            robotArm.despawnAll()
             command.addOutput("All bosses despawned", outputColor)
         else
             local id = tonumber(tokens[3])
@@ -345,7 +370,7 @@ local function bossCommand(tokens)
         for _ in pairs(boss.bosses) do
             count = count + 1
         end
-        command.addOutput("Active bosses: " .. count, outputColor)
+        command.addOutput("Active bosses: " .. count .. " (and " .. #robotArm.arms .. " robot arms)", outputColor)
     elseif sub == "damage" then
         local id = tonumber(tokens[3])
         local damage = tonumber(tokens[4]) or 100
@@ -356,8 +381,8 @@ local function bossCommand(tokens)
             command.addOutput("{red}Error:{/red} Invalid boss ID", errorColor)
         end
     else
-        command.addOutput("Usage: boss spawn [x] [y] | boss despawn <id|all> | boss list | boss damage <id> [amount]",
-            outputColor)
+        command.addOutput("Usage: boss spawn [x] [y] | boss arm [x] [y] | boss gate | boss beat [region|all]"
+            .. " | boss despawn <id|all> | boss list | boss damage <id> [amount]", outputColor)
     end
 end
 

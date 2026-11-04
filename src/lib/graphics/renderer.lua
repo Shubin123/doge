@@ -590,6 +590,7 @@ function renderer.populateDynamicDrawList()
     fire.populate()
     enemy.populate()
     boss.populate()
+    robotArm.populate()
     -- light.populate()
     -- characterAnimator.populate()
 
@@ -603,6 +604,7 @@ function renderer.populateDynamicDrawListNETHOST()
     xp.populate()
     enemy.populate()
     boss.populate()
+    robotArm.populate()
 end
 
 -- Rendering helper functions (must be declared before renderSortedDrawList)
@@ -1031,6 +1033,8 @@ function renderer.renderSortedDrawList()
             blackholeGun.drawFallback(drawable)
         elseif drawable.draw_type == "blackhole" then
             blackhole.drawFallback(drawable)
+        elseif drawable.draw_type == "robotArm" then
+            robotArm.drawPiece(drawable) -- (a piece of Neon City's boss: game/robotArm.lua)
         -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))
