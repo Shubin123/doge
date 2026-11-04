@@ -13,7 +13,7 @@
 ]]
 local minimap = {}
 
-minimap.SIZE = 64 -- pixels (GUI units) square
+minimap.SIZE = 44 -- pixels (GUI units) square
 local SCALE = 20  -- world px per pixel
 -- the courtyard's ground (game/courtyard.lua)
 local COURTYARD_X0, COURTYARD_Y0, COURTYARD_X1, COURTYARD_Y1 = -2000, -2000, 3760, 2800
