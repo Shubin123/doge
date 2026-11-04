@@ -360,10 +360,11 @@ function GunTool.load(world)
     local shotgunModel = loadModel("gfx/3d/shotgun.dds")
     local bowModel = loadModel("gfx/3d/bow.dds")
     local teslaModel = loadModel("gfx/3d/tesla.dds")
-    local rifleModel = loadModel("gfx/3d/gun.dds")
     local launcherModel = loadModel("gfx/3d/lauchergun.dds")
-    -- The portal gun was modelled facing backwards: turn it half a turn.
-    -- The sheets turn about 0.86 degrees per frame, so that's 210 frames.
+    -- The rifle and the portal gun were modelled facing backwards: turn them
+    -- half a turn. The sheets turn about 0.86 degrees per frame, so that's
+    -- 210 frames.
+    local rifleModel = loadModel("gfx/3d/gun.dds", 155 + 210)
     local portalModel = loadModel("gfx/3d/portalGun.dds", 155 + 210)
 
     -- Create 5 weapon presets for number keys 1-5
