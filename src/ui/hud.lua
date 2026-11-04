@@ -296,7 +296,6 @@ function hud.load()
     heartLostHalf = love.graphics.newQuad(4, 0, 5, #HEART, heart:getDimensions())
     font = love.graphics.newFont("gfx/menu/Px437_IBM_VGA_8x16.ttf", 16)
     font:setFilter("nearest", "nearest")
-    minimap.load()
 end
 
 local function box(x, y, w, h)
@@ -618,7 +617,7 @@ end
 -- hotbar.
 local function drawMinimap(x, y)
     if not minimap.shown() then return end
-    local size = minimap.SIZE
+    local size = minimap.size()
     love.graphics.setColor(0.05, 0.05, 0.05, 0.85)
     border(x - 2, y - 2, size + 4, size + 4, 1)
     love.graphics.setColor(0.45, 0.45, 0.47, 0.9)

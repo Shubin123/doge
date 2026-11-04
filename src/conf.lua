@@ -123,8 +123,10 @@ var.lamp_glows = true
 var.shockwaves = true
 
 -- Settings > Minimap: the map of what stands round you in the top left
--- (ui/minimap.lua).
+-- (ui/minimap.lua), and Minimap Size: 0 is Auto (a share of the screen's
+-- height), otherwise its side in GUI units.
 var.minimap = true
+var.minimap_size = 0
 
 var.indoors = false
 

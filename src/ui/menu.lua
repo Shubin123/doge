@@ -3,6 +3,7 @@
 -- settings and save slots. Laid out in GUI units with ui/skin.lua, like the HUD.
 
 local skin = require("ui.skin")
+local minimap = require("ui.minimap")
 
 local menu = {}
 menu.blur = false
@@ -225,6 +226,9 @@ local function layout(uw, uh)
             setting("Minimap: " .. onOff(var.minimap), function()
                 var.minimap = not var.minimap
             end)
+            setting("Minimap Size: " .. (minimap.SIZE_NAMES[var.minimap_size] or var.minimap_size), function()
+                var.minimap_size = nextIn(minimap.SIZES, var.minimap_size)
+            end, var.minimap)
 
         elseif settingsTab == "graphics" then
             local preset = settings.preset()

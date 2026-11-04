@@ -41,6 +41,7 @@ local FIELDS = {
     { "show_fps", function() return profiler.overlay_visible end,
         function(v) profiler.overlay_visible = v end, isBoolean },
     varField("minimap", "minimap", isBoolean),
+    varField("minimap_size", "minimap_size", isWhole),
     varField("graphics_high", "graphics_high", isBoolean),
     varField("gi_quality", "gi_quality", isQuality), -- Lighting
     varField("crt_filter", "crt_filter", isBoolean),

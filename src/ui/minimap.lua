@@ -9,12 +9,19 @@
   the frame (minimap.render, from draw.mydraw: switching to it later, in
   the middle of the frame, would make tile-based GPUs store and reload the
   screen) and scaled up with the rest of the HUD (minimap.draw).
-  var.minimap (Settings > Video) turns it off.
+  var.minimap (Settings > Video) turns it off, and var.minimap_size sets how
+  big it is: on Auto, a share of the screen's height.
 ]]
+local skin = require("ui.skin")
+
 local minimap = {}
 
-minimap.SIZE = 44 -- pixels (GUI units) square
-local SCALE = 20  -- world px per pixel
+-- Settings > Minimap Size (var.minimap_size): Auto, then a side in GUI units
+minimap.SIZES = { 0, 32, 44, 56, 72 }
+minimap.SIZE_NAMES = { [0] = "Auto", [32] = "Small", [44] = "Medium", [56] = "Large", [72] = "Huge" }
+local AUTO = 0.16              -- Auto: this much of the screen's height
+local MIN_SIZE, MAX_SIZE = 32, 96
+local SCALE = 20               -- world px per pixel
 -- the courtyard's ground (game/courtyard.lua)
 local COURTYARD_X0, COURTYARD_Y0, COURTYARD_X1, COURTYARD_Y1 = -2000, -2000, 3760, 2800
 
@@ -31,14 +38,19 @@ local PLAYER = { 1, 1, 1, 1 }
 local canvas
 local seen = {} -- chains reported once per child edge: drawn once a frame
 
-function minimap.load()
-    canvas = love.graphics.newCanvas(minimap.SIZE, minimap.SIZE)
-    canvas:setFilter("nearest", "nearest")
+--- Its side in GUI units (pixels): Settings > Minimap Size, or on Auto a
+--- share of the screen's height (in units, so it follows the GUI scale's
+--- whole steps and the height between them alike).
+function minimap.size()
+    local chosen = var.minimap_size or 0
+    if chosen > 0 then return chosen end
+    local h = love.graphics.getHeight() / skin.guiScale()
+    return math.max(MIN_SIZE, math.min(MAX_SIZE, 2 * math.floor(h * AUTO / 2)))
 end
 
 --- Whether it's showing this frame.
 function minimap.shown()
-    return var.minimap and canvas and var.State ~= "menu" and player and player.body and true or false
+    return var.minimap and var.State ~= "menu" and player and player.body and true or false
 end
 local shown = minimap.shown
 
@@ -76,12 +88,17 @@ end
 --- Draw the minimap into its canvas, before anything else this frame.
 function minimap.render()
     if not shown() then return end
-    local half = minimap.SIZE / 2
+    local size = minimap.size()
+    if not canvas or canvas:getWidth() ~= size then
+        canvas = love.graphics.newCanvas(size, size)
+        canvas:setFilter("nearest", "nearest")
+    end
+    local half = size / 2
     -- the map moves a whole pixel at a time, so its edges don't shimmer
     local px, py = player.body:getPosition()
     local left, top = math.floor(px / SCALE) - half, math.floor(py / SCALE) - half
     local x0, y0 = left * SCALE, top * SCALE
-    local x1, y1 = x0 + minimap.SIZE * SCALE, y0 + minimap.SIZE * SCALE
+    local x1, y1 = x0 + size * SCALE, y0 + size * SCALE
 
     love.graphics.push("all")
     love.graphics.setCanvas(canvas)
@@ -137,8 +154,8 @@ function minimap.render()
     for _, c in ipairs(car.cars or {}) do
         if c.body and c ~= car.driving then
             local mx, my = at(c.body:getPosition())
-            mx = math.max(0, math.min(minimap.SIZE - 2, mx))
-            my = math.max(0, math.min(minimap.SIZE - 2, my))
+            mx = math.max(0, math.min(size - 2, mx))
+            my = math.max(0, math.min(size - 2, my))
             love.graphics.rectangle("fill", mx, my, 2, 2)
         end
     end
@@ -157,7 +174,7 @@ end
 --- The minimap with its top left at (x, y) in GUI units (under the HUD's
 --- scale; ui/hud.lua frames it).
 function minimap.draw(x, y)
-    if not shown() then return end
+    if not (shown() and canvas) then return end
     love.graphics.setColor(1, 1, 1, 0.92)
     love.graphics.draw(canvas, x, y)
 end
