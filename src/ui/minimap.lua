@@ -19,7 +19,7 @@ local minimap = {}
 -- Settings > Minimap Size (var.minimap_size): Auto, then a side in GUI units
 minimap.SIZES = { 0, 32, 44, 56, 72 }
 minimap.SIZE_NAMES = { [0] = "Auto", [32] = "Small", [44] = "Medium", [56] = "Large", [72] = "Huge" }
-local AUTO = 0.16              -- Auto: this much of the screen's height
+local AUTO = 0.15              -- Auto: this much of the screen's height
 local MIN_SIZE, MAX_SIZE = 32, 96
 local SCALE = 20               -- world px per pixel
 -- the courtyard's ground (game/courtyard.lua)
