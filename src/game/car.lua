@@ -11,7 +11,9 @@
   The car key (an item in the bag, game/inventory.lua; it starts on the
   ground beside the car) calls it to you: it drives itself over, finding a
   way round what's in the way, and parks beside you. Using the key again
-  while it's coming stops it.
+  while it's coming stops it. It's never far: left well behind (off
+  through a portal, or a long walk), it's brought round onto clear ground
+  just off the screen.
 ]]
 local block = require("game.block")
 local skin = require("ui.skin")
@@ -248,9 +250,115 @@ function car.keySpot()
     return x - 40, y + 56
 end
 
+--------------------------------------------------------------------------------
+-- Never too far: once you're well away from the car (through a portal, or a
+-- long walk), it's brought round onto clear ground just off the screen, the
+-- nearest it could drive to you from, behind you rather than ahead. Its key
+-- comes too while it's still lying by it.
+--------------------------------------------------------------------------------
+
+local TOO_FAR = 1500   -- px from you (or BAND past the screen's corner, if that's further)
+local OFF_SCREEN = 80  -- px past the screen's edge it's put, at least
+local BAND = 400       -- px
+local RETRY = 1        -- s before looking again when nowhere would do
+local retryAt = -math.huge
+
+-- Whether the car can stand at (x, y) without being lost behind something
+-- tall, in water, in a portal or by the black hole
+local function clearForCar(x, y)
+    local x0, y0, x1, y1 = x - 60, y - 70, x + 60, y + 40
+    for _, item in ipairs(regions.at(x, y).items or {}) do
+        if item.x < x1 and item.x1 > x0 and item.y < y1 and item.y1 > y0 then return false end
+    end
+    -- the home map's arches, trees and house, from where they stand up
+    for _, list in ipairs({ map.archInstances, map.treeInstances, map.houseInstances }) do
+        for _, o in ipairs(list) do
+            if o.active and o.feet and #o.feet > 0 then
+                local fx0, fy0, fx1, fy1 = math.huge, math.huge, -math.huge, -math.huge
+                for i = 1, #o.feet, 2 do
+                    fx0, fx1 = math.min(fx0, o.feet[i]), math.max(fx1, o.feet[i])
+                    fy0, fy1 = math.min(fy0, o.feet[i + 1]), math.max(fy1, o.feet[i + 1])
+                end
+                if fx0 < x1 and fx1 > x0 and fy0 - 250 < y1 and fy1 > y0 then return false end
+            end
+        end
+    end
+    for _, p in ipairs(puddle.list) do
+        local dx, dy = (x - p.x) / (p.rx + 60), (y - p.y) / (p.ry + 40)
+        if dx * dx + dy * dy < 1 then return false end
+    end
+    for _, r in ipairs(regions.list) do
+        local p = r.portal
+        if p and (x - p.x - 17) ^ 2 + (y - p.y - 40) ^ 2 < 150 * 150 then return false end
+    end
+    return (x - blackhole.x) ^ 2 + (y - blackhole.y) ^ 2 > 650 * 650
+end
+
+-- Clear ground off the screen, within `within` px of you, the car could
+-- drive to you from; nil if there's none
+local function spotNear(px, py, within)
+    local vx0, vy0, vx1, vy1 = regions.view(OFF_SCREEN)
+    local grid = nav.new(CELL, CLEARANCE)
+    local radius = math.ceil(within / CELL)
+    local field = grid:flow(px, py, radius)
+    local gx, gy = grid:cellAt(px, py)
+    local hx, hy = gun.heading.x, gun.heading.y
+    local spots = {}
+    for cx = gx - radius, gx + radius do
+        for cy = gy - radius, gy + radius do
+            local x, y = (cx + 0.5) * CELL, (cy + 0.5) * CELL
+            local dx, dy = x - px, y - py
+            local d = math.sqrt(dx * dx + dy * dy)
+            if (x < vx0 or x > vx1 or y < vy0 or y > vy1) and d < within then
+                local steps = field:stepsAt(x, y)
+                if steps then
+                    -- the fewest steps from you, and ahead of you counts as a few more
+                    spots[#spots + 1] = { x, y, steps + 4 * (dx * hx + dy * hy) / math.max(d, 1) }
+                end
+            end
+        end
+    end
+    table.sort(spots, function(a, b) return a[3] < b[3] end)
+    for _, s in ipairs(spots) do
+        if clearForCar(s[1], s[2]) then return s[1], s[2] end
+    end
+end
+
+local function keepClose(c)
+    if c.inUse or var.indoors or love.timer.getTime() < retryAt then return end
+    local x, y = c.body:getPosition()
+    local px, py = player.body:getPosition()
+    local vx0, vy0, vx1, vy1 = regions.view(0)
+    local corner = math.sqrt(math.max(px - vx0, vx1 - px) ^ 2 + math.max(py - vy0, vy1 - py) ^ 2)
+    local far = math.max(TOO_FAR, corner + BAND)
+    if (x - px) ^ 2 + (y - py) ^ 2 < far * far then return end
+    local nx, ny = spotNear(px, py, far - BAND / 2)
+    if not nx then
+        retryAt = love.timer.getTime() + RETRY
+        return
+    end
+    c.body:setPosition(nx, ny)
+    c.body:setLinearVelocity(0, 0)
+    c.body:setAngularVelocity(0)
+    local hx, hy = px - nx, py - ny
+    local n = math.sqrt(hx * hx + hy * hy)
+    c.headingX, c.headingY = hx / n, hy / n -- facing you
+    if c.autopilot then -- on its way still, from here
+        c.autopilot.path, c.autopilot.check, c.autopilot.checkD = nil, 0, n
+    end
+    for _, g in ipairs(inventory.ground) do
+        if g.id == "car_key" then g.x, g.y = car.keySpot() end
+    end
+end
+
 --- Each frame: the car you're in faces the way you're going (and keeps that
---- heading when you stop); a car the key called drives itself over.
+--- heading when you stop); a car the key called drives itself over, and one
+--- you've left far behind is brought round.
 function car.update(dt)
+    local parked = car.cars[1]
+    if parked and parked.body and canDrive() and player.body and var.State ~= "menu" then
+        keepClose(parked)
+    end
     for _, c in ipairs(car.cars) do
         if c.autopilot then
             if c.inUse or not canDrive() or not player.body then

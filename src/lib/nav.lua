@@ -291,6 +291,13 @@ function Field:dir(x, y)
     return dx / d, dy / d
 end
 
+--- How many steps it is from world point (x, y) to the goal; nil outside
+--- the field or where nothing leads there.
+function Field:stepsAt(x, y)
+    local cx, cy = self.grid:cellAt(x, y)
+    return self.steps[cx * KEY + cy]
+end
+
 --- Whether world point (x, y) is inside the field's square.
 function Field:covers(x, y)
     local cx, cy = self.grid:cellAt(x, y)
