@@ -663,6 +663,9 @@ end
 
 function GunTool.switchGun(weaponIndex)
     if GunTool.guns[weaponIndex] then
+        if GunTool.currentGun == teslaCoil and GunTool.guns[weaponIndex] ~= teslaCoil then
+            teslaCoil.stop() -- its arcs would hang there, no longer updated
+        end
         GunTool.currentGun = GunTool.guns[weaponIndex]
         GunTool.currentWeaponIndex = weaponIndex
         print("Switched to weapon " .. weaponIndex)

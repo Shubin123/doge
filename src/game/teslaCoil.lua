@@ -403,16 +403,23 @@ function teslaCoil:update(dt)
             teslaCoil.timer = teslaCoil.cooldown -- out of ammo: wind down next frame
         end
     elseif teslaCoil.timer >= teslaCoil.cooldown then
-        teslaCoil.timer = 0
-        teslaCoil.firing = false
-        cleanupColliders() -- Clean up when stopping
-        state = {
-            bolts = {},
-            pos = 0,
-            colliders = {},
-            encapsulated_objects = {}
-        }
+        teslaCoil.stop()
     end
+end
+
+-- Put the arcs out: their colliders go and nothing is left to draw. Also
+-- when you switch away mid-arc (gun.switchGun), since only the held weapon
+-- updates and the bolts would hang where they were.
+function teslaCoil.stop()
+    teslaCoil.timer = 0
+    teslaCoil.firing = false
+    cleanupColliders()
+    state = {
+        bolts = {},
+        pos = 0,
+        colliders = {},
+        encapsulated_objects = {}
+    }
 end
 
 --  inherited function: hold the tesla model (set in gun.lua)
