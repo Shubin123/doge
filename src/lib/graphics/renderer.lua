@@ -729,16 +729,27 @@ end
 
 
 -- An upright thing with a normal map (drawable.normal_map, from
--- lib/graphics/normalmap.lua) stands on the bottom row of what's drawn of it
+-- lib/graphics/normalmap.lua) stands on the bottom row of what's drawn of it,
+-- and is lit only by the lights that reach that row across the screen
+-- columns it's drawn in (under the camera transform)
 local function setNormals(d)
-    local h
+    local w, h
     if d.quad then
         local _
-        _, _, _, h = d.quad:getViewport()
+        _, _, w, h = d.quad:getViewport()
     else
-        h = d.image_or_particles:getHeight()
+        w, h = d.image_or_particles:getDimensions()
     end
-    shadow.setNormals(d.normal_map, d.y + (h - (d.offset_y or 0)) * (d.scale_y or 1))
+    local sx, sy = d.scale_x or 1, d.scale_y or 1
+    local ox, oy = d.offset_x or 0, d.offset_y or 0
+    local c, s = math.cos(d.rotation or 0), math.sin(d.rotation or 0)
+    local x0, x1 = math.huge, -math.huge
+    for corner = 0, 3 do
+        local lx, ly = ((corner % 2) * w - ox) * sx, (math.floor(corner / 2) * h - oy) * sy
+        local x = love.graphics.transformPoint(d.x + lx * c - ly * s, d.y + lx * s + ly * c)
+        x0, x1 = math.min(x0, x), math.max(x1, x)
+    end
+    shadow.setNormals(d.normal_map, d.y + (h - oy) * sy, x0, x1)
 end
 
 function renderer.renderSortedDrawList()
@@ -982,6 +993,7 @@ function renderer.renderSortedDrawList()
         elseif drawable.source_object_type == "region" then
             -- lit by its height above the ground (game/regions.lua)
             love.graphics.setShader(regions.spriteShader)
+            regions.cullLights(drawable) -- only the lights that reach its foot
             if drawable.fmesh then
                 -- what's left of it once shards have come away (game/destruction.lua)
                 love.graphics.draw(drawable.fmesh, drawable.x, drawable.y, 0, drawable.scale_x, drawable.scale_y)
@@ -1054,6 +1066,7 @@ function renderer.renderSortedDrawList()
     if next_character_y < math.huge then
         drawCharactersUpTo(math.huge)
     end
+    shadow.uncull(regions.spriteShader) -- (every light again for what's drawn after)
 
     -- Restore original graphics state
     love.graphics.setColor(current_color[1], current_color[2], current_color[3], current_color[4])

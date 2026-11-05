@@ -253,6 +253,11 @@ function puddle.draw()
             love.graphics.setBlendMode("multiply", "premultiplied")
             love.graphics.draw(puddle.quad, p.x - p.rx, p.y - p.ry, 0, p.rx * 2, p.ry * 2)
             puddle.shader:send("shine", 1)
+            -- (lit where it's drawn: only by the lights that reach its quad)
+            local sx0, sy0 = love.graphics.transformPoint(p.x - p.rx, p.y - p.ry)
+            local sx1, sy1 = love.graphics.transformPoint(p.x + p.rx, p.y + p.ry)
+            shadow.cullLights(puddle.shader, math.min(sx0, sx1) - 1, math.min(sy0, sy1) - 1,
+                math.max(sx0, sx1) + 1, math.max(sy0, sy1) + 1)
             love.graphics.setBlendMode("add", "premultiplied")
             love.graphics.draw(puddle.quad, p.x - p.rx, p.y - p.ry, 0, p.rx * 2, p.ry * 2)
         end

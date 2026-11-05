@@ -433,12 +433,38 @@ local GROUND_SHADER = lighting.REACH_GLSL .. [[
             float target = z.r;
             if (k == 2) target = z.g;
             if (k == 3) target = z.b;
-            // two octaves, so blended edges are ragged
-            float n = vnoise(uv * 1.3 + seed + fk * 17.31) * 0.65
-                    + vnoise(uv * 3.7 + seed - fk * 5.7) * 0.35;
-            float w = hard > 0.5 ? step(0.5, target)
-                                 : smoothstep(0.42, 0.58, target + (n - 0.5) * rough);
-            c = mix(c, layer(floors, fk, uv), w);
+            float w;
+            if (hard > 0.5) {
+                w = step(0.5, target);
+            } else {
+                // two octaves, so blended edges are ragged. The noise only
+                // moves the edge rough / 2 either way (each octave is in
+                // [0, 1)): further from it than that, or than the first
+                // octave leaves the second able to, it's all one floor or
+                // the other, which the smoothstep gives exactly, so the
+                // rest isn't worked out
+                float spread = abs(rough) * 0.5 + 0.001;
+                if (target + spread < 0.42) {
+                    w = 0.0;
+                } else if (target - spread > 0.58) {
+                    w = 1.0;
+                } else {
+                    float n1 = vnoise(uv * 1.3 + seed + fk * 17.31);
+                    float lo = target + (n1 * 0.65 - 0.5) * rough;
+                    float hi = target + (n1 * 0.65 - 0.15) * rough;
+                    if (min(lo, hi) > 0.581) {
+                        w = 1.0;
+                    } else if (max(lo, hi) < 0.419) {
+                        w = 0.0;
+                    } else {
+                        float n = n1 * 0.65
+                                + vnoise(uv * 3.7 + seed - fk * 5.7) * 0.35;
+                        w = smoothstep(0.42, 0.58, target + (n - 0.5) * rough);
+                    }
+                }
+            }
+            // (all the floor below: as mixed in, exactly)
+            if (w > 0.0) c = mix(c, layer(floors, fk, uv), w);
         }
         // the kind of ground's shade, then broad light and dark drifts, so
         // the repeat doesn't read
@@ -1623,6 +1649,21 @@ function regions.drawGround()
     if prev then
         love.graphics.setShader(prev)
     end
+end
+
+--- Before region sprite `item` is drawn (or what's left of it, its shards'
+--- mesh: the same texels at the same place), with the sprite shader bound
+--- under the camera transform: send it only the lights that reach where it's
+--- lit (shadow.cullLights). SPRITE_SHADER lights an upright texel from the
+--- ground under it, on the sprite's base row, two texels above its bottom;
+--- the two rows of padding below that, from where they are.
+function regions.cullLights(item)
+    local _, _, qw, qh = item.quad:getViewport()
+    local bottom = item.y + qh * item.scale_y
+    local x0, y0 = love.graphics.transformPoint(item.x, bottom - 2 * item.scale_y)
+    local x1, y1 = love.graphics.transformPoint(item.x + qw * item.scale_x, bottom)
+    shadow.cullLights(regions.spriteShader, math.min(x0, x1) - 1, math.min(y0, y1) - 1,
+        math.max(x0, x1) + 1, math.max(y0, y1) + 1)
 end
 
 --- Bind the sprite shader for things drawn from `look`'s sheet (a region,

@@ -44,6 +44,7 @@ return function(moonshine)
     extern number weight;
     extern vec2 light_position;
     extern number samples;
+    extern vec4 input_rect; // uv x0, y0, x1, y1: the input is clear outside it
 
     vec4 effect(vec4 color, Image tex, vec2 uv, vec2 px) {
       color = Texel(tex, uv);
@@ -52,9 +53,27 @@ return function(moonshine)
       number illumination = decay;
       vec4 c = vec4(.0, .0, .0, 1.0);
 
+      // The samples lie along uv - offset .. uv - 30 offset. A sample where
+      // the input is clear adds nothing, so if that run misses input_rect
+      // (it's apart from it along x, y or across the run's own line), none
+      // is taken
+      vec2 a = uv - offset, b = uv - 30.0 * offset;
+      vec2 d = b - a;
+      float s0 = d.x * (input_rect.y - a.y) - d.y * (input_rect.x - a.x);
+      float s1 = d.x * (input_rect.y - a.y) - d.y * (input_rect.z - a.x);
+      float s2 = d.x * (input_rect.w - a.y) - d.y * (input_rect.x - a.x);
+      float s3 = d.x * (input_rect.w - a.y) - d.y * (input_rect.z - a.x);
+      if (max(a.x, b.x) < input_rect.x || min(a.x, b.x) > input_rect.z ||
+          max(a.y, b.y) < input_rect.y || min(a.y, b.y) > input_rect.w ||
+          min(min(s0, s1), min(s2, s3)) > 0.0 || max(max(s0, s1), max(s2, s3)) < 0.0) {
+        return vec4(c.rgb * exposure + color.rgb, color.a);
+      }
+
       for (int i = 0; i < 30; ++i) {
         uv -= offset;
-        c += Texel(tex, uv) * illumination * weight;
+        if (uv.x >= input_rect.x && uv.x <= input_rect.z && uv.y >= input_rect.y && uv.y <= input_rect.w) {
+          c += Texel(tex, uv) * illumination * weight;
+        }
         illumination *= decay;
       }
 
@@ -97,7 +116,15 @@ return function(moonshine)
   -- in r scaled about the light by 1 / (1 - t). At t = 1 every pixel samples
   -- the light itself (the whole canvas, if r holds it); past t = 1 samples
   -- leave the canvas and clamp to its edge (the whole canvas).
+  local input -- this pass's input_rect, from reach (nil: everywhere)
   local reach = function(r, w, h)
+    -- where the input can be non-zero, 2 px out for the bilinear samples; a
+    -- side on the canvas's edge runs on past it, as samples off the canvas
+    -- read the edge
+    input = {
+      r[1] - 2 < 1 and -1e6 or (r[1] - 2) / w, r[2] - 2 < 1 and -1e6 or (r[2] - 2) / h,
+      r[3] + 2 > w - 1 and 1e6 or (r[3] + 2) / w, r[4] + 2 > h - 1 and 1e6 or (r[4] + 2) / h,
+    }
     local lx, ly = light_position[1] * w, light_position[2] * h
     if lx < 0 or lx > w or ly < 0 or ly > h then return {0, 0, w, h} end
     local x0, y0, x1, y1 = r[1] - 2, r[2] - 2, r[3] + 2, r[4] + 2
@@ -130,9 +157,17 @@ return function(moonshine)
     samples = 70
   }
 
+  local everywhere = {-1e6, -1e6, 1e6, 1e6}
+  local draw = function(buffer)
+    shader:send("input_rect", input or everywhere)
+    input = nil
+    moonshine.draw_shader(buffer, shader)
+  end
+
   return moonshine.Effect{
     name = "godsray",
     shader = shader,
+    draw = draw,
     reach = reach,
     setters = setters,
     defaults = defaults

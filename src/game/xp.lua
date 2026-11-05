@@ -133,13 +133,21 @@ local function addGlob(x, y, size, phase, kind)
     }
 end
 
---- Add the globs (this host's physics bodies) to the dynamic draw list.
+--- Add the globs on screen (this host's physics bodies) to the dynamic draw
+--- list (under the camera transform: the world rect it shows, shake and all).
 function xp.populate()
+    local w, h = love.graphics.getDimensions()
+    local x0, y0 = love.graphics.inverseTransformPoint(0, 0)
+    local x1, y1 = love.graphics.inverseTransformPoint(w, h)
     for i = 1, #coin_bods do
         local body = coin_bods[i]
         local x, y = body:getPosition()
         local data = body:getFixtures()[1]:getUserData()
-        addGlob(x, y, data and data.size or 0.5, (x * 0.37 + y * 0.11) % 6.283, "xp_glob")
+        local size = data and data.size or 0.5
+        local reach = GLOB_PX * size + 2 -- px it's drawn out from its middle, bob included
+        if x + reach > x0 and x - reach < x1 and y + reach > y0 and y - reach < y1 then
+            addGlob(x, y, size, (x * 0.37 + y * 0.11) % 6.283, "xp_glob")
+        end
     end
 end
 

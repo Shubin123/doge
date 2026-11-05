@@ -686,8 +686,12 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                                VaryingUV.y <= steveAtlasUVBounds.w;
             
             vec3 normal = vec3(0.0, 0.0, 1.0); // Default normal
+            // A texel with nothing of it showing is left out of the scene by
+            // the blend (alpha) whatever its light, or drawn as the outline,
+            // which isn't lit: only what shows is lit
+            bool shows = texColor.a > 0.0;
             
-            if (isSteveWalk) {
+            if (isSteveWalk && shows) {
                 // Remap atlas UV to normal map UV
                 vec2 normalMapUV = remapAtlasUVToNormalMap(
                     VaryingUV, 
@@ -707,7 +711,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             float beam = -1.0; // beamReaches(VFeet), once a beam light needs it
             
             for (int i = 0; i < MAX_LIGHTS; i++) {
-                if (i >= numLights) {
+                if (i >= numLights || !shows) {
                     break;
                 }
                 

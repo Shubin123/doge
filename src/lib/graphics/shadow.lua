@@ -451,6 +451,10 @@ local screenBeamHeight, worldBeamHeight = 0, 0
 local screenBeamFeet, worldBeamFeet = {}, {}
 local occluders, nearby = {}, {} -- the reach map's segments; scratch while gathering
 local blocked = false           -- whether the reach map has anything in it
+-- Shaders cullLights has sent fewer than this frame's lights: the lights
+-- last sent, by shader (with their count in n)
+local culls = {}
+local culledBeam = { 0, 0 }
 
 -- What stands in the way (REACH_GLSL), lights[range] being the flashlight's,
 -- held `height` over the ground
@@ -598,6 +602,7 @@ function lighting.update(dt)
 
     lighting.shown = n -- lights this frame's draws are lit by
     mapReach(n, viewX, viewY)
+    culls[objectShader] = nil -- (sent them all just below)
 
     -- Object shader (screen space). Always set the count; only unpack a non-empty
     -- array (unpack of an empty table errors). count == 0 -> ambient-only fallback.
@@ -623,14 +628,19 @@ end
 
 --- Light the object shader's next draws as an upright thing with this
 --- normal map (lib/graphics/normalmap.lua) standing on world row baseY;
---- nil goes back to lighting them flat.
-function lighting.setNormals(normals, baseY)
+--- nil goes back to lighting them flat. Given the screen columns x0..x1
+--- they're drawn in, they're sent only the lights that reach that stretch
+--- of the ground line, where every texel is lit from (lighting.cullLights).
+function lighting.setNormals(normals, baseY, x0, x1)
     if normals then
+        local y = baseY * camera.zoom + camera.y
         objectShader:send("normalMap", var.normal_maps and normals or normalmap.flat()) -- (Settings > Normal Maps)
-        objectShader:send("baseY", baseY * camera.zoom + camera.y)
+        objectShader:send("baseY", y)
         objectShader:send("hasNormals", true)
+        if x0 then lighting.cullLights(objectShader, x0 - 1, y - 1, x1 + 1, y + 1) end
     else
         objectShader:send("hasNormals", false)
+        lighting.uncull(objectShader)
     end
 end
 
@@ -638,6 +648,7 @@ end
 --- the object shader's uniforms (numLights, lights, u_ambient), so it is lit
 --- the same way. Call after lighting.update.
 function lighting.sendLights(shader)
+    culls[shader] = nil
     local n = #screenLights
     shader:send("numLights", n)
     shader:send("u_ambient", lighting.ambient)
@@ -647,6 +658,64 @@ function lighting.sendLights(shader)
     if shader:hasUniform("beamLights") then
         sendReach(shader, screenBeamOrigin, screenBeamFeet, beamRange, screenBeamHeight)
     end
+end
+
+--==========================================================================--
+-- Culled draws
+--
+-- A sprite is lit at the ground under each of its texels: an upright one's
+-- is its foot, the rest are where they're drawn. A light that doesn't reach
+-- any of that adds nothing to it (each shader's dist >= range), so its next
+-- draw can be sent only the lights that do, in their order: every texel
+-- adds up the same lights the same way, without looping over a street of
+-- lamps it's nowhere near. The list is sent again only when it changes.
+--==========================================================================--
+
+--- Light `shader`'s next draws (it's bound, and sent this frame's lights:
+--- lighting.sendLights) by just the lights that reach the screen rect
+--- x0, y0 - x1, y1 (px), which holds the ground every texel drawn is lit at.
+function lighting.cullLights(shader, x0, y0, x1, y1)
+    local sent = culls[shader]
+    local same = sent ~= nil
+    sent = sent or { n = 0 }
+    local k, first, count = 0, 0, 0
+    for i = 1, #screenLights do
+        local l = screenLights[i]
+        -- (as drawTiled: its reach touches the rect, a pixel's slack for rounding)
+        local dx = math.max(x0 - l[1], 0, l[1] - x1)
+        local dy = math.max(y0 - l[2], 0, l[2] - y1)
+        if l[5] > 0 and dx * dx + dy * dy < (l[5] + 1) ^ 2 then
+            k = k + 1
+            if sent[k] ~= l then
+                sent[k] = l
+                same = false
+            end
+            if lightIsBeam[i] then
+                if count == 0 then first = k - 1 end
+                count = count + 1
+            end
+        end
+    end
+    if same and k == sent.n then return end
+    for i = sent.n, k + 1, -1 do sent[i] = nil end
+    sent.n = k
+    culls[shader] = sent
+    shader:send("numLights", k)
+    if k > 0 then shader:send("lights", unpack(sent, 1, k)) end
+    if shader:hasUniform("beamLights") then
+        culledBeam[1], culledBeam[2] = first, count
+        shader:send("beamLights", culledBeam)
+    end
+end
+
+--- Back to this frame's every light for `shader`, if cullLights sent it fewer.
+function lighting.uncull(shader)
+    if not culls[shader] then return end
+    culls[shader] = nil
+    local n = #screenLights
+    shader:send("numLights", n)
+    if n > 0 then shader:send("lights", unpack(screenLights)) end
+    if shader:hasUniform("beamLights") then shader:send("beamLights", beamRange) end
 end
 
 --==========================================================================--
@@ -672,6 +741,7 @@ local tileBeam = { 0, 0 }
 --- y0..y1 is the band of screen rows the call must cover (the whole target
 --- when untiled). Leaves `shader` with the full light list again.
 function lighting.drawTiled(shader, draw)
+    lighting.uncull(shader)
     local n = #screenLights
     local canvas = love.graphics.getCanvas()
     local w, h
