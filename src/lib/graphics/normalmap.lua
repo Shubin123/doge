@@ -98,9 +98,10 @@ local HEIGHT_SHADER = [[
         float w3 = 0.0, lum7 = 0.0, w7 = 0.0;
         for (int y = -3; y <= 3; y++) {
             for (int x = -3; x <= 3; x++) {
-                vec4 c = at(tex, p + vec2(float(x), float(y)));
-                if (abs(x) <= 2 && abs(y) <= 2) edge += c.a;
-                if (abs(x) <= 1 && abs(y) <= 1) {
+                vec2 d = vec2(float(x), float(y)); // GLSL ES 1.00 has no int abs()
+                vec4 c = at(tex, p + d);
+                if (abs(d.x) <= 2.0 && abs(d.y) <= 2.0) edge += c.a;
+                if (abs(d.x) <= 1.0 && abs(d.y) <= 1.0) {
                     rgb3 += c.rgb * c.a;
                     w3 += c.a;
                 }

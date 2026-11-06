@@ -31,6 +31,12 @@ python3 tests/gpu/run.py --baseline HEAD  # vs. the last commit
 python3 tests/gpu/run.py --json           # machine-readable report
 python3 tests/gpu/run.py --checks         # functional checks (enemy sprites, death light)
 
+# Web build smoke test (the GitHub Pages deploy's gate, .github/workflows/pages.yml):
+# plays the built bundle in headless Chrome. It loads ?smoke=1, which the shell
+# turns into --smoke (var.smoke_test: player.god, so its scripted play can't die).
+# The web build is WebGL 1 (GLSL ES 1.00): no int abs/min/max/%, so cast to float.
+npm run build:web && npm run test:web:smoke
+
 # Test new game systems integration
 '/Applications/love.app/Contents/MacOS/love' ./src/test_improvements.lua
 

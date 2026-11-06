@@ -34,11 +34,11 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: Install love.js
@@ -66,19 +66,20 @@ jobs:
 
       - name: Upload e2e frames
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-frames-local
           path: dist/e2e
           if-no-files-found: ignore
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: github.event_name != 'pull_request'
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: dist/web
+          include-hidden-files: true   # .nojekyll (v4+ drops dotfiles by default)
 
   deploy:
     needs: build
@@ -89,17 +90,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   # Confirm the CDN is actually serving this commit, then play it.
   verify-live:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: Wait for this commit to be live
@@ -124,12 +125,12 @@ jobs:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: Live site serves main HEAD

@@ -400,7 +400,7 @@ function bullet.collision(fixture_a, fixture_b, contact)
 
             end
 
-            if not hit_client and not player.isSafe() then
+            if not hit_client and not player.isSafe() and not player.god then
             player.health = player.health - 1
             end
             -- You can add player damage logic here

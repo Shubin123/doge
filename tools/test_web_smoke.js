@@ -228,7 +228,12 @@ async function main() {
   }
 
   try {
-    const url = remoteUrl || `http://127.0.0.1:${server.address().port}/`;
+    // ?smoke=1 boots the game with --smoke (player can't be hurt): 80 enemies
+    // can kill a player who only circles and clicks, and the death menu is a
+    // still picture that ignores input, which read as frozen frames.
+    const pageUrl = new URL(remoteUrl || `http://127.0.0.1:${server.address().port}/`);
+    pageUrl.searchParams.set('smoke', '1');
+    const url = pageUrl.href;
     browser = await puppeteer.launch({
       executablePath: chromePath(),
       headless: 'new',

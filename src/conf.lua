@@ -141,6 +141,13 @@ var.equip_all_trinkets = true
 -- beaten, a boss in each region's lair, its stalls up once that's beaten.
 -- False: no bosses, the gate open and every stall up.
 var.region_bosses = true
+-- The web smoke test (tools/test_web_smoke.js) boots with --smoke (the web
+-- shell passes it for ?smoke=1): the player can't be hurt, so its scripted
+-- play never ends on the death menu.
+var.smoke_test = false
+for _, a in ipairs(arg or {}) do
+    if a == "--smoke" then var.smoke_test = true end
+end
 
 function love.conf(t)
     -- Save directory name. Without it LOVE names the folder after however the

@@ -265,6 +265,7 @@ function love.load()
     if not var.multiplayer or var.multiplayer == 1 then
         serial.loadMostRecent()
     end
+    if var.smoke_test then player.god = true end
 
     love.draw = mydraw.mydraw
 end

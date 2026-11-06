@@ -245,7 +245,9 @@
       }
 
       var Module = {
-        arguments: ["./game.love"],
+        // ?smoke=1 (tools/test_web_smoke.js) boots with --smoke: the player
+        // can't be hurt, so the scripted play never ends on the death menu.
+        arguments: ["./game.love"].concat(/[?&]smoke=1\b/.test(location.search) ? ["--smoke"] : []),
         INITIAL_MEMORY: __LOVEJS_MEMORY__,
         locateFile: function(path, prefix) {
           return (prefix || '') + path + '?v=__CACHE_BUST__';
