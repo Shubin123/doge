@@ -10,6 +10,9 @@
       main avenue, the head and shoulders out along the middle street, and
       the chest at the lair, under its boss's nose. Walk over one and it
       goes in the bag.
+    * And a second set, one of a kind too, further out: round the Courtyard
+      beyond the first, and elsewhere where the side avenues cross the top
+      and bottom streets, the chest halfway along the top one.
     * The bag's panel (game/inventory.lua) shows what's worn down its left
       side. Using a piece in the bag wears it (what was in that slot goes
       back in the bag); using a worn one takes it off.
@@ -47,6 +50,12 @@ local STREET = 860    -- px along the middle street from the lair the head and s
 -- on the side away from the house
 local HOME_SPOTS = { head = { -130, 10 }, shoulders = { -120, 70 }, chest = { -70, 115 },
     legs = { -10, 135 }, feet = { 50, 140 } }
+-- Where a region's second set lies: further round the same side of the
+-- Courtyard, and elsewhere regions.lua's r.outskirts
+local HOME_FAR_SPOTS = { head = { -330, 40 }, shoulders = { -300, 180 }, chest = { -210, 300 },
+    legs = { -70, 360 }, feet = { 90, 380 } }
+local FAR_SPOTS = { head = "topLeft", shoulders = "topRight", chest = "topMiddle",
+    legs = "bottomLeft", feet = "bottomRight" }
 
 -- The stats in the order they're listed, and how each reads
 local function percent(label)
@@ -332,6 +341,62 @@ local SETS = {
             feet = { "ash_sandals", "Ash Sandals", { regen = 4, speed = 8 } },
         },
     },
+    -- Each region's second set, lying further out (`far`: spotIn)
+    {
+        id = "beekeeper", region = "home", far = true, style = "cloth", gloss = 0.05,
+        colors = { a = { 0.84, 0.80, 0.62 }, b = { 0.52, 0.42, 0.24 }, d = { 0.92, 0.62, 0.10 }, e = { 0.96, 0.93, 0.78 } },
+        pieces = {
+            head = { "beekeepers_veil", "Beekeeper's Veil", { defense = 2, bites = 15 } },
+            shoulders = { "hive_yoke", "Hive Yoke", { defense = 2, bites = 8, light = 10 } },
+            chest = { "waxed_smock", "Waxed Smock", { defense = 3, bites = 10, regen = 1 } },
+            legs = { "tied_overalls", "Tied Overalls", { defense = 2, bites = 8, poise = 5 } },
+            feet = { "apiary_boots", "Apiary Boots", { defense = 1, speed = 3, bites = 6 } },
+        },
+    },
+    {
+        id = "chitin", region = "wasteland", far = true, style = "plate", gloss = 0.9,
+        colors = { a = { 0.16, 0.34, 0.30 }, b = { 0.06, 0.10, 0.12 }, d = { 0.82, 0.30, 0.12 }, e = { 0.42, 0.78, 0.60 } },
+        pieces = {
+            head = { "compound_helm", "Compound Helm", { defense = 4, bites = 15, light = 10 } },
+            shoulders = { "elytra_mantle", "Elytra Mantle", { defense = 3, bites = 10, roll = 15 } },
+            chest = { "carapace_thorax", "Carapace Thorax", { defense = 7, bites = 15, speed = 3 } },
+            legs = { "segmented_cuisses", "Segmented Cuisses", { defense = 4, bites = 8, speed = 5 } },
+            feet = { "barbed_tarsi", "Barbed Tarsi", { speed = 8, roll = 10, bites = 5 } },
+        },
+    },
+    {
+        id = "motley", region = "castle", far = true, style = "cloth", gloss = 0.15,
+        colors = { a = { 0.72, 0.14, 0.18 }, b = { 0.36, 0.07, 0.11 }, d = { 0.92, 0.72, 0.22 }, e = { 0.18, 0.30, 0.74 } },
+        pieces = {
+            head = { "belled_cap", "Belled Cap", { roll = 12, light = 15 } },
+            shoulders = { "scalloped_collar", "Scalloped Collar", { defense = 3, roll = 12, poise = 10 } },
+            chest = { "motley_doublet", "Motley Doublet", { defense = 6, speed = 6, blows = 8 } },
+            legs = { "harlequin_hose", "Harlequin Hose", { defense = 2, speed = 8, roll = 10 } },
+            feet = { "curled_slippers", "Curled Slippers", { speed = 10, roll = 18 } },
+        },
+    },
+    {
+        id = "ronin", region = "neon", far = true, style = "plate", gloss = 0.9,
+        colors = { a = { 0.13, 0.12, 0.18 }, b = { 0.05, 0.05, 0.09 }, d = { 1.00, 0.20, 0.34 }, e = { 0.72, 0.76, 0.86 } },
+        pieces = {
+            head = { "neon_kabuto", "Neon Kabuto", { defense = 7, energy = 10, shots = 6 } },
+            shoulders = { "lacquer_sode", "Lacquer Sode", { defense = 6, energy = 10, blows = 12 } },
+            chest = { "circuit_do", "Circuit Do", { defense = 11, energy = 15, light = 10 } },
+            legs = { "blade_haidate", "Blade Haidate", { defense = 7, blows = 10, speed = 3 } },
+            feet = { "chrome_tabi", "Chrome Tabi", { defense = 2, speed = 9, energy = 10 } },
+        },
+    },
+    {
+        id = "seraph", region = "sanctum", far = true, style = "plate", gloss = 1,
+        colors = { a = { 0.86, 0.66, 0.26 }, b = { 0.50, 0.34, 0.12 }, d = { 1.00, 0.96, 0.80 }, e = { 1.00, 0.90, 0.58 } },
+        pieces = {
+            head = { "seraphs_diadem", "Seraph's Diadem", { defense = 8, regen = 2, light = 30 } },
+            shoulders = { "seraph_wings", "Seraph's Wings", { defense = 6, speed = 5, roll = 20 } },
+            chest = { "gilded_aegis", "Gilded Aegis", { defense = 14, hearts = 150, blast = 10 } },
+            legs = { "gilded_tassets", "Gilded Tassets", { defense = 9, hearts = 50, energy = 10 } },
+            feet = { "winged_sollerets", "Winged Sollerets", { defense = 4, speed = 12, blast = 10 } },
+        },
+    },
 }
 
 -- A piece's stats as text, in STATS order
@@ -343,7 +408,7 @@ local function describe(stats)
     return table.concat(parts, ", ")
 end
 
-armor.DEFS = {}       -- id -> { id, name, slot, set, stats, region, colors, gloss }
+armor.DEFS = {}       -- id -> { id, name, slot, set, stats, region, far, colors, gloss }
 armor.worn = {}       -- slot -> the id of what's in it
 local placed = {}     -- the pieces lying about, in the regions' order
 local starter = {}    -- slot -> the starter set's id
@@ -357,7 +422,7 @@ for _, set in ipairs(SETS) do
     for slot, p in pairs(set.pieces) do
         local id, name, stats = p[1], p[2], p[3]
         local def = { id = id, name = name, slot = slot, set = set.id, stats = stats, region = set.region,
-            colors = set.colors, gloss = set.gloss }
+            far = set.far, colors = set.colors, gloss = set.gloss }
         armor.DEFS[id] = def
         if set.region then placed[#placed + 1] = def else starter[slot] = id end
         inventory.ITEMS[id] = {
@@ -432,11 +497,15 @@ local function clearNear(x, y)
     return x, y
 end
 
--- Where in region `r` the piece for `slot` lies
-local function spotIn(r, slot)
+-- Where in region `r` the piece for `slot` lies (`far`: of its second set)
+local function spotIn(r, slot, far)
     if r.id == "home" then
-        local o = HOME_SPOTS[slot]
+        local o = (far and HOME_FAR_SPOTS or HOME_SPOTS)[slot]
         return var.game_width / 2 + o[1], var.game_height / 2 + o[2]
+    end
+    if far then
+        local p = r.outskirts[FAR_SPOTS[slot]]
+        return p.x, p.y
     end
     local plaza, lair = r.plaza, r.lair
     if slot == "feet" then return plaza.x + plaza.w / 2, plaza.y + 50 end
@@ -453,7 +522,7 @@ function armor.placeMissing()
     for _, r in ipairs(regions.list) do
         for _, def in ipairs(placed) do
             if def.region == r.id and not accountedFor(def) then
-                local x, y = clearNear(spotIn(r, def.slot))
+                local x, y = clearNear(spotIn(r, def.slot, def.far))
                 inventory.place(def.id, 1, x, y)
             end
         end

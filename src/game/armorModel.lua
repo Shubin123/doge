@@ -341,6 +341,86 @@ MODELS.halo_circlet = function(m, c)
     m:ring(15.5, 8.6, 0.7, { 1, 0.9, 0.55, glow = true }, { n = 22 }) -- the halo, above her
 end
 
+MODELS.beekeepers_veil = function(m, c)
+    m:bone("head")
+    m:tube(8, 9, 15.5, 15.5, 14, 14, c.a, { n = 22 })         -- the brim
+    m:tube(9, 13, 9.8, 9.8, 8.8, 8.8, c.a, { open = true })
+    m:ball(0, 13, 0, 8.8, 2.6, 8.8, c.a, "top")
+    m:ring(9.6, 9.8, 0.7, c.d)                                -- its band
+    m:tube(-8, 8, 11.8, 11.8, 13.6, 13.6, c.e, { open = true, n = 20 }) -- the veil, hung from it
+    m:box(0, 1, 13.2, 13, 12, 0.6, { 0.08, 0.08, 0.07 }, 0.11) -- its mesh, to see through
+    for i = 0, 2 do
+        m:ring(-4 + i * 4.4, 12.3 + i * 0.5, 0.3, c.b)        -- hoops
+    end
+    m:ring(-8, 11.8, 0.8, c.d)                                -- tied at the neck
+end
+
+MODELS.compound_helm = function(m, c)
+    m:bone("head")
+    m:ball(0, 1, -1, 10.6, 11, 11.4, c.a)
+    for i = 0, 3 do
+        m:rod(0, 11 - i * 0.8, 2 - i * 4, 0, 14.5 - i * 0.8, -i * 4.6, 1.3, 0, c.d, 5) -- a ridge of spines
+    end
+    m:ring(5, 10.2, 0.5, c.e, { z = -1, rz = 11 })
+    m:sides(function(self, s)
+        self:ball(s * 6.8, 2.5, 6.4, 5.4, 6, 4.6, c.b)        -- the eyes, in their sockets
+        self:ball(s * 6.8, 2.5, 7, 4.8, 5.4, 4.6, glow(c.d), nil, 10)
+        self:rod(s * 3, 10, 6, s * 7, 17, 10, 0.7, 0.3, c.b, 5)   -- feelers
+        self:rod(s * 7, 17, 10, s * 12, 18.5, 7, 0.3, 0.1, c.b, 5)
+        self:rod(s * 3.8, -6, 8.6, s * 1.2, -10, 13, 1.5, 0, c.e, 6) -- mandibles
+    end)
+end
+
+MODELS.belled_cap = function(m, c)
+    m:bone("head")
+    m:ball(0, 1, -0.5, 10.9, 10.4, 11.2, c.a, "top", 16)
+    m:tube(-1, 1.5, 11, 11.3, 11, 11.3, c.e, { open = true, n = 16 }) -- the band
+    m:ring(-1, 11, 0.7, c.d, { rz = 11.3 })
+    for i, p in ipairs({ { 1, 0 }, { -1, 0 }, { 0, -1 } }) do -- three limp points, belled
+        local color, dx, dz = i == 2 and c.e or c.a, p[1], p[2]
+        m:rod(dx * 5, 8, dz * 5, dx * 13, 15, dz * 13, 5, 2.4, color, 8)
+        m:rod(dx * 13, 15, dz * 13, dx * 20, 8, dz * 20, 2.4, 0.5, color, 8)
+        m:ball(dx * 20.6, 6.8, dz * 20.6, 2, 2, 2, c.d, nil, 8)
+    end
+end
+
+MODELS.neon_kabuto = function(m, c)
+    m:bone("head")
+    m:ball(0, 2, -0.5, 10.8, 10.4, 11.2, c.a, "top", 18)      -- the bowl
+    m:ring(6, 10, 0.45, c.e, { z = -0.5, rz = 10.3 })
+    m:ring(9.4, 7.6, 0.45, c.e, { z = -0.5, rz = 7.9 })
+    m:ball(0, 12.8, -0.5, 2, 1.2, 2, c.e, nil, 8)
+    for row = 0, 2 do                                         -- the neck guard, sides and back
+        for i = 0, 8 do
+            local a = math.rad(145 + i * 31.25)
+            local r = 12 + row * 2.2
+            m:box(math.cos(a) * r, 1.2 - row * 3.2, math.sin(a) * r, 6.8 + row * 1.2, 4.4, 1,
+                row == 2 and c.e or c.a, -0.6, math.pi / 2 - a)
+            if row == 2 then
+                m:box(math.cos(a) * 17.3, -6.9, math.sin(a) * 17.3, 8.6, 0.6, 0.6, glow(c.d), -0.6, math.pi / 2 - a)
+            end
+        end
+    end
+    m:box(0, 3.2, 11, 19, 1, 4.4, c.e, -0.3)                  -- the peak
+    m:ball(0, -4.6, 6.6, 7, 4, 4.6, c.b, nil, 12)             -- a half mask
+    m:box(0, -4.6, 11.1, 7, 0.8, 0.6, glow(c.d))
+    m:sides(function(self, s)
+        self:rod(s * 1, 7, 10.4, s * 8, 16, 13, 1.2, 0.2, glow(c.d), 6) -- the crest
+    end)
+end
+
+MODELS.seraphs_diadem = function(m, c)
+    m:bone("head")
+    m:ring(6, 10.5, 1, c.a, { rz = 10.8 })
+    m:ring(7.4, 10.2, 0.5, c.e, { rz = 10.5 })
+    for i = 0, 11 do                                          -- its rays, long and short
+        local a = i / 12 * math.pi * 2
+        local r, y = i % 2 == 0 and 20 or 16, i % 2 == 0 and 17 or 12
+        m:rod(math.cos(a) * 10.4, 7, math.sin(a) * 10.4, math.cos(a) * r, y, math.sin(a) * r, 1.3, 0, glow(c.e), 5)
+    end
+    m:ball(0, 7, 11.4, 2.2, 2.6, 1.5, glow(c.d), nil, 10)     -- the stone
+end
+
 -- Shoulders
 
 MODELS.quilted_mantle = function(m, c)
@@ -463,6 +543,122 @@ MODELS.vestal_mantle = function(m, c)
     end)
 end
 
+MODELS.hive_yoke = function(m, c)
+    m:bone("torso")
+    m:tube(20, 27, 13.6, 11.4, 9, 7.6, c.a, { open = true })
+    m:box(0, 27, -5.5, 44, 2.2, 3.4, c.b)                    -- the yoke, across her back
+    m:sides(function(self, s, l)
+        self:rod(s * 21, 26, -5.5, s * 21, 20, -5.5, 0.4, 0.4, c.b, 4) -- on cords
+        self:tube(11.5, 15, 5.6, 5.6, 5.6, 5.6, c.d, { x = s * 21, z = -5.5, n = 12 }) -- a skep at each end
+        self:ball(s * 21, 15, -5.5, 5.6, 5.6, 5.6, c.d, "top", 12)
+        for i = 0, 3 do
+            local h = i * 1.5
+            self:ring(15 + h, math.sqrt(31 - h * h), 0.55, c.b, { x = s * 21, z = -5.5, n = 12 })
+        end
+        self:ball(s * 21, 12.4, 0, 1.4, 1.1, 0.6, { 0.05, 0.04, 0.03 }, nil, 6) -- its door
+        self:bone("arm" .. l)
+        self:ball(s * 0.6, -1, 0, 5.4, 5.6, 5.6, c.a)
+        self:tube(-3, -13, 4.6, 4.6, 4.2, 4.2, c.a, { open = true, n = 10 })
+        self:bone("fore" .. l)
+        self:tube(1, -10, 4.2, 4.2, 4.4, 4.4, c.e, { open = true, n = 10 })
+        self:tube(-10, -12, 4.4, 4.4, 3.2, 3.2, c.d, { open = true, n = 10 }) -- gathered at the wrist
+        self:bone("torso")
+    end)
+end
+
+MODELS.elytra_mantle = function(m, c)
+    m:bone("torso")
+    m:tube(22, 28, 12.6, 11, 9, 7.6, c.b, { open = true })
+    m:box(0, 13, -14.4, 0.9, 30, 0.7, c.d)                   -- where the wing cases meet
+    m:sides(function(self, s, l)
+        self:ball(s * 6, 13, -11, 6.4, 16, 3.6, c.a)          -- the wing cases
+        self:box(s * 7, 14, -14.3, 1.2, 20, 0.6, c.e)
+        self:bone("arm" .. l)
+        self:ball(s * 1.2, 0.5, 0, 5.8, 5.2, 6, c.a, "top")
+        for i = 0, 2 do                                       -- jointed down the arm
+            local y, r = -2 - i * 3.6, 4.4 - i * 0.2
+            self:tube(y, y - 3.8, r, r, r - 0.5, r - 0.5, i % 2 == 0 and c.b or c.a, { open = true, n = 10 })
+        end
+        self:bone("fore" .. l)
+        self:tube(1, -11, 3.9, 3.9, 3.2, 3.2, c.a, { open = true, n = 10 })
+        self:rod(s * 3.2, -3, -2, s * 5.5, -8, -6, 1.2, 0, c.d, 6) -- a spur
+        self:ring(-11, 3.3, 0.5, c.e, { n = 10 })
+        self:bone("torso")
+    end)
+end
+
+MODELS.scalloped_collar = function(m, c)
+    m:bone("torso")
+    m:tube(21, 28, 12.8, 11, 9, 7.6, c.a, { open = true })
+    for i = 0, 11 do                                         -- its points, belled
+        local a = i / 12 * math.pi * 2
+        local ca, sa = math.cos(a), math.sin(a)
+        m:rod(ca * 9.5, 26.5, sa * 8, ca * 17.5, 20, sa * 15, 3.4, 0.2, i % 2 == 0 and c.e or c.a, 6)
+        m:ball(ca * 18, 19.6, sa * 15.4, 1.2, 1.2, 1.2, c.d, nil, 6)
+    end
+    m:sides(function(self, s, l)
+        local color, other = s == 1 and c.a or c.e, s == 1 and c.e or c.a -- each side the other's colours
+        self:bone("arm" .. l)
+        self:ball(0, -4, 0, 6.6, 7, 6.6, color)               -- puffed
+        self:ring(-9.5, 4.6, 0.7, c.d, { n = 10 })
+        self:tube(-9, -13, 4, 4, 3.7, 3.7, other, { open = true, n = 10 })
+        self:bone("fore" .. l)
+        self:tube(1, -10, 3.7, 3.7, 3.3, 3.3, other, { open = true, n = 10 })
+        self:tube(-10, -12.5, 3.3, 3.3, 5.2, 5.2, color, { open = true, n = 12 }) -- flared at the wrist
+        self:ring(-12.5, 5.2, 0.5, c.d, { n = 12 })
+        self:bone("torso")
+    end)
+end
+
+MODELS.lacquer_sode = function(m, c)
+    m:sides(function(self, s, l)
+        self:bone("arm" .. l)
+        self:box(s * 3.5, 4.6, 0, 9.5, 1.4, 12.5, c.a)        -- the cap of the shoulder
+        for i = 0, 3 do                                       -- plates laced one under the next
+            local y = 3 - i * 3.6
+            self:box(s * 7.8, y, 0, 1.4, 4.4, 13 + i * 0.8, i == 3 and c.e or c.a, 0, 0, s * -0.12)
+            self:box(s * (8.9 + i * 0.42), y - 2, 0, 0.5, 0.5, 13.4 + i * 0.8, glow(c.d))
+        end
+        self:tube(1, -13, 3.9, 3.9, 3.5, 3.5, c.b, { open = true, n = 10 })
+        self:bone("fore" .. l)
+        self:tube(1, -3, 3.6, 3.6, 3.6, 3.6, c.b, { open = true, n = 10 })
+        self:tube(-3, -12, 4, 4, 3.5, 3.5, c.a, { open = true, n = 10 }) -- the bracer
+        self:box(s * 3.8, -7.5, 0, 0.5, 8, 1, glow(c.d))
+        self:ring(-12, 3.5, 0.5, c.e, { n = 10 })
+        self:bone("torso")
+    end)
+    m:bone("torso")
+    m:ring(26, 8, 0.8, c.e, { rz = 6.9 })
+end
+
+MODELS.seraph_wings = function(m, c)
+    m:bone("torso")
+    m:tube(21, 28, 13, 11.2, 9, 7.6, c.a, { open = true })
+    m:ring(21, 12.8, 0.6, c.d, { rz = 11.1 })
+    m:sides(function(self, s, l)
+        local tilt = -0.3                                     -- they lean back
+        local function fan(count, length, shrink, color, z)   -- feathers, from up to out and down
+            for i = 0, count - 1 do
+                local up = math.rad(70 - i * 105 / (count - 1))
+                local len = length - i * shrink
+                local ax, ay, az = s * math.cos(up), math.sin(up) * math.cos(tilt), math.sin(up) * math.sin(tilt)
+                self:box(s * 6 + ax * len / 2, 22 + ay * len / 2, z + az * len / 2, 4.2, len, 0.9, color,
+                    tilt, 0, s * (up - math.pi / 2))
+            end
+        end
+        fan(8, 36, 2.2, c.e, -11.5)
+        fan(6, 20, 1.2, c.a, -10.4)
+        self:bone("arm" .. l)
+        self:ball(s * 1, 0, 0, 6, 5.4, 6.2, c.a, "top")
+        self:ring(0, 6, 0.5, c.d, { x = s * 1, rz = 6.2 })
+        self:tube(-1, -13, 4.2, 4.2, 3.7, 3.7, c.b, { open = true, n = 12 })
+        self:bone("fore" .. l)
+        self:tube(1, -11, 3.9, 3.9, 3.5, 3.5, c.a, { open = true, n = 12 })
+        self:ring(-11, 3.7, 0.6, glow(c.d), { n = 10 })
+        self:bone("torso")
+    end)
+end
+
 -- Chest
 
 MODELS.padded_vest = function(m, c)
@@ -552,6 +748,99 @@ MODELS.reliquary_robe = function(m, c)
     m:box(0, 15, 12.5, 2.6, 15, 1, c.d, -0.12)               -- the emblem
     m:box(0, 18, 12.6, 9.5, 2.6, 1, c.d, -0.2)
     m:box(0, -12, 12.4, 4, 22, 0.7, c.e, -0.16)              -- a panel down the front
+end
+
+MODELS.waxed_smock = function(m, c)
+    m:bone("torso")
+    m:tube(-7, 15, 14.6, 12.2, 12, 10, c.a, { open = true, n = 18 }) -- loose, to the hips
+    m:tube(15, 28, 12.6, 11.4, 9.6, 7.8, c.a, { open = true, n = 18 })
+    m:ball(0, 20, 8, 11.4, 6.6, 4.6, c.a)
+    m:ring(-7, 14.6, 0.7, c.d, { rz = 12.2 })
+    m:ring(27.6, 9.6, 0.7, c.d, { rz = 7.8 })
+    m:box(0, 4, 11.7, 1, 20, 0.8, c.b, -0.1)                 -- buttoned down the front
+    m:sides(function(self, s)
+        self:box(s * 6.4, 3, 12.1, 8, 7, 1, c.e, -0.06)       -- pockets
+        self:box(s * 6.4, 6.4, 12.4, 8, 1, 0.8, c.d, -0.06)
+    end)
+    for _, h in ipairs({ { 5, 21.6, 12 }, { 8.1, 21.6, 11 }, { 6.5, 18.9, 11.7 } }) do
+        m:rod(h[1], h[2], h[3] - 0.4, h[1], h[2], h[3] + 0.5, 1.7, 1.7, c.d, 6) -- a bit of comb, stitched on
+    end
+end
+
+MODELS.carapace_thorax = function(m, c)
+    m:bone("torso")
+    local rows = { { 28, 22.5, 9.4, 7.6, 13, 11.6 }, { 23.5, 17.5, 11.4, 10.2, 13, 11.6 }, { 18.5, 12.5, 11, 9.8, 12.4, 11 },
+        { 13.5, 8, 10.6, 9.2, 12.2, 10.6 }, { 9, 3, 11, 9.4, 12.8, 11 } }
+    for _, r in ipairs(rows) do                              -- plates, each flaring over the next
+        m:tube(r[1], r[2], r[3], r[4], r[5], r[6], c.a, { open = true, n = 20 })
+        m:ring(r[2], r[5], 0.4, c.e, { rz = r[6], n = 20 })
+    end
+    m:box(0, 15, 12, 1.4, 26, 1, c.d, -0.04)                 -- the ridge, front and back
+    m:box(0, 15, -12, 1.4, 26, 1, c.d, 0.04)
+    m:sides(function(self, s)
+        self:ball(s * 12.4, 15.5, 2.5, 1, 1.4, 1, glow(c.d), nil, 6) -- spiracles
+        self:ball(s * 12.3, 10.5, 2.5, 1, 1.4, 1, glow(c.d), nil, 6)
+    end)
+end
+
+MODELS.motley_doublet = function(m, c)
+    m:bone("torso")
+    m:tube(2, 15, 13, 10.8, 11.6, 9.6, c.a, { open = true, n = 20 })
+    m:tube(15, 28, 12.2, 11.2, 9.6, 7.8, c.a, { open = true, n = 20 })
+    m:ball(0, 20, 8, 11.4, 6.6, 4.6, c.a)
+    for row = 0, 1 do                                        -- harlequin diamonds round the waist
+        for i = 0, 7 do
+            local a = (i + row * 0.5) / 8 * math.pi * 2
+            m:box(math.cos(a) * 12.4, 6.5 + row * 6, math.sin(a) * (10.6 - row * 0.5), 5, 5, 0.8, c.e,
+                0, math.pi / 2 - a, math.pi / 4)
+        end
+    end
+    for _, d in ipairs({ { -7.4, 11.8 }, { 0, 12.7 }, { 7.4, 11.8 } }) do -- and across the breast
+        m:box(d[1], 20, d[2], 5, 5, 0.8, c.e, -0.1, d[1] * 0.06, math.pi / 4)
+    end
+    m:ring(2, 13, 0.8, c.d, { rz = 10.8 })
+    m:ring(27.6, 9.7, 0.7, c.d, { rz = 7.9 })
+end
+
+MODELS.circuit_do = function(m, c)
+    m:bone("torso")
+    local rows = { { 3, 8, 13, 10.8, 12.4, 10.2 }, { 8, 13, 12.4, 10.4, 11.6, 9.8 }, { 13, 18, 11.8, 10, 12, 10.6 },
+        { 18, 23, 12.2, 10.8, 12, 10.6 }, { 23, 28, 12, 10.6, 9.6, 7.8 } }
+    for i, r in ipairs(rows) do                              -- bands of lacquer, one lit
+        m:tube(r[1], r[2], r[3], r[4], r[5], r[6], c.a, { open = true, n = 20 })
+        m:ring(r[2], r[5] + 0.1, 0.35, i == 2 and glow(c.d) or c.e, { rz = r[6] + 0.1, n = 20 })
+    end
+    m:ball(0, 20, 8, 11.4, 6.6, 4.6, c.a)
+    m:box(0, 20.4, 12.3, 5, 5, 0.9, glow(c.d), -0.1, 0, math.pi / 4) -- the core
+    m:sides(function(self, s)                                -- traces leading off it
+        self:box(s * 6, 20.4, 12, 7, 0.7, 0.7, glow(c.d), -0.1, s * 0.4)
+        self:box(s * 9, 16.5, 10, 0.7, 8, 0.7, glow(c.d), -0.1, s * 0.7)
+    end)
+    for i = 0, 1 do                                          -- the skirt of lames
+        local y = 3 - i * 3.2
+        m:tube(y, y - 3.4, 13 + i * 0.8, 10.8 + i * 0.7, 13.8 + i * 0.8, 11.6 + i * 0.7, i == 1 and c.e or c.a,
+            { open = true, n = 20 })
+    end
+end
+
+MODELS.gilded_aegis = function(m, c)
+    m:bone("torso")
+    m:tube(8, 15, 9.8, 8.4, 11.2, 10.4, c.a, { open = true, n = 20 })
+    m:tube(15, 22, 11.2, 10.4, 11.6, 10.4, c.a, { open = true, n = 20 })
+    m:tube(22, 27.5, 11.6, 10.4, 8.6, 7, c.a, { open = true, n = 20 })
+    m:ball(0, 18, 6.8, 10.4, 6.8, 5, c.a, nil, 16)
+    m:ring(27.4, 8.7, 0.6, c.d, { rz = 7.1 })
+    m:ring(8, 9.9, 0.6, c.d, { rz = 8.5 })
+    m:ball(0, 19, 11.7, 3, 3, 1.3, glow(c.d), nil, 10)       -- the sun on its breast
+    for i = 0, 7 do
+        local a = i / 8 * math.pi * 2
+        local ca, sa = math.cos(a), math.sin(a)
+        m:rod(ca * 3, 19 + sa * 3, 11.6, ca * 7.4, 19 + sa * 5.4, 10.6 - math.abs(sa) * 1.6, 0.9, 0, glow(c.e), 5)
+    end
+    for i = 0, 15 do                                         -- a kilt of gilded strips
+        local a = i / 16 * math.pi * 2
+        m:box(math.cos(a) * 12, 2.5, math.sin(a) * 10.2, 4.2, 11, 0.9, i % 2 == 0 and c.a or c.b, -0.16, math.pi / 2 - a)
+    end
 end
 
 -- Legs. The trunk's lower end is the pelvis, y 0
@@ -650,6 +939,84 @@ MODELS.pilgrims_wraps = function(m, c)
     end)
 end
 
+MODELS.tied_overalls = function(m, c)
+    waist(m, c.a, c.d)
+    m:sides(function(self, s, l)
+        self:bone("thigh" .. l)
+        self:tube(1, -17, 7.8, 8.6, 6, 6.2, c.a, { open = true })
+        self:box(s * 4.6, -6, 6.6, 5, 5, 0.8, c.e, 0.05, s * 0.4) -- a pocket
+        self:bone("shin" .. l)
+        self:tube(1, -11, 6, 6.2, 5.8, 6, c.a, { open = true }) -- baggy
+        self:tube(-11, -14, 5.8, 6, 4.2, 4.4, c.a, { open = true })
+        self:ring(-14, 4.4, 0.9, c.d)                         -- tied at the ankle, against what crawls up
+    end)
+end
+
+MODELS.segmented_cuisses = function(m, c)
+    waist(m, c.b, c.d)
+    m:sides(function(self, s, l)
+        self:bone("thigh" .. l)
+        for i = 0, 3 do                                       -- jointed down the thigh
+            local y = 1 - i * 4.4
+            self:tube(y, y - 4.8, 6.6 - i * 0.45, 7.4 - i * 0.5, 7.2 - i * 0.45, 8 - i * 0.5, i % 2 == 0 and c.a or c.b,
+                { open = true })
+            self:ring(y - 4.8, 7.2 - i * 0.45, 0.35, c.e, { rz = 8 - i * 0.5 })
+        end
+        self:bone("shin" .. l)
+        self:ball(0, 0, 1.2, 4.8, 4.4, 4.6, c.e, nil, 10)     -- the knee
+        self:tube(-1.5, -14, 5, 5.3, 3.9, 4.2, c.a, { open = true })
+        self:rod(s * 2, -4, -4.6, s * 3.4, -9, -10, 1.3, 0, c.d, 6) -- spines down the back
+        self:rod(s * 1.6, -9, -4, s * 2.8, -13, -8.5, 1, 0, c.d, 6)
+    end)
+end
+
+MODELS.harlequin_hose = function(m, c)
+    waist(m, c.b, c.d)
+    m:sides(function(self, s, l)
+        local color, other = s == 1 and c.a or c.e, s == 1 and c.e or c.a -- a leg of each
+        self:bone("thigh" .. l)
+        self:ball(0, -3, 0, 8, 6.2, 8.6, color)               -- puffed breeches
+        self:ring(-8, 6.8, 0.8, c.d, { rz = 7.4 })
+        self:tube(-7, -17, 6.2, 6.8, 4.9, 5.2, other, { open = true })
+        self:bone("shin" .. l)
+        self:tube(1, -14, 4.9, 5.2, 3.7, 4, color, { open = true })
+        self:ball(0, 0.5, 3.8, 2.4, 2.4, 1.6, c.d, nil, 8)    -- a knot at the knee
+    end)
+end
+
+MODELS.blade_haidate = function(m, c)
+    waist(m, c.b, glow(c.d))
+    m:sides(function(self, s, l)
+        self:bone("thigh" .. l)
+        self:tube(1, -17, 6.8, 7.6, 5, 5.2, c.b, { open = true })
+        for i = 0, 3 do                                       -- an apron of plates down the front
+            self:box(s * 1, -1 - i * 4, 8.2 - i * 0.5, 13 - i * 0.6, 4.6, 1, i == 3 and c.e or c.a, -0.1)
+        end
+        self:box(s * 7.4, -5, 0, 1, 12, 8, c.a, 0, 0, s * -0.08) -- and one down the side
+        self:bone("shin" .. l)
+        self:ball(0, 0, 1.2, 4.6, 4.2, 4.5, c.e, nil, 10)
+        self:tube(-1, -14, 5, 5.2, 4, 4.2, c.a, { open = true })
+        self:box(0, -7, 5.1, 1.2, 13, 0.7, glow(c.d))
+    end)
+end
+
+MODELS.gilded_tassets = function(m, c)
+    waist(m, c.a, c.d)
+    m:sides(function(self, s, l)
+        self:bone("thigh" .. l)
+        self:tube(1, -16, 6.4, 7, 4.9, 5.2, c.a, { open = true, n = 18 })
+        self:box(s * 2, -3, 7.6, 10, 9, 1, c.e, -0.15)        -- the tasset
+        for i = 0, 3 do                                       -- feathers down the side
+            self:box(s * 6.9, -2 - i * 3.6, 0, 0.8, 5, 5 - i * 0.4, c.d, 0, 0, s * -0.1)
+        end
+        self:bone("shin" .. l)
+        self:ball(0, 0, 1.2, 4.9, 4.4, 4.7, c.e)              -- the knee
+        self:ring(0, 4.5, 0.5, glow(c.d), { z = 1.2, rz = 4.6, n = 12 })
+        self:tube(-1.5, -14, 5, 5.4, 4, 4.4, c.a, { open = true, n = 18 })
+        self:box(0, -8, 5.2, 1.3, 11, 0.7, c.d)
+    end)
+end
+
 -- Feet: y up the shin from the middle of the shoe, z to the toes
 
 MODELS.worn_boots = function(m, c)
@@ -722,6 +1089,76 @@ MODELS.ash_sandals = function(m, c)
         self:ring(3.6, 3.8, 0.6, c.d, { z = -1.2, rz = 4.2, n = 12 })
         self:ring(7, 3.8, 0.6, c.d, { z = -1.2, rz = 4.3, n = 12 })
         self:rod(s * 3.6, -1.2, 4.4, s * 3.6, 3.6, -1.2, 0.5, 0.5, c.d, 5)
+    end)
+end
+
+MODELS.apiary_boots = function(m, c)
+    m:sides(function(self, s, l)
+        self:bone("foot" .. l)
+        self:ball(0, -0.5, 1.8, 4.9, 3.9, 8.4, c.e)
+        self:box(0, -3.2, 1.8, 8, 1.5, 15, c.b)
+        self:tube(1, 8, 4.6, 5, 4.4, 4.8, c.e, { open = true, z = -1 })
+        self:tube(8, 11, 4.4, 4.8, 5.8, 6.2, c.d, { open = true, z = -1 }) -- a wide cuff, over the trouser
+        self:ring(8, 4.6, 0.7, c.b, { z = -1, rz = 5 })
+    end)
+end
+
+MODELS.barbed_tarsi = function(m, c)
+    m:sides(function(self, s, l)
+        self:bone("foot" .. l)
+        self:ball(0, -0.6, 2, 4.6, 3.6, 8.6, c.a)
+        self:box(0, -3.1, 2, 7.2, 1.2, 14.4, c.b)
+        self:tube(1, 8, 4.6, 5, 4.8, 5.2, c.a, { open = true, z = -1.2 })
+        self:ring(4.5, 4.9, 0.6, c.e, { z = -1.2, rz = 5.2 })
+        for i = -1, 1 do
+            self:rod(i * 2.6, -1.6, 9, i * 3.4, -2.8, 15, 1.2, 0, c.d, 6) -- claws
+        end
+        self:rod(0, 2, -5.5, 0, 6, -11, 1.2, 0, c.d, 6)       -- and a spur at the heel
+    end)
+end
+
+MODELS.curled_slippers = function(m, c)
+    m:sides(function(self, s, l)
+        local color = s == 1 and c.a or c.e
+        self:bone("foot" .. l)
+        self:ball(0, -0.8, 1.5, 4.4, 3.2, 7.6, color)
+        self:box(0, -3.3, 1.5, 7.2, 0.9, 13.5, c.b)
+        self:rod(0, -0.8, 7.5, 0, 0.8, 12.5, 3, 1.6, color, 8) -- the toe, curling up and back
+        self:rod(0, 0.8, 12.5, 0, 5, 14, 1.6, 0.6, color, 8)
+        self:rod(0, 5, 14, 0, 7, 11.5, 0.6, 0.2, color, 6)
+        self:ball(0, 7.2, 11.2, 1.4, 1.4, 1.4, c.d, nil, 8)   -- a bell on it
+        self:ring(2.2, 4.4, 0.7, c.d, { z = -1, rz = 5 })
+    end)
+end
+
+MODELS.chrome_tabi = function(m, c)
+    m:sides(function(self, s, l)
+        self:bone("foot" .. l)
+        self:ball(0, -0.4, 0.8, 4.7, 3.7, 6.8, c.a)
+        self:ball(-s * 2.6, -1, 7.4, 2, 2.6, 3.6, c.e, nil, 10)  -- the split toe
+        self:ball(s * 1.7, -1, 7.4, 3, 2.4, 3.6, c.e, nil, 10)
+        self:box(0, -3.3, 2, 8, 1, 14.6, c.b)
+        self:box(s * 4.3, -2.6, 2, 0.5, 0.6, 13, glow(c.d))   -- a line along the sole
+        self:tube(1, 8, 4.5, 5, 4.7, 5.2, c.a, { open = true, z = -1 })
+        for i = 0, 1 do
+            self:ring(3 + i * 4, 4.8, 0.45, i == 1 and glow(c.d) or c.e, { z = -1, rz = 5.2 })
+        end
+    end)
+end
+
+MODELS.winged_sollerets = function(m, c)
+    m:sides(function(self, s, l)
+        self:bone("foot" .. l)
+        self:box(0, -3, 2, 7.4, 1, 15, c.b)
+        self:ball(0, -0.6, 2, 4.5, 3.5, 8.4, c.a)
+        self:ball(0, 0.6, 7.6, 3.4, 2.6, 3.2, c.e, nil, 10)
+        self:tube(1, 9, 4.6, 5, 5.2, 5.6, c.a, { open = true, z = -1.5 })
+        self:ring(9, 5.2, 0.5, c.d, { z = -1.5, rz = 5.6 })
+        for i = 0, 2 do                                       -- a little wing at each ankle
+            local up, len = math.rad(55 - i * 30), 11 - i * 2
+            self:box(s * (5 + math.cos(up) * len / 2), 6 + math.sin(up) * len / 2, -2.5 - i, 2.6, len, 0.7, c.d,
+                0, 0, s * (up - math.pi / 2))
+        end
     end)
 end
 

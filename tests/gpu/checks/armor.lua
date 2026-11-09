@@ -4,7 +4,7 @@
       python3 tests/gpu/run.py --checks --only armor
 
   1. five slots, the starter set on from the start, and it shows on the sprite;
-  2. every piece is one of a kind, and each region has one for every slot;
+  2. every piece is one of a kind, and each region has two for every slot;
   3. each region's pieces lie on clear ground in it that you can walk to;
   4. walking over one collects it, using it wears it, and what was on goes
      back in the bag;
@@ -148,7 +148,7 @@ return function(h)
         for _ in pairs(t) do n = n + 1 end
         return n
     end
-    check("thirty pieces", count == 30, count .. " pieces")
+    check("fifty-five pieces", count == 55, count .. " pieces")
     check("each with a name of its own", size(names) == count, size(names) .. " names")
     check("and stats of its own", size(looks) == count, size(looks) .. " stat lines")
     check("each a one-to-a-slot bag item that lists its stats", #plain == 0, table.concat(plain, " "))
@@ -157,8 +157,8 @@ return function(h)
         local slots = {}
         for _, def in ipairs(piecesOf(r.id)) do slots[def.slot] = (slots[def.slot] or 0) + 1 end
         local every = true
-        for _, slot in ipairs(armor.SLOTS) do every = every and slots[slot] == 1 end
-        check(r.name .. " has one piece for every slot", every)
+        for _, slot in ipairs(armor.SLOTS) do every = every and slots[slot] == 2 end
+        check(r.name .. " has two pieces for every slot", every)
     end
 
     -- 3. Where they lie
@@ -188,10 +188,10 @@ return function(h)
                 end
             end
         end
-        check(r.name .. ": its pieces lie in it", inside == 5, inside .. " of 5")
-        check(r.name .. ": on clear ground", clear == 5, clear .. " of 5")
-        check(r.name .. ": that you can walk to", walkable == 5,
-            walkable .. " of 5 " .. table.concat(where, ", "))
+        check(r.name .. ": its pieces lie in it", inside == 10, inside .. " of 10")
+        check(r.name .. ": on clear ground", clear == 10, clear .. " of 10")
+        check(r.name .. ": that you can walk to", walkable == 10,
+            walkable .. " of 10 " .. table.concat(where, ", "))
     end
 
     -- 4. Collecting and wearing, region by region
@@ -215,8 +215,8 @@ return function(h)
                 if before then inventory.remove(before) end -- (room for the next region's)
             end
         end
-        check(r.name .. ": walking over each collects it", got == 5, got .. " of 5")
-        check(r.name .. ": using each wears it, the old one back in the bag", worn == 5, worn .. " of 5")
+        check(r.name .. ": walking over each collects it", got == 10, got .. " of 10")
+        check(r.name .. ": using each wears it, the old one back in the bag", worn == 10, worn .. " of 10")
     end
     quiet()
     inventory.reset()

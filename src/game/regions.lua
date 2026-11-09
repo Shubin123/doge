@@ -929,6 +929,14 @@ local function generate(r, index)
     -- meets the middle street, in front of the landmark that ends it
     local main = avenues[3]
     r.lair = { x = main.x + ZONE, y = streets[2].kerb + ZONE }
+    -- Out of the way, in the roads: where the side avenues cross the top and
+    -- bottom streets, and the top street's middle (game/armor.lua's second sets)
+    local function roadAt(x, s) return { x = x + ZONE, y = s.kerb + ZONE } end
+    r.outskirts = {
+        topLeft = roadAt(avenues[1].x, streets[1]), topRight = roadAt(avenues[2].x, streets[1]),
+        topMiddle = roadAt(main.x, streets[1]),
+        bottomLeft = roadAt(avenues[1].x, streets[3]), bottomRight = roadAt(avenues[2].x, streets[3]),
+    }
     for _, a in ipairs(avenues) do
         a.w = 2 * ZONE
         for _, s in ipairs(streets) do
