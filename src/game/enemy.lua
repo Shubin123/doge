@@ -264,9 +264,9 @@ function Enemy:strike(m)
     local d = math.sqrt(dx * dx + dy * dy)
     if d > m.reach or not inSight(ex, ey, px, py) then return false end
     local dir = d > 1e-3 and vec2.new(dx / d, dy / d) or vec2.new(1, 0)
-    player.hurt(m.damage, dir)
+    player.hurt(m.damage, dir, "blow")
     if not player.god and not player.isSafe() then
-        player.applyKnockback(dir, m.damage * 1.5 * (m.knock - 1)) -- on top of hurt's
+        player.applyKnockback(dir, m.damage * 1.5 * (m.knock - 1) * armor.knockback()) -- on top of hurt's
     end
     enemyWeapons.sparks(px - dir.x * 10, py - dir.y * 10, dir.x, dir.y, 10, math.rad(60),
         { { 1, 0.95, 0.8 }, { 1, 0.6, 0.3 } }, 220, 0.18)

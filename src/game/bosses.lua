@@ -4,8 +4,10 @@
 
   The gate: the home portal starts sealed. Standing in it offers to summon
   its guardian (game/portal.lua: bosses.summon), the bear, which comes out a
-  little in front of it; beat it and the gate opens for good, to every
-  region. Region portals always take you home.
+  little in front of it; beat it and the gate opens for good. Past it the
+  regions open one at a time, in regions.list's order, each once the boss of
+  every region before it is beaten (bosses.isRegionOpen: game/portal.lua goes
+  by it, game/quests.lua tells you). Region portals always take you home.
 
   Lairs: a region with a `boss` in regions.list has one waiting at its lair
   (`r.lair`, the junction in front of its main landmark: game/regions.lua).
@@ -17,8 +19,9 @@
   (bosses.getSaveData). With var.region_bosses off (the GPU harness) there
   are no lair bosses, the gate's open and every stall's up.
 
-  Kinds (KINDS): the bear (game/boss.lua) and Neon City's robot arm
-  (game/robotArm.lua). Each has spawnAt(x, y, lair) -> inst,
+  Kinds (KINDS): the bear (game/boss.lua), Neon City's robot arm
+  (game/robotArm.lua) and the Wasteland's Connectome (game/swarmBoss.lua, with
+  its flies, game/swarm.lua). Each has spawnAt(x, y, lair) -> inst,
   despawnInst(inst, quiet) and alive(inst), and calls bosses.defeated(lair,
   x, y) when one dies.
 
@@ -32,7 +35,7 @@
 ]]
 local bosses = {}
 
-local KINDS = { bear = "game.boss", arm = "game.robotArm" }
+local KINDS = { bear = "game.boss", arm = "game.robotArm", swarm = "game.swarmBoss" }
 local GATE = "gate"       -- the lair id of the gate's guardian
 local GATE_BOSS = "bear"
 local HUD_RANGE = 900     -- px: the nearest live boss this close shows its bar over the HUD
@@ -67,6 +70,22 @@ function bosses.cleared(id)
         if r.id == id then return not r.boss end
     end
     return true
+end
+
+--- The first region before `id` in regions.list whose boss still stands, or
+--- nil if none does
+function bosses.blockedBy(id)
+    for _, r in ipairs(regions.list) do
+        if r.id == id then return nil end
+        if not bosses.cleared(r.id) then return r end
+    end
+end
+
+--- Whether the portals will take you to region `id`: home always, the rest
+--- past the gate and in order
+function bosses.isRegionOpen(id)
+    if id == regions.list[1].id then return true end
+    return bosses.isGateOpen() and not bosses.blockedBy(id)
 end
 
 --- Whether the gate's guardian is out
@@ -172,6 +191,7 @@ end
 --- `damage` (falling off with distance squared, as a rocket's on enemies,
 --- never under 5) once, at its nearest part.
 function bosses.blast(x, y, radius, damage)
+    swarm.blast(x, y, radius, damage) -- (and the flies, the brood, the heaps)
     eachReached(x, y, radius, function(part, k)
         local px, py = part.body:getPosition()
         bosses.hit(part, math.max(5, damage * k * k), px, py, "scorch")
@@ -181,6 +201,7 @@ end
 --- `dps` for `dt` to each boss within `radius` of (x, y): a black hole too
 --- small to swallow one gnawing at it
 function bosses.drain(x, y, radius, dps, dt)
+    swarm.drain(x, y, radius, dt) -- (flies it can swallow)
     eachReached(x, y, radius, function(part)
         local px, py = part.body:getPosition()
         bosses.hit(part, dps * dt, px, py, "scorch")
@@ -200,8 +221,12 @@ function bosses.defeated(lair, x, y)
         portal.opened() -- (the flash, and word that it's open)
     elseif lair then
         bosses.beaten[lair] = true
-        for _, r in ipairs(regions.list) do
-            if r.id == lair then inventory.notify(r.name .. " is free: its stalls open") end
+        for i, r in ipairs(regions.list) do
+            if r.id == lair then
+                local ahead = regions.list[i + 1]
+                local way = ahead and bosses.isRegionOpen(ahead.id) and ", and the way to " .. ahead.name or ""
+                inventory.notify(r.name .. " is free: its stalls open" .. way)
+            end
         end
     end
     for i = 1, 6 do
@@ -254,6 +279,9 @@ local function each(fn)
     end
     robotArm.eachLive(function(a)
         fn(robotArm.NAME, a.health, a.max_health, a.x, a.y)
+    end)
+    swarmBoss.eachLive(function(a)
+        fn(swarmBoss.NAME .. " x" .. a.adults, a.health, a.max_health, a.x, a.y)
     end)
 end
 
@@ -309,6 +337,7 @@ function bosses.restore(data)
         live[id] = nil
     end
     robotArm.despawnAll() -- (and any from the console)
+    swarmBoss.despawnAll()
     bosses.beaten = {}
     for _, id in ipairs(data and data.beaten or {}) do bosses.beaten[id] = true end
     bosses.gateOpen = data and data.gate == true or false

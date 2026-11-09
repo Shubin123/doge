@@ -213,7 +213,7 @@ function enemyWeapons.fire(e, w)
         local tx, ty
         if d <= w.reach and clear(mx, my, px, py) then
             tx, ty = px, py
-            player.hurt(w.damage, vec2.new(math.cos(a), math.sin(a)))
+            player.hurt(w.damage, vec2.new(math.cos(a), math.sin(a)), "energy")
         else
             -- short of you: to the first wall, or as far as it reaches
             tx, ty = wallAlong(mx, my, a, math.min(d, w.reach))
@@ -289,7 +289,7 @@ function enemyWeapons.update(dt)
                     b.tick = b.tick + b.w.dps * dt
                 end
                 if b.tick >= 20 then
-                    player.hurt(b.tick)
+                    player.hurt(b.tick, nil, "energy")
                     b.tick = 0
                 end
                 local k = 1 - b.t / b.w.burn
@@ -338,7 +338,7 @@ function enemyWeapons.update(dt)
         if d < r then
             local k = 1 - d / r
             player.hurt(s.burst.damage * (0.4 + 0.6 * k),
-                d > 1 and vec2.new((px - s.x) / d, (py - s.y) / d) or nil)
+                d > 1 and vec2.new((px - s.x) / d, (py - s.y) / d) or nil, "blast")
         end
     end
 end

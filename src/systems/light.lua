@@ -402,7 +402,8 @@ end
 
 function light.populate()
   table.insert(dynamic_draw_list, {
-    sort_y = player.body:getY() + 100,
+    -- (one glow chain carries the cone and the flashes: over the gun while it flashes)
+    sort_y = #bullet.muzzleFlashes > 0 and renderer.ON_TOP or player.body:getY() + 100,
     x = 0,
     y = 0,
     draw_type = "light"

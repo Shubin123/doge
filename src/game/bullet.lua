@@ -305,7 +305,7 @@ function bullet.populate()
     -- With high graphics they are drawn as light instead (light.renderLights).
     for _, flash in ipairs(var.graphics_high and {} or bullet.muzzleFlashes) do
         table.insert(dynamic_draw_list, {
-            sort_y = flash.pos.y + 10, -- Small offset to ensure proper layering
+            sort_y = renderer.ON_TOP,
             source_object_type = "muzzle_flash",
             flash_data = flash,
             color = {1, 1, 1, 1},
@@ -316,7 +316,7 @@ function bullet.populate()
     -- Add gunpowder particles to draw list
     for _, particle in ipairs(bullet.particles) do
         table.insert(dynamic_draw_list, {
-            sort_y = particle.pos.y + 5, -- Small offset for particles
+            sort_y = renderer.ON_TOP,
             source_object_type = "gunpowder_particle", 
             particle_data = particle,
             color = {1, 1, 1, 1},

@@ -5,7 +5,9 @@ local skin = require("ui.skin")
 -- Stepping into a portal opens a selector of every region (game/regions.lua);
 -- picking one teleports the player in front of that region's portal. The
 -- home portal starts sealed: stepping into it offers to summon its guardian
--- instead (game/bosses.lua), and once that's beaten it opens for good.
+-- instead (game/bosses.lua), and once that's beaten it opens for good. Past
+-- it the regions open one at a time (bosses.isRegionOpen); the ones still
+-- shut are listed, greyed out.
 local W, H = 35, 50     -- the portal's rect, from its top left
 local FLASH_TIME = 0.45 -- seconds the screen glows after a jump
 
@@ -216,10 +218,20 @@ function portal.opened()
     inventory.notify("The gate is open: step in to travel")
 end
 
---- Teleport to regions.list[i] (not the one the player is standing in).
+local function canGo(r)
+    return r ~= portal.from and bosses.isRegionOpen(r.id)
+end
+
+--- Teleport to regions.list[i] (not the one the player is standing in). One
+--- still shut says what it's waiting on instead.
 function portal.travel(i)
     local r = regions.list[i]
     if not r or r == portal.from then return end
+    if not canGo(r) then
+        local by = bosses.blockedBy(r.id)
+        inventory.notify(by and "Beat " .. by.name .. "'s boss first" or "The gate is sealed")
+        return
+    end
     -- the arrival point is outside the far portal, so it doesn't open again
     portal.selecting, portal.from, armed = false, nil, true
     regions.teleport(r)
@@ -229,9 +241,10 @@ end
 
 local function step(d)
     local n = #regions.list
-    repeat
+    for _ = 1, n do
         choice = (choice - 1 + d) % n + 1
-    until regions.list[choice] ~= portal.from
+        if canGo(regions.list[choice]) then return end
+    end
 end
 
 -- Destination buttons, in GUI units (see ui/skin.lua), centred on screen
@@ -246,8 +259,9 @@ function layout()
             x = math.floor((sw / u - bw) / 2),
             y = top + 22 + (i - 1) * 24,
             w = bw,
-            label = i .. "  " .. r.name .. (r == portal.from and "  (here)" or ""),
-            enabled = r ~= portal.from,
+            label = i .. "  " .. r.name .. (r == portal.from and "  (here)"
+                or not bosses.isRegionOpen(r.id) and "  (locked)" or ""),
+            enabled = canGo(r),
         }
     end
     return buttons, u, top
@@ -297,7 +311,7 @@ function portal.mousepressed(x, y, button)
     if not portal.selecting or button ~= 1 then return false end
     local buttons, u = layout()
     for i, b in ipairs(buttons) do
-        if b.enabled and skin.contains(b, x / u, y / u) then
+        if regions.list[i] ~= portal.from and skin.contains(b, x / u, y / u) then
             portal.travel(i)
             return true
         end

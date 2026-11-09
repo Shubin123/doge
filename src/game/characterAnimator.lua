@@ -2,6 +2,7 @@
 -- WebGL/Emscripten compatible version - supports multiple animation states per character
 local cache = require("util.cache")
 local lighting = require("lib.graphics.shadow") -- (the global shadow; this loads first)
+local armorModel = require("game.armorModel")
 
 local characterAnimator = {}
 local DEFAULT_CONFIG = {
@@ -22,6 +23,9 @@ local spriteCount = 0
 local instances = {} -- Store all instances for populate
 local quadHalf = 0 -- the sprite quad's half size, before an instance's scale
 local marksData, marksImage, marksDirty -- the instances' damage marks (characterAnimator.mark)
+local wornMesh, wornInstance -- what the player has on (game/armorModel.lua), drawn over them
+local wornOn = false         -- whether there's anything to draw there this frame
+local wornOrder              -- where the player is in the depth-sorted buffer
 
 -- The marks texture: a row per instance (characterAnimator.mark, below)
 local function newMarks()
@@ -504,6 +508,7 @@ function characterAnimator.load()
         varying LOVE_HIGHP_OR_MEDIUMP float VFade; // onoff: 0 hidden, (0,1] opacity
         varying LOVE_HIGHP_OR_MEDIUMP vec4 VDamage; // health left (0..1), a hit's flash, its marks' row, how many
         varying LOVE_HIGHP_OR_MEDIUMP vec2 VLocal;  // where in its quad (0..1, y down)
+        varying LOVE_HIGHP_OR_MEDIUMP vec2 VFrameSize; // its frame's size in the atlas
 
         #ifdef VERTEX
 attribute vec4 InstanceUVData; 
@@ -525,6 +530,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
         VFade = onoff;
         VDamage = InstanceDamage;
         VLocal = localUV;
+        VFrameSize = InstanceUVData.zw;
         VaryingUV = vec2(
             InstanceUVData.x + localUV.x * InstanceUVData.z,
             InstanceUVData.y + localUV.y * InstanceUVData.w
@@ -607,7 +613,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
             vec4 col = around < health ? vec4(c, 1.0) : vec4(0.12, 0.1, 0.1, 0.85);
             return mix(col, vec4(1.0), flash);
         }
-        
+
         // Normal map uniforms
         uniform Image NormalTex;
         uniform bool useNormalMap;
@@ -677,7 +683,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
 
         void effect() {
             vec4 texColor = Texel(MainTex, VaryingUV);
-            
+
             // Check if current UV is within Steve's atlas bounds
             bool isSteveWalk = useNormalMap && 
                                VaryingUV.x >= steveAtlasUVBounds.x && 
@@ -752,6 +758,10 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
                             if (x == 0 && y == 0) continue;
 
                             vec2 offset = vec2(float(x), float(y)) * pixelOffset;
+                            // Its own frame only: the atlas packs the next
+                            // one right up against it, art to the edge
+                            vec2 inFrame = VLocal + offset / VFrameSize;
+                            if (inFrame != clamp(inFrame, 0.0, 1.0)) continue;
                             vec4 sampleColor = Texel(MainTex, VaryingUV + offset);
 
                             if (sampleColor.a > 0.1) {
@@ -974,6 +984,7 @@ function characterAnimator.instancesFromTexture(texture, metadata)
 
     mesh = love.graphics.newMesh(vertices, "fan", "stream")
     litmesh = love.graphics.newMesh(vertices, "fan", "stream")
+    wornMesh = love.graphics.newMesh(vertices, "fan", "static")
     mesh:setTexture(texture)
     litmesh:setTexture(texture)
 
@@ -998,6 +1009,11 @@ function characterAnimator.instancesFromTexture(texture, metadata)
     mesh:attachAttribute("onoff", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceOrder", instanceMesh, "perinstance")
     mesh:attachAttribute("InstanceDamage", instanceMesh, "perinstance")
+
+    wornInstance = love.graphics.newMesh(instanceFormat, 1, nil, "stream")
+    for _, attribute in ipairs(instanceFormat) do
+        wornMesh:attachAttribute(attribute[1], wornInstance, "perinstance")
+    end
 
     litmesh:attachAttribute("InstanceUVData", instanceMesh, "perinstance")
     litmesh:attachAttribute("color", instanceMesh, "perinstance")
@@ -1160,6 +1176,16 @@ function characterAnimator.clearMarks(instance)
     instance.marks, instance.nextMark = 0, 0
 end
 
+--- Bring the armor's canvas up to date with what the player's sprite is
+--- showing. Before the frame's other targets have anything on them to store.
+function characterAnimator.renderWorn()
+    local player = instances[1]
+    local layer = player and player.currentAnimation
+        and armorModel.render(player.currentAnimation, player.currentFrame, player.currentDirection)
+    wornOn = layer ~= nil
+    if layer then wornMesh:setTexture(layer) end
+end
+
 function characterAnimator.populate()
     local sortedIndices = {}
     local activeInstanceCount = 0
@@ -1226,6 +1252,18 @@ function characterAnimator.populate()
     end
 
     instanceMesh:setVertices(instanceData)
+    wornOrder = nil
+    if wornOn then
+        for i = 1, activeInstanceCount do
+            if sortedIndices[i] == 1 then
+                local p = instanceData[i]
+                wornOrder = i - 1
+                wornInstance:setVertex(1, { 0, 0, 1, 1, 1, 1, 1, 0, p[9], p[10], p[11], p[12], p[13], p[14], p[15], p[16], p[17],
+                    p[18], 0, 1, p[21], 0, 0 })
+                break
+            end
+        end
+    end
     if marksDirty then
         marksImage:replacePixels(marksData)
         marksDirty = false
@@ -1267,7 +1305,20 @@ function characterAnimator.drawSortedUpTo(sortY)
         last = last + 1
     end
     if last > first then
-        characterAnimator.drawInstances(characterAnimator.shader, first, last)
+        local shader = characterAnimator.shader
+        if wornOrder and wornOrder >= first and wornOrder < last then
+            -- the player, then what they have on, then whoever's in front
+            characterAnimator.drawInstances(shader, first, wornOrder + 1)
+            shader:send("useNormalMap", false)
+            shader:send("instanceStart", 0)
+            love.graphics.setShader(shader)
+            love.graphics.drawInstanced(wornMesh, 1)
+            love.graphics.setShader()
+            shader:send("useNormalMap", true)
+            if last > wornOrder + 1 then characterAnimator.drawInstances(shader, wornOrder + 1, last) end
+        else
+            characterAnimator.drawInstances(shader, first, last)
+        end
         sortedDrawn = last
     end
     return characterAnimator.nextSortY()

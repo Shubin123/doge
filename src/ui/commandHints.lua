@@ -17,7 +17,7 @@ hints.commands = {
         { "spawn", "[x] [y]", "Spawn a boss (default: at you)" },
         { "arm", "[x] [y]", "Spawn Neon City's robot arm (default: ahead of you)" },
         { "gate", nil, "Open the home gate without its fight" },
-        { "beat", "[region|all]", "Count a region's boss beaten (its stalls go up)" },
+        { "beat", "[region|all]", "Count a region's boss beaten (its stalls go up, the next region opens)" },
         { "despawn", "<id|all>", "Remove a boss, or all of them" },
         { "list", nil, "Count the active bosses" },
         { "damage", "<id> [amount]", "Hurt a boss (default 100)" },

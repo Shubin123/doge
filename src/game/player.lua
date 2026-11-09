@@ -125,8 +125,8 @@ function player.update(dt)
     -- Handle dodge movement
     if player.isDodging then
         -- Apply dodge velocity
-        local dodgeVX = player.dodgeDirection.x * player.dodgeSpeed
-        local dodgeVY = player.dodgeDirection.y * player.dodgeSpeed
+        local dodgeVX = player.dodgeDirection.x * player.dodgeSpeed * armor.rollScale()
+        local dodgeVY = player.dodgeDirection.y * player.dodgeSpeed * armor.rollScale()
         player.body:setLinearVelocity(dodgeVX, dodgeVY)
         
         -- Set dodge animation
@@ -187,9 +187,11 @@ function player.update(dt)
     end
     
     -- Apply player.acceleration in the input direction (quicker for a while
-    -- after a chili: inventory.lua's speedBoost)
-    local targetVX = inputX * player.maxSpeed * (player.speedBoost or 1)
-    local targetVY = inputY * player.maxSpeed * (player.speedBoost or 1)
+    -- after a chili: inventory.lua's speedBoost; on foot, as what you wear
+    -- allows: armor.lua)
+    local quick = (player.speedBoost or 1) * (player.inCar and 1 or armor.speedScale())
+    local targetVX = inputX * player.maxSpeed * quick
+    local targetVY = inputY * player.maxSpeed * quick
     
     -- Smoothly interpolate toward target velocity
     local newVX, newVY
@@ -345,16 +347,19 @@ function player.isSafe()
 end
 
 -- An enemy shot hit: take `amount` HP (player.maxHealth is ten hearts of 100)
--- and get knocked along the shot's `dir`. Nothing in god mode. Safe inside a
--- physics callback: it only sets the velocity, never creates or destroys.
-function player.hurt(amount, dir)
+-- and get knocked along the shot's `dir`. `kind` is what armor resists it as
+-- ("shot", "blow", "energy", "blast", "bite"; nil: only defense counts).
+-- Nothing in god mode. Safe inside a physics callback: it only sets the
+-- velocity, never creates or destroys.
+function player.hurt(amount, dir, kind)
     if player.god or not player.body or player.isSafe() then return end
+    amount = armor.absorb(amount, kind) -- what you have on takes some of it (game/armor.lua)
     amount = trinkets.onHurt(amount) -- what you wear may answer it (game/trinkets.lua)
     if amount <= 0 then return end
     player.health = math.max(0, player.health - amount)
     player.hurtAt = love.timer.getTime()
     if dir then
-        player.applyKnockback(dir, amount * 1.5)
+        player.applyKnockback(dir, amount * 1.5 * armor.knockback())
     end
     if camera and camera.shake then
         camera.shake(math.min(6, 1 + amount / 10), 0.12)

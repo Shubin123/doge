@@ -55,8 +55,23 @@ function block:newAnimation(width, height, duration, numFrames)
     return animation
 end
 
+-- The camera turntable sheets are rendered from looks down on the ground,
+-- which shortens the ground's y to this on screen
+local GROUND_SQUASH = 0.8
+
+-- Frame of a sheet that turns its model a fixed step per frame with the muzzle
+-- along the screen heading (vx, vy). self.turntable: one turn in `frames`
+-- frames from `first` (0-based), turning anticlockwise on screen, the muzzle
+-- `facing` degrees round the ground at `first`.
+function block:turntableFrame(vx, vy)
+    local t = self.turntable
+    local ground = math.deg(math.atan2(vy / GROUND_SQUASH, vx))
+    return t.first + math.floor((t.facing - ground) % 360 / 360 * t.frames + 0.5) % t.frames + 1
+end
+
 -- Function to calculate sprite frame based on velocity/heading
 function block:getSpriteForHeading(vx, vy, maxFrames, angleOffset, mod, invert)
+    if self.turntable then return self:turntableFrame(vx, vy) end
     local angle = 0
     if math.abs(vx) > 0.1 or math.abs(vy) > 0.1 then
         angle = math.atan2(vy, -vx)

@@ -160,6 +160,7 @@ function fire.update(dt)
             
             fire_instance.pos.x = player_x + math.cos(angle) * radius
             fire_instance.pos.y = player_y + math.sin(angle) * radius
+            swarm.scorch(fire_instance.pos.x, fire_instance.pos.y, 26, dt) -- flies that touch it burn
             
             -- Use the specific effect for this fireball
             local effect_ps = fire.loaded_effects[fire_instance.effect_index].particleSystem
@@ -202,6 +203,7 @@ function fire.update(dt)
             else
                 -- Move fireball using the pre-calculated direction
                 fireable[1] = fireable[1] + fireable[2] * 2
+                swarm.scorch(fireable[1].x, fireable[1].y, 34, dt)
                 
                 -- Only update physics body position on host
                 if (var.multiplayer == 1) and fire_bodies[i] then
@@ -216,7 +218,7 @@ function fire.update(dt)
             
             -- Cache draw data for fireables
             table.insert(fire_draw_data, {
-                sort_y = fireable[1].y + 130,
+                sort_y = renderer.ON_TOP,
                 image_or_particles = effect_ps,
                 quad = nil,
                 x = fireable[1].x,

@@ -268,7 +268,10 @@ end
 
 local function populatePixelLineBatched(bolts)
     table.insert(dynamic_draw_list, {
-        sort_y = -state.pos + 300,
+        -- Over the held gun while there are bolts. With none it only ends a
+        -- render pass, and later draws round differently if that moves (see
+        -- light.skipChain).
+        sort_y = #bolts > 0 and renderer.ON_TOP or -state.pos + 300,
         bolt = bolts,
         draw_type = "teslaCoil"
     })
@@ -371,6 +374,9 @@ end
 -- scorches it somewhere about its middle.
 local burning = setmetatable({}, { __mode = "k" }) -- body -> seconds of bolts on it since its last scorch
 local function shockTargets(dt)
+    -- and any flies in its cone (game/swarm.lua)
+    swarm.zap(player.body:getX(), player.body:getY(), gun.lastAimDirection.x, gun.lastAimDirection.y, config.lock_range,
+        math.cos(math.rad(config.lock_angle)), dt)
     for _, body in ipairs(state.encapsulated_objects) do
         if not body:isDestroyed() then
             local fixture = body:getFixtures()[1]

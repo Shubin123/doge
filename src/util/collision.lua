@@ -489,7 +489,7 @@ function collision.init()
         inst.spent = true
         table.insert(bullet.toReturn, inst)
         if fixtureB:getBody() == player.body then
-            player.hurt(inst.damage, inst.dir)
+            player.hurt(inst.damage, inst.dir, "shot")
             enemyWeapons.burst(inst, inst.body:getPosition()) -- (a rocket's, a fireball's)
         end
     end)

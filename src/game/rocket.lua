@@ -124,7 +124,7 @@ function rocket.populate()
         if not r.destroyed then
             local x, y = r.body:getPosition()
             local angle = math.atan2(r.dir.y, r.dir.x)
-            local sort_y = y + 140 -- Base sorting value
+            local sort_y = renderer.ON_TOP
 
             -- Exhaust trail particles
             -- for _, particle in ipairs(r.exhaustTrail) do

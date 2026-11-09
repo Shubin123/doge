@@ -17,6 +17,10 @@
     * Trinkets (game/trinkets.lua) take slots like the rest, and work while
       they're in the bag and equipped (framed in gold): using one equips or
       unequips it. Now and then an enemy leaves one you haven't got.
+    * Armor (game/armor.lua) takes slots too, until it's worn: the panel shows
+      what's worn down its left side, and using a piece wears it or takes it
+      off.
+    * The quest log (game/quests.lua) runs down the panel's right side.
 
   Saves keep the bag and what's on the ground (serial.lua). In multiplayer
   only the host (and single player) has items on the ground; everyone has
@@ -371,12 +375,14 @@ local icons = {} -- built the first time each is shown
 local font
 local drops -- what enemies leave rolls on its own, so it doesn't shift anything else's random numbers
 
-local function makeImage(rows)
+-- `palette` (an item's own colours, by letter) goes before the bag's
+local function makeImage(rows, palette)
     local data = love.image.newImageData(#rows[1], #rows)
     for y = 1, #rows do
         assert(#rows[y] == #rows[1], "inventory icon rows differ in width")
         for x = 1, #rows[y] do
-            local c = PALETTE[rows[y]:sub(x, x)]
+            local ch = rows[y]:sub(x, x)
+            local c = palette and palette[ch] or PALETTE[ch]
             if c then data:setPixel(x - 1, y - 1, c[1], c[2], c[3], 1) end
         end
     end
@@ -384,9 +390,11 @@ local function makeImage(rows)
     image:setFilter("nearest", "nearest")
     return image
 end
+inventory.makeIcon = makeImage -- (armor's empty slots)
 
 local function icon(id)
-    icons[id] = icons[id] or makeImage(inventory.ITEMS[id].icon)
+    local item = inventory.ITEMS[id]
+    icons[id] = icons[id] or makeImage(item.icon, item.palette)
     return icons[id]
 end
 inventory.icon = icon -- (the HUD shows the worn trinkets')
@@ -676,21 +684,56 @@ end
 -- The panel
 --------------------------------------------------------------------------------
 
--- The panel and its slots in GUI units
+local WORN_W = 26   -- the column of worn armor beside the bag, and the gap between them
+local QUEST_W = 176 -- the quest log down the panel's right side, if the screen's that wide
+
+-- The panel, its bag slots, its armor slots and its quest log in GUI units
 local function layout(uw, uh)
-    local w = inventory.COLS * 20 + 2 + 12
-    local h = 22 + inventory.ROWS * 20 + 2 + 30
+    local bagW = inventory.COLS * 20 + 2 + 12 + WORN_W
+    local questW = math.min(QUEST_W, math.floor(uw) - bagW - 8)
+    local w = bagW + questW
+    local h = 22 + #armor.SLOTS * 20 + 2 + 42
     local x, y = math.floor((uw - w) / 2), math.floor(uh / 2 - h / 2 - 20)
-    local cells = {}
+    local cells, worn = {}, {}
     for i = 1, inventory.SIZE do
         local col, row = (i - 1) % inventory.COLS, math.floor((i - 1) / inventory.COLS)
-        cells[i] = { x = x + 7 + col * 20, y = y + 21 + row * 20, w = 20, h = 20 }
+        cells[i] = { x = x + 7 + WORN_W + col * 20, y = y + 21 + row * 20, w = 20, h = 20 }
     end
-    return { x = x, y = y, w = w, h = h }, cells
+    for k = 1, #armor.SLOTS do
+        worn[k] = { x = x + 7, y = y + 21 + (k - 1) * 20, w = 20, h = 20 }
+    end
+    return { x = x, y = y, w = w, h = h }, cells, worn, { x = x + bagW + 5, y = y, w = questW - 11, h = h - 40 }
 end
 
 local function toggle()
     inventory.open = not inventory.open
+end
+
+-- The arrows: round the bag, off its sides onto the worn column (selected
+-- past inventory.SIZE), and up and down that column
+local function moveSelection(key)
+    local size, cols, rows, worn = inventory.SIZE, inventory.COLS, inventory.ROWS, #armor.SLOTS
+    if selected > size then
+        local k = selected - size
+        if key == "up" then
+            selected = size + (k - 2) % worn + 1
+        elseif key == "down" then
+            selected = size + k % worn + 1
+        else
+            local row = math.min(rows - 1, math.floor((k - 1) * rows / worn))
+            selected = row * cols + (key == "right" and 1 or cols)
+        end
+    elseif key == "left" and (selected - 1) % cols == 0 or key == "right" and selected % cols == 0 then
+        selected = size + 1 + math.floor(math.floor((selected - 1) / cols) * worn / rows)
+    elseif key == "left" then
+        selected = selected - 1
+    elseif key == "right" then
+        selected = selected + 1
+    elseif key == "up" then
+        selected = (selected - 1 - cols) % size + 1
+    else
+        selected = (selected - 1 + cols) % size + 1
+    end
 end
 
 --- I / Tab open and close the bag; while it's open, its keys. H heals.
@@ -714,34 +757,43 @@ function inventory.keypressed(key)
         return true
     end
     if not inventory.open then return false end
-    local cols = inventory.COLS
     if key == "escape" then
         inventory.open = false
-    elseif key == "left" then
-        selected = (selected - 2) % inventory.SIZE + 1
-    elseif key == "right" then
-        selected = selected % inventory.SIZE + 1
-    elseif key == "up" then
-        selected = (selected - 1 - cols) % inventory.SIZE + 1
-    elseif key == "down" then
-        selected = (selected - 1 + cols) % inventory.SIZE + 1
+    elseif key == "left" or key == "right" or key == "up" or key == "down" then
+        moveSelection(key)
     elseif key == "return" or key == "kpenter" then
-        inventory.use(selected)
+        if selected > inventory.SIZE then
+            armor.takeOff(selected - inventory.SIZE)
+        else
+            inventory.use(selected)
+        end
     elseif key == "q" then
-        inventory.drop(selected)
+        if selected > inventory.SIZE then
+            say("Take it off first")
+        else
+            inventory.drop(selected)
+        end
     else
         return false
     end
     return true
 end
 
---- A click (image coordinates) on the open bag: left uses, right drops.
---- True when it was on the panel (so it doesn't shoot).
+--- A click (image coordinates) on the open bag: left uses, right drops; on a
+--- worn piece, left takes it off. True when it was on the panel (so it
+--- doesn't shoot).
 function inventory.mousepressed(x, y, button)
     if not inventory.open then return false end
     local u = skin.guiScale()
     local sw, sh = love.graphics.getDimensions()
-    local panel, cells = layout(sw / u, sh / u)
+    local panel, cells, worn = layout(sw / u, sh / u)
+    for k, cell in ipairs(worn) do
+        if skin.contains(cell, x / u, y / u) then
+            selected = inventory.SIZE + k
+            if button == 1 then armor.takeOff(k) end
+            return true
+        end
+    end
     for i, cell in ipairs(cells) do
         if skin.contains(cell, x / u, y / u) then
             selected = i
@@ -789,6 +841,40 @@ local function drawCell(cell, s, ts, highlighted)
     end
 end
 
+-- The quest log down the panel's right side: the current quest first, in
+-- yellow with its steps, then the rest in order, ticked or just named. What
+-- doesn't fit above the panel's foot is left off.
+local function drawQuests(box, ts)
+    love.graphics.setColor(0.64, 0.66, 0.73, 0.5)
+    love.graphics.rectangle("fill", box.x - 5, box.y + 5, 1, box.h - 5)
+    skin.printCentered("Quests", box.x + box.w / 2, box.y + 6, ts, skin.WHITE)
+    local lineH = font:getHeight() * ts + 1
+    local tick = font:getWidth("[x] ") * ts
+    local y, bottom = box.y + 21, box.y + box.h
+    local function entry(x, done, text, color)
+        local _, wrapped = font:getWrap(text, (box.x + box.w - x - tick) / ts)
+        for n, part in ipairs(wrapped) do
+            if y + lineH <= bottom then
+                if n == 1 then skin.print(done and "[x]" or "[ ]", x, y, ts, color) end
+                skin.print(part, x + tick, y, ts, color)
+            end
+            y = y + lineH
+        end
+    end
+    local log = quests.log()
+    for _, q in ipairs(log) do
+        if q.current then
+            entry(box.x, false, q.title, skin.YELLOW)
+            for _, s in ipairs(q.steps) do
+                entry(box.x + 6, s.done, s.text, s.done and skin.GRAY or skin.WHITE)
+            end
+        end
+    end
+    for _, q in ipairs(log) do
+        if not q.current then entry(box.x, q.done, q.title, skin.GRAY) end
+    end
+end
+
 --- The open bag, and what just happened (picked up, used, dropped). Screen
 --- space, under the CRT with the rest of the UI.
 function inventory.drawUI()
@@ -804,13 +890,15 @@ function inventory.drawUI()
     love.graphics.scale(u)
 
     if inventory.open then
-        local panel, cells = layout(sw / u, sh / u)
+        local panel, cells, worn, log = layout(sw / u, sh / u)
         love.graphics.setColor(0.08, 0.08, 0.10, 0.92)
         love.graphics.rectangle("fill", panel.x, panel.y, panel.w, panel.h)
         love.graphics.setColor(0.64, 0.66, 0.73, 1)
         love.graphics.setLineWidth(1)
         love.graphics.rectangle("line", panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1)
-        skin.printCentered("Bag", panel.x + panel.w / 2, panel.y + 6, ts, skin.WHITE)
+        skin.printCentered("Worn", worn[1].x + worn[1].w / 2, panel.y + 6, ts, skin.WHITE)
+        skin.printCentered("Bag", cells[1].x + inventory.COLS * 10, panel.y + 6, ts, skin.WHITE)
+        drawQuests(log, ts)
 
         local mx, my = crt.mouse()
         local hovered
@@ -819,18 +907,57 @@ function inventory.drawUI()
             if over then hovered = i end
             drawCell(cell, inventory.slots[i], ts, over or i == selected)
         end
-        local s = inventory.slots[hovered or selected]
-        local item = s and inventory.ITEMS[s.id]
-        local footY = panel.y + panel.h - 26
-        if s then
-            local state = item.trinket and (s.on == false and " - off" or " - equipped") or ""
-            skin.printCentered(item.name .. ": " .. item.desc .. state, panel.x + panel.w / 2, footY, ts, skin.YELLOW)
-        else
-            skin.printCentered("Empty", panel.x + panel.w / 2, footY, ts, skin.GRAY)
+        for k, cell in ipairs(worn) do
+            local over = skin.contains(cell, mx / u, my / u)
+            if over then hovered = inventory.SIZE + k end
+            local id = armor.wornAt(k)
+            drawCell(cell, id and { id = id, count = 1 }, ts, over or selected == inventory.SIZE + k)
+            if not id then
+                love.graphics.setColor(1, 1, 1, 0.35)
+                love.graphics.draw(armor.slotIcon(k), cell.x + 2, cell.y + 2)
+            end
         end
-        local help = item and item.trinket and (s.on == false and "Enter equip" or "Enter unequip")
-            or item and item.food and "Enter eat" or "Enter use"
-        skin.printCentered(help .. "   Q drop   I close", panel.x + panel.w / 2, footY + 12, ts, skin.GRAY)
+
+        -- What it all adds up to, under the bag
+        local lineH = font:getHeight() * ts + 1
+        for n, line in ipairs(armor.statLines()) do
+            local col, row = (n - 1) % 2, math.floor((n - 1) / 2)
+            skin.print(line, cells[1].x + 1 + col * 90, cells[1].y + inventory.ROWS * 20 + 4 + row * lineH, ts, skin.WHITE)
+        end
+
+        local which = hovered or selected
+        local wornSlot = which > inventory.SIZE and armor.SLOTS[which - inventory.SIZE]
+        local s
+        if wornSlot then
+            local id = armor.worn[wornSlot]
+            s = id and { id = id, count = 1 }
+        else
+            s = inventory.slots[which]
+        end
+        local item = s and inventory.ITEMS[s.id]
+        local footY = panel.y + panel.h - 38
+        local cx = panel.x + panel.w / 2
+        if item and item.armor then
+            local title = item.name .. " (" .. armor.slotName(item.armor) .. ")" .. (wornSlot and " - worn" or "")
+            skin.printCentered(title, cx, footY, ts, skin.YELLOW)
+            skin.printCentered(item.desc, cx, footY + 12, ts, skin.WHITE)
+        elseif s then
+            local state = item.trinket and (s.on == false and " - off" or " - equipped") or ""
+            skin.printCentered(item.name .. ": " .. item.desc .. state, cx, footY + 6, ts, skin.YELLOW)
+        elseif wornSlot then
+            skin.printCentered(armor.slotName(wornSlot) .. ": nothing worn", cx, footY + 6, ts, skin.GRAY)
+        else
+            skin.printCentered("Empty", cx, footY + 6, ts, skin.GRAY)
+        end
+        local help
+        if wornSlot then
+            help = s and "Enter take off   I close" or "I close"
+        else
+            help = (item and item.armor and "Enter wear"
+                or item and item.trinket and (s.on == false and "Enter equip" or "Enter unequip")
+                or item and item.food and "Enter eat" or "Enter use") .. "   Q drop   I close"
+        end
+        skin.printCentered(help, cx, footY + 24, ts, skin.GRAY)
     end
 
     local age = love.timer.getTime() - messageAt

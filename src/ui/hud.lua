@@ -369,9 +369,14 @@ local function drawHotbar(x, y, slots, ts)
     border(sx + 3, sy + 3, 18, 18, 1)
 end
 
+-- How many hearts there are: ten, and one for every 100 HP armor adds
+local function heartCount()
+    return math.max(HEARTS, math.ceil((player.maxHealth or player.health) / 100))
+end
+
 local function halvesOf(health)
     local maxHealth = player.maxHealth or player.health
-    return math.ceil(math.max(0, math.min(1, health / maxHealth)) * HEARTS * 2)
+    return math.ceil(math.max(0, math.min(1, health / maxHealth)) * heartCount() * 2)
 end
 
 -- Hearts tick whenever health drops, whatever hit you: they hop in a ripple
@@ -392,8 +397,8 @@ local function drawHearts(x, y)
     local blink = ticking and math.floor(age * 12) % 2 == 0
     local fade = ticking and 1 - age / HEART_TICK or 0
     love.graphics.setColor(1, 1, 1, 1)
-    for i = 0, HEARTS - 1 do
-        local hx, hy = x + i * 8, y
+    for i = 0, heartCount() - 1 do
+        local hx, hy = x + i % HEARTS * 8, y - math.floor(i / HEARTS) * 9 -- (past ten, a row above)
         if ticking then
             hy = hy - math.floor(2 * fade * math.max(0, math.sin(age * 30 - i * 0.9)) + 0.5)
         elseif halves <= HEARTS_LOW and halves > 0 then

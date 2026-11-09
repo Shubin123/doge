@@ -102,6 +102,7 @@ regions.list = {
         flat = { "rubble_a", "rubble_b", "rubble_c", "rubble_d", "rubble_e", "can_a", "can_b", "can_c",
             "can_d", "brick", "chainlink_a", "chainlink_b" },
         portalLights = {},
+        boss = "swarm", -- a fly's brain and every fly in the place (game/swarmBoss.lua)
         layout = {
             facades = { "shop_a", "shop_b", "ruin_a", "brick_block" },
             corners = { "corner_a", "corner_b", "corner_c", "corner_d", "corner_e", "corner_escape" },
@@ -272,6 +273,7 @@ regions.list = {
 }
 
 regions.current = regions.list[1]
+regions.W, regions.H = W, H -- a region's size, inside its walls
 
 --------------------------------------------------------------------------------
 -- Occupancy grid: rects things were placed in, so nothing lands on anything else

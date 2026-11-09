@@ -79,6 +79,7 @@ local function checkArrowCollision(world, arrow)
     local hit = false
     local hit_object = nil
     local struck -- an enemy it stuck in: {index, x, y}, hurt once the ray's done (a kill destroys its body)
+    swarm.sweep(arrow.prev_x, arrow.prev_y, arrow.x, arrow.y, 7, 3) -- flies it goes through (game/swarm.lua)
     
     world:rayCast(arrow.prev_x, arrow.prev_y, arrow.x, arrow.y, function(fixture, x, y, xn, yn, fraction)
         local body = fixture:getBody()
@@ -253,16 +254,8 @@ end
 -- Populate draw list
 local function populateArrowDrawList()
     table.insert(dynamic_draw_list, {
-        sort_y = player.body:getY(),
-        arrows = state.arrows,
-        draw_type = "bezierArrow"
-    })
-end
-
--- Populate draw list
-local function populateArrowDrawList()
-    table.insert(dynamic_draw_list, {
-        sort_y = player.body:getY(),
+        -- over the bow while there are arrows (idle: as teslaCoil's)
+        sort_y = #state.arrows > 0 and renderer.ON_TOP or player.body:getY(),
         arrows = state.arrows,
         draw_type = "bezierArrow"
     })

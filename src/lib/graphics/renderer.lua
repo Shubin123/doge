@@ -70,6 +70,11 @@ function renderer.updateInterpolation(dt)
     end
 end
 
+-- sort_y of what weapons fire (rockets, bolts, arrows, beams, muzzle flashes):
+-- after every sprite and the held gun (y + 160, gun.drawHeldModel), so a shot
+-- is never under the weapon it left, like the tracers (bullet.draw)
+renderer.ON_TOP = math.huge
+
 -- Sorting function for Y-axis rendering
 function renderer.sortByRenderY(drawable_a, drawable_b)
     return drawable_a.sort_y < drawable_b.sort_y
@@ -291,7 +296,7 @@ local function addNetworkedEntities()
     for bullet_id, bullet_data in pairs(renderer.networked_state.bullets) do
         if bullet_data.active then
             table.insert(dynamic_draw_list, {
-                sort_y = bullet_data.y + 150,
+                sort_y = renderer.ON_TOP,
                 source_object_type = "networked_bullet_tracer",
                 bullet_data = bullet_data,
                 bullet_id = bullet_id,
@@ -308,7 +313,7 @@ local function addNetworkedEntities()
         if rocket_data.active then
             table.insert(dynamic_draw_list, {
                 draw_type = "rocket_body",
-                sort_y = rocket_data.y + 140,
+                sort_y = renderer.ON_TOP,
                 x = rocket_data.x,
                 y = rocket_data.y,
                 angle = 0,
@@ -457,7 +462,7 @@ local function addNetworkedEntities()
                 local end_x = start_x + math.cos(boss_data.laser_angle or 0) * 1000
                 local end_y = start_y + math.sin(boss_data.laser_angle or 0) * 1000
                 table.insert(dynamic_draw_list, {
-                    sort_y = render_y + 95,
+                    sort_y = renderer.ON_TOP,
                     line = { start_x, start_y, end_x, end_y },
                     color = { 1, 0, 0, 0.3 },
                     width = 1,
@@ -476,7 +481,7 @@ local function addNetworkedEntities()
                 local end_y = start_y + math.sin(boss_data.laser_angle or 0) * 1000
                 local laser_width = boss_module.laser_width or 5
                 table.insert(dynamic_draw_list, {
-                    sort_y = render_y + 95,
+                    sort_y = renderer.ON_TOP,
                     line = { start_x, start_y, end_x, end_y },
                     color = { 1, 0, 0, 0.7 },
                     width = laser_width,
@@ -543,6 +548,8 @@ end
 function renderer.populateDynamicDrawListNetworked()
     initDrawList()
     addNetworkedEntities()
+    swarm.populate()
+    swarmBoss.populate()
 
     -- Add local player
     addPlayer(renderer.local_player_state.x, renderer.local_player_state.y,
@@ -591,6 +598,8 @@ function renderer.populateDynamicDrawList()
     enemy.populate()
     boss.populate()
     robotArm.populate()
+    swarm.populate()
+    swarmBoss.populate()
     -- light.populate()
     -- characterAnimator.populate()
 
@@ -1047,6 +1056,10 @@ function renderer.renderSortedDrawList()
             blackhole.drawFallback(drawable)
         elseif drawable.draw_type == "robotArm" then
             robotArm.drawPiece(drawable) -- (a piece of Neon City's boss: game/robotArm.lua)
+        elseif drawable.draw_type == "swarm" then
+            swarm.drawPiece(drawable) -- (flies, heaps and wrecks: game/swarm.lua)
+        elseif drawable.draw_type == "swarmBoss" then
+            swarmBoss.drawPiece(drawable) -- (the Wasteland's brain: game/swarmBoss.lua)
         -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))

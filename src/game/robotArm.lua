@@ -493,7 +493,7 @@ local function impact(a)
     local px, py = player.body:getPosition()
     local d = math.sqrt((px - x) ^ 2 + (py - y) ^ 2)
     if d < SLAM.radius + 10 then
-        player.hurt(SLAM.damage * (a.angry and 1.2 or 1), vec2.new((px - x) / (d + 0.1), (py - y) / (d + 0.1)))
+        player.hurt(SLAM.damage * (a.angry and 1.2 or 1), vec2.new((px - x) / (d + 0.1), (py - y) / (d + 0.1)), "blow")
     end
     explosion.create(x, y, explosion.TYPES.IMPLOSION) -- the wave alone
     enemyWeapons.sparks(x, y, 0, -1, 26, math.pi, { { 1, 0.9, 0.55 }, a.angry and ANGRY or CALM }, 280, 0.5)
@@ -594,8 +594,8 @@ local function think(a, dt)
         if not a.struck and not player.isDodging
             and (px - a.cx) ^ 2 + (py - a.cy) ^ 2 < SWEEP.reach * SWEEP.reach then
             a.struck = true
-            player.hurt(SWEEP.damage * (a.angry and 1.2 or 1), vec2.new(tx, ty))
-            player.applyKnockback(vec2.new(tx, ty), 420)
+            player.hurt(SWEEP.damage * (a.angry and 1.2 or 1), vec2.new(tx, ty), "blow")
+            player.applyKnockback(vec2.new(tx, ty), 420 * armor.knockback())
         end
         enemyWeapons.sparks(a.cx, a.cy, -tx, -ty, 1, 0.6, { { 1, 0.85, 0.4 }, { 1, 1, 0.8 } }, 160, 0.3)
         if k >= 1 then setState(a, "recover", SWEEP.recover) end
@@ -632,7 +632,7 @@ local function think(a, dt)
         player.isDodging = false
         a.squeeze = a.squeeze + GRAB.dps * dt -- hurt in ticks, so the shake stays small
         if a.squeeze >= 20 then
-            player.hurt(a.squeeze)
+            player.hurt(a.squeeze, nil, "blow")
             a.squeeze = 0
         end
         if a.holdHits >= GRAB.breakFree then
@@ -642,7 +642,7 @@ local function think(a, dt)
             -- thrown
             release(a)
             local dx, dy = unit(a.cx - a.x, a.cy - a.y)
-            player.hurt(GRAB.throw, vec2.new(dx, dy))
+            player.hurt(GRAB.throw, vec2.new(dx, dy), "blow")
             player.body:setLinearVelocity(dx * GRAB.speed, dy * GRAB.speed)
             camera.shake(5, 0.2)
             setState(a, "recover", GRAB.recover)

@@ -23,7 +23,9 @@ local ffi = require("ffi")
 
 local FRAME, COLS, SHEET_W, SHEET_H = 128, 16, 2048, 3712
 local FRAMES = 455 -- 450 are used by block.new; the rest pad the last row
-local PIVOT_X, PIVOT_Y = 60, 60 -- gun.lua draws frames offset by (60, 60)
+-- The model's origin in the frame. gun.lua's loadModel takes where the barrel's
+-- line is: (60, 60 - barrel height * cos(ELEVATION)).
+local PIVOT_X, PIVOT_Y = 60, 60
 local ELEVATION = math.rad(55)
 
 -- Colours

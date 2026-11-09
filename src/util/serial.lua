@@ -125,10 +125,12 @@ function serial.create()
         enemies = enemy.getSaveData(),
         bosses = boss.getSaveData(),
         lairs = bosses.getSaveData(), -- the gate, and which regions' bosses are beaten
+        quests = quests.getSaveData(), -- the regions you've been to
         cars = captureCars(),
         command_blocks = command.getCommandBlocks(),
         bag = inventory.getSaveData(), -- the bag and items on the ground
         trinkets = trinkets.getSaveData(), -- the Phoenix Feather's rest
+        armor = armor.getSaveData(), -- what's worn
         shops = shop.getSaveData(), -- the trinkets on every shop's shelf
         structures = destruction.getSaveData(), -- what's been knocked down in the regions
     }
@@ -151,10 +153,12 @@ function serial.apply(state)
     if state.enemies then enemy.restore(state.enemies) end
     if state.bosses then boss.restore(state.bosses) end
     bosses.restore(state.lairs) -- (sealed, none beaten, for a save from before the gate)
+    quests.restore(state.quests) -- (nowhere yet, for a save from before the log)
     if state.cars then restoreCars(state.cars) end
     if state.command_blocks then command.setCommandBlocks(state.command_blocks) end
     inventory.restore(state.bag) -- (empty for a save from before the bag)
     trinkets.restore(state.trinkets)
+    armor.restore(state.armor) -- (the starter set for a save from before armor; before the hearts and light below)
     shop.restore(state.shops) -- (after the bag: nothing you have is on a shelf)
     destruction.restore(state.structures) -- (all standing for a save from before they could fall)
 

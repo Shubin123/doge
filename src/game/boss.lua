@@ -547,7 +547,7 @@ function boss.applyAreaDamage(x, y, radius, damage)
         local px, py = player.body:getPosition()
         local dist = math.sqrt((px - x)^2 + (py - y)^2)
         if dist <= radius then
-            player.hurt(damage, vec2.new((px - x) / (dist + 0.1), (py - y) / (dist + 0.1)))
+            player.hurt(damage, vec2.new((px - x) / (dist + 0.1), (py - y) / (dist + 0.1)), "blow")
         end
     end
     
@@ -595,7 +595,7 @@ function boss.checkLaserHits(boss_instance, dt)
                 if player and player.body and fixture:getBody() == player.body then
                     boss_instance.laser_tick = (boss_instance.laser_tick or 0) + burn
                     if boss_instance.laser_tick >= 20 then
-                        player.hurt(boss_instance.laser_tick)
+                        player.hurt(boss_instance.laser_tick, nil, "energy")
                         boss_instance.laser_tick = 0
                     end
                 end
@@ -757,7 +757,7 @@ function boss.populate()
                 if boss_instance.state == boss.STATES.CHARGING_LASER then
                     -- Draw laser targeting lines
                     table.insert(dynamic_draw_list, {
-                        sort_y = render_y + 102,
+                        sort_y = renderer.ON_TOP,
                         line = {start_x, start_y, end_x, end_y},
                         color = {1, 0, 0, 0.3},
                         width = 1,
@@ -767,7 +767,7 @@ function boss.populate()
                 elseif boss_instance.state == boss.STATES.FIRING_LASER then
                     -- Draw solid laser beams on top of bear
                     table.insert(dynamic_draw_list, {
-                        sort_y = render_y + 102,
+                        sort_y = renderer.ON_TOP,
                         line = {start_x, start_y, end_x, end_y},
                         color = {1, 0, 0, 0.7},
                         width = boss.laser_width,
@@ -780,7 +780,7 @@ function boss.populate()
                     emitter_clone:setPosition(start_x, start_y)
                     emitter_clone:setDirection(boss_instance.laser_angle)
                     table.insert(dynamic_draw_list, {
-                        sort_y = render_y + 102,
+                        sort_y = renderer.ON_TOP,
                         image_or_particles = emitter_clone,
                         blend_mode = {"add"},
                         source_object_type = "boss_laser_particles"

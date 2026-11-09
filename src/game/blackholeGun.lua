@@ -267,7 +267,7 @@ function blackholeGun.populate()
     for _, h in ipairs(blackholeGun.holes) do
         table.insert(dynamic_draw_list, {
             draw_type = "blackholeGun",
-            sort_y = h.y + 140,
+            sort_y = renderer.ON_TOP,
             x = h.x,
             y = h.y,
             radius = horizonOf(h),

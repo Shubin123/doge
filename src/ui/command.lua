@@ -338,6 +338,16 @@ local function bossCommand(tokens)
         local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() - 200 or 0)
         robotArm.spawnAt(x, y)
         command.addOutput(string.format("Robot arm spawned at %d, %d", x, y), outputColor)
+    elseif sub == "swarm" then
+        -- the Wasteland's Connectome and its flies (game/swarmBoss.lua), ahead of you
+        if var.multiplayer and var.multiplayer ~= 1 then
+            command.addOutput("{red}Error:{/red} Only the host can spawn the swarm", errorColor)
+            return
+        end
+        local x = tonumber(tokens[3]) or (player and player.body and player.body:getX() or 0)
+        local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() - 200 or 0)
+        swarmBoss.spawnAt(x, y)
+        command.addOutput(string.format("The Connectome spawned at %d, %d", x, y), outputColor)
     elseif sub == "gate" then
         bosses.gateOpen = true
         command.addOutput("The gate is open", outputColor)
@@ -356,6 +366,7 @@ local function bossCommand(tokens)
         if tokens[3] == "all" then
             boss.despawnAll()
             robotArm.despawnAll()
+            swarmBoss.despawnAll()
             command.addOutput("All bosses despawned", outputColor)
         else
             local id = tonumber(tokens[3])
@@ -381,7 +392,7 @@ local function bossCommand(tokens)
             command.addOutput("{red}Error:{/red} Invalid boss ID", errorColor)
         end
     else
-        command.addOutput("Usage: boss spawn [x] [y] | boss arm [x] [y] | boss gate | boss beat [region|all]"
+        command.addOutput("Usage: boss spawn [x] [y] | boss arm [x] [y] | boss swarm [x] [y] | boss gate | boss beat [region|all]"
             .. " | boss despawn <id|all> | boss list | boss damage <id> [amount]", outputColor)
     end
 end

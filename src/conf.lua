@@ -137,6 +137,9 @@ var.day_start = 8
 -- Play-testing: every trinket in the bag and equipped, at every start and
 -- load (game/trinkets.lua). Set false to find, buy and equip them as you go.
 var.equip_all_trinkets = true
+-- Armor (game/armor.lua): a starter set worn from the start, and a set of
+-- pieces to find in every region. False: nothing worn, nothing to find.
+var.player_armor = true
 -- Bosses (game/bosses.lua): the home gate sealed until its guardian's
 -- beaten, a boss in each region's lair, its stalls up once that's beaten.
 -- False: no bosses, the gate open and every stall up.

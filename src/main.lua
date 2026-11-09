@@ -20,7 +20,10 @@ vec4 = require("lib.math.vec4")
 enemy = require("game.enemy")
 boss = require("game.boss") -- the bear: the gate's guardian, and the Castle's
 robotArm = require("game.robotArm") -- Neon City's boss
+swarm = require("game.swarm") -- the Wasteland's flies (flywire-swarm)
+swarmBoss = require("game.swarmBoss") -- and the brain they're the body of
 bosses = require("game.bosses") -- the gate, the lairs, and how weapons reach bosses
+quests = require("game.quests") -- the way through the game, shown in the bag's panel
 portal = require("game.portal")
 regions = require("game.regions")
 destruction = require("game.destruction") -- structures shot to pieces and knocked down
@@ -45,6 +48,7 @@ daynight = require("systems.daynight")
 shop = require("game.shop")
 inventory = require("game.inventory") -- the bag, and items lying about
 trinkets = require("game.trinkets") -- what you wear, paying for what it does in light
+armor = require("game.armor") -- what you have on: slots, a starter set, a set to find in each region
 collision = require("util.collision")
 explosion = require("systems.explosion")
 suckLight = require("systems.suckLight")
@@ -195,6 +199,7 @@ function love.load()
     enemy.load()
     boss.load()
     robotArm.load()
+    swarmBoss.load()
 
     gun.load(world)
     bullet.load(world)
@@ -253,6 +258,7 @@ function love.load()
     shop.load()
     inventory.load()
     trinkets.load()
+    armor.load()
     collision.init()
     audio.loadSounds()
 
@@ -353,6 +359,7 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     end
     portal.update(dt)
     regions.update(dt) -- before the lighting upload: its lamps add lights
+    quests.update() -- where you've got to
     destruction.update(dt) -- after the physics step: what was knocked down in it comes down
     -- blur.update(dt)
     explosion.update(dt)
@@ -368,11 +375,13 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
         enemy.updateNetworked(dt) -- the host runs them; draw where it says
     end
     robotArm.update(dt) -- (the host's think; everyone's solve, and light the street)
+    swarmBoss.update(dt) -- (and its swarm)
 
     gun.update(dt)
     xp.update(dt)
     inventory.update(dt) -- items on the ground sliding into the bag
     trinkets.update(dt) -- before the lighting upload: the moth, rings of fire
+    armor.update(dt) -- what mends you
     suckLight.update(dt) -- before the lighting upload: its motes add lights
     light.update(dt) -- before the lighting upload: the flashlight's beam
     blackhole.addLights() -- its disk's glow on the ground

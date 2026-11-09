@@ -349,6 +349,8 @@ local function main()
     -- The play-testing loadout (every trinket equipped) would answer every
     -- shot and kill; runs start with an empty bag, as they always have
     var.equip_all_trinkets = false
+    -- and undressed: the baseline frames were taken before armor (game/armor.lua)
+    var.player_armor = false
     -- and without bosses: the gate open, every stall up, no boss in the
     -- neon street's frame (game/bosses.lua)
     var.region_bosses = false

@@ -22,6 +22,7 @@ function draw.mydraw()
     -- The HUD's minimap into its own canvas first, before the frame's other
     -- targets have anything on them to store
     minimap.render()
+    characterAnimator.renderWorn() -- and what the player's wearing, likewise
 
     if var.graphics_high then
         shader.prepass()

@@ -79,8 +79,11 @@ function Gun:shoot(mouseX, mouseY)
         return
     end
 
-    -- Use current aiming direction (already updated in Gun:update)
+    -- Along the aim as of now, the one the gun is drawn with this frame
+    -- (a shot comes before GunTool.update has refreshed it)
+    gun:updateAiming()
     local dir = self.lastAimDirection
+    dir.x, dir.y = gun.lastAimDirection.x, gun.lastAimDirection.y
 
     -- Get player position
     local playerX, playerY = player.getPosition()
@@ -324,7 +327,7 @@ function GunTool.drawHeldModel(weapon)
     local model = weapon.blockInstance
     if model then
         model:addToDrawList(dynamic_draw_list, playerX + aim.x * ringRadius, playerY + aim.y * ringRadius,
-            aim.x, aim.y, 160, 60, 60, nil, model.angleOffset)
+            aim.x, aim.y, 160, model.lineX, model.lineY)
         dynamic_draw_list[#dynamic_draw_list].source_object_type = "gun"
     end
 
@@ -332,18 +335,17 @@ function GunTool.drawHeldModel(weapon)
 end
 
 function Gun:drawBarrel()
-    -- Shots leave along the gun's own aim; keep it on the shared one
-    self.lastAimDirection.x = GunTool.lastAimDirection.x
-    self.lastAimDirection.y = GunTool.lastAimDirection.y
     GunTool.drawHeldModel(self)
 end
 
 -- A held weapon model: a 128px turntable sheet in the 16-wide block layout,
--- DXT5-compressed. angleOffset shifts which frame faces the aim (block.lua,
--- default 155).
-local function loadModel(path, angleOffset)
-    local model = block.new(path, 128, 128, 2, 450, 1)
-    model.angleOffset = angleOffset
+-- DXT5-compressed. (lineX, lineY) is the frame texel its barrel's line runs
+-- through at every heading, which is drawn on the shot's line. `turntable`
+-- is for sheets that don't turn a degree a frame (block:turntableFrame).
+local function loadModel(path, lineX, lineY, turntable)
+    local model = block.new(path, 128, 128, 2, 464, 1)
+    model.lineX, model.lineY = lineX, lineY
+    model.turntable = turntable
     return model
 end
 
@@ -354,18 +356,18 @@ function GunTool.load(world)
     blackholeGun.load()
 
     -- Held models, one per weapon. pistol/smg/shotgun/bow/tesla are rendered
-    -- by tools/weapon_models (aimed exactly; default angleOffset).
-    local pistolModel = loadModel("gfx/3d/pistol.dds")
-    local smgModel = loadModel("gfx/3d/smg.dds")
-    local shotgunModel = loadModel("gfx/3d/shotgun.dds")
-    local bowModel = loadModel("gfx/3d/bow.dds")
-    local teslaModel = loadModel("gfx/3d/tesla.dds")
-    local launcherModel = loadModel("gfx/3d/lauchergun.dds")
-    -- The rifle and the portal gun were modelled facing backwards: turn them
-    -- half a turn. The sheets turn about 0.86 degrees per frame, so that's
-    -- 210 frames.
-    local rifleModel = loadModel("gfx/3d/gun.dds", 155 + 210)
-    local portalModel = loadModel("gfx/3d/portalGun.dds", 155 + 210)
+    -- by tools/weapon_models (a degree a frame, the pivot at 60, 60, the
+    -- barrel above it by its height).
+    local pistolModel = loadModel("gfx/3d/pistol.dds", 60, 55)
+    local smgModel = loadModel("gfx/3d/smg.dds", 60, 56)
+    local shotgunModel = loadModel("gfx/3d/shotgun.dds", 60, 55.5)
+    local bowModel = loadModel("gfx/3d/bow.dds", 60, 60)
+    local teslaModel = loadModel("gfx/3d/tesla.dds", 60, 56)
+    -- The older sheets hold still for a few rows, then turn about 0.86
+    -- degrees a frame, each its own way round.
+    local launcherModel = loadModel("gfx/3d/lauchergun.dds", 64, 50, { first = 38, frames = 419, facing = 270 })
+    local rifleModel = loadModel("gfx/3d/gun.dds", 64, 58, { first = 34, frames = 420, facing = 90 })
+    local portalModel = loadModel("gfx/3d/portalGun.dds", 64, 65, { first = 31, frames = 419, facing = 90 })
 
     -- Create 5 weapon presets for number keys 1-5
     GunTool.guns[1] = Gun.new({ -- Pistol (1)
