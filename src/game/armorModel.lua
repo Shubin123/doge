@@ -1256,7 +1256,13 @@ local function pose(p)
     local nx, ny, nz = j("neck")
     local px, py, pz = j("pelvis")
     local ux, uy, uz = unit(nx - px, ny - py, nz - pz)
-    local f = { 0, -uz, uy, ux, uy, uz } -- the way she faces, then up her spine
+    -- The way she faces: square to her shoulders and up her spine (the rig
+    -- doesn't always have her facing +z: the shot's sheet is side-on)
+    local lx, ly, lz = j("shoulderL")
+    local rx, ry, rz = j("shoulderR")
+    lx, ly, lz = lx - rx, ly - ry, lz - rz
+    local fx, fy, fz = unit(ly * uz - lz * uy, lz * ux - lx * uz, lx * uy - ly * ux)
+    local f = { fx, fy, fz, ux, uy, uz } -- the way she faces, then up her spine
 
     local function chain(i, stretch, from, to)
         local ax, ay, az = j(from)

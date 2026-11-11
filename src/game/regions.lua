@@ -149,7 +149,7 @@ regions.list = {
         posts = { "round_tower", "round_tower_b", "banner_pillar" },
         flat = { "coins", "rune_carpet" },
         portalLights = { "brazier_b", "brazier_b" },
-        boss = "bear", -- guarding its lair (game/bosses.lua)
+        boss = "castellan", -- on guard at her lair, and her guard (game/castellan.lua)
         layout = {
             facades = { "blue_window", "cell_wall", "gothic_wall", "gate_wall", "great_gate", "dungeon_wall_a",
                 "dungeon_wall_b", "ruin_windows", "ruin_wall" },
@@ -233,6 +233,7 @@ regions.list = {
         posts = { "crystal_pillar_a", "crystal_pillar_b", "crystal_pillar_c", "crystal_pillar_d" },
         flat = { "scroll_a", "scroll_b", "book", "sun_emblem" },
         portalLights = { "lantern_b", "lantern_b" },
+        boss = "choir", -- Seraph, Ophan and Cherub, before the cathedral (game/choir.lua)
         layout = {
             facades = { "cathedral_a", "cathedral_b", "cathedral_c", "dome_a", "dome_b", "dome_c", "dome_d",
                 "chapel" },

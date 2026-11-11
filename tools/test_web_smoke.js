@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const path = require('path');
 const {execFileSync} = require('child_process');
 const puppeteer = require('puppeteer-core');
@@ -71,6 +72,13 @@ function chromePath() {
       return execFileSync('which', [command], {encoding: 'utf8'}).trim();
     } catch (_) {
       // Try the next common executable name.
+    }
+  }
+  // macOS keeps it in an app bundle, off the PATH
+  for (const app of ['Google Chrome.app/Contents/MacOS/Google Chrome', 'Chromium.app/Contents/MacOS/Chromium']) {
+    for (const dir of ['/Applications', path.join(os.homedir(), 'Applications')]) {
+      const file = path.join(dir, app);
+      if (fs.existsSync(file)) return file;
     }
   }
   throw new Error('Chrome/Chromium was not found. Set CHROME_PATH to its executable.');

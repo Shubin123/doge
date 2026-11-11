@@ -46,11 +46,38 @@ local sortKeys = {} -- depth key of each uploaded instance, in buffer order
 local sortKeyCount = 0
 local sortedDrawn = 0 -- instances of the sorted buffer already drawn this frame
 
+-- Animations played from another's frames, by character: `sheet`'s frames in
+-- an order of their own at `fps`, drawn `turn` columns round from the way the
+-- instance faces. The princess has no idle sheet, so hers is the settled
+-- stance at the end of her shot, breathing; that sheet is turned a quarter
+-- from her walk (its column 3 faces the camera). `default`: what the
+-- character starts in.
+local CLIPS = {
+    princess = {
+        idle = { sheet = "shoot", frames = { 11, 12, 13, 14, 15, 14, 13, 12 }, fps = 5, turn = 2, default = true },
+    },
+}
+
+-- The sheet column an instance is drawn from: the way it faces, turned for a clip
+local function columnOf(instance, directions)
+    local turn = instance.clip and instance.clip.turn or 0
+    return (instance.currentDirection - 1 + turn) % directions + 1
+end
+
 -- Define character types and their associated animation states
 -- This maps sprite sheet indices to character types and animation names
 local function defineCharacterTypes(metadata)
 
     characterDefinitions = metadata.characterDefinitions
+    for charType, clips in pairs(CLIPS) do
+        local def = characterDefinitions[charType]
+        if def then
+            def.clips = clips
+            for name, clip in pairs(clips) do
+                if clip.default and def.animations[clip.sheet] then def.defaultAnimation = name end
+            end
+        end
+    end
 
     print("Defined character types:")
     for charType, def in pairs(characterDefinitions) do
@@ -337,7 +364,9 @@ local function createInstance()
     instance.characterType = nil -- e.g., "watchman", "princess"
     instance.currentAnimation = nil -- e.g., "idle", "walk", "shoot"
     instance.currentSpriteIndex = 1 -- The actual sprite sheet index being used
-    instance.currentDirection = 1
+    instance.clip = nil -- the CLIPS entry it's playing, if it is one
+    instance.clipTime = 0
+    instance.currentDirection = 1 -- the way it faces (columnOf: the column drawn)
     instance.currentFrame = 1
     instance.timeAccumulator = 0
     instance.priority = 0
@@ -351,8 +380,18 @@ local function createInstance()
     instance.hitAt = nil  -- when it was last hit (fire.t), for the flash
     instance.marks = 0    -- damage marks on it (characterAnimator.mark)
 
-    function instance.update(dt)
+    -- `elapsed`: the time since its last update (dt is the frame's)
+    function instance.update(dt, elapsed)
         if not instance.currentSpriteIndex or instance.progressPinned then
+            return
+        end
+
+        local clip = instance.clip
+        if clip then
+            -- at its own pace, and anything may take over from it
+            instance.clipTime = instance.clipTime + (elapsed or dt)
+            instance.currentFrame = clip.frames[math.floor(instance.clipTime * clip.fps) % #clip.frames + 1]
+            instance.priority = 0
             return
         end
 
@@ -410,7 +449,8 @@ local function createInstance()
         end
 
         local charDef = characterDefinitions[instance.characterType]
-        local spriteIndex = charDef.animations[animationName]
+        local clip = charDef.clips and charDef.clips[animationName]
+        local spriteIndex = charDef.animations[clip and clip.sheet or animationName]
 
         if not spriteIndex then
             -- print("Warning: Animation '" .. animationName .. "' not found for character '" .. instance.characterType .. "'")
@@ -429,6 +469,11 @@ local function createInstance()
         instance.currentAnimation = animationName
         instance.currentSpriteIndex = spriteIndex
         instance.progressPinned = false
+        instance.clip = clip
+        if clip then
+            instance.clipTime = 0
+            instance.currentFrame = clip.frames[1]
+        end
         -- instance.currentFrame = 1
         --
         -- The frame index is deliberately NOT reset above, so a cycle carries
@@ -1117,7 +1162,7 @@ local function getUV(instance)
     local spriteType = spriteTypes[instance.currentSpriteIndex]
     local offset = frameOffsets[instance.currentSpriteIndex]
     local directions = spriteType.directions
-    local globalIndex = offset + (instance.currentFrame - 1) * directions + (instance.currentDirection - 1)
+    local globalIndex = offset + (instance.currentFrame - 1) * directions + (columnOf(instance, directions) - 1)
 
     local location = spriteLocationMap[globalIndex]
     if location then
@@ -1180,8 +1225,9 @@ end
 --- showing. Before the frame's other targets have anything on them to store.
 function characterAnimator.renderWorn()
     local player = instances[1]
-    local layer = player and player.currentAnimation
-        and armorModel.render(player.currentAnimation, player.currentFrame, player.currentDirection)
+    local state = player and player.currentAnimation and spriteTypes[player.currentSpriteIndex]
+    local layer = state and armorModel.render(player.clip and player.clip.sheet or player.currentAnimation,
+        player.currentFrame, columnOf(player, state.directions)) -- (a clip: the sheet's pose, as drawn)
     wornOn = layer ~= nil
     if layer then wornMesh:setTexture(layer) end
 end
@@ -1394,7 +1440,7 @@ function characterAnimator.testAnimationSwitching()
             print("Switched to animation: " .. animations[currentIndex])
         elseif instance.characterType == "princess" then
             -- Cycle through princess animations
-            local animations = {"walk", "run", "shoot", "jump", "roll"}
+            local animations = {"idle", "walk", "run", "shoot", "jump", "roll"}
             local currentIndex = 1
             for _, anim in ipairs(animations) do
                 if anim == instance.currentAnimation then
@@ -1417,7 +1463,7 @@ function characterAnimator.update(dt)
     characterAnimator.frameTime = characterAnimator.frameTime + dt
     if characterAnimator.frameTime > 1 / 24 then
         for i, instance in ipairs(instances) do
-            instance.update(dt)
+            instance.update(dt, characterAnimator.frameTime)
         end
         characterAnimator.frameTime = 0
     end

@@ -226,7 +226,7 @@ function player.update(dt)
     
     local linearScore = math.sqrt(newVX*newVX + newVY*newVY)
 player.currentAnimation = princess.getCurrentAnimation()
-princess.setDirection(player.getHeading(8, linearScore))
+princess.setDirection(player.getHeading(8, linearScore, inputX, inputY))
 local newAnimation
 
 -- player.linearDelta = linearScore - (player.linearDelta or 0)
@@ -237,7 +237,7 @@ if linearScore > 120 then
 elseif linearScore > 10 then
     newAnimation = "walk"
 else
-    newAnimation = "shoot"
+    newAnimation = gun.mousePressed and "shoot" or "idle" -- standing: firing, or at ease
 end
 
 -- Only set animation if it changed, to avoid resetting the animation
@@ -399,38 +399,55 @@ function player.getDirection()
     return direction
 end
 
-function player.getHeading(n,linearScore)
+-- Seconds a diagonal's last key can be held alone as you stop and still not
+-- turn her (the two keys of a diagonal never come up on the same frame)
+local LET_GO = 0.15
+
+local function sign(v)
+    return v > 0 and 1 or v < 0 and -1 or 0
+end
+
+-- Which way she faces, 1 to n: 1 toward the camera, then counter-clockwise on
+-- screen (the princess's sheet columns). It's the way the keys you hold point,
+-- not the way she's moving, so sliding along a wall or coasting doesn't turn
+-- her, and once you let go she keeps facing that way. A diagonal ends with
+-- its keys coming up one after the other: if the last one was held alone for
+-- less than LET_GO, she keeps the diagonal. Firing on the move shows her
+-- facing back the way she came (with the shot animation), but only for as
+-- long as it lasts.
+function player.getHeading(n, linearScore, inputX, inputY)
     if not n or type(n) ~= "number" or n < 1 then
         n = 8
     end
     n = math.floor(n)
-    
-    -- Get velocity directly without scaling
-    local dx, dy = player.body:getLinearVelocity()
-    
-    -- Only check if we're moving at all
-    if linearScore < 15 then
-        return player.lastHeading or 1 -- Keep last heading when barely moving
-    elseif gun.mousePressed then
+    local sx, sy = sign(inputX or 0), sign(inputY or 0)
+    local hx, hy = player.heldX or 0, player.heldY or 0 -- last frame's
+    local now = love.timer.getTime()
+
+    if sx ~= hx or sy ~= hy then
+        if hx ~= 0 and hy ~= 0 and ((sx == hx and sy == 0) or (sy == hy and sx == 0)) then
+            -- one key of a diagonal came up: remember the diagonal for a moment
+            player.diagonal, player.diagonalLeft = player.lastHeading, now
+        else
+            if sx == 0 and sy == 0 and player.diagonal and now - player.diagonalLeft < LET_GO then
+                player.lastHeading = player.diagonal -- the keys all came up: it was the diagonal
+            end
+            player.diagonal = nil
+        end
+        player.heldX, player.heldY = sx, sy
+    end
+    if sx ~= 0 or sy ~= 0 then
+        local angle_deg = math.deg(math.atan2(sx, sy)) % 360
+        local sector_size = 360 / n
+        player.lastHeading = math.floor((angle_deg + sector_size / 2) / sector_size) % n + 1
+    end
+
+    local heading = player.lastHeading or 1
+    if linearScore >= 15 and gun.mousePressed then
         princess.setAnimation("shoot",5)
-        dx, dy  = -dx, -dy 
+        heading = (heading - 1 + math.floor(n / 2)) % n + 1
     end
-    
-    -- Calculate angle directly from velocity
-    local angle = math.atan2(dx, dy)
-    
-    -- Convert to degrees and normalize
-    local angle_deg = math.deg(angle)
-    if angle_deg < 0 then
-        angle_deg = angle_deg + 360
-    end
-    
-    -- Map to direction
-    local sector_size = 360 / n
-    local direction = math.floor((angle_deg + sector_size / 2) / sector_size) % n + 1
-    
-    player.lastHeading = direction
-    return direction
+    return heading
 end
 
 return player

@@ -348,6 +348,18 @@ local function bossCommand(tokens)
         local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() - 200 or 0)
         swarmBoss.spawnAt(x, y)
         command.addOutput(string.format("The Connectome spawned at %d, %d", x, y), outputColor)
+    elseif sub == "castle" or sub == "choir" then
+        -- the Castle's Castellan (game/castellan.lua) or the Sanctum's Choir
+        -- (game/choir.lua), ahead of you; they wake when you're near
+        if var.multiplayer and var.multiplayer ~= 1 then
+            command.addOutput("{red}Error:{/red} Only the host can spawn the " .. sub, errorColor)
+            return
+        end
+        local x = tonumber(tokens[3]) or (player and player.body and player.body:getX() or 0)
+        local y = tonumber(tokens[4]) or (player and player.body and player.body:getY() - 200 or 0)
+        local M = sub == "castle" and castellan or choir
+        M.spawnAt(x, y)
+        command.addOutput(string.format("%s spawned at %d, %d", M.NAME, x, y), outputColor)
     elseif sub == "gate" then
         bosses.gateOpen = true
         command.addOutput("The gate is open", outputColor)
@@ -367,6 +379,8 @@ local function bossCommand(tokens)
             boss.despawnAll()
             robotArm.despawnAll()
             swarmBoss.despawnAll()
+            castellan.despawnAll()
+            choir.despawnAll()
             command.addOutput("All bosses despawned", outputColor)
         else
             local id = tonumber(tokens[3])
@@ -381,7 +395,8 @@ local function bossCommand(tokens)
         for _ in pairs(boss.bosses) do
             count = count + 1
         end
-        command.addOutput("Active bosses: " .. count .. " (and " .. #robotArm.arms .. " robot arms)", outputColor)
+        command.addOutput("Active bosses: " .. count .. " (and " .. #robotArm.arms .. " robot arms, "
+            .. #castellan.live .. " castellans, " .. (choir.live and 1 or 0) .. " choir)", outputColor)
     elseif sub == "damage" then
         local id = tonumber(tokens[3])
         local damage = tonumber(tokens[4]) or 100
@@ -392,7 +407,8 @@ local function bossCommand(tokens)
             command.addOutput("{red}Error:{/red} Invalid boss ID", errorColor)
         end
     else
-        command.addOutput("Usage: boss spawn [x] [y] | boss arm [x] [y] | boss swarm [x] [y] | boss gate | boss beat [region|all]"
+        command.addOutput("Usage: boss spawn [x] [y] | boss arm [x] [y] | boss swarm [x] [y] | boss castle [x] [y]"
+            .. " | boss choir [x] [y] | boss gate | boss beat [region|all]"
             .. " | boss despawn <id|all> | boss list | boss damage <id> [amount]", outputColor)
     end
 end
@@ -459,12 +475,16 @@ local function spawnCommand(tokens)
             enemy.addEnemy(math.random(100, var.screen_width), math.random(100, var.screen_height))
         end
         command.addOutput(string.format("Spawned %d enemies (was %d)", count, old), outputColor)
-    elseif tokens[2] == "coins" then
-        local count = tonumber(tokens[3]) or 50
-        var.num_coins = count
-        command.addOutput("Set XP glob count to " .. count .. " (restart to apply)", outputColor)
+    elseif tokens[2] == "gems" then
+        local count = tonumber(tokens[3]) or 10
+        local px, py = player.body:getPosition()
+        for _ = 1, count do
+            local a, r = math.random() * math.pi * 2, 110 + math.random() * 120
+            xp.drop(px + math.cos(a) * r, py + math.sin(a) * r)
+        end
+        command.addOutput("Dropped " .. count .. " XP gems around you", outputColor)
     else
-        command.addOutput("Usage: spawn enemies <count> | spawn coins <count> (XP globs)", outputColor)
+        command.addOutput("Usage: spawn enemies <count> | spawn gems <count> (XP)", outputColor)
     end
 end
 

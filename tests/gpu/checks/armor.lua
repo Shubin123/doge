@@ -352,15 +352,12 @@ return function(h)
     love.keypressed("q")
     check("Q on a worn piece doesn't drop it", armor.worn.shoulders == "quilted_mantle")
 
+    -- (the middle of a cell, as the panel lays them out on this screen)
     local u = skin.guiScale()
-    local sw, sh = love.graphics.getDimensions()
-    local pw, ph = inventory.COLS * 20 + 2 + 12 + 26, 22 + #armor.SLOTS * 20 + 2 + 42
-    local px, py = math.floor((sw / u - pw) / 2), math.floor(sh / u / 2 - ph / 2 - 20)
-    local function wornCell(k) return (px + 7 + 10) * u, (py + 21 + (k - 1) * 20 + 10) * u end
-    local function bagCell(i)
-        return (px + 7 + 26 + (i - 1) % inventory.COLS * 20 + 10) * u,
-            (py + 21 + math.floor((i - 1) / inventory.COLS) * 20 + 10) * u
-    end
+    local _, bagCells, wornCells = inventory.layout()
+    local function middle(c) return (c.x + c.w / 2) * u, (c.y + c.h / 2) * u end
+    local function wornCell(k) return middle(wornCells[k]) end
+    local function bagCell(i) return middle(bagCells[i]) end
     local x, y = wornCell(3)
     local took = inventory.mousepressed(x, y, 1)
     check("a click on a worn piece takes it off", took and armor.worn.chest == nil and inventory.count("padded_vest") == 1)

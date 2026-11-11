@@ -87,7 +87,7 @@ def main(argv=None) -> int:
 
     if args.dump_atlas_png:
         from PIL import Image
-        Image.fromarray(packed.image, mode="RGBA").save(args.dump_atlas_png)
+        Image.fromarray(packed.image).save(args.dump_atlas_png)  # (H x W x 4 uint8: RGBA)
         print(f"      wrote debug atlas PNG: {args.dump_atlas_png}")
 
     print("[3/4] BC3/DXT5 encoding ...")

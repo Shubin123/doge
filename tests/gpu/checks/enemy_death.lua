@@ -117,7 +117,9 @@ return function(h)
         return m
     end
 
-    -- Hide every instance but `target` (and its outline) for a measurement.
+    -- Hide every instance but `target` (and its outline, and the health gauge
+    -- the outline of anything hurt becomes: the death light is the sprite's
+    -- silhouette, not the ring round it) for a measurement.
     local function isolate(target)
         local saved = {}
         for _, inst in ipairs(gun_enemies) do
@@ -126,12 +128,13 @@ return function(h)
                 inst.on = false
             end
         end
-        local color = target.color
+        local color, health, hitAt = target.color, target.health, target.hitAt
         target.color = { 0, 0, 0, 0 }
+        target.health, target.hitAt = nil, nil
         characterAnimator.populate()
         return function()
             for inst, on in pairs(saved) do inst.on = on end
-            target.color = color
+            target.color, target.health, target.hitAt = color, health, hitAt
             characterAnimator.populate()
         end
     end

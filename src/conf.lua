@@ -19,7 +19,7 @@ var.prev_x = 0
 var.prev_y = 0
 var.linear_score = 0
 var.player_score = 0
-var.num_coins = 1000
+var.num_coins = 0 -- XP gems lying about: only kills leave them (game/xp.lua)
 var.coin_bods = {}
 -- Active AI enemies. Each is a dynamic physics body + behaviour tree updated
 -- every frame, so this is the single biggest CPU knob. 80 is a smooth default;

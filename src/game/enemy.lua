@@ -497,6 +497,7 @@ function Enemy:damageEnemy(damage, x, y, kind)
             -- Its light leaves the body and is drawn into the player, while the
             -- sprite fades out (enemy.update) and the enemy is then released.
             suckLight.spawn(self.body:getPosition())
+            xp.drop(self.body:getPosition()) -- it leaves a gem
             inventory.enemyDrop(self.body:getPosition()) -- now and then it leaves something
             trinkets.onKill(self.body:getPosition()) -- (the Leech Fang feeds)
             self.sprite = spriteOf(self)

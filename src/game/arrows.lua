@@ -85,8 +85,9 @@ local function checkArrowCollision(world, arrow)
         local body = fixture:getBody()
         local userData = body:getUserData()
         
-        -- Skip arrow colliders
-        if userData and userData.collision_group and userData.collision_group < 0 then
+        -- Skip arrow colliders, and XP gems on the ground
+        if (userData and userData.collision_group and userData.collision_group < 0)
+            or fixture:getGroupIndex() == collision.groups.coin then
             return 1
         end
         

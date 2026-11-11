@@ -17,14 +17,16 @@ local TITLES = {
     wasteland = "Free the Wasteland",
     castle = "Take back the Castle",
     neon = "Shut down Neon City",
-    sanctum = "Reach the Sanctum",
+    sanctum = "Silence the Sanctum",
 }
 
 -- What's asked of you at a lair, by the kind of boss (regions.list's `boss`)
 local FIGHTS = {
     swarm = "Kill the Connectome, the brain the flies answer to, at its lair up the main avenue",
     bear = "Beat the bear at its lair up the main avenue",
+    castellan = "Defeat the Castellan and her guard, before the keep up the main avenue",
     arm = "Wreck the Assembly Arm, bolted down at its lair up the main avenue",
+    choir = "Bring down the Choir up the main avenue: Seraph, Ophan and Cherub, all three at once",
 }
 
 quests.visited = {} -- region id -> you've been there

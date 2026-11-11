@@ -705,6 +705,15 @@ local function layout(uw, uh)
     return { x = x, y = y, w = w, h = h }, cells, worn, { x = x + bagW + 5, y = y, w = questW - 11, h = h - 40 }
 end
 
+--- Where the bag's panel is on this screen, in GUI units (skin.guiScale()
+--- to a unit): the panel, its bag cells by slot, its worn cells by
+--- armor.SLOTS and its quest log, each { x, y, w, h }
+function inventory.layout()
+    local u = skin.guiScale()
+    local sw, sh = love.graphics.getDimensions()
+    return layout(sw / u, sh / u)
+end
+
 local function toggle()
     inventory.open = not inventory.open
 end

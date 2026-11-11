@@ -7,10 +7,10 @@
       player closes on the horizon. In multiplayer the host works it out
       from every player and sends it with its snapshot; each side runs at
       the slower of that and its own.
-    * Pull: the player, enemies, XP globs and bullets in flight fall towards
+    * Pull: the player, enemies, XP gems and bullets in flight fall towards
       it, harder the closer they are (1/d^2). Within ~90 px walking can't
       get you out.
-    * Horizon: globs and enemies are swallowed (an enemy dies, its light
+    * Horizon: gems and enemies are swallowed (an enemy dies, its light
       streaming off as usual), bullets vanish, and the player takes damage
       while inside.
     * Look (blackhole.applyLensing, a screen-space pass over scene_canvas

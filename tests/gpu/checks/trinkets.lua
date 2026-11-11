@@ -93,8 +93,11 @@ return function(h)
     end
     wearOnly("mirror_ward")
     local hurt, spent, back, e = shotAt()
-    h.check("the Mirror Ward turns a shot back at them", hurt == 0 and spent == 4 and back > 0 and e.dead,
-        string.format("%d HP, %d light, %s", hurt, spent, e.dead and "the shooter's down" or "the shooter stands"))
+    -- (it goes back as a round of yours: a pistol's is a third of an enemy)
+    local hit = e.dead or e.health < e.max_health
+    h.check("the Mirror Ward turns a shot back at them", hurt == 0 and spent == 4 and back > 0 and hit,
+        string.format("%d HP, %d light, %s", hurt, spent, e.dead and "the shooter's down"
+            or string.format("the shooter's on %s of %s health", tostring(e.health), tostring(e.max_health))))
     h.capture("mirror_ward")
     hurt, spent = shotAt(2)
     h.check("without the light it can't, and the shot hurts", hurt > 0 and spent == 0,

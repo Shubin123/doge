@@ -18,8 +18,10 @@ camera = require("lib.graphics.camera")
 vec2 = require("lib.math.vec2")
 vec4 = require("lib.math.vec4")
 enemy = require("game.enemy")
-boss = require("game.boss") -- the bear: the gate's guardian, and the Castle's
+boss = require("game.boss") -- the bear: the gate's guardian
+castellan = require("game.castellan") -- the Castle's boss, and her guard
 robotArm = require("game.robotArm") -- Neon City's boss
+choir = require("game.choir") -- the Sanctum's: Seraph, Ophan and Cherub
 swarm = require("game.swarm") -- the Wasteland's flies (flywire-swarm)
 swarmBoss = require("game.swarmBoss") -- and the brain they're the body of
 bosses = require("game.bosses") -- the gate, the lairs, and how weapons reach bosses
@@ -42,7 +44,7 @@ moonshine = require("lib.graphics.moonshine")
 light = require("systems.light")
 wind = require("lib.graphics.wind")
 car = require("game.car")
-xp = require("game.xp") -- XP globs (the coin_bods)
+xp = require("game.xp") -- XP gems (the coin_bods)
 blackhole = require("game.blackhole")
 daynight = require("systems.daynight")
 shop = require("game.shop")
@@ -74,7 +76,7 @@ benchmark = require("util.benchmark")
 world = 0
 t = 0 -- Timer for network updates
 local fence_body, fence_shape, fence_fixture
-coin_bods = {} -- XP globs (game/xp.lua)
+coin_bods = {} -- XP gems (game/xp.lua)
 enemies_bods = {}
 local coin_shape, enemy_shape
 png_width, png_height, enemy_width, enemy_height = 0, 0, 0, 0
@@ -198,7 +200,9 @@ function love.load()
     player.load(world)
     enemy.load()
     boss.load()
+    castellan.load()
     robotArm.load()
+    choir.load()
     swarmBoss.load()
 
     gun.load(world)
@@ -212,14 +216,13 @@ function love.load()
     
     command.load()
     
-    -- XP globs and enemies
+    -- XP gems and enemies
 
     -- physics
 
     -- print(shape_sizes)
     if not var.multiplayer or var.multiplayer == 1 then
         coin_shape = love.physics.newCircleShape(5)
-        createCoins(var.num_coins)
 
         -- enemy_shape = love.physics.newCircleShape(10)
         -- createEnemies(var.num_enemies)
@@ -374,7 +377,9 @@ function love.update(dt) --assume online cannot pause right now. debugger still 
     else
         enemy.updateNetworked(dt) -- the host runs them; draw where it says
     end
+    castellan.update(dt) -- (the host's think, her guard's too; everyone's lights)
     robotArm.update(dt) -- (the host's think; everyone's solve, and light the street)
+    choir.update(dt) -- (the host's think and its rite; everyone's lights)
     swarmBoss.update(dt) -- (and its swarm)
 
     gun.update(dt)
@@ -662,13 +667,8 @@ function createCoin(x, y)
     table.insert(coin_bods, 1, _bod)
     local _fixture = love.physics.newFixture(_bod, coin_shape)
     _fixture:setGroupIndex(69)
+    _fixture:setSensor(true) -- it lies on the ground: shots and everyone else go through
     return _bod, _fixture
-end
-
-function createCoins(n)
-    for _ = 1, n do
-        createCoin(math.random(200, var.game_width + 200), math.random(50, var.game_height + 50))
-    end
 end
 
 -- function createEnemies(n)

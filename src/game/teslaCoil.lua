@@ -54,8 +54,9 @@ local function raycastToCollision(world, x1, y1, x2, y2)
         local body = fixture:getBody()
         local userData = body:getUserData()
         
-        -- Skip if it's a tesla coil collider (negative index)
-        if userData and userData.collision_group and userData.collision_group < 0 then
+        -- Skip if it's a tesla coil collider (negative index), or an XP gem on the ground
+        if (userData and userData.collision_group and userData.collision_group < 0)
+            or fixture:getGroupIndex() == collision.groups.coin then
             return 1 -- Continue raycast
         end
         

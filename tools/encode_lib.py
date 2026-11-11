@@ -61,7 +61,7 @@ def encode_rgba_to_dds_bytes(rgba: np.ndarray) -> bytes:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_png = Path(tmp) / "atlas.png"
         tmp_dds = Path(tmp) / "atlas.dds"
-        Image.fromarray(rgba, mode="RGBA").save(tmp_png)
+        Image.fromarray(rgba).save(tmp_png)  # (H x W x 4 uint8: RGBA)
 
         result = subprocess.run(
             [str(binary), str(tmp_png), str(tmp_dds)],

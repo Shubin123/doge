@@ -78,7 +78,7 @@ def test_output_atlas_decompresses_and_decodes(built):
     assert decoded[:, :, 3].max() > 0, "decoded atlas is entirely transparent — something is badly wrong"
 
 
-def test_metadata_loads_in_real_lua_and_is_self_consistent(built):
+def test_metadata_loads_in_real_lua_and_is_self_consistent(built, lua):
     lua_script = f"""
     local m = dofile({json.dumps(str(built['out_meta']))})
     local sum = 0
@@ -89,12 +89,12 @@ def test_metadata_loads_in_real_lua_and_is_self_consistent(built):
     assert(m.characterDefinitions.dancer.animations.hips ~= nil)
     print("OK", m.totalSprites, m.textureWidth, m.spritesPerRow)
     """
-    result = subprocess.run(["lua5.4", "-e", lua_script], capture_output=True, text=True)
+    result = subprocess.run([lua, "-e", lua_script], capture_output=True, text=True)
     assert result.returncode == 0, f"metadata failed real-Lua validation:\n{result.stdout}\n{result.stderr}"
     assert result.stdout.startswith("OK")
 
 
-def test_character_definition_indices_point_at_the_right_sprites(built):
+def test_character_definition_indices_point_at_the_right_sprites(built, lua):
     """The whole point of resolving characterDefinitions by path instead of
     hand-typed index: prove the resolved index actually lands on the
     sprite it's supposed to."""
@@ -103,7 +103,7 @@ def test_character_definition_indices_point_at_the_right_sprites(built):
     print(m.characterDefinitions.watchman.animations.idle)
     print(m.imageFiles[1])
     """
-    result = subprocess.run(["lua5.4", "-e", lua_script], capture_output=True, text=True, check=True)
+    result = subprocess.run([lua, "-e", lua_script], capture_output=True, text=True, check=True)
     idle_index, first_image = result.stdout.strip().splitlines()
     idle_index = int(idle_index)
 

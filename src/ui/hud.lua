@@ -1,7 +1,7 @@
 -- hud.lua
 -- Minecraft-style HUD: a hotbar of weapons and items along the bottom of the
 -- screen with pixel-art icons, hearts for health, a light bar for the universal
--- ammo every weapon spends (where Minecraft has hunger), and points on an XP bar.
+-- ammo every weapon but the fireball spends (where Minecraft has hunger), and points on an XP bar.
 -- Everything is laid out in GUI units (one icon pixel) and scaled up by a whole
 -- number so the pixel art stays crisp. A minimap (ui/minimap.lua) in the top
 -- left, the clock in the top right.

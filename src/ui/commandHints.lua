@@ -16,6 +16,9 @@ hints.commands = {
     { "boss", nil, "Boss tools (bare: spawn at you)", sub = {
         { "spawn", "[x] [y]", "Spawn a boss (default: at you)" },
         { "arm", "[x] [y]", "Spawn Neon City's robot arm (default: ahead of you)" },
+        { "swarm", "[x] [y]", "Spawn the Wasteland's Connectome and its flies (default: ahead of you)" },
+        { "castle", "[x] [y]", "Spawn the Castle's Castellan (default: ahead of you)" },
+        { "choir", "[x] [y]", "Spawn the Sanctum's Choir (default: ahead of you)" },
         { "gate", nil, "Open the home gate without its fight" },
         { "beat", "[region|all]", "Count a region's boss beaten (its stalls go up, the next region opens)" },
         { "despawn", "<id|all>", "Remove a boss, or all of them" },
@@ -38,7 +41,7 @@ hints.commands = {
     { "time", "[hour]", "Show the time, or set it (0-24, e.g. 19.5)" },
     { "spawn", nil, "Spawn things", sub = {
         { "enemies", "<count>", "Replace all enemies with <count>" },
-        { "coins", "<count>", "XP glob count, applied on restart" },
+        { "gems", "<count>", "Drop <count> XP gems around you" },
     } },
 }
 

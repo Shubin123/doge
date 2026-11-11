@@ -259,7 +259,7 @@ local function addNetworkedEntities()
     -- (Networked enemies are this side's own enemy sprites, placed by
     -- enemy.applyNetworkData / enemy.updateNetworked.)
 
-    -- Networked XP globs
+    -- Networked XP gems
     xp.populateNetworked(renderer.networked_state.coins)
 
     -- Networked fire effects
@@ -550,6 +550,8 @@ function renderer.populateDynamicDrawListNetworked()
     addNetworkedEntities()
     swarm.populate()
     swarmBoss.populate()
+    castellan.populate()
+    choir.populate()
 
     -- Add local player
     addPlayer(renderer.local_player_state.x, renderer.local_player_state.y,
@@ -597,7 +599,9 @@ function renderer.populateDynamicDrawList()
     fire.populate()
     enemy.populate()
     boss.populate()
+    castellan.populate()
     robotArm.populate()
+    choir.populate()
     swarm.populate()
     swarmBoss.populate()
     -- light.populate()
@@ -1060,6 +1064,12 @@ function renderer.renderSortedDrawList()
             swarm.drawPiece(drawable) -- (flies, heaps and wrecks: game/swarm.lua)
         elseif drawable.draw_type == "swarmBoss" then
             swarmBoss.drawPiece(drawable) -- (the Wasteland's brain: game/swarmBoss.lua)
+        elseif drawable.draw_type == "castellan" then
+            castellan.drawPiece(drawable) -- (the Castle's boss and her guard: game/castellan.lua)
+        elseif drawable.draw_type == "choir" then
+            choir.drawPiece(drawable) -- (the Sanctum's three: game/choir.lua)
+        elseif drawable.draw_type == "xpGem" then
+            xp.drawPiece(drawable) -- (a gem on the ground: game/xp.lua)
         -- elseif drawable.source_object_type == "character_animator" then
             -- love.graphics.setShader(characterAnimator.shader)
             -- -- love.graphics.setShader(shadow.getShader(false))

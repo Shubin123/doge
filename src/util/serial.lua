@@ -39,14 +39,13 @@ local function captureCoins()
     for _, body in ipairs(coin_bods) do
         if not body:isDestroyed() then
             local x, y = body:getPosition()
-            local vx, vy = body:getLinearVelocity()
             local fixture = body:getFixtures()[1]
             local data = fixture and fixture:getUserData()
             table.insert(coins, {
-                x = x, y = y, vx = vx, vy = vy,
-                -- Merged coins carry their grown size and summed value
-                size = type(data) == "table" and data.size or nil,
+                x = x, y = y,
+                -- What it's worth (merged ones carry the sum) and which stone it is
                 value = type(data) == "table" and data.value or nil,
+                cut = type(data) == "table" and data.cut or nil,
             })
         end
     end
@@ -63,10 +62,9 @@ local function restoreCoins(coins)
     -- createCoin inserts at the front, so go backwards to keep the order
     for i = #coins, 1, -1 do
         local c = coins[i]
-        local body, fixture = createCoin(c.x, c.y)
-        body:setLinearVelocity(c.vx or 0, c.vy or 0)
-        if c.size or c.value then
-            fixture:setUserData({ size = c.size, value = c.value })
+        local _, fixture = createCoin(c.x, c.y)
+        if c.value or c.cut then
+            fixture:setUserData({ value = c.value, cut = c.cut })
         end
     end
     var.num_coins = #coins
@@ -121,7 +119,7 @@ function serial.create()
             hour = daynight.hour,
         },
         map = map.createSaveData(),
-        coins = captureCoins(),
+        gems = captureCoins(),
         enemies = enemy.getSaveData(),
         bosses = boss.getSaveData(),
         lairs = bosses.getSaveData(), -- the gate, and which regions' bosses are beaten
@@ -149,7 +147,7 @@ function serial.apply(state)
     if state.map and not map.restore(state.map) then
         return false, "Failed to restore map data"
     end
-    if state.coins then restoreCoins(state.coins) end
+    restoreCoins(state.gems or {}) -- (a save's old `coins` were strewn about, not earned: left behind)
     if state.enemies then enemy.restore(state.enemies) end
     if state.bosses then boss.restore(state.bosses) end
     bosses.restore(state.lairs) -- (sealed, none beaten, for a save from before the gate)
@@ -338,7 +336,7 @@ function serial.getSaveInfo(filename)
         ammo = state.inventory and state.inventory.ammo,
         enemy_count = alive,
         boss_count = state.bosses and #state.bosses or 0,
-        coin_count = state.coins and #state.coins or 0,
+        coin_count = state.gems and #state.gems or 0,
         arch_count = map_data.arches and #map_data.arches or 0,
         tree_count = map_data.trees and #map_data.trees or 0,
         house_count = map_data.houses and #map_data.houses or 0,

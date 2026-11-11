@@ -239,23 +239,23 @@ function GunTool.addAmmo(amount)
     GunTool.ammo = math.min(GunTool.maxAmmo, GunTool.ammo + amount)
 end
 
--- Whether a hotbar entry can be used right now.
+-- Whether a hotbar entry can be used right now (one costing 0 needs no light).
 function GunTool.canFire(weapon)
     if weapon.getCount and weapon:getCount() <= 0 then
         return false
     end
+    if weapon.ammoCost == 0 then return true end
     return GunTool.ammo > 0 and GunTool.ammo >= (weapon.ammoCost or 0)
 end
 
 -- Fireballs as a hotbar item. The stack is fire.lua's ring of orbiting
--- fireballs (it regrows over time); each throw also costs light, like
--- every other weapon.
-local fireballItem = { ammoCost = 6 }
+-- fireballs (it regrows over time), and that's all a throw costs: no light.
+local fireballItem = { ammoCost = 0 }
 
--- Throw a fireball from the ring along `dir` (unit vec2), paying its light.
+-- Throw a fireball from the ring along `dir` (unit vec2).
 -- Used by the hotbar slot and the right-click quick throw.
 function GunTool.throwFireball(dir)
-    if player.inCar or fire.getAvailableCount() == 0 or not GunTool.useAmmo(fireballItem.ammoCost) then
+    if player.inCar or fire.getAvailableCount() == 0 then
         return false
     end
     return fire.throw(dir)

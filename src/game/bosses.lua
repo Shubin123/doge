@@ -19,11 +19,13 @@
   (bosses.getSaveData). With var.region_bosses off (the GPU harness) there
   are no lair bosses, the gate's open and every stall's up.
 
-  Kinds (KINDS): the bear (game/boss.lua), Neon City's robot arm
-  (game/robotArm.lua) and the Wasteland's Connectome (game/swarmBoss.lua, with
-  its flies, game/swarm.lua). Each has spawnAt(x, y, lair) -> inst,
-  despawnInst(inst, quiet) and alive(inst), and calls bosses.defeated(lair,
-  x, y) when one dies.
+  Kinds (KINDS): the bear (game/boss.lua, the gate's), the Wasteland's
+  Connectome (game/swarmBoss.lua, with its flies, game/swarm.lua), the
+  Castle's Castellan (game/castellan.lua, with her guard), Neon City's robot
+  arm (game/robotArm.lua) and the Sanctum's Choir (game/choir.lua: three that
+  rise again unless they fall together). Each has spawnAt(x, y, lair) ->
+  inst, despawnInst(inst, quiet) and alive(inst), and calls
+  bosses.defeated(lair, x, y) when one dies.
 
   Hits: each boss body's fixture carries a part, { type = "boss", boss =
   inst, body, radius, weak, hit = fn(inst, damage, x, y, kind) }, registered
@@ -35,7 +37,8 @@
 ]]
 local bosses = {}
 
-local KINDS = { bear = "game.boss", arm = "game.robotArm", swarm = "game.swarmBoss" }
+local KINDS = { bear = "game.boss", arm = "game.robotArm", swarm = "game.swarmBoss",
+    castellan = "game.castellan", choir = "game.choir" }
 local GATE = "gate"       -- the lair id of the gate's guardian
 local GATE_BOSS = "bear"
 local HUD_RANGE = 900     -- px: the nearest live boss this close shows its bar over the HUD
@@ -212,9 +215,11 @@ end
 -- Lairs
 --------------------------------------------------------------------------------
 
+local BOSS_GEM = 30 -- XP in each of the six gems a boss leaves
+
 --- A boss died at (x, y), out of lair `lair` (a region's id, GATE, or nil
---- for one from the console). What it leaves: its light, a trinket you
---- haven't got (or a medkit) and a medkit.
+--- for one from the console). What it leaves: its light, a ring of XP gems,
+--- a trinket you haven't got (or a medkit) and a medkit.
 function bosses.defeated(lair, x, y)
     if lair == GATE then
         bosses.gateOpen = true
@@ -232,6 +237,7 @@ function bosses.defeated(lair, x, y)
     for i = 1, 6 do
         local a = i / 6 * math.pi * 2
         suckLight.spawn(x + math.cos(a) * 24, y + math.sin(a) * 16)
+        xp.drop(x + math.cos(a) * 44, y + math.sin(a) * 30, BOSS_GEM)
     end
     local id = trinkets.unowned(love.math.newRandomGenerator(math.floor(x + y * 7) % 100000 + 1))
     inventory.place(id or "medkit", 1, x - 18, y + 10)
@@ -282,6 +288,12 @@ local function each(fn)
     end)
     swarmBoss.eachLive(function(a)
         fn(swarmBoss.NAME .. " x" .. a.adults, a.health, a.max_health, a.x, a.y)
+    end)
+    castellan.eachLive(function(a)
+        fn(castellan.NAME, a.health, a.max_health, a.x, a.y)
+    end)
+    choir.eachLive(function(m) -- (each of the three standing: the nearest one's shown)
+        fn(choir.NAME .. ": " .. m.def.name, m.health, m.max_health, m.x, m.y)
     end)
 end
 
@@ -338,6 +350,8 @@ function bosses.restore(data)
     end
     robotArm.despawnAll() -- (and any from the console)
     swarmBoss.despawnAll()
+    castellan.despawnAll()
+    choir.despawnAll()
     bosses.beaten = {}
     for _, id in ipairs(data and data.beaten or {}) do bosses.beaten[id] = true end
     bosses.gateOpen = data and data.gate == true or false

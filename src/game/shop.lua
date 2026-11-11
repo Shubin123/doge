@@ -18,7 +18,7 @@
     * Besides its stock a shop can put out a few trinkets you haven't got
       (its shelf), new each morning.
 
-  What's sold costs XP (var.player_score, the globs you've picked up) and
+  What's sold costs XP (var.player_score, the gems you've picked up) and
   goes in your bag (game/inventory.lua), trinkets equipped, but for
   fireballs, which go straight onto the hotbar. Saves keep the shelves.
 ]]

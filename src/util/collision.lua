@@ -193,6 +193,7 @@ function collision.init()
                     local coinValue = 1
                     if coinUserData and coinUserData.value then
                         coinValue = coinUserData.value
+                        coinUserData.taken = true
                     end
                     var.player_score = var.player_score + coinValue
                     var.num_coins = var.num_coins - 1
@@ -219,46 +220,30 @@ function collision.init()
         -- Initialize coin data if not present
         if not userDataA.value then userDataA.value = 1 end
         if not userDataB.value then userDataB.value = 1 end
-        if not userDataA.size then userDataA.size = 0.5 end
-        if not userDataB.size then userDataB.size = 0.5 end
 
-        -- Determine which coin absorbs which (larger absorbs smaller, or first one if equal)
-        local absorber, absorbed
-        local absorberFixture, absorbedFixture
+        -- (gone already this step: bodies die after it, and drops land overlapping)
+        if userDataA.taken or userDataB.taken then return end
+
+        -- Determine which coin absorbs which (the one worth more, or first one if equal)
+        local absorbed
+        local absorberFixture
         local absorberData, absorbedData
 
-        if userDataA.size > userDataB.size then
-            absorber = bodyA
-            absorbed = bodyB
-            absorberFixture = fixtureA
-            absorbedFixture = fixtureB
-            absorberData = userDataA
-            absorbedData = userDataB
-        elseif userDataB.size > userDataA.size then
-            absorber = bodyB
+        if userDataB.value > userDataA.value then
             absorbed = bodyA
             absorberFixture = fixtureB
-            absorbedFixture = fixtureA
             absorberData = userDataB
             absorbedData = userDataA
         else
-            -- Equal size - first coin (A) absorbs second coin (B)
-            absorber = bodyA
             absorbed = bodyB
             absorberFixture = fixtureA
-            absorbedFixture = fixtureB
             absorberData = userDataA
             absorbedData = userDataB
         end
 
-        -- Calculate new properties for absorbing coin
-        local growthFactor = 0.1 -- How much the coin grows per absorption
-        local newSize = absorberData.size + (absorbedData.size * growthFactor)
-        local newValue = absorberData.value + absorbedData.value
-
-        -- Update absorber coin properties
-        absorberData.size = newSize
-        absorberData.value = newValue
+        -- The absorber carries both values (its worth sets its size: game/xp.lua)
+        absorberData.value = absorberData.value + absorbedData.value
+        absorbedData.taken = true
         absorberFixture:setUserData(absorberData)
 
         -- Scale the absorber coin's visual size (if you have a scaling system)
@@ -276,9 +261,6 @@ function collision.init()
         --     audio.playSound("coin", 0.05, pitch)
         -- end
 
-        local ax, ay = absorber:getPosition()
-        local bx, by = absorbed:getPosition()
-
         -- Remove absorbed coin
         for i = 1, #coin_bods do
             if coin_bods[i] == absorbed then
@@ -295,10 +277,6 @@ function collision.init()
 
             -- end
         end
-
-        -- Apply slight attraction force to absorber towards absorbed coin position
-        local direction = { x = (bx - ax) * 0.1, y = (by - ay) * 0.1 }
-        absorber:applyLinearImpulse(direction.x, direction.y)
     end)
 
     -- Projectile vs Enemy: Damage enemy and destroy projectile (specific to bullets)

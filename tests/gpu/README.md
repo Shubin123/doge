@@ -42,7 +42,8 @@ python3 tests/gpu/run.py --checks --only settings   # just checks/settings.lua
 `--checks` plays each script in `checks/` against the working tree alone,
 with no baseline, pixel diff or timing. Each script asserts things about the
 running game with `h.check(name, ok, detail)`. The run fails if any check
-fails or a script crashes.
+fails or a script crashes. A crashed script is reported with its log tail,
+and the scripts after it still run; the run then exits 2.
 
 `checks/enemy_death.lua` covers enemy sprites and the death light. It runs
 through zoom changes, screen shake, and with the player far from the world
@@ -146,3 +147,10 @@ that made the change.
   of VRAM. It also made the median frame about 1.3 ms slower, because each
   chain then has to wait for the previous one to finish with the shared
   canvases. The timing check caught it, and the change was dropped.
+- **A boss's guard stuck in its first attack.** `checks/bosses.lua` fights
+  the Castellan and the Choir through every move. Its first run found the
+  Castellan's archers never loosing an arrow: the step a guard began an
+  attack, the line after set its animation back to standing idle, which
+  loops and never ends, so the attack never landed and never finished. It
+  also covers the crash this check was written after: the Choir's ward beam
+  built its line one coordinate short and `love.graphics.line` refused it.

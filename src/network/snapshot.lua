@@ -81,6 +81,8 @@ function snapshot.create()
         end
         full_game_state.arms = robotArm.getNetworkData() -- Neon City's boss
         full_game_state.swarmBoss = swarmBoss.getNetworkData() -- the Wasteland's, and its flies
+        full_game_state.castellan = castellan.getNetworkData() -- the Castle's, and her guard
+        full_game_state.choir = choir.getNetworkData() -- the Sanctum's three
         full_game_state.lairs = bosses.getNetworkData() -- the gate, and what's beaten (the stalls)
         
         -- Collect car data from host
@@ -393,6 +395,8 @@ function snapshot.apply(game_state)
         end
         robotArm.applyNetworkData(last_full_game_state.arms)
         swarmBoss.applyNetworkData(last_full_game_state.swarmBoss)
+        castellan.applyNetworkData(last_full_game_state.castellan)
+        choir.applyNetworkData(last_full_game_state.choir)
         bosses.applyNetworkData(last_full_game_state.lairs)
         
         if last_full_game_state.coins then

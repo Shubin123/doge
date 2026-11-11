@@ -96,9 +96,9 @@ def test_matches_slow_python_transliteration(spec):
     "uniform_dim,sprite_dim",
     [(128, 128), (128, 64), (128, 37), (64, 100), (128, 1), (32, 128)],
 )
-def test_index_math_matches_real_lua(uniform_dim, sprite_dim):
+def test_index_math_matches_real_lua(uniform_dim, sprite_dim, lua):
     lua_out = subprocess.run(
-        ["lua5.4", str(LUA_REF / "index_map.lua"), str(uniform_dim), str(sprite_dim)],
+        [lua, str(LUA_REF / "index_map.lua"), str(uniform_dim), str(sprite_dim)],
         capture_output=True, text=True, check=True,
     ).stdout.strip().splitlines()
     lua_indices = [int(v) for v in lua_out]

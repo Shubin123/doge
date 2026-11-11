@@ -91,10 +91,10 @@ def test_dilate_option_only_touches_transparent_padding():
     assert not np.array_equal(plain.image[~visible], dilated.image[~visible])
 
 
-def test_uv_math_matches_real_lua(packed):
+def test_uv_math_matches_real_lua(packed, lua):
     lua_out = subprocess.run(
         [
-            "lua5.4", str(LUA_REF / "uv_map.lua"),
+            lua, str(LUA_REF / "uv_map.lua"),
             str(packed.sprites_per_row), str(packed.uniform_width), str(packed.uniform_height),
             str(packed.texture_width), str(packed.texture_height), str(packed.total_sprites),
         ],

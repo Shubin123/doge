@@ -1,7 +1,7 @@
 --[[
   Trinkets: small things you wear that work on their own, each paying for
   what it does from your light (gun.ammo, the HUD's light bar, the same light
-  every weapon spends). Without the light it does nothing, and the light bar
+  every weapon but the fireball spends). Without the light it does nothing, and the light bar
   flashes red.
 
     Mirror Ward      a force field round you: an enemy's shot that reaches

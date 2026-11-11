@@ -304,6 +304,7 @@ def run_checks(love, out, args, say):
     game = out / "game-candidate"
     build_game_dir(game, None)
     report = {"status": "pass", "checks": [], "failures": []}
+    crashed = []
     for script in sorted((HERE / "checks").glob("*.lua")):
         name = script.stem
         if args.only and name not in args.only:
@@ -312,8 +313,12 @@ def run_checks(love, out, args, say):
         r = run_love(love, game, out / ("checks-" + name), "checks-" + name, args,
                      extra_env={"DOGE_GPU_SCENARIO": str(script), "DOGE_GPU_PERF_FRAMES": "0"})
         if not r.get("ok"):
-            return finish({"status": "error", "error": "%s did not finish: %s" % (name, r.get("error")),
-                           "log_tail": r.get("log_tail")}, out, args, say)
+            # A crash ends the run in an error, but only once the scripts
+            # after it have had their turn, so one crash doesn't hide the rest
+            crashed.append("%s did not finish: %s" % (name, r.get("error")))
+            if not args.json and r.get("log_tail"):
+                say(r["log_tail"])
+            continue
         if not r.get("checks"):
             report["failures"].append("%s: reported no checks" % name)
         for c in r.get("checks", []):
@@ -323,6 +328,8 @@ def run_checks(love, out, args, say):
                 report["failures"].append("%s: %s%s" % (name, c["name"],
                                           (" -- " + c["detail"]) if c.get("detail") else ""))
     report["status"] = "fail" if report["failures"] else "pass"
+    if crashed:
+        report["status"], report["error"] = "error", "; ".join(crashed)
     if not args.json:
         for c in report["checks"]:
             say("  %-4s %s: %s" % ("ok" if c["ok"] else "FAIL", c["script"], c["name"]))
