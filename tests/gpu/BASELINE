@@ -1,5 +1,6 @@
 # Revision tests/gpu/run.py compares the working tree against by default.
-# Pinned to the last commit before the GPU pass reductions, so they stay
-# proven bit-identical to it. Bump this only for an intentional visual change,
-# after checking the diff-*.png heatmaps.
-3407a8977368141855e6e65757dc7c89a9058cbf
+# Pinned to the Castle and Sanctum bosses' commit: the previous pin (3407a89,
+# from before the GPU pass reductions) was 80 commits of intended visual
+# changes behind and failed every frame. Bump this only for an intentional
+# visual change, after checking the diff-*.png heatmaps.
+be24f1788177dde421620464ddf84c2687415b2b
